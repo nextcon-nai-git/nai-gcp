@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server';
 import { initializeFirebase } from '@/firebase/init';
 import { doc, getDoc } from 'firebase/firestore';
-import { optionsCorsResponse, rejectIfCorsDenied, resolveCorsHeaders } from '@/lib/api-security';
 
 /**
  * @fileOverview API Pública para o Widget da NAI.
  * Expõe o roteiro de vendas para consumo externo (Site Nextcon Saúde).
  */
 
-export async function GET(request: Request) {
-  const deniedResponse = rejectIfCorsDenied(request, 'GET, OPTIONS');
-  if (deniedResponse) return deniedResponse;
-  const cors = resolveCorsHeaders(request, 'GET, OPTIONS');
+export async function GET() {
+  const cors = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
 
   try {
     const { firestore } = initializeFirebase();
@@ -51,6 +52,13 @@ export async function GET(request: Request) {
 }
 
 // Handler para pre-flight requests do CORS
-export async function OPTIONS(request: Request) {
-  return optionsCorsResponse(request, 'GET, OPTIONS');
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  });
 }

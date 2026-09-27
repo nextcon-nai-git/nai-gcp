@@ -112,7 +112,7 @@ export async function agendarConsultaMeet(data: {
     console.error("Erro fatal na integração de telemedicina:", message);
     return {
       sucesso: false,
-      mensagem: message || "Erro interno ao processar agendamento. Verifique os logs do servidor."
+      mensagem: "Erro interno ao processar agendamento. Verifique os logs do servidor."
     };
   }
 }

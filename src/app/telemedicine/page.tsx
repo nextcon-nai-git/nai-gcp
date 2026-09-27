@@ -53,10 +53,12 @@ export default function TelemedicinePage() {
   const appointmentsQuery = useMemoFirebase(() => {
     if (!db) return null
     const normalizedRole = (role || '').toUpperCase();
+    const privilegedRoles = ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS', 'ENGINEER', 'DOCTOR', 'PROVIDER'];
+    const hasGlobalView = privilegedRoles.includes(normalizedRole) && !companyId;
     const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'].includes(normalizedRole);
-    if (!isGlobalAdmin && !companyId) return null;
+    if (!hasGlobalView && !isGlobalAdmin && !companyId) return null;
 
-    if (!isGlobalAdmin) {
+    if (!hasGlobalView && !isGlobalAdmin) {
       return query(
         collection(db, "agendamentos_telemedicina"),
         where("companyId", "==", companyId),
