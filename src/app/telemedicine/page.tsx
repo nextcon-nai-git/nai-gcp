@@ -30,12 +30,13 @@ import {
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, limit } from "firebase/firestore"
+import { collection, query, orderBy, limit, where } from "firebase/firestore"
 import { agendarConsultaMeet } from "@/actions/telemedicine"
 import { cn } from "@/lib/utils"
 
 export default function TelemedicinePage() {
   const { toast } = useToast()
+  const { companyId, role } = useUser()
   const db = useFirestore()
   const [isBookingOpen, setIsBookingOpen] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
@@ -51,14 +52,31 @@ export default function TelemedicinePage() {
 
   const appointmentsQuery = useMemoFirebase(() => {
     if (!db) return null
+    const normalizedRole = (role || '').toUpperCase();
+    const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'].includes(normalizedRole);
+    if (!isGlobalAdmin && !companyId) return null;
+
+    if (!isGlobalAdmin) {
+      return query(
+        collection(db, "agendamentos_telemedicina"),
+        where("companyId", "==", companyId),
+        orderBy("inicio", "desc"),
+        limit(50)
+      )
+    }
+
     return query(collection(db, "agendamentos_telemedicina"), orderBy("inicio", "desc"), limit(50))
-  }, [db])
+  }, [db, companyId, role])
 
   const { data: appointments, isLoading } = useCollection(appointmentsQuery)
 
   async function handleBook() {
     if (!formData.pacienteEmail || !formData.data || !formData.hora) {
       toast({ variant: "destructive", title: "Dados Incompletos", description: "Preencha todos os campos obrigatórios." })
+      return
+    }
+    if (!companyId) {
+      toast({ variant: "destructive", title: "Sem vínculo de unidade", description: "Seu usuário não possui companyId para agendamento." })
       return
     }
 
@@ -76,6 +94,7 @@ export default function TelemedicinePage() {
       const result = await agendarConsultaMeet({
         pacienteEmail: formData.pacienteEmail,
         medicoEmail: formData.medicoEmail,
+        companyId,
         dataHoraInicio: inicio,
         dataHoraFim: fim,
         tituloConsulta: formData.titulo

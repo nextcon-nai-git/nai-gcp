@@ -9,19 +9,22 @@
 import { google } from 'googleapis';
 import { initializeFirebase } from '@/firebase/init';
 import { collection, addDoc, Timestamp } from 'firebase/firestore';
-import * as fs from 'fs';
-import * as path from 'path';
 
 export async function agendarConsultaMeet(data: {
   pacienteEmail: string;
   medicoEmail: string;
   dataHoraInicio: string;
   dataHoraFim: string;
+  companyId: string;
   tituloConsulta?: string;
 }) {
-  const { pacienteEmail, medicoEmail, dataHoraInicio, dataHoraFim, tituloConsulta } = data;
+  const { pacienteEmail, medicoEmail, dataHoraInicio, dataHoraFim, companyId, tituloConsulta } = data;
 
   try {
+    if (!companyId) {
+      throw new Error("companyId é obrigatório para agendamento.");
+    }
+
     const { firestore } = initializeFirebase();
     let auth;
     let isMockMode = false;
@@ -37,24 +40,8 @@ export async function agendarConsultaMeet(data: {
           scopes: ["https://www.googleapis.com/auth/calendar.events"],
         });
         console.log("NAI Telemedicine: Usando credenciais via Variável de Ambiente.");
-      } catch (parseError) {
+      } catch {
         console.error("NAI Telemedicine: Variável GOOGLE_SERVICE_ACCOUNT_JSON inválida.");
-      }
-    }
-
-    // Tentativa via arquivos físicos se não houver variável de ambiente
-    if (!auth) {
-      const possibleFiles = ['google-service-account.json', 'account.json'];
-      for (const fileName of possibleFiles) {
-        const filePath = path.join(process.cwd(), fileName);
-        if (fs.existsSync(filePath)) {
-          auth = new google.auth.GoogleAuth({
-            keyFile: filePath,
-            scopes: ["https://www.googleapis.com/auth/calendar.events"],
-          });
-          console.log(`NAI Telemedicine: Usando credenciais via arquivo ${fileName}.`);
-          break;
-        }
       }
     }
 
@@ -85,8 +72,9 @@ export async function agendarConsultaMeet(data: {
         });
 
         linkDoMeet = responseGoogle.data.hangoutLink || "";
-      } catch (apiError: any) {
-        console.warn("NAI Telemedicine: Google API falhou, ativando modo simulação.", apiError.message);
+      } catch (apiError: unknown) {
+        const message = apiError instanceof Error ? apiError.message : "Erro desconhecido";
+        console.warn("NAI Telemedicine: Google API falhou, ativando modo simulação.", message);
         isMockMode = true;
       }
     } else {
@@ -103,6 +91,7 @@ export async function agendarConsultaMeet(data: {
     const docRef = await addDoc(collection(firestore, "agendamentos_telemedicina"), {
       paciente_email: pacienteEmail,
       medico_email: medicoEmail,
+      companyId,
       inicio: Timestamp.fromDate(new Date(dataHoraInicio)),
       fim: Timestamp.fromDate(new Date(dataHoraFim)),
       link_meet: linkDoMeet,
@@ -118,11 +107,12 @@ export async function agendarConsultaMeet(data: {
       simulado: isMockMode
     };
 
-  } catch (error: any) {
-    console.error("Erro fatal na integração de telemedicina:", error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Erro interno";
+    console.error("Erro fatal na integração de telemedicina:", message);
     return {
       sucesso: false,
-      mensagem: "Erro interno ao processar agendamento. Verifique os logs do servidor."
+      mensagem: message || "Erro interno ao processar agendamento. Verifique os logs do servidor."
     };
   }
 }

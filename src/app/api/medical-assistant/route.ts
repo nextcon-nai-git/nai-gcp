@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ai } from '@/ai/genkit';
 import { consultarCIDTool, buscarHistoricoPacienteTool } from '@/ai/flows/medical-assistant-flow';
+import { optionsCorsResponse, rejectIfCorsDenied, requireAuthFromBearer, resolveCorsHeaders } from '@/lib/api-security';
 
 /**
  * @fileOverview API de Streaming para o Assistente Médico NAI.
@@ -8,6 +9,18 @@ import { consultarCIDTool, buscarHistoricoPacienteTool } from '@/ai/flows/medica
  */
 
 export async function POST(request: NextRequest) {
+  const deniedResponse = rejectIfCorsDenied(request, 'POST, OPTIONS');
+  if (deniedResponse) return deniedResponse;
+  const cors = resolveCorsHeaders(request, 'POST, OPTIONS');
+
+  const auth = await requireAuthFromBearer(request);
+  if (!auth) {
+    return NextResponse.json(
+      { sucesso: false, mensagem: 'Não autenticado.' },
+      { status: 401, headers: cors.headers }
+    );
+  }
+
   try {
     const body = await request.json();
 
@@ -53,26 +66,18 @@ export async function POST(request: NextRequest) {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-cache, no-transform",
         "Transfer-Encoding": "chunked",
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        ...cors.headers,
       },
     });
 
-  } catch (error: any) {
-    console.error("Erro no Agente Médico NAI (Stream):", error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Erro interno";
+    console.error("Erro no Agente Médico NAI (Stream):", message);
     return new Response("Erro interno no processamento do agente neural.", { status: 500 });
   }
 }
 
 // Handler para pre-flight requests do CORS
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
+export async function OPTIONS(request: NextRequest) {
+  return optionsCorsResponse(request, 'POST, OPTIONS');
 }

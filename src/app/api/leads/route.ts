@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { initializeFirebase } from '@/firebase/init';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc } from 'firebase/firestore';
+import { optionsCorsResponse, rejectIfCorsDenied, resolveCorsHeaders } from '@/lib/api-security';
 
 /**
  * @fileOverview API Pública para Captura de Leads (Site -> Kanban).
@@ -8,6 +9,10 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
  */
 
 export async function POST(request: Request) {
+  const deniedResponse = rejectIfCorsDenied(request, 'POST, OPTIONS');
+  if (deniedResponse) return deniedResponse;
+  const cors = resolveCorsHeaders(request, 'POST, OPTIONS');
+
   try {
     const body = await request.json();
     const { nome, empresa, email, telefone, interesse } = body;
@@ -18,11 +23,7 @@ export async function POST(request: Request) {
         { sucesso: false, mensagem: "Nome, Email e Empresa são campos obrigatórios." },
         { 
           status: 400,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
-          }
+          headers: cors.headers
         }
       );
     }
@@ -66,11 +67,7 @@ export async function POST(request: Request) {
       },
       {
         status: 200,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        }
+        headers: cors.headers
       }
     );
 
@@ -84,13 +81,6 @@ export async function POST(request: Request) {
 }
 
 // Handler para pre-flight requests do CORS (Necessário para requisições cross-domain do site)
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
+export async function OPTIONS(request: Request) {
+  return optionsCorsResponse(request, 'POST, OPTIONS');
 }

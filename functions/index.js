@@ -49,9 +49,12 @@ export const syncUserClaims = onDocumentWritten("users/{userId}", async (event) 
     return;
   }
 
-  const userData = snapshot.data();
-  const userRole = userData.role || 'USER'; 
-  const userCompanyId = userData.companyId || null;
+  const userData = snapshot.data() || {};
+  const allowedRoles = new Set(['USER', 'SUPER_ADMIN', 'ADMIN', 'CLIENT_ADMIN', 'DOCTOR', 'HEALTH_PROFESSIONAL', 'PROVIDER', 'ENGINEER', 'OPERATIONS']);
+  const userRole = allowedRoles.has(userData.role) ? userData.role : 'USER';
+  const userCompanyId = typeof userData.companyId === 'string' && userData.companyId.trim().length > 0
+    ? userData.companyId.trim()
+    : null;
 
   const claims = {
     role: userRole,

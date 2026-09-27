@@ -6,7 +6,7 @@ import { Lock, Loader2, ShieldAlert, Globe, Zap, Tv, Smartphone } from 'lucide-r
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth, useFirestore } from '@/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithCustomToken } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInWithCustomToken, signInAnonymously } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { QRCodeSVG } from 'qrcode.react';
@@ -26,33 +26,49 @@ export default function LoginPage() {
 
   React.useEffect(() => {
     if (loginMode === 'tv') {
-      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-      setTvCode(code);
-      
-      const sessionRef = doc(db, 'tv_auth_sessions', code);
-      
-      setDoc(sessionRef, {
-        status: 'pending',
-        createdAt: serverTimestamp()
-      }).catch(console.error);
+      let unsubscribe: (() => void) | null = null;
 
-      const unsubscribe = onSnapshot(sessionRef, async (snap) => {
-        const data = snap.data();
-        if (data && data.status === 'authenticated' && data.customToken) {
-          setLoading(true);
-          try {
-            await signInWithCustomToken(auth, data.customToken);
-            toast({ title: "TV Autorizada!", description: "Acesso via QR Code realizado com sucesso." });
-            router.push('/');
-          } catch (err: any) {
-            console.error("Erro no signInWithCustomToken", err);
-            toast({ variant: 'destructive', title: "Falha na autorização da TV" });
-            setLoading(false);
-          }
+      const setupTvSession = async () => {
+        if (!auth.currentUser) {
+          await signInAnonymously(auth);
         }
+
+        const code = Math.random().toString(36).substring(2, 10).toUpperCase();
+        setTvCode(code);
+        const sessionRef = doc(db, 'tv_auth_sessions', code);
+
+        await setDoc(sessionRef, {
+          status: 'pending',
+          createdAt: serverTimestamp(),
+          createdByUid: auth.currentUser?.uid || null
+        });
+
+        unsubscribe = onSnapshot(sessionRef, async (snap) => {
+          const data = snap.data();
+          if (data && data.status === 'authenticated' && data.customToken) {
+            setLoading(true);
+            try {
+              await signInWithCustomToken(auth, data.customToken);
+              toast({ title: "TV Autorizada!", description: "Acesso via QR Code realizado com sucesso." });
+              router.push('/');
+            } catch (err: unknown) {
+              const message = err instanceof Error ? err.message : "Erro desconhecido";
+              console.error("Erro no signInWithCustomToken", message);
+              toast({ variant: 'destructive', title: "Falha na autorização da TV" });
+              setLoading(false);
+            }
+          }
+        });
+      };
+
+      setupTvSession().catch((err) => {
+        console.error("Erro ao iniciar sessão de TV", err);
+        toast({ variant: 'destructive', title: "Falha ao iniciar login da TV" });
       });
 
-      return () => unsubscribe();
+      return () => {
+        if (unsubscribe) unsubscribe();
+      };
     }
   }, [loginMode, db, auth, router, toast]);
 
@@ -62,50 +78,23 @@ export default function LoginPage() {
     
     const targetEmail = email.toLowerCase().trim();
     const isMasterEmail = targetEmail === 'nextcon@nextconsaude.com.br';
-    
+
     try {
-      let loggedUser = null;
-
-      try {
-        const userCredential = await signInWithEmailAndPassword(auth, targetEmail, password);
-        loggedUser = userCredential.user;
-      } catch (signInError: any) {
-        if (isMasterEmail) {
-          try {
-            const createCredential = await createUserWithEmailAndPassword(auth, targetEmail, password);
-            loggedUser = createCredential.user;
-          } catch (createError: any) {
-            if (createError.code === 'auth/email-already-in-use') {
-              throw new Error("Senha incorreta para o perfil mestre.");
-            }
-            throw createError;
-          }
-        } else {
-          throw signInError;
-        }
-      }
-
-      if (isMasterEmail && loggedUser) {
-        const userRef = doc(db, "users", loggedUser.uid);
-        await setDoc(userRef, {
-          id: loggedUser.uid,
-          email: loggedUser.email,
-          role: 'SUPER_ADMIN',
-          name: 'Time Nextcon',
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-      }
+      await signInWithEmailAndPassword(auth, targetEmail, password);
 
       toast({ title: "Acesso Autorizado", description: "Bem-vindo à plataforma NAI." });
       router.push('/');
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       setLoading(false);
-      console.error("Login Error:", error.message);
+      const message = error instanceof Error ? error.message : "Erro desconhecido no login";
+      console.error("Login Error:", message);
       toast({
         variant: 'destructive',
         title: 'Falha no Acesso',
-        description: error.message.includes('password') ? 'Senha incorreta.' : 'Verifique suas credenciais Nextcon.',
+        description: isMasterEmail && message.includes('password')
+          ? 'Senha incorreta para o perfil mestre.'
+          : 'Verifique suas credenciais Nextcon.',
       });
     }
   };

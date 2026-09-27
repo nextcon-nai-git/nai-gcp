@@ -4,6 +4,10 @@ service cloud.firestore {
     function isSignedIn() {
       return request.auth != null;
     }
+    
+    function isSelf(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
 
     function getUserProfile() {
       return isSignedIn()
@@ -43,8 +47,18 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isNextconOfficial() || belongsToCompany(resource.data.companyId));
-      allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update, delete: if isSignedIn() && (request.auth.uid == userId || isNextconOfficial() || isCompanyAdmin(resource.data.companyId));
+      allow create: if isSelf(userId)
+        && request.resource.data.id == userId
+        && (!('role' in request.resource.data) || request.resource.data.role == 'USER')
+        && (!('companyId' in request.resource.data) || request.resource.data.companyId == null);
+      allow update: if isSignedIn() && (
+        (isSelf(userId)
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.companyId == resource.data.companyId)
+        || isNextconOfficial()
+        || isCompanyAdmin(resource.data.companyId)
+      );
+      allow delete: if isSignedIn() && (isNextconOfficial() || isCompanyAdmin(resource.data.companyId));
     }
 
     match /documents/{documentId} {
@@ -70,8 +84,10 @@ service cloud.firestore {
     }
 
     match /tv_auth_sessions/{code} {
-      allow read: if true;
-      allow create: if request.resource.data.status == 'pending';
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdByUid == request.auth.uid;
       allow update, delete: if isSignedIn();
     }
 

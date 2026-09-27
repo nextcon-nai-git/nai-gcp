@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { suggestExams } from '@/ai/flows/suggest-exams-flow';
+import { optionsCorsResponse, rejectIfCorsDenied, requireAuthFromBearer, resolveCorsHeaders } from '@/lib/api-security';
 
 /**
  * @fileOverview API Pública para Recomendação de Exames via IA.
@@ -7,6 +8,18 @@ import { suggestExams } from '@/ai/flows/suggest-exams-flow';
  */
 
 export async function POST(request: Request) {
+  const deniedResponse = rejectIfCorsDenied(request, 'POST, OPTIONS');
+  if (deniedResponse) return deniedResponse;
+  const cors = resolveCorsHeaders(request, 'POST, OPTIONS');
+
+  const auth = await requireAuthFromBearer(request);
+  if (!auth) {
+    return NextResponse.json(
+      { sucesso: false, mensagem: "Não autenticado." },
+      { status: 401, headers: cors.headers }
+    );
+  }
+
   try {
     const body = await request.json();
     
@@ -29,15 +42,12 @@ export async function POST(request: Request) {
       recommendedExams: result.recommendedExams
     }, {
       status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      }
+      headers: cors.headers
     });
 
-  } catch (error: any) {
-    console.error("Erro na API de Sugestão de Exames:", error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Erro interno";
+    console.error("Erro na API de Sugestão de Exames:", message);
     return NextResponse.json(
       { sucesso: false, mensagem: "Erro interno no processamento da NAI Medical." },
       { status: 500 }
@@ -46,13 +56,6 @@ export async function POST(request: Request) {
 }
 
 // Handler para pre-flight requests do CORS
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
+export async function OPTIONS(request: Request) {
+  return optionsCorsResponse(request, 'POST, OPTIONS');
 }

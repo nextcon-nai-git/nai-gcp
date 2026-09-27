@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/firebase";
 
 type Message = {
   id: string;
@@ -19,6 +20,7 @@ interface MedicalCopilotProps {
 }
 
 export default function MedicalCopilot({ pacienteId, className }: MedicalCopilotProps) {
+  const auth = useAuth();
   const [messages, setMessages] = React.useState<Message[]>([
     { id: "1", role: "ai", content: "Olá, doutor(a). Sou a NAI. Como posso auxiliar na análise deste paciente hoje?" }
   ]);
@@ -53,9 +55,13 @@ export default function MedicalCopilot({ pacienteId, className }: MedicalCopilot
     setIsTyping(true);
 
     try {
+      const token = await auth.currentUser?.getIdToken();
       const response = await fetch("/api/medical-assistant", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: 'Bearer ' + token } : {}),
+        },
         body: JSON.stringify({
           mensagemMedico: userContent,
           pacienteId: pacienteId,

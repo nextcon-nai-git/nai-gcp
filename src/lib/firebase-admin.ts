@@ -7,9 +7,8 @@ if (!admin.apps.length) {
     // Se a variável GOOGLE_APPLICATION_CREDENTIALS estiver configurada no .env apontando
     // para o json de serviço, o Firebase vai pegá-la automaticamente.
     admin.initializeApp({
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      projectId: process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
     });
-    console.log('Firebase Admin Initialized successfully.');
   } catch (error) {
     console.error('Firebase Admin initialization error', error);
   }

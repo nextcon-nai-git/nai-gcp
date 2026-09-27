@@ -1,13 +1,18 @@
 import { NextResponse } from 'next/server';
 import { initializeFirebase } from '@/firebase/init';
 import { doc, getDoc } from 'firebase/firestore';
+import { optionsCorsResponse, rejectIfCorsDenied, resolveCorsHeaders } from '@/lib/api-security';
 
 /**
  * @fileOverview API Pública para o Widget da NAI.
  * Expõe o roteiro de vendas para consumo externo (Site Nextcon Saúde).
  */
 
-export async function GET() {
+export async function GET(request: Request) {
+  const deniedResponse = rejectIfCorsDenied(request, 'GET, OPTIONS');
+  if (deniedResponse) return deniedResponse;
+  const cors = resolveCorsHeaders(request, 'GET, OPTIONS');
+
   try {
     const { firestore } = initializeFirebase();
     
@@ -20,11 +25,7 @@ export async function GET() {
         { sucesso: false, mensagem: "Roteiro NAI não localizado." },
         { 
           status: 404,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
-          }
+          headers: cors.headers
         }
       );
     }
@@ -37,11 +38,7 @@ export async function GET() {
       },
       {
         status: 200,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        }
+        headers: cors.headers
       }
     );
   } catch (error) {
@@ -54,13 +51,6 @@ export async function GET() {
 }
 
 // Handler para pre-flight requests do CORS
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
+export async function OPTIONS(request: Request) {
+  return optionsCorsResponse(request, 'GET, OPTIONS');
 }
