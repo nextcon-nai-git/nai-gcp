@@ -53,6 +53,7 @@ service cloud.firestore {
         && (!('companyId' in request.resource.data) || request.resource.data.companyId == null);
       allow update: if isSignedIn() && (
         (isSelf(userId)
+          && request.resource.data.id == resource.data.id
           && request.resource.data.role == resource.data.role
           && request.resource.data.companyId == resource.data.companyId)
         || isNextconOfficial()

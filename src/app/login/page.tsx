@@ -73,8 +73,9 @@ export default function LoginPage() {
       };
 
       setupTvSession().catch((err) => {
-        console.error("Erro ao iniciar sessão de TV", err);
-        toast({ variant: 'destructive', title: "Falha ao iniciar login da TV" });
+        const message = err instanceof Error ? err.message : "Erro desconhecido";
+        console.error("Erro ao iniciar sessão de TV", message);
+        toast({ variant: 'destructive', title: "Falha ao iniciar login da TV", description: message });
       });
 
       return () => {
