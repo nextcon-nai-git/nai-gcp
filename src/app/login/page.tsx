@@ -29,8 +29,10 @@ export default function LoginPage() {
       let unsubscribe: (() => void) | null = null;
 
       const setupTvSession = async () => {
+        let sessionUid = auth.currentUser?.uid || null;
         if (!auth.currentUser) {
-          await signInAnonymously(auth);
+          const credential = await signInAnonymously(auth);
+          sessionUid = credential.user.uid;
         }
 
         const code = Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -40,7 +42,7 @@ export default function LoginPage() {
         await setDoc(sessionRef, {
           status: 'pending',
           createdAt: serverTimestamp(),
-          createdByUid: auth.currentUser?.uid || null
+          createdByUid: sessionUid
         });
 
         unsubscribe = onSnapshot(sessionRef, async (snap) => {

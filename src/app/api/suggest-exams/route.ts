@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     console.error("Erro na API de Sugestão de Exames:", message);
     return NextResponse.json(
       { sucesso: false, mensagem: "Erro interno no processamento da NAI Medical." },
-      { status: 500 }
+      { status: 500, headers: cors.headers }
     );
   }
 }

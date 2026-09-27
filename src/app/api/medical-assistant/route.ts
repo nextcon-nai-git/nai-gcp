@@ -73,7 +73,10 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Erro interno";
     console.error("Erro no Agente Médico NAI (Stream):", message);
-    return new Response("Erro interno no processamento do agente neural.", { status: 500 });
+    return new Response("Erro interno no processamento do agente neural.", {
+      status: 500,
+      headers: cors.headers
+    });
   }
 }
 
