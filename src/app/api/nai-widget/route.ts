@@ -26,7 +26,7 @@ export async function GET() {
         { sucesso: false, mensagem: "Roteiro NAI não localizado." },
         { 
           status: 404,
-          headers: cors.headers
+          headers: cors
         }
       );
     }
@@ -39,7 +39,7 @@ export async function GET() {
       },
       {
         status: 200,
-        headers: cors.headers
+        headers: cors
       }
     );
   } catch (error) {
