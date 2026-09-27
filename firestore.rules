@@ -88,7 +88,10 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && request.resource.data.status == 'pending'
         && request.resource.data.createdByUid == request.auth.uid;
-      allow update, delete: if isSignedIn();
+      allow update, delete: if isSignedIn() && (
+        resource.data.createdByUid == request.auth.uid
+        || isNextconOfficial()
+      );
     }
 
     match /relatorios_sst/{reportId} {

@@ -13,7 +13,7 @@ function getAllowedOrigins(): string[] {
 export function resolveCorsHeaders(request: Request, methods: string) {
   const origin = request.headers.get('origin');
   const allowedOrigins = getAllowedOrigins();
-  const isAllowedOrigin = !origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin);
+  const isAllowedOrigin = !origin || allowedOrigins.includes(origin);
 
   return {
     isAllowedOrigin,

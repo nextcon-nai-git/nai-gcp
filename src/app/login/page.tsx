@@ -29,6 +29,15 @@ export default function LoginPage() {
       let unsubscribe: (() => void) | null = null;
 
       const setupTvSession = async () => {
+        if (auth.currentUser && !auth.currentUser.isAnonymous) {
+          toast({
+            variant: 'destructive',
+            title: "Sessão ativa detectada",
+            description: "Para login em TV, abra em um navegador/dispositivo sem sessão já autenticada."
+          });
+          return;
+        }
+
         let sessionUid = auth.currentUser?.uid || null;
         if (!auth.currentUser) {
           const credential = await signInAnonymously(auth);
