@@ -15,8 +15,6 @@ import {
   FileSearch,
   GraduationCap,
   HeartPulse,
-  Scale,
-  Cloud,
   Database,
   ShoppingCart,
   Gavel,
@@ -24,8 +22,6 @@ import {
   HardHat,
   Zap,
   CalendarDays,
-  UserPlus,
-  Users,
   Stethoscope
 } from "lucide-react"
 import Link from "next/link"
@@ -45,7 +41,6 @@ import {
 import { useAuth, useUser, useDoc, useMemoFirebase, useFirestore } from "@/firebase"
 import { signOut } from "firebase/auth"
 import { doc } from "firebase/firestore"
-import { cn } from "@/lib/utils"
 
 const NAV_MODULES = [
   {

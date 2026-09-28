@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { Lock, Loader2, ShieldAlert, Globe, Zap, Tv, Smartphone } from 'lucide-react';
+import { Loader2, Globe, Zap, Tv, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth, useFirestore } from '@/firebase';
@@ -44,7 +44,7 @@ export default function LoginPage() {
             await signInWithCustomToken(auth, data.customToken);
             toast({ title: "TV Autorizada!", description: "Acesso via QR Code realizado com sucesso." });
             router.push('/');
-          } catch (err: any) {
+          } catch (err: unknown) {
             console.error("Erro no signInWithCustomToken", err);
             toast({ variant: 'destructive', title: "Falha na autorização da TV" });
             setLoading(false);
@@ -68,13 +68,14 @@ export default function LoginPage() {
       toast({ title: "Acesso Autorizado", description: "Bem-vindo à plataforma NAI." });
       router.push('/');
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       setLoading(false);
-      console.error("Login Error:", error.message);
+      const message = error instanceof Error ? error.message : 'Erro inesperado';
+      console.error("Login Error:", message);
       toast({
         variant: 'destructive',
         title: 'Falha no Acesso',
-        description: error.message.includes('password') ? 'Senha incorreta.' : 'Verifique suas credenciais Nextcon.',
+        description: message.includes('password') ? 'Senha incorreta.' : 'Verifique suas credenciais Nextcon.',
       });
     }
   };

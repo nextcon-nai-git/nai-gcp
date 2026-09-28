@@ -95,18 +95,18 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
                     role: (newTokenResult.claims.role as string) || data.role || null,
                     companyId: (newTokenResult.claims.companyId as string) || data.companyId || null,
                   }));
-                } catch (e) {
+                } catch {
                   // Silencia falha de refresh silenciosa
                 }
               }
             },
-            (error) => {
+            () => {
               console.warn("NAI Auth: Listener de perfil suspenso (esperado durante logout).");
             }
           );
 
           return () => unsubscribeSnapshot();
-        } catch (error: any) {
+        } catch (error: unknown) {
           setAuthState(prev => ({ ...prev, user: firebaseUser, isUserLoading: false, userError: error }));
         }
       } else {
