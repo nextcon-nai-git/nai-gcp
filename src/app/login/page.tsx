@@ -6,7 +6,7 @@ import { Lock, Loader2, ShieldAlert, Globe, Zap, Tv, Smartphone } from 'lucide-r
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth, useFirestore } from '@/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithCustomToken } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInWithCustomToken } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { QRCodeSVG } from 'qrcode.react';
@@ -61,40 +61,9 @@ export default function LoginPage() {
     setLoading(true);
     
     const targetEmail = email.toLowerCase().trim();
-    const isMasterEmail = targetEmail === 'nextcon@nextconsaude.com.br';
     
     try {
-      let loggedUser = null;
-
-      try {
-        const userCredential = await signInWithEmailAndPassword(auth, targetEmail, password);
-        loggedUser = userCredential.user;
-      } catch (signInError: any) {
-        if (isMasterEmail) {
-          try {
-            const createCredential = await createUserWithEmailAndPassword(auth, targetEmail, password);
-            loggedUser = createCredential.user;
-          } catch (createError: any) {
-            if (createError.code === 'auth/email-already-in-use') {
-              throw new Error("Senha incorreta para o perfil mestre.");
-            }
-            throw createError;
-          }
-        } else {
-          throw signInError;
-        }
-      }
-
-      if (isMasterEmail && loggedUser) {
-        const userRef = doc(db, "users", loggedUser.uid);
-        await setDoc(userRef, {
-          id: loggedUser.uid,
-          email: loggedUser.email,
-          role: 'SUPER_ADMIN',
-          name: 'Time Nextcon',
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-      }
+      await signInWithEmailAndPassword(auth, targetEmail, password);
 
       toast({ title: "Acesso Autorizado", description: "Bem-vindo à plataforma NAI." });
       router.push('/');

@@ -115,9 +115,7 @@ export function AppSidebar() {
     router.push("/login")
   }
 
-  const role = (profile?.role || 'CLIENT_ADMIN').toUpperCase()
-  const userEmail = (profile?.email || user?.email || '').toLowerCase()
-  const isTimeNextcon = userEmail === 'nextcon@nextconsaude.com.br'
+  const role = (profile?.role || '').toUpperCase()
   const userName = profile?.name || user?.email?.split('@')[0] || "Usuário"
   
   return (
@@ -129,7 +127,7 @@ export function AppSidebar() {
       
       <SidebarContent className="px-4">
         {NAV_MODULES.map((module) => {
-          if (module.isRestricted && !isTimeNextcon) return null;
+          if (module.roles && !module.roles.includes(role)) return null;
           
           return (
             <SidebarGroup key={module.label}>

@@ -31,6 +31,25 @@ service cloud.firestore {
       return isSignedIn() && profile != null && profile.companyId == companyId && profile.role in ['DOCTOR', 'HEALTH_PROFESSIONAL', 'PROVIDER', 'ENGINEER'];
     }
 
+    function isSelf(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function userSelfManagedCreateKeysAreValid(userId) {
+      return request.resource.data.keys().hasOnly(['id', 'email', 'name', 'updatedAt', 'crm', 'rqe', 'certificate_info'])
+        && request.resource.data.id == userId
+        && request.resource.data.email == request.auth.token.email;
+    }
+
+    function userSelfManagedUpdateKeysAreValid() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'updatedAt', 'crm', 'rqe', 'certificate_info'])
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.companyId == resource.data.companyId
+        && request.resource.data.servedCompanies == resource.data.servedCompanies;
+    }
+
     match /companies/{companyId} {
       allow read: if isSignedIn() && belongsToCompany(companyId);
       allow write: if isCompanyAdmin(companyId);
@@ -43,8 +62,9 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isNextconOfficial() || belongsToCompany(resource.data.companyId));
-      allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update, delete: if isSignedIn() && (request.auth.uid == userId || isNextconOfficial() || isCompanyAdmin(resource.data.companyId));
+      allow create: if (isSelf(userId) && userSelfManagedCreateKeysAreValid(userId)) || isNextconOfficial();
+      allow update: if (isSelf(userId) && userSelfManagedUpdateKeysAreValid()) || isNextconOfficial() || isCompanyAdmin(resource.data.companyId);
+      allow delete: if isNextconOfficial() || isCompanyAdmin(resource.data.companyId);
     }
 
     match /documents/{documentId} {
