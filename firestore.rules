@@ -87,9 +87,8 @@ service cloud.firestore {
     }
 
     match /tv_auth_sessions/{code} {
-      allow read: if true;
-      allow create: if request.resource.data.status == 'pending';
-      allow update, delete: if isSignedIn();
+      // Pairing secrets and approval identities are server-only.
+      allow read, write: if false;
     }
 
     match /relatorios_sst/{reportId} {
@@ -118,9 +117,9 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && (isNextconOfficial() || isCompanyAdmin(resource.data.companyId));
     }
 
-    match /{document=**} {
-      allow read: if isSignedIn() && isNextconOfficial();
-      allow write: if isNextconOfficial();
+    match /{collection}/{document=**} {
+      allow read: if collection != 'tv_auth_sessions' && isSignedIn() && isNextconOfficial();
+      allow write: if collection != 'tv_auth_sessions' && isNextconOfficial();
     }
   }
 }

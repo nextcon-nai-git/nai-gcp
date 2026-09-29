@@ -5,56 +5,24 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Globe, Zap, Tv, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useAuth, useFirestore } from '@/firebase';
-import { signInWithEmailAndPassword, signInWithCustomToken } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { useAuth } from '@/firebase';
+import { TvLogin } from '@/components/auth/tv-login';
+import { loginDestination } from '@/lib/login-destination';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
-import { QRCodeSVG } from 'qrcode.react';
 
 export default function LoginPage() {
   const [loginMode, setLoginMode] = React.useState<'email' | 'tv'>('email');
-  const [tvCode, setTvCode] = React.useState('');
   
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   
   const auth = useAuth();
-  const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
 
-  React.useEffect(() => {
-    if (loginMode === 'tv') {
-      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-      setTvCode(code);
-      
-      const sessionRef = doc(db, 'tv_auth_sessions', code);
-      
-      setDoc(sessionRef, {
-        status: 'pending',
-        createdAt: serverTimestamp()
-      }).catch(console.error);
-
-      const unsubscribe = onSnapshot(sessionRef, async (snap) => {
-        const data = snap.data();
-        if (data && data.status === 'authenticated' && data.customToken) {
-          setLoading(true);
-          try {
-            await signInWithCustomToken(auth, data.customToken);
-            toast({ title: "TV Autorizada!", description: "Acesso via QR Code realizado com sucesso." });
-            router.push('/');
-          } catch (err: unknown) {
-            console.error("Erro no signInWithCustomToken", err);
-            toast({ variant: 'destructive', title: "Falha na autorização da TV" });
-            setLoading(false);
-          }
-        }
-      });
-
-      return () => unsubscribe();
-    }
-  }, [loginMode, db, auth, router, toast]);
+  const onTvAuthenticated = React.useCallback(() => router.replace('/'), [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,25 +34,26 @@ export default function LoginPage() {
       await signInWithEmailAndPassword(auth, targetEmail, password);
 
       toast({ title: "Acesso Autorizado", description: "Bem-vindo à plataforma NAI." });
-      router.push('/');
+      router.replace(loginDestination(window.location.search));
       
     } catch (error: unknown) {
       setLoading(false);
-      const message = error instanceof Error ? error.message : 'Erro inesperado';
-      console.error("Login Error:", message);
+      const code = error && typeof error === 'object' && 'code' in error ? error.code : '';
+      const message = code === 'auth/network-request-failed' ? 'Verifique sua conexão e tente novamente.'
+        : code === 'auth/too-many-requests' ? 'Muitas tentativas. Aguarde um pouco antes de tentar novamente.'
+        : 'Confira seu e-mail e senha e tente novamente.';
       toast({
         variant: 'destructive',
         title: 'Falha no Acesso',
-        description: message.includes('password') ? 'Senha incorreta.' : 'Verifique suas credenciais Nextcon.',
+        description: message,
       });
     }
   };
 
-  const tvAuthUrl = tvCode ? `https://nai.nextconsaude.com.br/tv-login/${tvCode}` : '';
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#001F3F] p-6">
-      <div className="w-full max-w-md space-y-8 bg-white p-10 rounded-[3rem] shadow-2xl animate-in zoom-in-95 duration-500">
+      <div className="w-full max-w-md space-y-8 bg-white p-6 sm:p-10 rounded-[3rem] shadow-2xl animate-in zoom-in-95 duration-500">
         
         <div className="text-center space-y-2">
           <div className="size-16 rounded-[1.5rem] bg-primary mx-auto flex items-center justify-center text-white font-black text-3xl shadow-xl border-2 border-white/10 mb-4">N</div>
@@ -95,14 +64,14 @@ export default function LoginPage() {
         <div className="flex bg-slate-100 p-1 rounded-xl">
           <button 
             type="button"
-            onClick={() => setLoginMode('email')}
+            onClick={() => setLoginMode('email')} disabled={loading} aria-pressed={loginMode === 'email'}
             className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${loginMode === 'email' ? 'bg-white shadow text-primary' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <Smartphone className="size-4" /> Senha
           </button>
           <button 
             type="button"
-            onClick={() => setLoginMode('tv')}
+            onClick={() => setLoginMode('tv')} disabled={loading} aria-pressed={loginMode === 'tv'}
             className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${loginMode === 'tv' ? 'bg-white shadow text-primary' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <Tv className="size-4" /> TV (QR Code)
@@ -113,17 +82,17 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-4">
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase text-slate-400 ml-1">E-mail Corporativo</label>
+                <label htmlFor="login-email" className="text-[10px] font-black uppercase text-slate-400 ml-1">E-mail Corporativo</label>
                 <Input 
-                  type="email" value={email} onChange={e => setEmail(e.target.value)}
+                  id="login-email" autoComplete="username" disabled={loading} type="email" value={email} onChange={e => setEmail(e.target.value)}
                   className="h-14 bg-slate-50 border-none rounded-2xl font-bold px-6 shadow-inner" 
                   placeholder="ex: seu@email.com.br" required
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Senha</label>
+                <label htmlFor="login-password" className="text-[10px] font-black uppercase text-slate-400 ml-1">Senha</label>
                 <Input 
-                  type="password" value={password} onChange={e => setPassword(e.target.value)}
+                  id="login-password" autoComplete="current-password" disabled={loading} type="password" value={password} onChange={e => setPassword(e.target.value)}
                   className="h-14 bg-slate-50 border-none rounded-2xl font-bold px-6 shadow-inner" 
                   placeholder="••••••••" required
                 />
@@ -136,22 +105,7 @@ export default function LoginPage() {
             </Button>
           </form>
         ) : (
-          <div className="space-y-6 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-slate-50 p-6 rounded-3xl border flex flex-col items-center">
-              {tvCode ? (
-                <>
-                  <div className="bg-white p-4 rounded-2xl shadow-sm mb-4">
-                    <QRCodeSVG value={tvAuthUrl} size={180} level="H" />
-                  </div>
-                  <p className="text-xl font-black tracking-[0.2em] text-primary">{tvCode}</p>
-                  <p className="text-xs text-slate-500 mt-2 font-medium">Aponte a câmera do celular para o código acima para fazer login rápido na TV.</p>
-                </>
-              ) : (
-                <Loader2 className="animate-spin text-primary size-8 my-10" />
-              )}
-            </div>
-            {loading && <p className="text-sm font-bold text-primary animate-pulse">Aprovando acesso...</p>}
-          </div>
+          <TvLogin auth={auth} onAuthenticated={onTvAuthenticated} />
         )}
 
         <div className="pt-6 border-t flex flex-col items-center gap-4">

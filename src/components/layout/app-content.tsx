@@ -30,9 +30,10 @@ export function AppContent({ children }: { children: React.ReactNode }) {
   // Lógica de Redirecionamento Estrito
   React.useEffect(() => {
     if (mounted && !isUserLoading && !user && !isLoginPage) {
-      router.replace('/login');
+      const returnTo = /^\/tv-login\/[a-f0-9]{32}$/.test(pathname) ? `?returnTo=${encodeURIComponent(pathname)}` : '';
+      router.replace(`/login${returnTo}`);
     }
-  }, [user, isUserLoading, isLoginPage, router, mounted]);
+  }, [user, isUserLoading, isLoginPage, pathname, router, mounted]);
 
   // 1. Splash Screen durante a verificação de sessão ou montagem
   if (!mounted || (isUserLoading && !isLoginPage)) {

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
-import { deleteField, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, deleteField, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 
 let env: RulesTestEnvironment;
 const basic = { id: 'alice', email: 'alice@example.test', name: 'Alice' };
@@ -60,5 +60,21 @@ describe('self-managed profile security rules', () => {
     await assertFails(updateDoc(ref, { id: 'bob' }));
     await assertFails(setDoc(doc(env.authenticatedContext('bob', { email: 'bob@example.test' }).firestore(), 'users/alice'), basic));
     await assertFails(setDoc(doc(env.unauthenticatedContext().firestore(), 'users/alice'), basic));
+  });
+});
+
+describe('TV credentials remain server-only', () => {
+  it('denies direct get/list/create/update even for an official administrator', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      await setDoc(doc(context.firestore(), 'users/admin'), { id: 'admin', role: 'ADMIN' });
+      await setDoc(doc(context.firestore(), 'tv_auth_sessions/pairing'), { status: 'approved', verifierHash: 'private' });
+    });
+    for (const context of [env.unauthenticatedContext(), env.authenticatedContext('alice'), env.authenticatedContext('admin')]) {
+      const db = context.firestore();
+      await assertFails(getDoc(doc(db, 'tv_auth_sessions/pairing')));
+      await assertFails(getDocs(collection(db, 'tv_auth_sessions')));
+      await assertFails(setDoc(doc(db, 'tv_auth_sessions/new-pairing'), { status: 'pending' }));
+      await assertFails(updateDoc(doc(db, 'tv_auth_sessions/pairing'), { status: 'approved' }));
+    }
   });
 });
