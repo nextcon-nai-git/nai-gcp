@@ -55,6 +55,19 @@ describe('application access gate', () => {
     expect(state.replace).toHaveBeenCalledWith('/login');
   });
 
+  it('preserves a valid TV approval route through the login redirect', async () => {
+    state.pathname = `/tv-login/${'a'.repeat(32)}`;
+    const mounted = await renderProtectedChild();
+    expect(mounted).not.toHaveBeenCalled();
+    expect(state.replace).toHaveBeenCalledWith(`/login?returnTo=${encodeURIComponent(state.pathname)}`);
+  });
+
+  it('does not forward an invalid pairing path as a login destination', async () => {
+    state.pathname = '/tv-login/invalid-code';
+    await renderProtectedChild();
+    expect(state.replace).toHaveBeenCalledWith('/login');
+  });
+
   it.each([null, 'USER'])('explains pending access for an unprovisioned profile (%s)', async role => {
     state.user = { uid: 'alice' };
     state.role = role;
