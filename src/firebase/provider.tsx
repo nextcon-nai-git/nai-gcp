@@ -107,7 +107,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
           return () => unsubscribeSnapshot();
         } catch (error: unknown) {
-          setAuthState(prev => ({ ...prev, user: firebaseUser, isUserLoading: false, userError: error }));
+          setAuthState(prev => ({ ...prev, user: firebaseUser, isUserLoading: false, userError: error instanceof Error ? error : new Error(String(error)) }));
         }
       } else {
         setAuthState({
