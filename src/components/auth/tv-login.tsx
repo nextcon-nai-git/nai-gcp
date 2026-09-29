@@ -23,12 +23,13 @@ export function TvLogin({ auth, onAuthenticated }: { auth: Auth; onAuthenticated
         const result = await createTvSession();
         if (!active) return;
         if (!result.success) { setError(result.error); return; }
+        const pairingData: Pairing = { code: result.code, verifier: result.verifier, expiresAt: result.expiresAt };
         setOrigin(window.location.origin);
-        setPairing(result);
+        setPairing(pairingData);
         setRemaining(Math.max(0, Math.ceil((result.expiresAt - Date.now()) / 1000)));
         async function poll() {
           try {
-            const response = await redeemTvSession(result.code, result.verifier);
+            const response = await redeemTvSession(pairingData.code, pairingData.verifier);
             if (!active) return;
             if (response.status === 'authenticated') {
               await signInWithCustomToken(auth, response.customToken);
