@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 interface StorageResult {
   sucesso: boolean;
-  mensagem: string;
+  mensagem?: string;
   dados?: {
     caminhoStorage: string;
     placeholderContent: string;
