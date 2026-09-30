@@ -2,18 +2,14 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Globe, Zap, Tv, Smartphone } from 'lucide-react';
+import { Loader2, Globe, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/firebase';
-import { TvLogin } from '@/components/auth/tv-login';
-import { loginDestination } from '@/lib/login-destination';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
-  const [loginMode, setLoginMode] = React.useState<'email' | 'tv'>('email');
-  
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [loading, setLoading] = React.useState(false);
@@ -22,10 +18,9 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const onTvAuthenticated = React.useCallback(() => router.replace('/'), [router]);
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     
     const targetEmail = email.toLowerCase().trim();
@@ -34,7 +29,7 @@ export default function LoginPage() {
       await signInWithEmailAndPassword(auth, targetEmail, password);
 
       toast({ title: "Acesso Autorizado", description: "Bem-vindo à plataforma NAI." });
-      router.replace(loginDestination(window.location.search));
+      router.replace('/');
       
     } catch (error: unknown) {
       setLoading(false);
@@ -61,24 +56,6 @@ export default function LoginPage() {
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Inteligência em SST 2026</p>
         </div>
 
-        <div className="flex bg-slate-100 p-1 rounded-xl">
-          <button 
-            type="button"
-            onClick={() => setLoginMode('email')} disabled={loading} aria-pressed={loginMode === 'email'}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${loginMode === 'email' ? 'bg-white shadow text-primary' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            <Smartphone className="size-4" /> Senha
-          </button>
-          <button 
-            type="button"
-            onClick={() => setLoginMode('tv')} disabled={loading} aria-pressed={loginMode === 'tv'}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${loginMode === 'tv' ? 'bg-white shadow text-primary' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            <Tv className="size-4" /> TV (QR Code)
-          </button>
-        </div>
-
-        {loginMode === 'email' ? (
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-4">
               <div className="space-y-1">
@@ -104,10 +81,6 @@ export default function LoginPage() {
               Entrar no Portal
             </Button>
           </form>
-        ) : (
-          <TvLogin auth={auth} onAuthenticated={onTvAuthenticated} />
-        )}
-
         <div className="pt-6 border-t flex flex-col items-center gap-4">
           <div className="flex items-center gap-2 text-[9px] font-black text-slate-300 uppercase tracking-widest">
             <Globe className="size-3" /> NAI Cloud Infrastructure

@@ -30,8 +30,7 @@ export function AppContent({ children }: { children: React.ReactNode }) {
   // Lógica de Redirecionamento Estrito
   React.useEffect(() => {
     if (mounted && !isUserLoading && !user && !isLoginPage) {
-      const returnTo = /^\/tv-login\/[a-f0-9]{32}$/.test(pathname) ? `?returnTo=${encodeURIComponent(pathname)}` : '';
-      router.replace(`/login${returnTo}`);
+      router.replace('/login');
     }
   }, [user, isUserLoading, isLoginPage, pathname, router, mounted]);
 

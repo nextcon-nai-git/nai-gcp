@@ -86,11 +86,6 @@ service cloud.firestore {
       allow write: if isNextconOfficial();
     }
 
-    match /tv_auth_sessions/{code} {
-      // Pairing secrets and approval identities are server-only.
-      allow read, write: if false;
-    }
-
     match /relatorios_sst/{reportId} {
       allow read: if isSignedIn() && (
         isNextconOfficial() ||
@@ -117,9 +112,9 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && (isNextconOfficial() || isCompanyAdmin(resource.data.companyId));
     }
 
-    match /{collection}/{document=**} {
-      allow read: if collection != 'tv_auth_sessions' && isSignedIn() && isNextconOfficial();
-      allow write: if collection != 'tv_auth_sessions' && isNextconOfficial();
+    match /{document=**} {
+      allow read: if isSignedIn() && isNextconOfficial();
+      allow write: if isNextconOfficial();
     }
   }
 }
