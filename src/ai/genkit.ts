@@ -2,6 +2,7 @@
 import {genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/google-genai';
 import { enableFirebaseTelemetry } from '@genkit-ai/firebase';
+import { initializeFirebaseTelemetry, shouldEnableFirebaseTelemetry } from './telemetry';
 
 /**
  * @fileOverview Configuração central do motor Genkit 1.x para a Nextcon.
@@ -9,19 +10,8 @@ import { enableFirebaseTelemetry } from '@genkit-ai/firebase';
  */
 
 // Habilita o rastreamento e telemetria via Firebase (Genkit 1.x)
-const shouldEnableTelemetry = 
-  process.env.NODE_ENV === 'production' || 
-  process.env.GOOGLE_SERVICE_ACCOUNT_JSON || 
-  process.env.GOOGLE_APPLICATION_CREDENTIALS;
-
-if (shouldEnableTelemetry) {
-  try {
-    // Tenta inicializar, mas falha graciosamente se os logs da nuvem estiverem inacessíveis
-    enableFirebaseTelemetry();
-    console.log("NAI Telemetry: Sistema de monitoramento ativado.");
-  } catch (error) {
-    console.warn("NAI Telemetry: Aviso de inicialização da telemetria (ignorado para evitar crash).");
-  }
+if (shouldEnableFirebaseTelemetry(process.env)) {
+  void initializeFirebaseTelemetry(() => enableFirebaseTelemetry());
 }
 
 export const ai = genkit({

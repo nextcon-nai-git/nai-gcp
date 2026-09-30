@@ -26,6 +26,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Audit production dependencies (critical)
+        run: npm audit --omit=dev --audit-level=critical
+
       # The existing repository-wide lint debt is reported without blocking the
       # release gates below. Keep typecheck, tests and build mandatory.
       - name: Run lint (existing debt)

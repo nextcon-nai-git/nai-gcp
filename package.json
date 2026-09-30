@@ -60,9 +60,9 @@
     "firebase-admin": "^13.7.0",
     "genkit": "^1.29.0",
     "googleapis": "^144.0.0",
-    "jspdf": "^2.5.2",
+    "jspdf": "4.2.1",
     "lucide-react": "^0.475.0",
-    "next": "15.5.9",
+    "next": "15.5.26",
     "patch-package": "^8.0.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.1",
@@ -86,11 +86,15 @@
     "eslint-config-next": "16.2.3",
     "genkit-cli": "1.29.0",
     "jsdom": "^29.0.2",
-    "postcss": "^8",
+    "postcss": "^8.5.28",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.19.2",
     "typescript": "^5",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.4"
+  },
+  "overrides": {
+    "postcss": "$postcss",
+    "picomatch@<2.3.2": "^2.3.2"
   }
 }
