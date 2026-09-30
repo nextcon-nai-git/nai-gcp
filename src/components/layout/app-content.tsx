@@ -1,6 +1,7 @@
 'use client';
 
-import { useUser } from '@/firebase';
+import { useAuth, useUser } from '@/firebase';
+import { signOut } from 'firebase/auth';
 import { usePathname, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import * as React from 'react';
@@ -14,7 +15,8 @@ import { NaiFloatingWidget } from '@/components/commercial/nai-floating-widget';
  * Garante que a aplicação sempre inicie com o login para usuários não autenticados.
  */
 export function AppContent({ children }: { children: React.ReactNode }) {
-  const { user, isUserLoading } = useUser();
+  const { user, role, isUserLoading, userError } = useUser();
+  const auth = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [mounted, setMounted] = React.useState(false);
@@ -58,8 +60,24 @@ export function AppContent({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Do not mount protected children while a redirect to login is pending.
+  if (!isLoginPage && !user && !userError) return null;
+
+  if (!isLoginPage && (userError || !role || role === 'USER')) {
+    return <main className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+      <section aria-labelledby="profile-status" className="w-full max-w-lg rounded-2xl border bg-white p-8 shadow-sm">
+        <h1 id="profile-status" className="text-2xl font-bold text-slate-900">{userError ? 'Não foi possível carregar seu acesso' : 'Sua conta aguarda liberação'}</h1>
+        <p role="status" className="mt-3 text-sm leading-6 text-slate-600">{userError ? 'Tente novamente para sincronizar seu perfil.' : 'Seu cadastro foi preparado. Peça ao administrador a definição do seu perfil e das empresas que você pode acessar.'}</p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button type="button" onClick={() => window.location.reload()} className="rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white">Verificar novamente</button>
+          <button type="button" onClick={() => { void signOut(auth).catch(() => window.location.reload()); }} className="rounded-xl border px-4 py-3 text-sm font-semibold">Sair da conta</button>
+        </div>
+      </section>
+    </main>;
+  }
+
   // 2. Renderiza apenas a tela de login se não autenticado
-  if (isLoginPage || !user) {
+  if (isLoginPage) {
     return <div className="min-h-screen w-full bg-white">{children}</div>;
   }
 

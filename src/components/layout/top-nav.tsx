@@ -40,7 +40,7 @@ export function TopNav() {
 
   const { data: profile } = useDoc(profileRef);
   
-  const role = (profile?.role || 'CLIENT_ADMIN').toUpperCase();
+  const role = (profile?.role || 'AGUARDANDO LIBERAÇÃO').toUpperCase();
   const isAdmin = ['SUPER_ADMIN', 'ADMIN'].includes(role);
 
   const getUnitLabel = () => {

@@ -17,7 +17,8 @@
     "infra:deploy": "firebase deploy --only hosting",
     "infra:rules": "firebase deploy --only firestore:rules,storage:rules",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "test:rules": "npx --yes firebase-tools@14.22.0 emulators:exec --project demo-nai-security --only firestore --config firebase.test.json \"vitest run --config vitest.rules.config.ts\""
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
@@ -74,6 +75,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
     "@types/node": "^20",
     "@types/react": "^19.2.1",
     "@types/react-dom": "^19.2.1",

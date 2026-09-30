@@ -2,8 +2,9 @@
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore, doc, onSnapshot } from 'firebase/firestore';
-import { Auth, User, onAuthStateChanged } from 'firebase/auth';
+import { Firestore } from 'firebase/firestore';
+import { Auth, User } from 'firebase/auth';
+import { subscribeToUserSession, type UserAuthState } from './user-session';
 import { FirebaseStorage } from 'firebase/storage';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
@@ -13,14 +14,6 @@ interface FirebaseProviderProps {
   firestore: Firestore;
   auth: Auth;
   storage: FirebaseStorage;
-}
-
-interface UserAuthState {
-  user: User | null;
-  role: string | null;
-  companyId: string | null;
-  isUserLoading: boolean;
-  userError: Error | null;
 }
 
 export interface FirebaseContextState extends UserAuthState {
@@ -64,63 +57,9 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   });
 
   useEffect(() => {
-    if (!auth || !firestore) {
-      setAuthState(prev => ({ ...prev, isUserLoading: false, userError: new Error("Serviços Firebase não disponíveis.") }));
-      return;
-    }
+    if (!auth || !firestore) return;
 
-    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-          const tokenResult = await firebaseUser.getIdTokenResult();
-          
-          setAuthState({
-            user: firebaseUser,
-            role: (tokenResult.claims.role as string) || null,
-            companyId: (tokenResult.claims.companyId as string) || null,
-            isUserLoading: false,
-            userError: null,
-          });
-
-          const userRef = doc(firestore, "users", firebaseUser.uid);
-          const unsubscribeSnapshot = onSnapshot(
-            userRef, 
-            async (docSnap) => {
-              if (docSnap.exists()) {
-                try {
-                  const data = docSnap.data();
-                  const newTokenResult = await firebaseUser.getIdTokenResult(true);
-                  setAuthState(prev => ({
-                    ...prev,
-                    role: (newTokenResult.claims.role as string) || data.role || null,
-                    companyId: (newTokenResult.claims.companyId as string) || data.companyId || null,
-                  }));
-                } catch {
-                  // Silencia falha de refresh silenciosa
-                }
-              }
-            },
-            () => {
-              console.warn("NAI Auth: Listener de perfil suspenso (esperado durante logout).");
-            }
-          );
-
-          return () => unsubscribeSnapshot();
-        } catch (error: unknown) {
-          setAuthState(prev => ({ ...prev, user: firebaseUser, isUserLoading: false, userError: error instanceof Error ? error : new Error(String(error)) }));
-        }
-      } else {
-        setAuthState({
-          user: null,
-          role: null,
-          companyId: null,
-          isUserLoading: false,
-          userError: null,
-        });
-      }
-    });
-
-    return () => unsubscribeAuth();
+    return subscribeToUserSession(auth, firestore, setAuthState);
   }, [auth, firestore]);
 
   const contextValue = useMemo((): FirebaseContextState => {
@@ -168,6 +107,8 @@ export const useStorage = (): FirebaseStorage => useFirebase().storage;
 export const useFirebaseApp = (): FirebaseApp => useFirebase().firebaseApp;
 
 export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T {
+  // This compatibility hook delegates the factory and dependency list supplied by its callers.
+  // eslint-disable-next-line react-hooks/use-memo, react-hooks/exhaustive-deps
   return useMemo(factory, deps);
 }
 
