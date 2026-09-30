@@ -1,5 +1,5 @@
-type TelemetryEnvironment = Pick<NodeJS.ProcessEnv,
-  'NEXT_PHASE' | 'NODE_ENV' | 'GOOGLE_SERVICE_ACCOUNT_JSON' | 'GOOGLE_APPLICATION_CREDENTIALS'>;
+type TelemetryEnvironment = Partial<Pick<NodeJS.ProcessEnv,
+  'NEXT_PHASE' | 'NODE_ENV' | 'GOOGLE_SERVICE_ACCOUNT_JSON' | 'GOOGLE_APPLICATION_CREDENTIALS'>>;
 
 /** Building pages must not initialize cloud exporters or probe cloud credentials. */
 export function shouldEnableFirebaseTelemetry(env: TelemetryEnvironment): boolean {
