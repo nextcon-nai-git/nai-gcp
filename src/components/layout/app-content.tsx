@@ -32,7 +32,7 @@ export function AppContent({ children }: { children: React.ReactNode }) {
     if (mounted && !isUserLoading && !user && !isLoginPage) {
       router.replace('/login');
     }
-  }, [user, isUserLoading, isLoginPage, router, mounted]);
+  }, [user, isUserLoading, isLoginPage, pathname, router, mounted]);
 
   // 1. Splash Screen durante a verificação de sessão ou montagem
   if (!mounted || (isUserLoading && !isLoginPage)) {

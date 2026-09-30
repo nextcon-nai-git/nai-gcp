@@ -2,8 +2,6 @@ name: CI/CD
 
 on:
   pull_request:
-    branches:
-      - main
   push:
     branches:
       - main
@@ -27,6 +25,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Audit production dependencies (critical)
+        run: npm audit --omit=dev --audit-level=critical
 
       # The existing repository-wide lint debt is reported without blocking the
       # release gates below. Keep typecheck, tests and build mandatory.
@@ -92,6 +93,28 @@ jobs:
           NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
+      - name: Prepare Firebase release credentials
+        env:
+          NAI_FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const value = process.env.NAI_FIREBASE_SERVICE_ACCOUNT_JSON;
+          try {
+            const account = JSON.parse(value || 'null');
+            if (!account?.client_email || !account?.private_key) throw new Error();
+            const credentialsPath = path.join(process.env.RUNNER_TEMP, 'nai-firebase-service-account.json');
+            fs.writeFileSync(credentialsPath, value, { mode: 0o600 });
+            fs.appendFileSync(process.env.GITHUB_ENV, `GOOGLE_APPLICATION_CREDENTIALS=${credentialsPath}\n`);
+          } catch {
+            throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON ausente ou inválido.');
+          }
+          NODE
+
+      - name: Deploy tested Firestore rules
+        run: npx --yes firebase-tools@14.22.0 deploy --only firestore:rules --project studio-8439299034-125c7 --non-interactive
+
       - name: Deploy hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
@@ -107,3 +130,7 @@ jobs:
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         continue-on-error: true
+
+      - name: Remove temporary release credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/nai-firebase-service-account.json"
