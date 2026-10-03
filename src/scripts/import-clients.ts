@@ -1,8 +1,8 @@
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
-import * as dotenv from 'dotenv';
+import { initializeApp, cert, getApps } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
+import * as dotenv from "dotenv";
 
-dotenv.config({ path: '.env.local' });
+dotenv.config({ path: ".env.local" });
 
 const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "studio-8439299034-125c7";
 
@@ -141,17 +141,23 @@ Wercon Consultoria e Contabilidade`;
 async function run() {
   console.log("🚀 Iniciando processamento e limpeza dos dados...");
 
-  const lines = rawList.split('\n').filter(l => l.trim() !== '');
+  const lines = rawList.split("\n").filter((l) => l.trim() !== "");
   let count = 0;
 
   for (const line of lines) {
-    const cleanName = line.replace(/\d+$/, '').trim();
-    
+    const cleanName = line.replace(/\d+$/, "").trim();
+
     if (!cleanName) continue;
 
-    const id = cleanName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    const id = cleanName
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
 
-    const docRef = db.collection('companies').doc(id);
+    const docRef = db.collection("companies").doc(id);
     const docSnap = await docRef.get();
 
     if (!docSnap.exists) {
@@ -161,7 +167,7 @@ async function run() {
         active: true,
         risk_degree: 3,
         createdAt: new Date().toISOString(),
-        source: 'commercial_import_script'
+        source: "commercial_import_script",
       });
       console.log(`✅ Adicionado: ${cleanName}`);
       count++;

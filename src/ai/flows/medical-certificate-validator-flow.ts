@@ -1,7 +1,7 @@
-'use server';
+"use server";
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from "@/ai/genkit";
+import { z } from "genkit";
 
 const ValidatorInputSchema = z.object({
   fileDataUri: z.string().describe("O arquivo (PDF ou Imagem) codificado em Base64."),
@@ -10,7 +10,9 @@ const ValidatorInputSchema = z.object({
 export type ValidatorInput = z.infer<typeof ValidatorInputSchema>;
 
 const ValidatorOutputSchema = z.object({
-  authenticity: z.enum(['legitimate', 'suspicious', 'forged']).describe("Classificação de autenticidade."),
+  authenticity: z
+    .enum(["legitimate", "suspicious", "forged"])
+    .describe("Classificação de autenticidade."),
   confidence: z.number().describe("Nível de confiança (0-100)."),
   extractedData: z.object({
     patientName: z.string().optional(),
@@ -20,7 +22,9 @@ const ValidatorOutputSchema = z.object({
     cid: z.string().optional(),
     clinicName: z.string().optional(),
   }),
-  redFlags: z.array(z.string()).describe("Lista de pontos suspeitos encontrados. Se nenhum for encontrado, retorne []."),
+  redFlags: z
+    .array(z.string())
+    .describe("Lista de pontos suspeitos encontrados. Se nenhum for encontrado, retorne []."),
   reasoning: z.string().describe("Explicação detalhada da análise forense."),
 });
 export type ValidatorOutput = z.infer<typeof ValidatorOutputSchema>;
@@ -30,9 +34,9 @@ export async function validateMedicalCertificate(input: ValidatorInput): Promise
 }
 
 const prompt = ai.definePrompt({
-  name: 'medicalCertificateValidatorPrompt',
-  input: {schema: ValidatorInputSchema},
-  output: {schema: ValidatorOutputSchema},
+  name: "medicalCertificateValidatorPrompt",
+  input: { schema: ValidatorInputSchema },
+  output: { schema: ValidatorOutputSchema },
   prompt: `Você é a NAI, perita forense digital da NextCon Saúde Empresarial.
 Sua missão é analisar o atestado médico em anexo e identificar sinais de fraude ou inconsistência técnica.
 
@@ -58,14 +62,14 @@ Documento: {{media url=fileDataUri}}`,
 
 const validatorFlow = ai.defineFlow(
   {
-    name: 'medicalCertificateValidatorFlow',
+    name: "medicalCertificateValidatorFlow",
     inputSchema: ValidatorInputSchema,
     outputSchema: ValidatorOutputSchema,
   },
-  async input => {
-    const {output} = await prompt(input);
-    if (!output) throw new Error('A NAI não conseguiu processar este documento agora.');
-    
+  async (input) => {
+    const { output } = await prompt(input);
+    if (!output) throw new Error("A NAI não conseguiu processar este documento agora.");
+
     // Sanitização de saída para evitar erros de validação de esquema
     return {
       ...output,
@@ -73,10 +77,13 @@ const validatorFlow = ai.defineFlow(
       reasoning: output.reasoning || "Análise concluída sem observações adicionais.",
       extractedData: {
         ...output.extractedData,
-        patientName: output.extractedData?.patientName?.replace(/\n+/g, ' ').trim() || "Não identificado",
-        doctorName: output.extractedData?.doctorName?.replace(/\n+/g, ' ').trim() || "Não identificado",
-        clinicName: output.extractedData?.clinicName?.replace(/\n+/g, ' ').trim() || "Não identificado"
-      }
+        patientName:
+          output.extractedData?.patientName?.replace(/\n+/g, " ").trim() || "Não identificado",
+        doctorName:
+          output.extractedData?.doctorName?.replace(/\n+/g, " ").trim() || "Não identificado",
+        clinicName:
+          output.extractedData?.clinicName?.replace(/\n+/g, " ").trim() || "Não identificado",
+      },
     } as ValidatorOutput;
   }
 );

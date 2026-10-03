@@ -1,33 +1,43 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import {
-  Brain,
-  Activity,
-  Sparkles,
-  Zap,
-  Check,
-} from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogTrigger,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { useToast } from "@/hooks/use-toast"
-import { cn } from "@/lib/utils"
+import * as React from "react";
+import { Brain, Activity, Sparkles, Zap, Check } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 export function PsychosocialTab() {
-  const { toast } = useToast()
-  const [isBlitzOpen, setIsBlitzOpen] = React.useState(false)
+  const { toast } = useToast();
+  const [isBlitzOpen, setIsBlitzOpen] = React.useState(false);
 
   const sectors = [
-    { name: "Unidade Operacional", stress: 85, mood: "Crítico", trend: "+12%", color: "bg-red-500", lives: 42 },
-    { name: "Setor Administrativo", stress: 42, mood: "Estável", trend: "-5%", color: "bg-green-500", lives: 18 },
-    { name: "Logística", stress: 68, mood: "Alerta", trend: "+2%", color: "bg-orange-500", lives: 25 },
-  ]
+    {
+      name: "Unidade Operacional",
+      stress: 85,
+      mood: "Crítico",
+      trend: "+12%",
+      color: "bg-red-500",
+      lives: 42,
+    },
+    {
+      name: "Setor Administrativo",
+      stress: 42,
+      mood: "Estável",
+      trend: "-5%",
+      color: "bg-green-500",
+      lives: 18,
+    },
+    {
+      name: "Logística",
+      stress: 68,
+      mood: "Alerta",
+      trend: "+2%",
+      color: "bg-orange-500",
+      lives: 25,
+    },
+  ];
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -37,24 +47,46 @@ export function PsychosocialTab() {
         </div>
         <div className="space-y-10 relative z-10">
           <div className="flex items-center gap-4">
-            <div className="p-4 bg-primary text-accent rounded-2xl shadow-xl shadow-primary/20"><Brain className="size-8 animate-pulse" /></div>
+            <div className="p-4 bg-primary text-accent rounded-2xl shadow-xl shadow-primary/20">
+              <Brain className="size-8 animate-pulse" />
+            </div>
             <div>
-              <h2 className="text-3xl font-black text-primary uppercase font-headline leading-tight tracking-tight">Mapa de Stress Ocupacional</h2>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Indicadores de Absenteísmo Mental e Clima.</p>
+              <h2 className="text-3xl font-black text-primary uppercase font-headline leading-tight tracking-tight">
+                Mapa de Stress Ocupacional
+              </h2>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                Indicadores de Absenteísmo Mental e Clima.
+              </p>
             </div>
           </div>
           <div className="space-y-10">
             {sectors.map((s, i) => (
-              <div key={s.name} className="space-y-4 animate-in slide-in-from-left-4 fade-in duration-500 fill-mode-both" style={{ animationDelay: `${(i+1)*200}ms` }}>
+              <div
+                key={s.name}
+                className="space-y-4 animate-in slide-in-from-left-4 fade-in duration-500 fill-mode-both"
+                style={{ animationDelay: `${(i + 1) * 200}ms` }}
+              >
                 <div className="flex justify-between items-end">
-                  <span className="text-sm font-black text-primary uppercase tracking-tight">{s.name} <span className="text-slate-400 ml-2">({s.lives} Vidas)</span></span>
+                  <span className="text-sm font-black text-primary uppercase tracking-tight">
+                    {s.name} <span className="text-slate-400 ml-2">({s.lives} Vidas)</span>
+                  </span>
                   <div className="text-right">
                     <span className="text-xl font-black text-primary">{s.stress}%</span>
-                    <span className={cn("block text-[9px] font-black uppercase mt-1", s.trend.includes('+') ? 'text-red-500' : 'text-emerald-500')}>{s.trend} Tendência</span>
+                    <span
+                      className={cn(
+                        "block text-[9px] font-black uppercase mt-1",
+                        s.trend.includes("+") ? "text-red-500" : "text-emerald-500"
+                      )}
+                    >
+                      {s.trend} Tendência
+                    </span>
                   </div>
                 </div>
                 <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                  <div className={cn("h-full transition-all duration-1000 ease-out", s.color)} style={{ width: `${s.stress}%` }} />
+                  <div
+                    className={cn("h-full transition-all duration-1000 ease-out", s.color)}
+                    style={{ width: `${s.stress}%` }}
+                  />
                 </div>
               </div>
             ))}
@@ -79,7 +111,8 @@ export function PsychosocialTab() {
             </CardHeader>
             <CardContent className="p-0 space-y-8">
               <p className="text-[15px] italic text-white/90 leading-relaxed font-medium">
-                "Detectada correlação crítica de 0.82 entre stress e absenteísmo na unidade principal. Recomendamos Pausa Ativa iminente de 15min."
+                "Detectada correlação crítica de 0.82 entre stress e absenteísmo na unidade
+                principal. Recomendamos Pausa Ativa iminente de 15min."
               </p>
               <Dialog open={isBlitzOpen} onOpenChange={setIsBlitzOpen}>
                 <DialogTrigger asChild>
@@ -89,20 +122,26 @@ export function PsychosocialTab() {
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[420px] rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden bg-white">
                   <div className="p-6 bg-gradient-to-r from-[#0f172a] to-primary text-white relative">
-                    <div className="absolute top-0 right-0 p-2 opacity-10"><Brain className="size-16" /></div>
+                    <div className="absolute top-0 right-0 p-2 opacity-10">
+                      <Brain className="size-16" />
+                    </div>
                     <DialogTitle className="text-xl font-headline font-black uppercase flex items-center gap-3 relative z-10">
                       <Zap className="size-6 text-accent" /> Blitz Ergonômica
                     </DialogTitle>
                   </div>
                   <div className="p-8 space-y-6 bg-slate-50">
                     <p className="text-sm text-slate-600 font-medium leading-relaxed">
-                      Você está prestes a acionar a equipe de Especialistas (Ergonomia/Saúde Mental) para uma intervenção na <strong>Unidade Operacional</strong>.
+                      Você está prestes a acionar a equipe de Especialistas (Ergonomia/Saúde Mental)
+                      para uma intervenção na <strong>Unidade Operacional</strong>.
                     </p>
                     <Button
                       className="w-full h-14 bg-primary text-white rounded-xl shadow-lg font-black uppercase tracking-widest text-[10px]"
                       onClick={() => {
-                        toast({ title: "Intervenção Solicitada", description: "A equipe foi notificada com prioridade e está a caminho." })
-                        setIsBlitzOpen(false)
+                        toast({
+                          title: "Intervenção Solicitada",
+                          description: "A equipe foi notificada com prioridade e está a caminho.",
+                        });
+                        setIsBlitzOpen(false);
                       }}
                     >
                       <Check className="size-4 mr-2" /> Confirmar Solicitação
@@ -115,5 +154,5 @@ export function PsychosocialTab() {
         </Card>
       </div>
     </div>
-  )
+  );
 }

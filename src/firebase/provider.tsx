@@ -1,12 +1,20 @@
-'use client';
+"use client";
 
-import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
-import { FirebaseApp } from 'firebase/app';
-import { Firestore } from 'firebase/firestore';
-import { Auth, User } from 'firebase/auth';
-import { subscribeToUserSession, type UserAuthState } from './user-session';
-import { FirebaseStorage } from 'firebase/storage';
-import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
+import React, {
+  DependencyList,
+  createContext,
+  useContext,
+  ReactNode,
+  useMemo,
+  useState,
+  useEffect,
+} from "react";
+import { FirebaseApp } from "firebase/app";
+import { Firestore } from "firebase/firestore";
+import { Auth, User } from "firebase/auth";
+import { subscribeToUserSession, type UserAuthState } from "./user-session";
+import { FirebaseStorage } from "firebase/storage";
+import { FirebaseErrorListener } from "@/components/FirebaseErrorListener";
 
 interface FirebaseProviderProps {
   children: ReactNode;
@@ -70,7 +78,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       firestore: servicesAvailable ? firestore : null,
       auth: servicesAvailable ? auth : null,
       storage: servicesAvailable ? storage : null,
-      ...authState
+      ...authState,
     };
   }, [firebaseApp, firestore, auth, storage, authState]);
 
@@ -84,9 +92,16 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
 export const useFirebase = (): FirebaseServicesAndUser => {
   const context = useContext(FirebaseContext);
-  if (context === undefined) throw new Error('useFirebase deve ser usado dentro de um FirebaseProvider.');
-  if (!context.areServicesAvailable || !context.firebaseApp || !context.firestore || !context.auth || !context.storage) {
-    throw new Error('Serviços core do Firebase não estão disponíveis.');
+  if (context === undefined)
+    throw new Error("useFirebase deve ser usado dentro de um FirebaseProvider.");
+  if (
+    !context.areServicesAvailable ||
+    !context.firebaseApp ||
+    !context.firestore ||
+    !context.auth ||
+    !context.storage
+  ) {
+    throw new Error("Serviços core do Firebase não estão disponíveis.");
   }
   return {
     firebaseApp: context.firebaseApp,

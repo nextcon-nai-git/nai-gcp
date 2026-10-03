@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { ai } from '@/ai/genkit';
-import { consultarCIDTool, buscarHistoricoPacienteTool } from '@/ai/flows/medical-assistant-flow';
+import { NextRequest, NextResponse } from "next/server";
+import { ai } from "@/ai/genkit";
+import { consultarCIDTool, buscarHistoricoPacienteTool } from "@/ai/flows/medical-assistant-flow";
 
 /**
  * @fileOverview API de Streaming para o Assistente Médico NAI.
@@ -53,12 +53,11 @@ export async function POST(request: NextRequest) {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-cache, no-transform",
         "Transfer-Encoding": "chunked",
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
       },
     });
-
   } catch (error: any) {
     console.error("Erro no Agente Médico NAI (Stream):", error);
     return new Response("Erro interno no processamento do agente neural.", { status: 500 });
@@ -70,9 +69,9 @@ export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
     headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
     },
   });
 }

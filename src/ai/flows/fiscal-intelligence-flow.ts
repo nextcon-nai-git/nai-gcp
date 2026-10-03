@@ -1,28 +1,28 @@
-'use server';
+"use server";
 /**
  * @fileOverview NAI Fiscal Intelligence - Analisador de cenários tributários 2026.
- * 
+ *
  * - analyzeFiscalScenario - Analisa o impacto de IBS e CBS em contratos de SST.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from "@/ai/genkit";
+import { z } from "genkit";
 
 const FiscalInputSchema = z.object({
-  companySegment: z.string().describe('Segmento da empresa (ex: Serviços de SST).'),
-  location: z.string().describe('Localização municipal e estadual.'),
-  monthlyRevenue: z.number().describe('Faturamento mensal médio para cálculo de impacto.'),
+  companySegment: z.string().describe("Segmento da empresa (ex: Serviços de SST)."),
+  location: z.string().describe("Localização municipal e estadual."),
+  monthlyRevenue: z.number().describe("Faturamento mensal médio para cálculo de impacto."),
 });
 export type FiscalInput = z.infer<typeof FiscalInputSchema>;
 
 const FiscalOutputSchema = z.object({
-  analysis: z.string().describe('Análise técnica do cenário fiscal.'),
+  analysis: z.string().describe("Análise técnica do cenário fiscal."),
   suggestedRates: z.object({
-    ibs: z.number().describe('Alíquota sugerida de IBS (Estadual/Municipal).'),
-    cbs: z.number().describe('Alíquota sugerida de CBS (Federal).'),
-    iss: z.number().describe('Alíquota residual de ISS, se aplicável.'),
+    ibs: z.number().describe("Alíquota sugerida de IBS (Estadual/Municipal)."),
+    cbs: z.number().describe("Alíquota sugerida de CBS (Federal)."),
+    iss: z.number().describe("Alíquota residual de ISS, se aplicável."),
   }),
-  taxEfficiencyTips: z.array(z.string()).describe('Dicas para otimização fiscal na transição.'),
+  taxEfficiencyTips: z.array(z.string()).describe("Dicas para otimização fiscal na transição."),
 });
 export type FiscalOutput = z.infer<typeof FiscalOutputSchema>;
 
@@ -31,9 +31,9 @@ export async function analyzeFiscalScenario(input: FiscalInput): Promise<FiscalO
 }
 
 const prompt = ai.definePrompt({
-  name: 'fiscalIntelligencePrompt',
-  input: {schema: FiscalInputSchema},
-  output: {schema: FiscalOutputSchema},
+  name: "fiscalIntelligencePrompt",
+  input: { schema: FiscalInputSchema },
+  output: { schema: FiscalOutputSchema },
   prompt: `Você é a NAI, consultora tributária sênior da NextCon especializada na Reforma Tributária Brasileira de 2026.
 Analise o cenário fiscal para uma empresa do segmento "{{{companySegment}}}" localizada em "{{{location}}}".
 
@@ -49,13 +49,13 @@ Faturamento Mensal Estimado: R$ {{{monthlyRevenue}}}`,
 
 const fiscalFlow = ai.defineFlow(
   {
-    name: 'fiscalIntelligenceFlow',
+    name: "fiscalIntelligenceFlow",
     inputSchema: FiscalInputSchema,
     outputSchema: FiscalOutputSchema,
   },
-  async input => {
-    const {output} = await prompt(input);
-    if (!output) throw new Error('A NAI não conseguiu processar o cenário fiscal agora.');
+  async (input) => {
+    const { output } = await prompt(input);
+    if (!output) throw new Error("A NAI não conseguiu processar o cenário fiscal agora.");
     return output;
   }
 );

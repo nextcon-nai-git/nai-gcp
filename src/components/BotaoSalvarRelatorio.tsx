@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import { useState } from 'react';
-import { Loader2, Sparkles, CheckCircle2 } from 'lucide-react';
-import { processarRelatorioSST, type AnaliseRiscoOutput } from '@/actions/sst-report-processor';
-import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
+import * as React from "react";
+import { useState } from "react";
+import { Loader2, Sparkles, CheckCircle2 } from "lucide-react";
+import { processarRelatorioSST, type AnaliseRiscoOutput } from "@/actions/sst-report-processor";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 interface BotaoSalvarRelatorioProps {
   relatorioDados: any;
@@ -46,7 +46,6 @@ export function BotaoSalvarRelatorio({ relatorioDados, onSuccess }: BotaoSalvarR
       } else {
         throw new Error(result.erro);
       }
-
     } catch (error: any) {
       console.error("NAI Action Error:", error);
       toast({

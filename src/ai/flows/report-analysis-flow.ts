@@ -1,14 +1,16 @@
-'use server';
+"use server";
 /**
  * @fileOverview NAI Report Analysis - Analisador técnico de vistorias e laudos.
  * Converte dados brutos em resumos executivos para o gestor.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from "@/ai/genkit";
+import { z } from "genkit";
 
-const ReportAnalysisInputSchema = z.any().describe('Os dados brutos do relatório ou vistoria técnica.');
-const ReportAnalysisOutputSchema = z.string().describe('O resumo executivo gerado pela IA.');
+const ReportAnalysisInputSchema = z
+  .any()
+  .describe("Os dados brutos do relatório ou vistoria técnica.");
+const ReportAnalysisOutputSchema = z.string().describe("O resumo executivo gerado pela IA.");
 
 /**
  * Função principal para analisar riscos em relatórios SST.
@@ -19,11 +21,11 @@ export async function analyzeSafetyReport(input: any): Promise<string> {
 
 const analyzeSafetyReportFlow = ai.defineFlow(
   {
-    name: 'analyzeSafetyReportFlow',
+    name: "analyzeSafetyReportFlow",
     inputSchema: ReportAnalysisInputSchema,
     outputSchema: ReportAnalysisOutputSchema,
   },
-  async input => {
+  async (input) => {
     const { text } = await ai.generate({
       prompt: `Você é um Engenheiro de Segurança do Trabalho sênior da Nextcon.
       Sua missão é analisar os dados de uma visita técnica e gerar um resumo executivo de alta performance.
@@ -37,7 +39,7 @@ const analyzeSafetyReportFlow = ai.defineFlow(
       DADOS DO RELATÓRIO:
       ${JSON.stringify(input)}`,
     });
-    
+
     return text;
   }
 );

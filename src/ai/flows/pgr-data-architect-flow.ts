@@ -1,39 +1,41 @@
-'use server';
+"use server";
 /**
  * @fileOverview NAI Data Architect - Especialista em extração de inteligência GRO/PGR (NR-01).
  * Converte entradas brutas em documentos NoSQL padronizados para o Cloud Firestore.
- * 
+ *
  * - architectPgrData: Função principal de processamento.
  * - ArchitectInput: Texto ou descrição do ambiente/perigo.
  * - ArchitectOutput: JSON estruturado conforme matriz de risco NR-01.
  */
 
-import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { ai } from "@/ai/genkit";
+import { z } from "genkit";
 
 const ArchitectInputSchema = z.object({
-  rawInput: z.string().describe('Descrição do perigo, ambiente de trabalho ou medida de controle.'),
+  rawInput: z.string().describe("Descrição do perigo, ambiente de trabalho ou medida de controle."),
 });
 export type ArchitectInput = z.infer<typeof ArchitectInputSchema>;
 
 const ArchitectOutputSchema = z.object({
   inventario: z.object({
-    setor: z.string().describe('Setor ou GHE identificado.'),
-    perigo: z.string().describe('O perigo identificado.'),
-    risco_associado: z.string().describe('O risco resultante da exposição ao perigo.'),
-    categoria: z.enum(['Físico', 'Químico', 'Biológico', 'Ergonômico', 'Acidente']),
+    setor: z.string().describe("Setor ou GHE identificado."),
+    perigo: z.string().describe("O perigo identificado."),
+    risco_associado: z.string().describe("O risco resultante da exposição ao perigo."),
+    categoria: z.enum(["Físico", "Químico", "Biológico", "Ergonômico", "Acidente"]),
     avaliacao: z.object({
-      probabilidade: z.number().min(1).max(5).describe('Probabilidade (1 a 5).'),
-      severidade: z.number().min(1).max(5).describe('Severidade (1 a 5).'),
-      nivel_final: z.number().describe('Resultado de Probabilidade x Severidade.'),
-      prioridade: z.enum(['Crítico', 'Substancial', 'Moderado', 'Tolerável']),
+      probabilidade: z.number().min(1).max(5).describe("Probabilidade (1 a 5)."),
+      severidade: z.number().min(1).max(5).describe("Severidade (1 a 5)."),
+      nivel_final: z.number().describe("Resultado de Probabilidade x Severidade."),
+      prioridade: z.enum(["Crítico", "Substancial", "Moderado", "Tolerável"]),
     }),
   }),
-  plano_acao_sugerido: z.array(z.object({
-    medida: z.string().describe('Medida de controle sugerida.'),
-    tipo: z.enum(['EPC', 'EPI', 'Adm']),
-    prazo_sugerido_dias: z.number(),
-  })),
+  plano_acao_sugerido: z.array(
+    z.object({
+      medida: z.string().describe("Medida de controle sugerida."),
+      tipo: z.enum(["EPC", "EPI", "Adm"]),
+      prazo_sugerido_dias: z.number(),
+    })
+  ),
 });
 export type ArchitectOutput = z.infer<typeof ArchitectOutputSchema>;
 
@@ -45,7 +47,7 @@ export async function architectPgrData(input: ArchitectInput): Promise<Architect
 }
 
 const prompt = ai.definePrompt({
-  name: 'pgrDataArchitectPrompt',
+  name: "pgrDataArchitectPrompt",
   input: { schema: ArchitectInputSchema },
   output: { schema: ArchitectOutputSchema },
   prompt: `Você é um Arquiteto de Dados SST sênior especializado em legislação brasileira (NR-01).
@@ -75,13 +77,13 @@ Retorne estritamente o JSON conforme o esquema solicitado. Se a informação est
 
 const architectPgrDataFlow = ai.defineFlow(
   {
-    name: 'pgrDataArchitectFlow',
+    name: "pgrDataArchitectFlow",
     inputSchema: ArchitectInputSchema,
     outputSchema: ArchitectOutputSchema,
   },
   async (input) => {
     const { output } = await prompt(input);
-    if (!output) throw new Error('A NAI não conseguiu arquitetar os dados deste registro.');
+    if (!output) throw new Error("A NAI não conseguiu arquitetar os dados deste registro.");
     return output;
   }
 );

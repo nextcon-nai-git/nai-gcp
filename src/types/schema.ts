@@ -1,13 +1,22 @@
-
 /**
  * NEXTCON PLATFORM - ENTERPRISE SCHEMA 2026
  * Core data structures for the Risk & Life Operating System.
  */
 
-export type RiskCategory = 'fisico' | 'quimico' | 'biologico' | 'ergonomico' | 'acidente';
-export type TaskStatus = 'to_review' | 'sent' | 'approved' | 'implementation' | 'started' | 'todo' | 'doing' | 'review' | 'done';
-export type Priority = 'low' | 'medium' | 'high' | 'critical';
-export type TaskType = 'pgr' | 'pcmso' | 'ltcat' | 'treinamento' | 'esocial' | 'iot_check' | 'vistoria' | 'comercial';
+export type RiskCategory = "fisico" | "quimico" | "biologico" | "ergonomico" | "acidente";
+export type TaskStatus =
+  | "to_review"
+  | "sent"
+  | "approved"
+  | "implementation"
+  | "started"
+  | "todo"
+  | "doing"
+  | "review"
+  | "done";
+export type Priority = "low" | "medium" | "high" | "critical";
+export type TaskType =
+  "pgr" | "pcmso" | "ltcat" | "treinamento" | "esocial" | "iot_check" | "vistoria" | "comercial";
 
 export interface FiscalConfig {
   ibpt_token?: string;
@@ -25,7 +34,7 @@ export interface UserCertificateInfo {
 export interface UserProfile {
   id: string;
   name: string;
-  role: 'SUPER_ADMIN' | 'CLIENT_ADMIN' | 'ENGINEER' | 'DOCTOR' | 'PROVIDER';
+  role: "SUPER_ADMIN" | "CLIENT_ADMIN" | "ENGINEER" | "DOCTOR" | "PROVIDER";
   email: string;
   crm?: string;
   rqe?: string;
@@ -39,7 +48,7 @@ export interface Meeting {
   doctorId: string;
   patientId: string;
   patientName: string;
-  status: 'scheduled' | 'active' | 'ended';
+  status: "scheduled" | "active" | "ended";
   startTime: string;
   endTime?: string;
   offer?: { sdp: string; type: string };
@@ -85,7 +94,7 @@ export interface Employee {
   sector: string;
   gheId: string;
   admissionDate: string;
-  status: 'active' | 'leave' | 'fired';
+  status: "active" | "leave" | "fired";
   jobRole: string;
   riscos: string[];
 }
@@ -106,13 +115,13 @@ export interface OpsTask {
   companyId: string;
   companyName: string;
   checklist: ComplianceItem[];
-  autoAction?: 'generate_pdf' | 'send_esocial_xml' | 'alert_manager';
+  autoAction?: "generate_pdf" | "send_esocial_xml" | "alert_manager";
   ai_risk_score?: number;
   dueDate: string;
   createdAt: string;
   assigneeId?: string;
   assigneeName?: string;
-  origin?: 'commercial_ai' | 'manual_sim' | 'direct';
+  origin?: "commercial_ai" | "manual_sim" | "direct";
 }
 
 export interface MedicalAppointment {
@@ -121,8 +130,8 @@ export interface MedicalAppointment {
   colaborador_nome: string;
   data_hora: string;
   check_in_at?: string;
-  tipo: 'Admissional' | 'Periódico' | 'Demissional' | 'Mudança de Função' | 'Retorno ao Trabalho';
-  status: 'Agendado' | 'Em Espera' | 'Em Atendimento' | 'Concluído';
+  tipo: "Admissional" | "Periódico" | "Demissional" | "Mudança de Função" | "Retorno ao Trabalho";
+  status: "Agendado" | "Em Espera" | "Em Atendimento" | "Concluído";
   check_in_realizado: boolean;
   companyId: string;
 }
@@ -139,10 +148,10 @@ export interface AsoAttendance {
   agendamento_id: string;
   medico_id: string;
   data_emissao: string;
-  resultado: 'Apto' | 'Inapto';
+  resultado: "Apto" | "Inapto";
   url_documento_signed?: string;
   signature_info?: AsoSignatureInfo;
-  status_esocial: 'Pendente' | 'Enviado' | 'Erro';
+  status_esocial: "Pendente" | "Enviado" | "Erro";
   protocolo_governo?: string;
   employeeName: string;
   companyId: string;

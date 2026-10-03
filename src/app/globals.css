@@ -5,39 +5,39 @@
 @layer base {
   :root {
     /* Nextcon Enterprise Palette 2026 - Sober Grey & Deep Navy */
-    --background: 210 40% 98%;    /* #F8FAFC */
-    --foreground: 215 32% 17%;    /* #1E293B */
-    
+    --background: 210 40% 98%; /* #F8FAFC */
+    --foreground: 215 32% 17%; /* #1E293B */
+
     --card: 0 0% 100%;
     --card-foreground: 215 32% 17%;
-    
+
     --popover: 0 0% 100%;
     --popover-foreground: 215 32% 17%;
-    
-    --primary: 210 100% 12%;      /* #001F3F - Darker Navy */
+
+    --primary: 210 100% 12%; /* #001F3F - Darker Navy */
     --primary-foreground: 210 40% 98%;
-    
-    --secondary: 215 25% 27%;    /* #334155 - Slate Grey */
+
+    --secondary: 215 25% 27%; /* #334155 - Slate Grey */
     --secondary-foreground: 210 40% 98%;
-    
+
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    
-    --accent: 215 25% 27%;       /* #334155 - Dark Slate Grey (The main gray) */
+
+    --accent: 215 25% 27%; /* #334155 - Dark Slate Grey (The main gray) */
     --accent-foreground: 210 40% 98%;
-    
-    --destructive: 0 84% 60%;     /* #EF4444 - Risk Red */
+
+    --destructive: 0 84% 60%; /* #EF4444 - Risk Red */
     --destructive-foreground: 210 40% 98%;
-    
+
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 210 100% 12%;
     --radius: 1rem;
 
     /* Sidebar Variables 2026 - Deep Corporate Presence */
-    --sidebar-background: 210 100% 8%; 
+    --sidebar-background: 210 100% 8%;
     --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 215 25% 27%;    
+    --sidebar-primary: 215 25% 27%;
     --sidebar-primary-foreground: 210 40% 98%;
     --sidebar-accent: 210 100% 15%;
     --sidebar-accent-foreground: 0 0% 100%;
@@ -50,9 +50,9 @@
   .glass-panel {
     @apply bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm transition-all duration-300;
   }
-  
+
   .gradient-nextcon {
-    background: linear-gradient(135deg, #000D1A 0%, #001F3F 50%, #000D1A 100%);
+    background: linear-gradient(135deg, #000d1a 0%, #001f3f 50%, #000d1a 100%);
   }
 
   .sidebar-header-glow {
@@ -80,7 +80,7 @@
   }
 
   .shimmer-effect::after {
-    content: '';
+    content: "";
     position: absolute;
     top: 0;
     right: 0;
@@ -104,16 +104,17 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', sans-serif;
+    font-family: "Inter", sans-serif;
     background-attachment: fixed;
-    background-image: radial-gradient(at 0% 0%, hsla(210, 100% , 97%, 1) 0, transparent 50%),
-                      radial-gradient(at 100% 100%, hsla(215, 20%, 96%, 1) 0, transparent 50%);
+    background-image:
+      radial-gradient(at 0% 0%, hsla(210, 100%, 97%, 1) 0, transparent 50%),
+      radial-gradient(at 100% 100%, hsla(215, 20%, 96%, 1) 0, transparent 50%);
   }
 }
 
 .font-headline {
   @apply tracking-tight;
-  font-family: 'Montserrat', sans-serif;
+  font-family: "Montserrat", sans-serif;
 }
 
 ::-webkit-scrollbar {

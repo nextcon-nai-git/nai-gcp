@@ -5,6 +5,7 @@ Este repositório contém a base do produto NAI, uma plataforma de inteligência
 ## Objetivo
 
 A plataforma foi concebida para:
+
 - centralizar dados de saúde e SST
 - apoiar avaliação, acompanhamento e auditoria médica
 - automatizar triagem documental e análise operacional
@@ -43,6 +44,10 @@ A implantação deve ocorrer por pipeline gerenciado e com aprovação para prod
 npm run infra:rules
 npm run infra:deploy
 ```
+
+## CI
+
+Veja [docs/CI.md](docs/CI.md) para os workflows e como rodar as verificações localmente (`npm run ci`).
 
 ## Segurança
 

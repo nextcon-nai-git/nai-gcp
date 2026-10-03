@@ -1,25 +1,27 @@
-'use server';
+"use server";
 /**
  * @fileOverview NAI Medical Intelligence - Recomendador de Exames Ocupacionais.
- * 
+ *
  * - suggestExams - Função que analisa riscos e cargo para sugerir exames (NR-07).
  */
 
-import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { ai } from "@/ai/genkit";
+import { z } from "genkit";
 
 const SuggestExamsInputSchema = z.object({
-  jobTitle: z.string().describe('Cargo ou função do colaborador.'),
-  companyRisks: z.array(z.string()).describe('Lista de riscos identificados no PGR.'),
-  age: z.number().describe('Idade do colaborador.'),
+  jobTitle: z.string().describe("Cargo ou função do colaborador."),
+  companyRisks: z.array(z.string()).describe("Lista de riscos identificados no PGR."),
+  age: z.number().describe("Idade do colaborador."),
 });
 export type SuggestExamsInput = z.infer<typeof SuggestExamsInputSchema>;
 
 const SuggestExamsOutputSchema = z.object({
-  recommendedExams: z.array(z.object({
-    examName: z.string().describe('Nome do exame (ex: Audiometria, Espirometria).'),
-    reason: z.string().describe('Justificativa técnica baseada na NR-07 ou riscos.'),
-  })),
+  recommendedExams: z.array(
+    z.object({
+      examName: z.string().describe("Nome do exame (ex: Audiometria, Espirometria)."),
+      reason: z.string().describe("Justificativa técnica baseada na NR-07 ou riscos."),
+    })
+  ),
 });
 export type SuggestExamsOutput = z.infer<typeof SuggestExamsOutputSchema>;
 
@@ -35,7 +37,7 @@ export async function suggestExams(input: SuggestExamsInput): Promise<SuggestExa
  */
 const suggestExamsFlow = ai.defineFlow(
   {
-    name: 'suggestExamsFlow',
+    name: "suggestExamsFlow",
     inputSchema: SuggestExamsInputSchema,
     outputSchema: SuggestExamsOutputSchema,
   },
@@ -57,10 +59,10 @@ const suggestExamsFlow = ai.defineFlow(
       5. Cite a norma ou o perigo na justificativa.
       
       Retorne a lista no formato estruturado solicitado.`,
-      output: { schema: SuggestExamsOutputSchema }
+      output: { schema: SuggestExamsOutputSchema },
     });
 
-    if (!output) throw new Error('A NAI não conseguiu processar a sugestão de exames.');
+    if (!output) throw new Error("A NAI não conseguiu processar a sugestão de exames.");
     return output;
   }
 );

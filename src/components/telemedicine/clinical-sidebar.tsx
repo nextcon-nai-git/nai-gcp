@@ -1,26 +1,32 @@
-
 "use client";
 
 import * as React from "react";
-import { 
-  User, 
-  Activity, 
-  AlertCircle, 
-  Pill, 
-  FileText, 
-  HeartPulse, 
+import {
+  User,
+  Activity,
+  AlertCircle,
+  Pill,
+  FileText,
+  HeartPulse,
   Zap,
   ChevronRight,
   ChevronLeft,
   Brain,
-  History
+  History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { LineChart, Line, ResponsiveContainer, YAxis, XAxis, Tooltip as ChartTooltip } from 'recharts';
+import {
+  LineChart,
+  Line,
+  ResponsiveContainer,
+  YAxis,
+  XAxis,
+  Tooltip as ChartTooltip,
+} from "recharts";
 
 interface PatientData {
   name?: string;
@@ -45,13 +51,22 @@ interface ClinicalSidebarProps {
   onToggle: () => void;
 }
 
-export function ClinicalSidebar({ patientData, telemetry, transcript, soapSummary, isOpen, onToggle }: ClinicalSidebarProps) {
+export function ClinicalSidebar({
+  patientData,
+  telemetry,
+  transcript,
+  soapSummary,
+  isOpen,
+  onToggle,
+}: ClinicalSidebarProps) {
   return (
-    <div className={cn(
-      "fixed top-0 right-0 h-full bg-white border-l shadow-2xl transition-all duration-500 z-50 flex flex-col",
-      isOpen ? "w-[450px]" : "w-0"
-    )}>
-      <button 
+    <div
+      className={cn(
+        "fixed top-0 right-0 h-full bg-white border-l shadow-2xl transition-all duration-500 z-50 flex flex-col",
+        isOpen ? "w-[450px]" : "w-0"
+      )}
+    >
+      <button
         onClick={onToggle}
         className="absolute -left-10 top-1/2 -translate-y-1/2 size-10 bg-primary text-white rounded-l-2xl flex items-center justify-center shadow-lg"
       >
@@ -63,11 +78,15 @@ export function ClinicalSidebar({ patientData, telemetry, transcript, soapSummar
           <CardHeader className="bg-primary text-white p-6 shrink-0">
             <div className="flex items-center gap-4">
               <div className="size-14 rounded-2xl bg-white/10 flex items-center justify-center text-2xl font-black border border-white/20">
-                {(patientData.name || '').substring(0, 2).toUpperCase()}
+                {(patientData.name || "").substring(0, 2).toUpperCase()}
               </div>
               <div>
-                <CardTitle className="text-xl font-headline font-black uppercase">{patientData.name}</CardTitle>
-                <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest">Prontuário Unificado NAI</p>
+                <CardTitle className="text-xl font-headline font-black uppercase">
+                  {patientData.name}
+                </CardTitle>
+                <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest">
+                  Prontuário Unificado NAI
+                </p>
               </div>
             </div>
           </CardHeader>
@@ -82,11 +101,15 @@ export function ClinicalSidebar({ patientData, telemetry, transcript, soapSummar
                 <div className="grid grid-cols-1 gap-2">
                   <Badge className="bg-red-100 text-red-700 border-none p-3 rounded-xl flex items-center gap-3">
                     <Zap className="size-4 animate-pulse" />
-                    <span className="text-[10px] font-black uppercase">ALERGIA: PENICILINA / DIPIRONA</span>
+                    <span className="text-[10px] font-black uppercase">
+                      ALERGIA: PENICILINA / DIPIRONA
+                    </span>
                   </Badge>
                   <Badge className="bg-orange-100 text-orange-700 border-none p-3 rounded-xl flex items-center gap-3">
                     <Pill className="size-4" />
-                    <span className="text-[10px] font-black uppercase">MEDICAÇÃO: GLIFAGE 500mg</span>
+                    <span className="text-[10px] font-black uppercase">
+                      MEDICAÇÃO: GLIFAGE 500mg
+                    </span>
                   </Badge>
                 </div>
               </div>
@@ -102,7 +125,14 @@ export function ClinicalSidebar({ patientData, telemetry, transcript, soapSummar
                   <div className="h-32">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={telemetry}>
-                        <Line type="monotone" dataKey="heartRate" stroke="#ef4444" strokeWidth={2} dot={false} isAnimationActive={false} />
+                        <Line
+                          type="monotone"
+                          dataKey="heartRate"
+                          stroke="#ef4444"
+                          strokeWidth={2}
+                          dot={false}
+                          isAnimationActive={false}
+                        />
                         <ChartTooltip />
                       </LineChart>
                     </ResponsiveContainer>
@@ -110,11 +140,16 @@ export function ClinicalSidebar({ patientData, telemetry, transcript, soapSummar
                   <div className="flex justify-between mt-4">
                     <div className="text-center">
                       <p className="text-[8px] font-black text-slate-400 uppercase">Frequência</p>
-                      <p className="text-xl font-black text-red-600">{telemetry[telemetry.length-1]?.heartRate || '--'} <span className="text-[10px]">bpm</span></p>
+                      <p className="text-xl font-black text-red-600">
+                        {telemetry[telemetry.length - 1]?.heartRate || "--"}{" "}
+                        <span className="text-[10px]">bpm</span>
+                      </p>
                     </div>
                     <div className="text-center">
                       <p className="text-[8px] font-black text-slate-400 uppercase">Saturação</p>
-                      <p className="text-xl font-black text-blue-600">{telemetry[telemetry.length-1]?.spo2 || '--'}%</p>
+                      <p className="text-xl font-black text-blue-600">
+                        {telemetry[telemetry.length - 1]?.spo2 || "--"}%
+                      </p>
                     </div>
                   </div>
                 </CardContent>
@@ -128,13 +163,21 @@ export function ClinicalSidebar({ patientData, telemetry, transcript, soapSummar
                 <div className="bg-primary/5 border border-primary/10 p-5 rounded-[2rem] space-y-4">
                   <div className="space-y-1">
                     <p className="text-[8px] font-black text-primary uppercase">Subjetivo (IA)</p>
-                    <p className="text-[11px] text-slate-600 italic leading-relaxed">" {soapSummary?.subjective || 'IA processando diálogo...'}"</p>
+                    <p className="text-[11px] text-slate-600 italic leading-relaxed">
+                      " {soapSummary?.subjective || "IA processando diálogo..."}"
+                    </p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-[8px] font-black text-primary uppercase">Sugestão CID-10</p>
                     <div className="flex flex-wrap gap-1">
                       {(soapSummary?.cid10 || []).map((c: any) => (
-                        <Badge key={c.code} variant="outline" className="text-[8px] font-black border-primary/20">{c.code}</Badge>
+                        <Badge
+                          key={c.code}
+                          variant="outline"
+                          className="text-[8px] font-black border-primary/20"
+                        >
+                          {c.code}
+                        </Badge>
                       ))}
                     </div>
                   </div>

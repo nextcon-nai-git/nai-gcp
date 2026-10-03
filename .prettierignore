@@ -1,0 +1,13 @@
+node_modules
+.next
+out
+build
+coverage
+package-lock.json
+functions
+dataconnect
+"NAI 2"
+workflows
+.agents
+*.txt
+.modified
