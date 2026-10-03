@@ -1,51 +1,75 @@
 import { NextResponse } from "next/server";
+import { fetchWithPooling } from "@/lib/http-client";
 
 /**
  * @fileOverview API de integração com o Portal Nacional de Contratações Públicas (PNCP).
- * Filtra oportunidades governamentais específicas para o setor de SST.
+ * Utiliza connection pooling, cache e retry automático para otimizar performance.
  */
 
 export async function GET() {
   try {
     // Palavras-chave estratégicas para filtragem técnica
-    const keywords = 'Segurança do Trabalho OR PCMSO OR PGR OR LTCAT OR "Medicina do Trabalho"';
+    const keywords =
+      'Segurança do Trabalho OR PCMSO OR PGR OR LTCAT OR "Medicina do Trabalho"';
 
-    // Endpoint de busca da API pública do PNCP (Portal Nacional de Contratações Públicas)
-    // Utilizamos o endpoint de contratações que é o mais estável para busca textual
-    const apiUrl = `https://pncp.gov.br/api/pncp/v1/contratacoes?q=${encodeURIComponent(keywords)}&pagina=1&tamanhoPagina=15`;
+    // Endpoint de busca da API pública do PNCP
+    const apiUrl = `https://pncp.gov.br/api/pncp/v1/contratacoes?q=${encodeURIComponent(
+      keywords
+    )}&pagina=1&tamanhoPagina=15`;
 
-    const response = await fetch(apiUrl, {
+    // Fetch com pooling, cache de 30 minutos e 3 retries
+    const rawData = await fetchWithPooling(apiUrl, {
       method: "GET",
       headers: {
         Accept: "application/json",
+        "User-Agent": "NAI-Healthcare-Platform/1.0",
       },
-      next: { revalidate: 3600 }, // Cache de 1 hora
+      cacheTTL: 30 * 60 * 1000, // 30 minutos
+      retries: 3,
+      retryDelay: 1000,
     });
 
-    if (!response.ok) {
-      throw new Error(`Erro na API do PNCP: ${response.status}`);
-    }
-
-    const rawData = await response.json();
-
-    // A estrutura do PNCP pode variar. Tentamos capturar de 'data', 'items' ou da raiz
-    const opportunities = rawData.data || rawData.items || (Array.isArray(rawData) ? rawData : []);
+    // A estrutura do PNCP pode variar
+    const opportunities =
+      rawData.data || rawData.items || (Array.isArray(rawData) ? rawData : []);
     const total = rawData.totalRegistros || opportunities.length || 0;
 
-    return NextResponse.json({
-      sucesso: true,
-      total: total,
-      oportunidades: opportunities,
-    });
+    return NextResponse.json(
+      {
+        sucesso: true,
+        total: total,
+        oportunidades: opportunities,
+        cache: true,
+      },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=3600",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
+      }
+    );
   } catch (error: any) {
     console.error("Erro ao consultar licitações:", error);
     return NextResponse.json(
       {
         sucesso: false,
-        erro: "O Portal do Governo (PNCP) está temporariamente indisponível ou recusou a conexão. Tente novamente em instantes.",
-        detalhes: error.message,
+        erro: "O Portal do Governo (PNCP) está temporariamente indisponível. Tente novamente em instantes.",
+        detalhes: error?.message,
       },
-      { status: 500 }
+      { status: 503 }
     );
   }
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    },
+  });
 }

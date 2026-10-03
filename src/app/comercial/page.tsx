@@ -36,7 +36,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { addDocumentNonBlocking, batchWriteOptimized } from "@/firebase/non-blocking-updates";
 import { NaiQuoteComponent } from "@/components/commercial/nai-quote-component";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { COMMERCIAL_COLUMNS } from "@/types/kanban";
@@ -282,31 +282,36 @@ export default function ComercialPortal() {
         },
       ];
 
-      for (const client of clients) {
+      const writes = clients.map((client) => {
         const taskId = client.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
         const colRef = collection(db, "companies", "leads", "tasks");
-        await addDocumentNonBlocking(colRef, {
-          id: taskId,
-          title: client.name,
-          companyId: "leads",
-          companyName: client.name,
-          type: client.type as any,
-          status: client.status as any,
-          priority: "high",
-          dueDate: new Date(2026, 5, 1).toISOString(),
-          createdAt: new Date().toISOString(),
-          totalValue: client.value,
-          checklist: [
-            { id: "1", text: client.scope, checked: true, mandatory: true },
-            {
-              id: "2",
-              text: client.activities || "Execução do escopo acordado",
-              checked: false,
-              mandatory: true,
-            },
-          ],
-        });
-      }
+        return {
+          type: "set" as const,
+          ref: doc(colRef),
+          data: {
+            id: taskId,
+            title: client.name,
+            companyId: "leads",
+            companyName: client.name,
+            type: client.type as any,
+            status: client.status as any,
+            priority: "high",
+            dueDate: new Date(2026, 5, 1).toISOString(),
+            createdAt: new Date().toISOString(),
+            totalValue: client.value,
+            checklist: [
+              { id: "1", text: client.scope, checked: true, mandatory: true },
+              {
+                id: "2",
+                text: client.activities || "Execução do escopo acordado",
+                checked: false,
+                mandatory: true,
+              },
+            ],
+          },
+        };
+      });
+      await batchWriteOptimized(db, writes);
       toast({
         title: "Dados Inseridos!",
         description: "Os clientes reais agora estão no funil comercial.",
