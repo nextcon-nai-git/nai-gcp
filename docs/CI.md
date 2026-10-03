@@ -42,3 +42,11 @@ e aviso para cadeias `.then()` (preferir async/await). Violações pré-existent
 Consulte [recuperação de telas e logs](testing/error-recovery.md) para o limite de
 erros das páginas autenticadas, a nova tentativa, a preservação da navegação e os
 cuidados com o contexto registrado no Cloud Logging.
+
+## Revisão de dependências no GitHub
+
+O job `Dependency review` exige suporte à revisão e Dependency graph habilitado
+no repositório. A execução do PR #26 retornou que o recurso está indisponível e
+indicou verificar [Security analysis](https://github.com/nextcon-nai-git/nai-gcp/settings/security_analysis).
+O job permanece obrigatório no workflow; sua falha de configuração não é tratada
+como aprovação da segurança das dependências.

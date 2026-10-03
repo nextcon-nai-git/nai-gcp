@@ -5,6 +5,8 @@ de renderização mostra uma mensagem em português e o botão **Tentar novament
 com foco de teclado. O menu lateral e a navegação superior continuam disponíveis.
 Trocar a rota cria uma nova instância do limite; tentar novamente remonta o conteúdo
 da tela. Se a causa continuar, a mensagem de recuperação aparece novamente.
+Exceções que chegam como `null`, texto ou outros valores também mantêm a recuperação
+disponível; o logger recebe um erro genérico nesses casos, sem incluir o valor recebido.
 
 O limite fica depois da verificação de sessão e perfil. Ele não libera conteúdo
 protegido durante login, consulta do perfil ou provisionamento pendente. A cobertura
@@ -46,7 +48,7 @@ datas desabilitadas e navegação entre meses.
 ## Resultado de 03/10/2026
 
 - Instalação limpa com `npm ci --engine-strict`, Node 20.20.2 e npm 10.9.9.
-- `npm run ci`: formatação, lint sem erros, tipos, 48 testes e build aprovados.
+- `npm run ci`: formatação, lint sem erros, tipos, 51 testes e build aprovados.
 - Seis testes das regras de acesso aprovados no emulador Firestore.
 - Validação no Chromium em 1280 e 390 pixels: calendário, foco no botão de
   recuperação, nova tentativa e troca de tela, sem erros não tratados.
@@ -57,6 +59,10 @@ auditoria de produção apontou 73 (20 altos e 53 moderados), sem críticos.
 Esses números incluem propagação pela árvore e dependem dos advisories consultados.
 O comando com `--audit-level=critical` passou; o gate com `--audit-level=high`
 permanece bloqueado. Os pacotes de runtime não mudaram neste conjunto de alterações.
+No GitHub, o job de revisão de dependências também retornou que o recurso não está
+disponível para este repositório e indicou verificar a habilitação do Dependency
+graph em [Security analysis](https://github.com/nextcon-nai-git/nai-gcp/settings/security_analysis).
+Essa configuração precisa ser resolvida para esse job funcionar.
 
 Referências dos mantenedores:
 

@@ -44,7 +44,9 @@ describe("screen error recovery", () => {
     expect(document.activeElement).toBe(element.querySelector("button"));
     expect(logger.error).toHaveBeenCalledWith(
       "React render error",
-      expect.objectContaining({ error: "synthetic screen failure" })
+      expect.objectContaining({
+        error: expect.objectContaining({ message: "synthetic screen failure" }),
+      })
     );
   });
 
@@ -79,6 +81,31 @@ describe("screen error recovery", () => {
     expect(element.querySelector('[role="alert"]')).not.toBeNull();
     expect(element.textContent).toContain("Tentar novamente");
   });
+
+  it.each([null, "synthetic thrown value", { password: "synthetic-password" }])(
+    "keeps recovery available for a non-Error exception (%j)",
+    async (value) => {
+      function InvalidException(): React.ReactNode {
+        throw value;
+      }
+      await act(async () =>
+        root.render(
+          <ErrorBoundary>
+            <InvalidException />
+          </ErrorBoundary>
+        )
+      );
+      expect(element.querySelector('[role="alert"]')).not.toBeNull();
+      expect(element.textContent).toContain("Tentar novamente");
+      expect(logger.error).toHaveBeenCalledWith(
+        "React render error",
+        expect.objectContaining({ error: expect.any(Error) })
+      );
+      expect(JSON.stringify(vi.mocked(logger.error).mock.calls)).not.toContain(
+        "synthetic-password"
+      );
+    }
+  );
 
   it("preserves an explicitly supplied fallback", async () => {
     await act(async () =>

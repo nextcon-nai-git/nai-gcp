@@ -19,10 +19,10 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     return { hasError: true };
   }
 
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
+  componentDidCatch(error: unknown, info: React.ErrorInfo) {
     logger.error("React render error", {
-      error: error.message,
-      stack: error.stack,
+      error:
+        error instanceof Error ? error : new Error("Non-Error exception during React rendering"),
       componentStack: info.componentStack,
     });
   }
