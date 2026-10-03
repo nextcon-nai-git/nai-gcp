@@ -17,8 +17,11 @@ vi.mock("next/navigation", () => ({
   usePathname: () => state.pathname,
   useRouter: () => ({ replace: state.replace }),
 }));
-vi.mock("@/components/layout/top-nav", () => ({ TopNav: () => null }));
-vi.mock("@/components/layout/app-sidebar", () => ({ AppSidebar: () => null }));
+vi.mock("@/components/layout/top-nav", () => ({ TopNav: () => <nav>Top navigation</nav> }));
+vi.mock("@/components/layout/app-sidebar", () => ({
+  AppSidebar: () => <aside>Sidebar navigation</aside>,
+}));
+vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn() } }));
 vi.mock("@/components/commercial/nai-floating-widget", () => ({ NaiFloatingWidget: () => null }));
 vi.mock("@/components/ui/sidebar", () => ({
   SidebarProvider: ({ children }: { children: React.ReactNode }) => children,
@@ -44,6 +47,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   element.remove();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -106,5 +110,36 @@ describe("application access gate", () => {
       )
     );
     expect(element.textContent).toContain("Login form");
+  });
+
+  it("preserves navigation after a screen failure and recovers on a route change", async () => {
+    state.user = { uid: "alice" };
+    state.role = "ENGINEER";
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    function BrokenScreen(): React.ReactNode {
+      throw new Error("synthetic screen failure");
+    }
+    await act(async () =>
+      root.render(
+        <AppContent>
+          <BrokenScreen />
+        </AppContent>
+      )
+    );
+    expect(element.textContent).toContain("Tentar novamente");
+    expect(element.textContent).toContain("Sidebar navigation");
+    expect(element.textContent).toContain("Top navigation");
+
+    state.pathname = "/employees";
+    await act(async () =>
+      root.render(
+        <AppContent>
+          <p>Outra tela disponível</p>
+        </AppContent>
+      )
+    );
+    expect(element.textContent).toContain("Outra tela disponível");
+    expect(element.querySelector('[role="alert"]')).toBeNull();
+    expect(state.replace).not.toHaveBeenCalled();
   });
 });

@@ -9,6 +9,10 @@
 
 ## Rodar localmente
 
+Usar Node 20.19 ou superior dentro da linha 20, conforme `engines.node`.
+Vitest e `@vitest/coverage-v8` usam a mesma versão 4.1.11 para manter
+compatibilidade com o Node executado nos workflows.
+
 ```bash
 npm ci
 npm run format:check   # ou npm run format para corrigir
@@ -32,3 +36,17 @@ e aviso para cadeias `.then()` (preferir async/await). Violações pré-existent
 `react-hooks/static-components`, `react-hooks/purity`, `react-hooks/set-state-in-effect`, `jsx-a11y/alt-text`,
 `no-require-imports`) foram rebaixadas para warning para permitir correção incremental (~590 avisos atuais).
 `tsconfig.json` já usa `strict: true`.
+
+## Recuperação da interface
+
+Consulte [recuperação de telas e logs](testing/error-recovery.md) para o limite de
+erros das páginas autenticadas, a nova tentativa, a preservação da navegação e os
+cuidados com o contexto registrado no Cloud Logging.
+
+## Revisão de dependências no GitHub
+
+O job `Dependency review` exige suporte à revisão e Dependency graph habilitado
+no repositório. A execução do PR #26 retornou que o recurso está indisponível e
+indicou verificar [Security analysis](https://github.com/nextcon-nai-git/nai-gcp/settings/security_analysis).
+O job permanece obrigatório no workflow; sua falha de configuração não é tratada
+como aprovação da segurança das dependências.

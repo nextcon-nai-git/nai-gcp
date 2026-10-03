@@ -9,6 +9,7 @@ import { TopNav } from "@/components/layout/top-nav";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { NaiFloatingWidget } from "@/components/commercial/nai-floating-widget";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 /**
  * @fileOverview Gatekeeper de Autenticação da Plataforma NAI.
@@ -118,7 +119,9 @@ export function AppContent({ children }: { children: React.ReactNode }) {
         <SidebarInset className="flex flex-col h-full overflow-hidden">
           <TopNav />
           <main className="flex-1 overflow-y-auto p-6 md:p-10 scrollbar-thin">
-            <div className="max-w-7xl mx-auto animate-in fade-in duration-500">{children}</div>
+            <div className="max-w-7xl mx-auto animate-in fade-in duration-500">
+              <ErrorBoundary key={pathname}>{children}</ErrorBoundary>
+            </div>
           </main>
         </SidebarInset>
         <NaiFloatingWidget />
