@@ -40,10 +40,23 @@ npm run build
 
 A implantação deve ocorrer por pipeline gerenciado e com aprovação para produção.
 
+O app usa o backend Firebase App Hosting `nai`, em `us-central1`, no projeto
+`studio-8439299034-125c7`, ligado a `nextcon-nai-git/nai-gcp` e à ramificação `main`.
+O ambiente de execução e os workflows usam Node 24. O lançamento automático é
+acionado por um novo commit na `main`; confirme o commit e o sucesso do lançamento
+no painel do backend antes de considerar a versão publicada.
+
+Com a Firebase CLI autenticada nesse projeto, é possível solicitar um lançamento
+manual da `main` no mesmo backend:
+
 ```bash
-npm run infra:rules
 npm run infra:deploy
 ```
+
+Firestore e Storage têm publicação separada (`npm run infra:rules`). O lançamento
+do app não publica essas regras. O workflow legado `Deploy to Firebase` ainda usa
+Firebase Hosting e exige `FIREBASE_SERVICE_ACCOUNT_JSON`; seu resultado não confirma
+a publicação no App Hosting.
 
 ## CI
 

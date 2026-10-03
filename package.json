@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": "^20.19.0"
+    "node": "^24.0.0"
   },
   "scripts": {
     "dev": "next dev --turbopack -p 9002",
@@ -19,7 +19,7 @@
     "test:coverage": "vitest run --coverage",
     "ci": "npm run format:check && npm run lint && npm run type-check && npm run test:coverage && npm run build",
     "infra:init": "gcloud init",
-    "infra:deploy": "firebase deploy --only hosting",
+    "infra:deploy": "firebase apphosting:rollouts:create nai --project studio-8439299034-125c7 --git-branch main",
     "infra:rules": "firebase deploy --only firestore:rules,storage:rules",
     "test": "vitest",
     "test:run": "vitest run",

@@ -30,7 +30,7 @@ segredos em mensagens, stack traces ou campos livres.
 
 ## Validação local
 
-Usar Node 20.19 ou superior dentro da linha 20 e `npm ci`. Vitest e seu provedor de
+Usar Node 24 e `npm ci`, como no backend `nai`. Vitest e seu provedor de
 cobertura ficam na mesma versão, `4.1.11`, compatível com essa linha do Node.
 
 ```sh
