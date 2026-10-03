@@ -1,119 +1,162 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
+  Query,
   onSnapshot,
-  type CollectionReference,
-  type DocumentData,
-  type FirestoreError,
-  type Query,
-  type QuerySnapshot,
+  DocumentData,
+  FirestoreError,
+  QuerySnapshot,
+  CollectionReference,
 } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError, type SecurityRuleContext } from "@/firebase/errors";
-import type { UseCollectionResult, WithId } from "./use-collection";
 
-type CollectionTarget = CollectionReference<DocumentData> | Query<DocumentData>;
-type Listener<T> = (data: WithId<T>[] | null, error: FirestoreError | Error | null) => void;
+export type WithId<T> = T & { id: string };
 
-interface SharedSubscription {
-  listeners: Set<Listener<unknown>>;
-  unsubscribe: () => void;
+export interface UseCollectionDedupedResult<T> {
+  data: WithId<T>[] | null;
+  isLoading: boolean;
+  error: FirestoreError | Error | null;
 }
 
-const subscriptions = new WeakMap<object, SharedSubscription>();
+// WeakMap global para armazenar subscriptions ativas por query string
+const queryCache = new Map<string, { unsubscribe: () => void; count: number }>();
+const queryListeners = new Map<string, Set<(data: any[]) => void>>();
 
-function getQueryPath(target: CollectionTarget): string {
-  try {
-    const queryTarget = target as Query<DocumentData> & {
-      _query?: { collectionGroup?: string; path?: { segments?: string[] } };
-      path?: string;
-    };
-    if (queryTarget._query?.collectionGroup) {
-      return `group:${queryTarget._query.collectionGroup}`;
-    }
-    if (queryTarget.path) return queryTarget.path;
-    return queryTarget._query?.path?.segments?.join("/") || "complex-query";
-  } catch {
-    return "complex-query";
-  }
-}
-
-function subscribe<T>(target: CollectionTarget, listener: Listener<T>): () => void {
-  const key = target as object;
-  let subscription = subscriptions.get(key);
-
-  if (!subscription) {
-    subscription = { listeners: new Set(), unsubscribe: () => {} };
-    subscriptions.set(key, subscription);
-    subscription.listeners.add(listener as Listener<unknown>);
-
-    const currentSubscription = subscription;
-    currentSubscription.unsubscribe = onSnapshot(
-      target,
-      (snapshot: QuerySnapshot<DocumentData>) => {
-        const data = snapshot.docs.map((document) => ({
-          ...(document.data() as object),
-          id: document.id,
-        }));
-        currentSubscription.listeners.forEach((notify) => notify(data, null));
-      },
-      (serverError: FirestoreError) => {
-        let error: FirestoreError | Error = serverError;
-        if (serverError.code === "permission-denied") {
-          const permissionError = new FirestorePermissionError({
-            operation: "list",
-            path: getQueryPath(target),
-          } satisfies SecurityRuleContext);
-          error = permissionError;
-          errorEmitter.emit("permission-error", permissionError);
-        }
-        currentSubscription.listeners.forEach((notify) => notify(null, error));
-      }
-    );
-  } else {
-    subscription.listeners.add(listener as Listener<unknown>);
-  }
-
-  return () => {
-    const activeSubscription = subscriptions.get(key);
-    if (!activeSubscription) return;
-    activeSubscription.listeners.delete(listener as Listener<unknown>);
-    if (activeSubscription.listeners.size === 0) {
-      activeSubscription.unsubscribe();
-      subscriptions.delete(key);
-    }
-  };
-}
-
-export function useCollectionDeduped<T = unknown>(
-  memoizedTargetRefOrQuery: CollectionTarget | null | undefined
-): UseCollectionResult<T> {
-  const [result, setResult] = useState<{
-    target: CollectionTarget | null | undefined;
-    data: WithId<T>[] | null;
-    error: FirestoreError | Error | null;
-  }>({ target: null, data: null, error: null });
+/**
+ * Hook para subscrição em tempo real com deduplicação automática.
+ * Se a mesma query já está subscrita, reutiliza a subscription existente.
+ */
+export function useCollectionDeduped<T = any>(
+  memoizedTargetRefOrQuery:
+    | (CollectionReference<DocumentData> | Query<DocumentData>)
+    | null
+    | undefined
+): UseCollectionDedupedResult<T> {
+  type ResultItemType = WithId<T>;
+  const [data, setData] = useState<ResultItemType[] | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<FirestoreError | Error | null>(null);
+  const queryKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!memoizedTargetRefOrQuery) return;
+    if (!memoizedTargetRefOrQuery) {
+      setData(null);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
 
-    return subscribe<T>(memoizedTargetRefOrQuery, (nextData, nextError) => {
-      setResult({
-        target: memoizedTargetRefOrQuery,
-        data: nextData,
-        error: nextError,
-      });
-    });
+    // Gera chave única para esta query
+    const queryKey = JSON.stringify((memoizedTargetRefOrQuery as any)?._query || memoizedTargetRefOrQuery);
+    queryKeyRef.current = queryKey;
+
+    setIsLoading(true);
+    setError(null);
+
+    // Callback para atualizar dados
+    const updateData = (results: ResultItemType[]) => {
+      setData(results);
+      setError(null);
+      setIsLoading(false);
+    };
+
+    // Se já existe subscription para esta query, reutiliza
+    if (queryCache.has(queryKey)) {
+      const cached = queryCache.get(queryKey)!;
+      cached.count += 1;
+
+      // Inscreve o callback aos listeners
+      if (!queryListeners.has(queryKey)) {
+        queryListeners.set(queryKey, new Set());
+      }
+      queryListeners.get(queryKey)!.add(updateData);
+
+      // Cleanup
+      return () => {
+        queryListeners.get(queryKey)?.delete(updateData);
+        cached.count -= 1;
+
+        // Remove subscription se ninguém mais está ouvindo
+        if (cached.count === 0) {
+          cached.unsubscribe();
+          queryCache.delete(queryKey);
+          queryListeners.delete(queryKey);
+        }
+      };
+    }
+
+    // Primeira subscription para esta query
+    const unsubscribe = onSnapshot(
+      memoizedTargetRefOrQuery,
+      (snapshot: QuerySnapshot<DocumentData>) => {
+        const results: ResultItemType[] = [];
+        for (const doc of snapshot.docs) {
+          results.push({ ...(doc.data() as T), id: doc.id });
+        }
+        updateData(results);
+
+        // Notifica todos os listeners
+        queryListeners.get(queryKey)?.forEach((listener) => {
+          listener(results);
+        });
+      },
+      (serverError: FirestoreError) => {
+        let path = "collection-group";
+        try {
+          const anyQuery = memoizedTargetRefOrQuery as any;
+          if (anyQuery?._query?.collectionGroup) {
+            path = `group:${anyQuery._query.collectionGroup}`;
+          } else if (anyQuery?.path) {
+            path = anyQuery.path;
+          } else if (anyQuery?._query?.path?.segments) {
+            path = anyQuery._query.path.segments.join("/");
+          }
+        } catch (e) {
+          path = "complex-query";
+        }
+
+        if (serverError.code === "permission-denied") {
+          try {
+            const contextualError = new FirestorePermissionError({
+              operation: "list",
+              path: path || "collection-group",
+            } satisfies SecurityRuleContext);
+            setError(contextualError);
+            errorEmitter.emit("permission-error", contextualError);
+          } catch (e) {
+            setError(serverError);
+          }
+        } else {
+          setError(serverError);
+        }
+
+        setData(null);
+        setIsLoading(false);
+      }
+    );
+
+    // Registra subscription
+    queryCache.set(queryKey, { unsubscribe, count: 1 });
+    if (!queryListeners.has(queryKey)) {
+      queryListeners.set(queryKey, new Set());
+    }
+    queryListeners.get(queryKey)!.add(updateData);
+
+    return () => {
+      queryListeners.get(queryKey)?.delete(updateData);
+      const cached = queryCache.get(queryKey);
+      if (cached) {
+        cached.count -= 1;
+        if (cached.count === 0) {
+          unsubscribe();
+          queryCache.delete(queryKey);
+          queryListeners.delete(queryKey);
+        }
+      }
+    };
   }, [memoizedTargetRefOrQuery]);
 
-  if (result.target !== memoizedTargetRefOrQuery) {
-    return { data: null, isLoading: Boolean(memoizedTargetRefOrQuery), error: null };
-  }
-
-  return {
-    data: result.data,
-    isLoading: Boolean(memoizedTargetRefOrQuery) && result.data === null && !result.error,
-    error: result.error,
-  };
+  return { data, isLoading, error };
 }
