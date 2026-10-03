@@ -1,11 +1,12 @@
-import type { NextConfig } from "next";
+const allowSkipTypeCheck = process.env.NEXT_SKIP_BUILD_TYPECHECK === "1";
+const allowSkipLintDuringBuild = process.env.NEXT_SKIP_BUILD_LINT === "1";
 
 const nextConfig: NextConfig = {
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: allowSkipTypeCheck,
   },
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: allowSkipLintDuringBuild,
   },
   experimental: {
     serverActions: {
