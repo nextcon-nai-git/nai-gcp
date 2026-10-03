@@ -1,12 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  transpilePackages: ["@react-pdf/renderer"],
   experimental: {
     serverActions: {
       bodySizeLimit: "15mb",

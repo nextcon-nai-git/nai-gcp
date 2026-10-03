@@ -113,7 +113,7 @@ jobs:
           NODE
 
       - name: Deploy tested Firestore rules
-        run: npx --yes firebase-tools@14.22.0 deploy --only firestore:rules --project studio-8439299034-125c7 --non-interactive
+        run: npx --yes firebase-tools@14.22.0 deploy --only firestore:rules,firestore:indexes --project studio-8439299034-125c7 --non-interactive
 
       - name: Deploy hosting
         uses: FirebaseExtended/action-hosting-deploy@v0

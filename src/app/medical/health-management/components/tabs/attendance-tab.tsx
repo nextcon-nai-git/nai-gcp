@@ -5,16 +5,10 @@ import { Activity, AlertTriangle, Timer, Users, Search, Loader2 } from "lucide-r
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { StatCard } from "../stat-card";
+import { VirtualizedList } from "@/components/VirtualizedList";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface AttendanceItem {
   id: string;
@@ -35,6 +29,7 @@ interface AttendanceTabProps {
 
 export function AttendanceTab({ attendances, isLoading }: AttendanceTabProps) {
   const [searchTerm, setSearchTerm] = React.useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 250);
 
   const todayAttendances = attendances.filter(
     (a) => new Date(a.createdAt).toDateString() === new Date().toDateString()
@@ -42,10 +37,10 @@ export function AttendanceTab({ attendances, isLoading }: AttendanceTabProps) {
   const criticalCount = attendances.filter((a) => Number(a.bp_sys) >= 160).length;
 
   const filteredAttendances = React.useMemo(() => {
-    if (!searchTerm) return attendances;
-    const lowerSearch = searchTerm.toLowerCase();
+    if (!debouncedSearchTerm) return attendances;
+    const lowerSearch = debouncedSearchTerm.toLowerCase();
     return attendances.filter((a) => a.employeeName.toLowerCase().includes(lowerSearch));
-  }, [attendances, searchTerm]);
+  }, [attendances, debouncedSearchTerm]);
 
   return (
     <div className="space-y-6">
@@ -101,58 +96,62 @@ export function AttendanceTab({ attendances, isLoading }: AttendanceTabProps) {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader className="bg-slate-50/50 text-[10px] uppercase font-black">
-              <TableRow>
-                <TableHead className="pl-8">Colaborador / Horário</TableHead>
-                <TableHead>Sinais Vitais (PA / FC)</TableHead>
-                <TableHead>Queixa Principal</TableHead>
-                <TableHead className="pr-8 text-right">Conduta</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="py-20 text-center">
-                    <Loader2 className="size-10 animate-spin mx-auto opacity-20" />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredAttendances.map((item) => (
-                  <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors group">
-                    <TableCell className="pl-8 py-5">
-                      <div>
-                        <p className="font-black text-xs text-primary uppercase">
-                          {item.employeeName}
-                        </p>
-                        <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">
-                          {new Date(item.createdAt).toLocaleTimeString("pt-BR")} •{" "}
-                          {new Date(item.createdAt).toLocaleDateString("pt-BR")}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-[10px] font-mono border-primary/10",
-                            Number(item.bp_sys) >= 140 && "bg-red-50 text-red-600 border-red-200"
-                          )}
-                        >
-                          {item.bp_sys}/{item.bp_dia}
-                        </Badge>
-                        <span className="text-[10px] font-black text-slate-400">
-                          {item.heart_rate} bpm
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <p className="text-[11px] text-slate-600 italic line-clamp-1 max-w-[250px]">
-                        "{item.complaint}"
+          <div role="table" aria-label="Log de atendimentos">
+            <div
+              role="row"
+              className="grid grid-cols-[1.2fr_1fr_1.2fr_auto] gap-4 bg-slate-50/50 px-8 py-3 text-[10px] uppercase font-black"
+            >
+              <span role="columnheader">Colaborador / Horário</span>
+              <span role="columnheader">Sinais Vitais (PA / FC)</span>
+              <span role="columnheader">Queixa Principal</span>
+              <span role="columnheader" className="text-right">
+                Conduta
+              </span>
+            </div>
+            {isLoading ? (
+              <div className="py-20 text-center">
+                <Loader2 className="size-10 animate-spin mx-auto opacity-20" />
+              </div>
+            ) : (
+              <VirtualizedList
+                items={filteredAttendances}
+                height={480}
+                itemHeight={80}
+                renderItem={(item) => (
+                  <div
+                    role="row"
+                    className="grid h-full grid-cols-[1.2fr_1fr_1.2fr_auto] items-center gap-4 border-b px-8 hover:bg-slate-50/50 transition-colors"
+                  >
+                    <div role="cell">
+                      <p className="font-black text-xs text-primary uppercase">
+                        {item.employeeName}
                       </p>
-                    </TableCell>
-                    <TableCell className="pr-8 text-right">
+                      <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">
+                        {new Date(item.createdAt).toLocaleTimeString("pt-BR")} •{" "}
+                        {new Date(item.createdAt).toLocaleDateString("pt-BR")}
+                      </p>
+                    </div>
+                    <div role="cell" className="flex items-center gap-3">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[10px] font-mono border-primary/10",
+                          Number(item.bp_sys) >= 140 && "bg-red-50 text-red-600 border-red-200"
+                        )}
+                      >
+                        {item.bp_sys}/{item.bp_dia}
+                      </Badge>
+                      <span className="text-[10px] font-black text-slate-400">
+                        {item.heart_rate} bpm
+                      </span>
+                    </div>
+                    <p
+                      role="cell"
+                      className="text-[11px] text-slate-600 italic line-clamp-1 max-w-[250px]"
+                    >
+                      &quot;{item.complaint}&quot;
+                    </p>
+                    <div role="cell" className="text-right">
                       <Badge
                         className={cn(
                           "text-[8px] font-black uppercase border-none px-3 h-5",
@@ -163,12 +162,12 @@ export function AttendanceTab({ attendances, isLoading }: AttendanceTabProps) {
                       >
                         {item.conduct === "work" ? "Trabalho" : "Observação"}
                       </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                    </div>
+                  </div>
+                )}
+              />
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

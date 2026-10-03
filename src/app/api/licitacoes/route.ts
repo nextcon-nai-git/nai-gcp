@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { fetchJson } from "@/lib/http-client";
 
 /**
  * @fileOverview API de integração com o Portal Nacional de Contratações Públicas (PNCP).
@@ -14,36 +15,36 @@ export async function GET() {
     // Utilizamos o endpoint de contratações que é o mais estável para busca textual
     const apiUrl = `https://pncp.gov.br/api/pncp/v1/contratacoes?q=${encodeURIComponent(keywords)}&pagina=1&tamanhoPagina=15`;
 
-    const response = await fetch(apiUrl, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-      next: { revalidate: 3600 }, // Cache de 1 hora
+    const rawData = await fetchJson<
+      | {
+          data?: unknown[];
+          items?: unknown[];
+          totalRegistros?: number;
+        }
+      | unknown[]
+    >(apiUrl, {
+      cacheTtlMs: 60_000,
+      headers: { Accept: "application/json" },
+      revalidate: 3600,
     });
 
-    if (!response.ok) {
-      throw new Error(`Erro na API do PNCP: ${response.status}`);
-    }
-
-    const rawData = await response.json();
-
     // A estrutura do PNCP pode variar. Tentamos capturar de 'data', 'items' ou da raiz
-    const opportunities = rawData.data || rawData.items || (Array.isArray(rawData) ? rawData : []);
-    const total = rawData.totalRegistros || opportunities.length || 0;
+    const result = Array.isArray(rawData) ? null : rawData;
+    const opportunities = result?.data || result?.items || (Array.isArray(rawData) ? rawData : []);
+    const total = result?.totalRegistros || opportunities.length || 0;
 
     return NextResponse.json({
       sucesso: true,
       total: total,
       oportunidades: opportunities,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Erro ao consultar licitações:", error);
     return NextResponse.json(
       {
         sucesso: false,
         erro: "O Portal do Governo (PNCP) está temporariamente indisponível ou recusou a conexão. Tente novamente em instantes.",
-        detalhes: error.message,
+        detalhes: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }
     );

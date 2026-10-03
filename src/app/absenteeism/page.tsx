@@ -70,9 +70,25 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
-import { PDFDownloadLink } from "@react-pdf/renderer";
-import { MedicalReferralReport } from "@/components/documents/medical-referral-report";
-import { NtepContestationReport } from "@/components/documents/ntep-contestation-report";
+import dynamic from "next/dynamic";
+const PDFDownloadLink = dynamic(
+  () => import("@react-pdf/renderer").then((module) => module.PDFDownloadLink),
+  { ssr: false }
+);
+const MedicalReferralReport = dynamic(
+  () =>
+    import("@/components/documents/medical-referral-report").then(
+      (module) => module.MedicalReferralReport
+    ),
+  { ssr: false }
+);
+const NtepContestationReport = dynamic(
+  () =>
+    import("@/components/documents/ntep-contestation-report").then(
+      (module) => module.NtepContestationReport
+    ),
+  { ssr: false }
+);
 
 const recordFormSchema = z.object({
   employeeName: z.string().min(3, "Nome obrigatório"),
@@ -741,7 +757,7 @@ export default function LimboSentinel() {
                                           }
                                           fileName={`Relatorio_INSS_${record.employeeName}.pdf`}
                                         >
-                                          {({ loading }) => (
+                                          {({ loading }: { loading: boolean }) => (
                                             <Button
                                               variant="outline"
                                               className="border-primary text-primary h-12 rounded-xl gap-2 font-black uppercase text-[10px]"
@@ -769,7 +785,7 @@ export default function LimboSentinel() {
                                           }
                                           fileName={`Contestacao_NTEP_${record.employeeName}.pdf`}
                                         >
-                                          {({ loading }) => (
+                                          {({ loading }: { loading: boolean }) => (
                                             <Button
                                               className="bg-primary text-white h-12 rounded-xl gap-2 font-black uppercase text-[10px] shadow-xl"
                                               disabled={loading}

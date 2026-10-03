@@ -5,6 +5,99 @@ import admin from "firebase-admin";
 import { genkit, z } from "genkit";
 import { googleAI } from "@genkit-ai/google-genai";
 
+const PDF_DOWNLOAD_TIMEOUT_MS = 60_000;
+const AI_REQUEST_TIMEOUT_MS = 120_000;
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function isTransientError(error) {
+  const status = error?.status ?? error?.statusCode;
+  return (
+    ["ETIMEDOUT", "ECONNRESET", "EAI_AGAIN", "UNAVAILABLE"].includes(error?.code) ||
+    status === 429 ||
+    status >= 500 ||
+    /timeout|temporar|network|fetch failed|unavailable|connection reset/i.test(error?.message || "")
+  );
+}
+
+async function retryTransient(operation, attempts = 3) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await operation(attempt + 1);
+    } catch (error) {
+      if (attempt + 1 >= attempts || !isTransientError(error)) throw error;
+      await wait(250 * 2 ** attempt);
+    }
+  }
+}
+
+async function withTimeout(operation, timeoutMs, message) {
+  let timeout;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => {
+          const error = new Error(message);
+          error.code = "ETIMEDOUT";
+          reject(error);
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function streamPdfAsBase64(file) {
+  const stream = file.createReadStream();
+  let timeout;
+  const encodedChunks = [];
+  let remainder = Buffer.alloc(0);
+  let bytesRead = 0;
+
+  try {
+    timeout = setTimeout(() => {
+      const error = new Error("PDF download timed out");
+      error.code = "ETIMEDOUT";
+      stream.destroy(error);
+    }, PDF_DOWNLOAD_TIMEOUT_MS);
+
+    for await (const chunk of stream) {
+      const data = remainder.length ? Buffer.concat([remainder, chunk]) : chunk;
+      bytesRead += chunk.length;
+      const encodableLength = data.length - (data.length % 3);
+      if (encodableLength > 0) {
+        encodedChunks.push(data.subarray(0, encodableLength).toString("base64"));
+      }
+      remainder = Buffer.from(data.subarray(encodableLength));
+    }
+
+    if (remainder.length > 0) encodedChunks.push(remainder.toString("base64"));
+    return { base64: encodedChunks.join(""), bytesRead };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function logProcessingMetrics(docId, startedAt, pdfBytes, status) {
+  const memory = process.memoryUsage();
+  console.info(
+    JSON.stringify({
+      severity: "INFO",
+      message: "PGR processing metrics",
+      documentId: docId,
+      status,
+      durationMs: Date.now() - startedAt,
+      pdfBytes,
+      rssBytes: memory.rss,
+      heapUsedBytes: memory.heapUsed,
+    })
+  );
+}
+
 /**
  * @fileOverview Cloud Functions NAI - Motor de Inteligência Ocupacional.
  * Centraliza automações de claims e processamento neural de documentos SST.
@@ -82,6 +175,9 @@ export const analisarPgrEmSegundoPlano = onDocumentCreated(
 
     const dadosPedido = snapshot.data();
     const docId = event.params.docId;
+    const startedAt = Date.now();
+    let pdfBytes = 0;
+    let processingStatus = "error";
 
     if (!dadosPedido.caminhoStoragePdf) {
       console.error("NAI Engine: Caminho do PDF ausente no documento.");
@@ -97,19 +193,38 @@ export const analisarPgrEmSegundoPlano = onDocumentCreated(
       // Download do PDF do Firebase Storage
       const bucket = admin.storage().bucket();
       const ficheiro = bucket.file(dadosPedido.caminhoStoragePdf);
-      const [buffer] = await ficheiro.download();
-      const base64Pdf = buffer.toString("base64");
+      const pdf = await retryTransient(() =>
+        withTimeout(
+          streamPdfAsBase64(ficheiro),
+          PDF_DOWNLOAD_TIMEOUT_MS + 1_000,
+          "PDF download timed out"
+        )
+      );
+      pdfBytes = pdf.bytesRead;
 
       // Chamada neural via Genkit 1.x
-      const response = await ai.generate({
-        model: 'googleai/gemini-1.5-pro',
-        prompt: [
-          { text: "És um especialista em Segurança no Trabalho da Nextcon Saúde. Lê atentamente o documento PGR em anexo e extrai as informações solicitadas. Gera recomendações precisas para checklists, dados para os infográficos e uma estrutura de apresentação para o cliente final." },
-          { media: { url: `data:application/pdf;base64,${base64Pdf}`, contentType: 'application/pdf' } }
-        ],
-        output: { schema: PgrSummarySchema },
-        config: { temperature: 0.2 }
-      });
+      const response = await retryTransient(() =>
+        withTimeout(
+          ai.generate({
+            model: "googleai/gemini-1.5-pro",
+            prompt: [
+              {
+                text: "És um especialista em Segurança no Trabalho da Nextcon Saúde. Lê atentamente o documento PGR em anexo e extrai as informações solicitadas. Gera recomendações precisas para checklists, dados para os infográficos e uma estrutura de apresentação para o cliente final.",
+              },
+              {
+                media: {
+                  url: `data:application/pdf;base64,${pdf.base64}`,
+                  contentType: "application/pdf",
+                },
+              },
+            ],
+            output: { schema: PgrSummarySchema },
+            config: { temperature: 0.2 },
+          }),
+          AI_REQUEST_TIMEOUT_MS,
+          "AI analysis timed out"
+        )
+      );
 
       if (!response.output) {
         throw new Error("A IA falhou em estruturar os dados do PGR.");
@@ -122,6 +237,7 @@ export const analisarPgrEmSegundoPlano = onDocumentCreated(
         dataConclusao: admin.firestore.FieldValue.serverTimestamp(),
       });
 
+      processingStatus = "success";
       console.log(`NAI Engine: PGR ${docId} analisado com sucesso.`);
 
     } catch (erro) {
@@ -130,6 +246,8 @@ export const analisarPgrEmSegundoPlano = onDocumentCreated(
         estado: "Erro",
         mensagemErro: "Falha na análise neural. Verifique a integridade do PDF."
       });
+    } finally {
+      logProcessingMetrics(docId, startedAt, pdfBytes, processingStatus);
     }
   }
 );
