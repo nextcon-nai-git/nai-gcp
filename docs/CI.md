@@ -4,8 +4,13 @@
 
 - `.github/workflows/ci.yml` (push e pull_request): `npm ci`, Prettier (check), ESLint, `tsc --noEmit`, testes com cobertura, build e upload do relatório de cobertura (artefato `coverage-report`).
 - `.github/workflows/security.yml` (PR, push na `main`, semanal): CodeQL (JS/TS), `npm audit --audit-level=high` e dependency review em PRs.
+- `.github/workflows/deploy.yml`: valida PRs, pushes e execuções manuais com auditoria de dependências críticas, lint não bloqueante, tipos, testes, testes das regras do Firestore e build. Em push para `main`, após a validação, publica as regras do Firestore e o Hosting no ambiente `production`; o deploy de Functions é tentado mas não bloqueia o workflow.
 - `.github/dependabot.yml`: atualizações semanais de npm e GitHub Actions.
-- `.github/workflows/deploy.yml` e `firebase-deploy.yml` são anteriores e não foram alterados.
+- `.github/workflows/firebase-deploy.yml` está obsoleto e apenas informa para usar `deploy.yml`.
+
+Os scripts manuais `npm run infra:rules` e `npm run infra:deploy` não correspondem
+integralmente ao deploy de produção: o primeiro publica regras do Firestore e Storage,
+enquanto o segundo publica apenas o Hosting.
 
 ## Rodar localmente
 

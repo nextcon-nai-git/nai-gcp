@@ -38,12 +38,19 @@ npm run build
 
 ## Implantação
 
-A implantação deve ocorrer por pipeline gerenciado e com aprovação para produção.
+A implantação de produção ocorre pelo workflow `deploy.yml`: após validação, um push
+para `main` implanta as regras do Firestore e o Hosting no ambiente `production`.
+O deploy de Functions é tentado separadamente e não bloqueia a execução se falhar.
+Os comandos abaixo são operações manuais via Firebase CLI, não substituem esse
+pipeline:
 
 ```bash
 npm run infra:rules
 npm run infra:deploy
 ```
+
+`infra:rules` publica as regras do Firestore e do Storage; `infra:deploy` publica
+somente o Hosting.
 
 ## CI
 
