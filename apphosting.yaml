@@ -2,6 +2,6 @@
 # Nome do ambiente: nai
 
 runConfig:
-  # Memória aumentada para evitar erros de build no Next.js 15
-  memory: 1Gi
+  # Memória das instâncias de execução do app (1 GiB).
+  memoryMiB: 1024
   maxInstances: 1

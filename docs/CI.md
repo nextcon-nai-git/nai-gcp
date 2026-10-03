@@ -9,9 +9,9 @@
 
 ## Rodar localmente
 
-Usar Node 20.19 ou superior dentro da linha 20, conforme `engines.node`.
+Usar Node 24, conforme `engines.node` e o ambiente de execução do backend `nai`.
 Vitest e `@vitest/coverage-v8` usam a mesma versão 4.1.11 para manter
-compatibilidade com o Node executado nos workflows.
+compatibilidade entre os testes locais e os workflows.
 
 ```bash
 npm ci
