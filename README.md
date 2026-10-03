@@ -48,6 +48,10 @@ npm run infra:deploy
 
 Consulte `SECURITY.md` para política de vulnerabilidades e boas práticas.
 
+## Evolução do produto
+
+Consulte o [plano de evolução da plataforma de SST](docs/roadmap-sst-classe-mundial.md) para o diagnóstico da base atual, capacidades-alvo, controles de dados e segurança, governança de IA, indicadores e sequenciamento de entrega.
+
 ## Aviso
 
 Este projeto trata de dados sensíveis e exige controles de acesso, auditoria, retenção e governança adequados antes de uso em produção com dados reais.
