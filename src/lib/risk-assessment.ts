@@ -5,38 +5,38 @@ export const RISK_CATEGORIES = [
   "ergonomico",
   "acidente",
   "psicossocial",
-] as const
+] as const;
 
-export type RiskCategory = (typeof RISK_CATEGORIES)[number]
-export type RiskLevel = "baixo" | "moderado" | "alto" | "critico"
+export type RiskCategory = (typeof RISK_CATEGORIES)[number];
+export type RiskLevel = "baixo" | "moderado" | "alto" | "critico";
 
 export interface OccupationalRisk {
-  id: string
-  companyId: string
-  hazard: string
-  category: RiskCategory
-  source: string
-  ghe: string
-  exposedPeople: number
-  probability: number
-  severity: number
-  controls: string
-  owner: string
-  dueDate: string
-  status: "identified" | "treating" | "controlled"
-  createdAt?: unknown
-  createdBy?: string
+  id: string;
+  companyId: string;
+  hazard: string;
+  category: RiskCategory;
+  source: string;
+  ghe: string;
+  exposedPeople: number;
+  probability: number;
+  severity: number;
+  controls: string;
+  owner: string;
+  dueDate: string;
+  status: "identified" | "treating" | "controlled";
+  createdAt?: unknown;
+  createdBy?: string;
 }
 
 export function calculateRiskScore(probability: number, severity: number) {
-  return Math.min(25, Math.max(1, probability) * Math.max(1, severity))
+  return Math.min(25, Math.max(1, probability) * Math.max(1, severity));
 }
 
 export function getRiskLevel(score: number): RiskLevel {
-  if (score >= 20) return "critico"
-  if (score >= 12) return "alto"
-  if (score >= 5) return "moderado"
-  return "baixo"
+  if (score >= 20) return "critico";
+  if (score >= 12) return "alto";
+  if (score >= 5) return "moderado";
+  return "baixo";
 }
 
 export function getRiskLevelLabel(level: RiskLevel) {
@@ -45,7 +45,7 @@ export function getRiskLevelLabel(level: RiskLevel) {
     moderado: "Moderado",
     alto: "Alto",
     critico: "Crítico",
-  }[level]
+  }[level];
 }
 
 export function getRiskLevelColor(level: RiskLevel) {
@@ -54,5 +54,5 @@ export function getRiskLevelColor(level: RiskLevel) {
     moderado: "bg-amber-100 text-amber-800",
     alto: "bg-orange-100 text-orange-800",
     critico: "bg-red-100 text-red-800",
-  }[level]
+  }[level];
 }

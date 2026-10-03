@@ -155,14 +155,14 @@ Controles necessários:
 
 Todo indicador deve informar fórmula, população, janela, fonte, atualização, responsável e limitações. Separar indicadores de prevenção e de resultado, sem criar um placar opaco único.
 
-| Dimensão | Exemplos de medidas | Validação mínima |
-| --- | --- | --- |
-| Riscos | exposições sem avaliação vigente; controles aguardando verificação; risco residual aprovado | vínculo com inventário e evidência |
-| Ações | prazo, bloqueio, evidência aceita e eficácia verificada | histórico de status e aprovador |
-| Saúde | cobertura do programa, pendências, tempo de encaminhamento | acesso agregado e supressão de grupos pequenos |
-| Eventos | enviados, aceitos, rejeitados, retificados e reconciliados | recibo e versão do leiaute |
-| Aprendizagem | quase acidentes tratados, investigação concluída e ação eficaz | não incentivar subnotificação |
-| Plataforma | disponibilidade, latência, erros, fila, RPO/RTO e restauração | telemetria e teste documentado |
+| Dimensão     | Exemplos de medidas                                                                         | Validação mínima                               |
+| ------------ | ------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Riscos       | exposições sem avaliação vigente; controles aguardando verificação; risco residual aprovado | vínculo com inventário e evidência             |
+| Ações        | prazo, bloqueio, evidência aceita e eficácia verificada                                     | histórico de status e aprovador                |
+| Saúde        | cobertura do programa, pendências, tempo de encaminhamento                                  | acesso agregado e supressão de grupos pequenos |
+| Eventos      | enviados, aceitos, rejeitados, retificados e reconciliados                                  | recibo e versão do leiaute                     |
+| Aprendizagem | quase acidentes tratados, investigação concluída e ação eficaz                              | não incentivar subnotificação                  |
+| Plataforma   | disponibilidade, latência, erros, fila, RPO/RTO e restauração                               | telemetria e teste documentado                 |
 
 Metas devem ser definidas pelos responsáveis do processo com linha de base real. Dados simulados precisam ser marcados de forma inequívoca e jamais misturados com indicadores produtivos.
 
