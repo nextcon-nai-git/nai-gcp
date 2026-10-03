@@ -9,6 +9,10 @@
 
 ## Rodar localmente
 
+Usar Node 20.19 ou superior dentro da linha 20, conforme `engines.node`.
+Vitest e `@vitest/coverage-v8` usam a mesma versão 4.1.11 para manter
+compatibilidade com o Node executado nos workflows.
+
 ```bash
 npm ci
 npm run format:check   # ou npm run format para corrigir
@@ -32,3 +36,9 @@ e aviso para cadeias `.then()` (preferir async/await). Violações pré-existent
 `react-hooks/static-components`, `react-hooks/purity`, `react-hooks/set-state-in-effect`, `jsx-a11y/alt-text`,
 `no-require-imports`) foram rebaixadas para warning para permitir correção incremental (~590 avisos atuais).
 `tsconfig.json` já usa `strict: true`.
+
+## Recuperação da interface
+
+Consulte [recuperação de telas e logs](testing/error-recovery.md) para o limite de
+erros das páginas autenticadas, a nova tentativa, a preservação da navegação e os
+cuidados com o contexto registrado no Cloud Logging.

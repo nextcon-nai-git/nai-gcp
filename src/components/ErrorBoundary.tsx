@@ -27,9 +27,34 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     });
   }
 
+  private retry = () => {
+    this.setState({ hasError: false });
+  };
+
   render() {
     if (this.state.hasError) {
-      return this.props.fallback ?? <div role="alert">Algo deu errado. Tente novamente.</div>;
+      return (
+        this.props.fallback ?? (
+          <section
+            role="alert"
+            aria-label="Falha ao carregar a tela"
+            className="rounded-2xl border bg-card p-6 shadow-sm"
+          >
+            <h1 className="text-xl font-semibold">Não foi possível carregar esta tela</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Tente novamente ou escolha outra opção no menu para continuar.
+            </p>
+            <button
+              type="button"
+              autoFocus
+              onClick={this.retry}
+              className="mt-5 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              Tentar novamente
+            </button>
+          </section>
+        )
+      );
     }
     return this.props.children;
   }
