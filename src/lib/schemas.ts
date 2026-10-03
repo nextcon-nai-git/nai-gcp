@@ -74,7 +74,7 @@ export const PlatformFeedbackSchema = z.object({
   companyId: z.string().optional(),
   rating: z.number().min(1).max(5, "A nota deve ser entre 1 e 5"),
   suggestion: z.string().optional(),
-  createdAt: z.string(), 
+  createdAt: z.string(),
 });
 
 export type UserProfile = z.infer<typeof UserProfileSchema>;

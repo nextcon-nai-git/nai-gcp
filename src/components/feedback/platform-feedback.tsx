@@ -1,8 +1,8 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { Star, MessageSquare, Send, Sparkles, Loader2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import * as React from "react";
+import { Star, MessageSquare, Send, Sparkles, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -11,45 +11,45 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
-} from "@/components/ui/dialog"
-import { Textarea } from "@/components/ui/textarea"
-import { useToast } from "@/hooks/use-toast"
-import { useUser, useFirestore, useMemoFirebase, useDoc } from "@/firebase"
-import { collection, doc } from "firebase/firestore"
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
-import { cn } from "@/lib/utils"
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { useUser, useFirestore, useMemoFirebase, useDoc } from "@/firebase";
+import { collection, doc } from "firebase/firestore";
+import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { cn } from "@/lib/utils";
 
 export function PlatformFeedback() {
-  const { toast } = useToast()
-  const { user } = useUser()
-  const db = useFirestore()
-  const [isOpen, setIsOpen] = React.useState(false)
-  const [rating, setRating] = React.useState(0)
-  const [hoveredRating, setHoveredRating] = React.useState(0)
-  const [suggestion, setSuggestion] = React.useState("")
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const { toast } = useToast();
+  const { user } = useUser();
+  const db = useFirestore();
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [rating, setRating] = React.useState(0);
+  const [hoveredRating, setHoveredRating] = React.useState(0);
+  const [suggestion, setSuggestion] = React.useState("");
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const profileRef = useMemoFirebase(() => {
-    if (!db || !user) return null
-    return doc(db, "users", user.uid)
-  }, [db, user])
-  const { data: profile } = useDoc(profileRef)
+    if (!db || !user) return null;
+    return doc(db, "users", user.uid);
+  }, [db, user]);
+  const { data: profile } = useDoc(profileRef);
 
   const handleSubmit = async () => {
     if (rating === 0) {
       toast({
         variant: "destructive",
         title: "Avaliação Obrigatória",
-        description: "Por favor, selecione uma nota de 1 a 5 estrelas."
-      })
-      return
+        description: "Por favor, selecione uma nota de 1 a 5 estrelas.",
+      });
+      return;
     }
 
-    if (!db || !user) return
+    if (!db || !user) return;
 
-    setIsSubmitting(true)
+    setIsSubmitting(true);
     try {
-      const feedbackRef = collection(db, "feedback")
+      const feedbackRef = collection(db, "feedback");
       await addDocumentNonBlocking(feedbackRef, {
         userId: user.uid,
         userName: profile?.name || user.email,
@@ -57,31 +57,35 @@ export function PlatformFeedback() {
         rating,
         suggestion,
         createdAt: new Date().toISOString(),
-        platformVersion: "2.6"
-      })
+        platformVersion: "2.6",
+      });
 
       toast({
         title: "Obrigado pelo seu Feedback!",
-        description: "Sua opinião é fundamental para a evolução da NAI."
-      })
-      setIsOpen(false)
-      setRating(0)
-      setSuggestion("")
+        description: "Sua opinião é fundamental para a evolução da NAI.",
+      });
+      setIsOpen(false);
+      setRating(0);
+      setSuggestion("");
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Erro ao enviar",
-        description: "Não foi possível processar sua avaliação agora."
-      })
+        description: "Não foi possível processar sua avaliação agora.",
+      });
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative text-slate-400 hover:bg-slate-50 group">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative text-slate-400 hover:bg-slate-50 group"
+        >
           <MessageSquare className="size-5 group-hover:text-primary transition-colors" />
           <span className="absolute -top-1 -right-1 size-2 bg-accent rounded-full border-2 border-white animate-pulse"></span>
         </Button>
@@ -92,16 +96,21 @@ export function PlatformFeedback() {
             <div className="p-2 bg-white/10 rounded-lg">
               <Sparkles className="size-5 text-accent" />
             </div>
-            <DialogTitle className="text-xl font-headline font-black uppercase">Experiência NAI</DialogTitle>
+            <DialogTitle className="text-xl font-headline font-black uppercase">
+              Experiência NAI
+            </DialogTitle>
           </div>
           <DialogDescription className="text-white/70 font-medium">
-            Como você avalia sua produtividade na plataforma hoje? Sua sugestão ajuda a construir a SST do futuro.
+            Como você avalia sua produtividade na plataforma hoje? Sua sugestão ajuda a construir a
+            SST do futuro.
           </DialogDescription>
         </DialogHeader>
 
         <div className="p-8 space-y-8 bg-white">
           <div className="flex flex-col items-center gap-4">
-            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Sua nota para a plataforma</p>
+            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+              Sua nota para a plataforma
+            </p>
             <div className="flex gap-2">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
@@ -146,7 +155,11 @@ export function PlatformFeedback() {
         </div>
 
         <DialogFooter className="p-6 bg-slate-50 flex gap-2">
-          <Button variant="ghost" onClick={() => setIsOpen(false)} className="font-bold uppercase text-[10px]">
+          <Button
+            variant="ghost"
+            onClick={() => setIsOpen(false)}
+            className="font-bold uppercase text-[10px]"
+          >
             Cancelar
           </Button>
           <Button
@@ -164,5 +177,5 @@ export function PlatformFeedback() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

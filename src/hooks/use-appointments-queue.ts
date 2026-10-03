@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
-import { useFirestore } from '@/firebase';
+import { useState, useEffect } from "react";
+import { collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
+import { useFirestore } from "@/firebase";
 
 export interface Appointment {
   agendamento_id: string;
@@ -10,8 +10,8 @@ export interface Appointment {
   colaborador_nome: string;
   data_hora: string;
   check_in_at?: string;
-  tipo: 'Admissional' | 'Periódico' | 'Demissional' | 'Mudança de Função' | 'Retorno ao Trabalho';
-  status: 'Agendado' | 'Em Espera' | 'Em Atendimento' | 'Concluído';
+  tipo: "Admissional" | "Periódico" | "Demissional" | "Mudança de Função" | "Retorno ao Trabalho";
+  status: "Agendado" | "Em Espera" | "Em Atendimento" | "Concluído";
   check_in_realizado: boolean;
   companyId: string;
 }
@@ -29,15 +29,15 @@ export function useAppointmentsQueue() {
     if (!db) return;
 
     // Filtra apenas agendamentos do dia atual
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split("T")[0];
     const startOfDay = `${today}T00:00:00.000Z`;
     const endOfDay = `${today}T23:59:59.999Z`;
 
     const q = query(
-      collection(db, 'agendamentos'),
-      where('data_hora', '>=', startOfDay),
-      where('data_hora', '<=', endOfDay),
-      orderBy('data_hora', 'asc')
+      collection(db, "agendamentos"),
+      where("data_hora", ">=", startOfDay),
+      where("data_hora", "<=", endOfDay),
+      orderBy("data_hora", "asc")
     );
 
     const unsubscribe = onSnapshot(
@@ -50,7 +50,12 @@ export function useAppointmentsQueue() {
 
         // Prioriza a ordenação por horário de check-in para quem está "Em Espera"
         const sortedData = [...appointmentsData].sort((a, b) => {
-          if (a.status === 'Em Espera' && b.status === 'Em Espera' && a.check_in_at && b.check_in_at) {
+          if (
+            a.status === "Em Espera" &&
+            b.status === "Em Espera" &&
+            a.check_in_at &&
+            b.check_in_at
+          ) {
             return a.check_in_at.localeCompare(b.check_in_at);
           }
           return 0;
@@ -60,7 +65,7 @@ export function useAppointmentsQueue() {
         setLoading(false);
       },
       (err) => {
-        console.error('Erro ao buscar a fila de agendamentos:', err);
+        console.error("Erro ao buscar a fila de agendamentos:", err);
         setError(err);
         setLoading(false);
       }

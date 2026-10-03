@@ -25,19 +25,23 @@ Todo evento de acesso ou modificação deve gerar log com os campos mínimos aba
 ## Regras de auditoria
 
 ### 1. Leitura sensível
+
 - Qualquer leitura de laudo, ASO, documento médico ou relatório deve gerar log.
 - A auditoria deve registrar o tipo de dado e o papel do usuário.
 
 ### 2. Exportação
+
 - Exportação para PDF, CSV ou download deve ser tratada como evento crítico.
 - O log deve identificar o destinatário da exportação, se aplicável.
 - O sistema deve exigir justificativa quando a operação for excepcional.
 
 ### 3. Alteração
+
 - Alterações em dados sensíveis devem registrar antes/depois ou hash do documento, quando possível.
 - Operações administrativas de correção devem ser auditadas separadamente.
 
 ### 4. Exclusão
+
 - Exclusões devem gerar log com informações do responsável e do motivo.
 - Para documentos sensíveis, o uso de soft delete é recomendado antes da exclusão definitiva.
 
@@ -58,6 +62,7 @@ Todo evento de acesso ou modificação deve gerar log com os campos mínimos aba
 ## Monitoramento e alertas
 
 Devem ser gerados alertas para:
+
 - downloads em massa
 - exportação fora do horário normal
 - acesso de usuário sem vínculo com a empresa correta

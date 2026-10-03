@@ -1,10 +1,9 @@
-
 /**
  * Serviço de construção de eventos eSocial (S-2210, S-2220, S-2240)
  * Preparado para integração com bibliotecas de assinatura digital.
  */
 
-export type EsocialEvent = 'S2210' | 'S2220' | 'S2240';
+export type EsocialEvent = "S2210" | "S2220" | "S2240";
 
 export class EsocialXmlBuilder {
   static buildS2220(data: any): string {

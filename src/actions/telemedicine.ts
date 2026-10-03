@@ -1,4 +1,4 @@
-'use server';
+"use server";
 
 /**
  * @fileOverview Server Action para integração com Google Meet API.
@@ -6,11 +6,11 @@
  * Inclui fallback de simulação caso as credenciais não estejam configuradas.
  */
 
-import { google } from 'googleapis';
-import { initializeFirebase } from '@/firebase/init';
-import { collection, addDoc, Timestamp } from 'firebase/firestore';
-import * as fs from 'fs';
-import * as path from 'path';
+import { google } from "googleapis";
+import { initializeFirebase } from "@/firebase/init";
+import { collection, addDoc, Timestamp } from "firebase/firestore";
+import * as fs from "fs";
+import * as path from "path";
 
 export async function agendarConsultaMeet(data: {
   pacienteEmail: string;
@@ -44,7 +44,7 @@ export async function agendarConsultaMeet(data: {
 
     // Tentativa via arquivos físicos se não houver variável de ambiente
     if (!auth) {
-      const possibleFiles = ['google-service-account.json', 'account.json'];
+      const possibleFiles = ["google-service-account.json", "account.json"];
       for (const fileName of possibleFiles) {
         const filePath = path.join(process.cwd(), fileName);
         if (fs.existsSync(filePath)) {
@@ -86,7 +86,10 @@ export async function agendarConsultaMeet(data: {
 
         linkDoMeet = responseGoogle.data.hangoutLink || "";
       } catch (apiError: any) {
-        console.warn("NAI Telemedicine: Google API falhou, ativando modo simulação.", apiError.message);
+        console.warn(
+          "NAI Telemedicine: Google API falhou, ativando modo simulação.",
+          apiError.message
+        );
         isMockMode = true;
       }
     } else {
@@ -108,21 +111,20 @@ export async function agendarConsultaMeet(data: {
       link_meet: linkDoMeet,
       status: "agendada",
       is_mock: isMockMode,
-      createdAt: Timestamp.now()
+      createdAt: Timestamp.now(),
     });
 
     return {
       sucesso: true,
       id_consulta: docRef.id,
       link_meet: linkDoMeet,
-      simulado: isMockMode
+      simulado: isMockMode,
     };
-
   } catch (error: any) {
     console.error("Erro fatal na integração de telemedicina:", error);
     return {
       sucesso: false,
-      mensagem: "Erro interno ao processar agendamento. Verifique os logs do servidor."
+      mensagem: "Erro interno ao processar agendamento. Verifique os logs do servidor.",
     };
   }
 }

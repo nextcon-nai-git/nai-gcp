@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import {
   Query,
   onSnapshot,
@@ -8,9 +8,9 @@ import {
   FirestoreError,
   QuerySnapshot,
   CollectionReference,
-} from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+} from "firebase/firestore";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError, type SecurityRuleContext } from "@/firebase/errors";
 
 export type WithId<T> = T & { id: string };
 
@@ -25,7 +25,8 @@ export interface UseCollectionResult<T> {
  * Suporta consultas globais (Collection Groups) e fornece erros contextuais ricos.
  */
 export function useCollection<T = any>(
-    memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined,
+  memoizedTargetRefOrQuery:
+    (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined
 ): UseCollectionResult<T> {
   type ResultItemType = WithId<T>;
   const [data, setData] = useState<ResultItemType[] | null>(null);
@@ -55,7 +56,7 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (serverError: FirestoreError) => {
-        let path = 'collection-group';
+        let path = "collection-group";
         try {
           const anyQuery = memoizedTargetRefOrQuery as any;
           // Melhora a detecção de caminho para erros contextuais
@@ -64,28 +65,28 @@ export function useCollection<T = any>(
           } else if (anyQuery?.path) {
             path = anyQuery.path;
           } else if (anyQuery?._query?.path?.segments) {
-            path = anyQuery._query.path.segments.join('/');
+            path = anyQuery._query.path.segments.join("/");
           }
         } catch (e) {
-          path = 'complex-query';
+          path = "complex-query";
         }
 
-        if (serverError.code === 'permission-denied') {
+        if (serverError.code === "permission-denied") {
           try {
             const contextualError = new FirestorePermissionError({
-              operation: 'list',
-              path: path || 'collection-group',
+              operation: "list",
+              path: path || "collection-group",
             } satisfies SecurityRuleContext);
 
             setError(contextualError);
-            errorEmitter.emit('permission-error', contextualError);
+            errorEmitter.emit("permission-error", contextualError);
           } catch (e) {
             setError(serverError);
           }
         } else {
           setError(serverError);
         }
-        
+
         setData(null);
         setIsLoading(false);
       }

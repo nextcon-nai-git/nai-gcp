@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { suggestExams } from '@/ai/flows/suggest-exams-flow';
+import { NextResponse } from "next/server";
+import { suggestExams } from "@/ai/flows/suggest-exams-flow";
 
 /**
  * @fileOverview API Pública para Recomendação de Exames via IA.
@@ -9,7 +9,7 @@ import { suggestExams } from '@/ai/flows/suggest-exams-flow';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    
+
     // Validação básica de entrada
     if (!body.jobTitle || !body.companyRisks) {
       return NextResponse.json(
@@ -21,21 +21,23 @@ export async function POST(request: Request) {
     const result = await suggestExams({
       jobTitle: body.jobTitle,
       companyRisks: body.companyRisks,
-      age: body.age || 30 // Fallback de idade
+      age: body.age || 30, // Fallback de idade
     });
 
-    return NextResponse.json({
-      sucesso: true,
-      recommendedExams: result.recommendedExams
-    }, {
-      status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+    return NextResponse.json(
+      {
+        sucesso: true,
+        recommendedExams: result.recommendedExams,
+      },
+      {
+        status: 200,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
       }
-    });
-
+    );
   } catch (error: any) {
     console.error("Erro na API de Sugestão de Exames:", error);
     return NextResponse.json(
@@ -50,9 +52,9 @@ export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
     headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
     },
   });
 }

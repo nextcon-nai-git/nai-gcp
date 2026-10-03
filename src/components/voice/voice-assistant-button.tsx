@@ -17,11 +17,11 @@ interface VoiceAssistantButtonProps {
  * Componente de Pesquisa por Voz NAI.
  * Utiliza o Web Speech API para captura e o motor NAI para processamento.
  */
-export function VoiceAssistantButton({ 
-  onTranscript, 
-  isProcessing, 
-  isSpeaking, 
-  className 
+export function VoiceAssistantButton({
+  onTranscript,
+  isProcessing,
+  isSpeaking,
+  className,
 }: VoiceAssistantButtonProps) {
   const { toast } = useToast();
   const [isListening, setIsListening] = React.useState(false);
@@ -29,17 +29,18 @@ export function VoiceAssistantButton({
 
   React.useEffect(() => {
     // Inicializa o reconhecimento de fala se suportado
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
     if (SpeechRecognition) {
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = false;
       recognitionRef.current.interimResults = false;
-      recognitionRef.current.lang = 'pt-BR';
+      recognitionRef.current.lang = "pt-BR";
 
       recognitionRef.current.onstart = () => setIsListening(true);
       recognitionRef.current.onend = () => setIsListening(false);
-      
+
       recognitionRef.current.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
         onTranscript(transcript);
@@ -48,8 +49,12 @@ export function VoiceAssistantButton({
       recognitionRef.current.onerror = (event: any) => {
         console.error("Speech Error:", event.error);
         setIsListening(false);
-        if (event.error === 'not-allowed') {
-          toast({ variant: "destructive", title: "Microfone Bloqueado", description: "Permita o acesso ao microfone nas configurações do seu navegador." });
+        if (event.error === "not-allowed") {
+          toast({
+            variant: "destructive",
+            title: "Microfone Bloqueado",
+            description: "Permita o acesso ao microfone nas configurações do seu navegador.",
+          });
         }
       };
     } else {
@@ -59,7 +64,11 @@ export function VoiceAssistantButton({
 
   const toggleListening = () => {
     if (!recognitionRef.current) {
-      toast({ variant: "destructive", title: "Recurso Indisponível", description: "Seu navegador não suporta pesquisa por voz." });
+      toast({
+        variant: "destructive",
+        title: "Recurso Indisponível",
+        description: "Seu navegador não suporta pesquisa por voz.",
+      });
       return;
     }
 
@@ -75,14 +84,18 @@ export function VoiceAssistantButton({
       {/* Ondas Sonoras Animadas */}
       {(isListening || isSpeaking) && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className={cn(
-            "absolute size-12 rounded-full animate-ping opacity-20",
-            isListening ? "bg-accent" : "bg-emerald-500"
-          )} />
-          <div className={cn(
-            "absolute size-16 rounded-full animate-ping opacity-10 delay-150",
-            isListening ? "bg-accent" : "bg-emerald-500"
-          )} />
+          <div
+            className={cn(
+              "absolute size-12 rounded-full animate-ping opacity-20",
+              isListening ? "bg-accent" : "bg-emerald-500"
+            )}
+          />
+          <div
+            className={cn(
+              "absolute size-16 rounded-full animate-ping opacity-10 delay-150",
+              isListening ? "bg-accent" : "bg-emerald-500"
+            )}
+          />
         </div>
       )}
 
@@ -91,9 +104,11 @@ export function VoiceAssistantButton({
         disabled={isProcessing}
         className={cn(
           "size-14 rounded-full shadow-2xl transition-all duration-500 relative z-10 p-0",
-          isListening ? "bg-accent text-primary scale-110" : 
-          isSpeaking ? "bg-emerald-600 text-white" : 
-          "bg-primary text-white hover:scale-105"
+          isListening
+            ? "bg-accent text-primary scale-110"
+            : isSpeaking
+              ? "bg-emerald-600 text-white"
+              : "bg-primary text-white hover:scale-105"
         )}
       >
         {isProcessing ? (
@@ -106,7 +121,7 @@ export function VoiceAssistantButton({
           <Mic className="size-6" />
         )}
       </Button>
-      
+
       {isListening && (
         <div className="absolute -top-10 bg-accent text-primary text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full whitespace-nowrap animate-in fade-in slide-in-from-bottom-2">
           NAI está ouvindo...

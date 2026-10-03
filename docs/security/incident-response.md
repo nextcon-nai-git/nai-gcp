@@ -7,6 +7,7 @@ Definir o processo de identificação, contenção, investigação, recuperaçã
 ## Escopo
 
 Este plano cobre:
+
 - acesso não autorizado
 - vazamento de dados
 - exportação indevida
@@ -17,19 +18,23 @@ Este plano cobre:
 ## Processo
 
 ### 1. Detecção
+
 - alertas de monitoramento
 - logs de auditoria
 - alertas de acesso anormal
 - falhas de regras de acesso
 
 ### 2. Classificação
+
 Classificar pela severidade:
+
 - baixa: falha operacional sem impacto em dados sensíveis
 - média: acesso indevido limitado ou erro funcional
 - alta: vazamento parcial de dado sensível ou exportação indevida
 - crítica: exposição ampla de dados de saúde ou falha de controle de tenant
 
 ### 3. Contenção
+
 - bloquear o usuário ou serviço afetado
 - revogar token, sessão ou credencial
 - desativar links temporários
@@ -37,18 +42,21 @@ Classificar pela severidade:
 - reverter alteração indevida
 
 ### 4. Investigação
+
 - confirmar alcance e escopo
 - checar impacto por empresa/tenant
 - analisar logs e eventos de auditoria
 - identificar se houve acesso cruzado
 
 ### 5. Recuperação
+
 - restaurar configuração correta
 - restaurar dados ou registros afetados
 - validar regras de acesso após recuperação
 - executar testes de segurança novamente
 
 ### 6. Comunicação
+
 - notificar a liderança interna
 - informar responsável do cliente/contrato, quando exigido
 - notificar jurídico/DPO conforme a legislação e o contrato

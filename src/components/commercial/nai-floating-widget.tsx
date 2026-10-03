@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -22,26 +21,27 @@ const NAI_AVATAR_URL = "/nai-avatar.png";
 // Fallback robusto caso o Firestore ainda não tenha sido semeado
 const DEFAULT_PITCH = {
   avatar: {
-    saudacao_inicial: "Olá! Sou a NAI, a Inteligência Artificial da Nextcon. Estou aqui para ajudar você a blindar sua empresa com as melhores práticas de SST e Auditoria. Como posso ajudar seu negócio hoje?"
+    saudacao_inicial:
+      "Olá! Sou a NAI, a Inteligência Artificial da Nextcon. Estou aqui para ajudar você a blindar sua empresa com as melhores práticas de SST e Auditoria. Como posso ajudar seu negócio hoje?",
   },
   pilares_venda: [
     {
       ordem: 1,
       titulo: "Gestão de PGR e PCMSO",
-      resumo: "Elaboração e controle de programas conforme NR-01 e NR-07."
+      resumo: "Elaboração e controle de programas conforme NR-01 e NR-07.",
     },
     {
       ordem: 2,
       titulo: "Auditoria eSocial",
-      resumo: "Validação de eventos S-2210, S-2220 e S-2240."
+      resumo: "Validação de eventos S-2210, S-2220 e S-2240.",
     },
     {
       ordem: 3,
       titulo: "Consultoria em NRs",
-      resumo: "Suporte técnico especializado em todas as Normas Regulamentadoras."
-    }
+      resumo: "Suporte técnico especializado em todas as Normas Regulamentadoras.",
+    },
   ],
-  cta_final: "A Nextcon é sobre gestão de conformidade. Blinde sua operação agora."
+  cta_final: "A Nextcon é sobre gestão de conformidade. Blinde sua operação agora.",
 };
 
 export function NaiFloatingWidget() {
@@ -64,7 +64,7 @@ export function NaiFloatingWidget() {
     setIsOpen(!isOpen);
     if (!isOpen && buttonRef.current) {
       // Reset transform when opening
-      buttonRef.current.style.transform = 'translate(0, 0)';
+      buttonRef.current.style.transform = "translate(0, 0)";
     }
   };
 
@@ -80,7 +80,7 @@ export function NaiFloatingWidget() {
   const handleMouseLeave = () => {
     setIsHovering(false);
     if (!buttonRef.current) return;
-    buttonRef.current.style.transform = 'translate(0, 0)';
+    buttonRef.current.style.transform = "translate(0, 0)";
   };
 
   const handleMouseEnter = () => {
@@ -93,7 +93,7 @@ export function NaiFloatingWidget() {
       {isOpen && (
         <Card className="w-[350px] border-none shadow-2xl rounded-[2rem] overflow-hidden animate-in slide-in-from-bottom-4 duration-300 bg-white">
           <CardHeader className="bg-primary text-white p-6 relative">
-            <button 
+            <button
               onClick={() => setIsOpen(false)}
               className="absolute top-4 right-4 p-1 hover:bg-white/10 rounded-lg transition-colors"
             >
@@ -101,17 +101,21 @@ export function NaiFloatingWidget() {
             </button>
             <div className="flex items-center gap-3">
               <div className="size-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20 overflow-hidden">
-                <Image 
-                  src={NAI_AVATAR_URL} 
-                  alt="NAI" 
-                  width={40} 
-                  height={40} 
+                <Image
+                  src={NAI_AVATAR_URL}
+                  alt="NAI"
+                  width={40}
+                  height={40}
                   className="object-cover"
                 />
               </div>
               <div>
-                <CardTitle className="text-sm font-black uppercase tracking-tight">NAI Intelligence</CardTitle>
-                <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest">Assistente de Blindagem</p>
+                <CardTitle className="text-sm font-black uppercase tracking-tight">
+                  NAI Intelligence
+                </CardTitle>
+                <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest">
+                  Assistente de Blindagem
+                </p>
               </div>
             </div>
           </CardHeader>
@@ -120,7 +124,9 @@ export function NaiFloatingWidget() {
             {loading ? (
               <div className="py-12 flex flex-col items-center gap-3">
                 <Loader2 className="size-8 animate-spin text-primary opacity-20" />
-                <p className="text-[10px] font-black uppercase text-slate-400">Sincronizando NAI...</p>
+                <p className="text-[10px] font-black uppercase text-slate-400">
+                  Sincronizando NAI...
+                </p>
               </div>
             ) : (
               <div className="space-y-6">
@@ -132,7 +138,10 @@ export function NaiFloatingWidget() {
 
                 <div className="space-y-3">
                   {pitchData.pilares_venda?.map((pilar: any) => (
-                    <div key={pilar.ordem} className="p-3 bg-white border border-slate-100 rounded-xl shadow-sm hover:border-accent/30 transition-all group">
+                    <div
+                      key={pilar.ordem}
+                      className="p-3 bg-white border border-slate-100 rounded-xl shadow-sm hover:border-accent/30 transition-all group"
+                    >
                       <h4 className="text-[11px] font-black text-primary uppercase mb-1 flex items-center gap-2">
                         <Zap className="size-3 text-accent" />
                         {pilar.titulo}
@@ -148,7 +157,7 @@ export function NaiFloatingWidget() {
                   <p className="text-[10px] text-center font-bold text-slate-400 uppercase tracking-widest">
                     {pitchData.cta_final}
                   </p>
-                  <Button 
+                  <Button
                     asChild
                     className="w-full h-12 bg-accent hover:bg-accent/90 text-primary font-black uppercase text-[10px] tracking-widest rounded-xl shadow-lg gap-2"
                   >
@@ -164,30 +173,28 @@ export function NaiFloatingWidget() {
       )}
 
       {/* Botão Flutuante humanizado com avatar NAI */}
-      <button 
+      <button
         ref={buttonRef}
         onClick={handleToggle}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         onMouseEnter={handleMouseEnter}
         style={{
-          transition: isHovering ? 'none' : 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+          transition: isHovering ? "none" : "transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
         }}
         className={cn(
           "h-16 px-8 rounded-full shadow-2xl flex items-center gap-3 active:scale-95 group overflow-hidden border-2 border-white/20 will-change-transform",
-          isOpen ? "bg-primary text-white" : "gradient-nextcon text-white ring-4 ring-accent/20 shadow-[0_0_30px_rgba(56,189,248,0.5)] hover:shadow-[0_0_40px_rgba(56,189,248,0.8)]",
+          isOpen
+            ? "bg-primary text-white"
+            : "gradient-nextcon text-white ring-4 ring-accent/20 shadow-[0_0_30px_rgba(56,189,248,0.5)] hover:shadow-[0_0_40px_rgba(56,189,248,0.8)]",
           !isOpen && !isHovering && "animate-[pulse_3s_ease-in-out_infinite]"
         )}
       >
         <div className="relative size-10 rounded-full overflow-hidden border-2 border-white/20 bg-[#090e24] flex items-center justify-center shrink-0">
-          <Image 
-            src={NAI_AVATAR_URL} 
-            alt="NAI" 
-            fill
-            className="object-cover"
-            sizes="40px"
-          />
-          {!isOpen && <span className="absolute top-0 right-0 size-2.5 bg-accent rounded-full border-2 border-primary animate-ping" />}
+          <Image src={NAI_AVATAR_URL} alt="NAI" fill className="object-cover" sizes="40px" />
+          {!isOpen && (
+            <span className="absolute top-0 right-0 size-2.5 bg-accent rounded-full border-2 border-primary animate-ping" />
+          )}
         </div>
         <span className="font-black uppercase text-xs tracking-widest">
           {isOpen ? "Fechar Assistente" : "Falar com a NAI"}

@@ -1,14 +1,14 @@
-'use server';
+"use server";
 /**
  * @fileOverview Agente NAI Medical Assistant - Agente com Tool Calling para suporte clínico.
- * 
+ *
  * - medicalAssistant - Função que processa dúvidas médicas consultando dados do sistema.
  */
 
-import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
-import { initializeFirebase } from '@/firebase/init';
-import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { ai } from "@/ai/genkit";
+import { z } from "genkit";
+import { initializeFirebase } from "@/firebase/init";
+import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
 
 // --- FERRAMENTAS DO AGENTE ---
 
@@ -17,10 +17,10 @@ import { collection, query, where, orderBy, limit, getDocs } from 'firebase/fire
  */
 export const consultarCIDTool = ai.defineTool(
   {
-    name: 'consultarCID',
-    description: 'Busca o código CID-10 oficial baseado em sintomas ou diagnóstico descrito.',
+    name: "consultarCID",
+    description: "Busca o código CID-10 oficial baseado em sintomas ou diagnóstico descrito.",
     inputSchema: z.object({
-      termo: z.string().describe('Descrição do sintoma ou doença (ex: dor lombar).'),
+      termo: z.string().describe("Descrição do sintoma ou doença (ex: dor lombar)."),
     }),
     outputSchema: z.object({
       codigo: z.string(),
@@ -30,11 +30,14 @@ export const consultarCIDTool = ai.defineTool(
   async ({ termo }) => {
     const busca = termo.toLowerCase();
     // Simulação de busca técnica (Em produção, conectaria a uma API de CID)
-    if (busca.includes('lombar') || busca.includes('costas')) return { codigo: 'M54.5', descricao: 'Dor lombar baixa' };
-    if (busca.includes('esforço') || busca.includes('repetitivo')) return { codigo: 'M75.1', descricao: 'Síndrome do manguito rotador' };
-    if (busca.includes('tristeza') || busca.includes('ânimo')) return { codigo: 'F33.2', descricao: 'Transtorno depressivo recorrente' };
-    
-    return { codigo: 'R68.8', descricao: 'Outros sintomas e sinais gerais especificados' };
+    if (busca.includes("lombar") || busca.includes("costas"))
+      return { codigo: "M54.5", descricao: "Dor lombar baixa" };
+    if (busca.includes("esforço") || busca.includes("repetitivo"))
+      return { codigo: "M75.1", descricao: "Síndrome do manguito rotador" };
+    if (busca.includes("tristeza") || busca.includes("ânimo"))
+      return { codigo: "F33.2", descricao: "Transtorno depressivo recorrente" };
+
+    return { codigo: "R68.8", descricao: "Outros sintomas e sinais gerais especificados" };
   }
 );
 
@@ -43,10 +46,11 @@ export const consultarCIDTool = ai.defineTool(
  */
 export const buscarHistoricoPacienteTool = ai.defineTool(
   {
-    name: 'buscarHistoricoPaciente',
-    description: 'Busca o último Atestado de Saúde Ocupacional (ASO) e as restrições do paciente no banco de dados.',
+    name: "buscarHistoricoPaciente",
+    description:
+      "Busca o último Atestado de Saúde Ocupacional (ASO) e as restrições do paciente no banco de dados.",
     inputSchema: z.object({
-      pacienteId: z.string().describe('O ID único do paciente no sistema.'),
+      pacienteId: z.string().describe("O ID único do paciente no sistema."),
     }),
     outputSchema: z.object({
       encontrado: z.boolean(),
@@ -57,14 +61,14 @@ export const buscarHistoricoPacienteTool = ai.defineTool(
   },
   async ({ pacienteId }) => {
     const { firestore } = initializeFirebase();
-    const asoRef = collection(firestore, 'atendimentos_aso');
+    const asoRef = collection(firestore, "atendimentos_aso");
     const q = query(
-      asoRef, 
-      where('employeeId', '==', pacienteId), 
-      orderBy('data_emissao', 'desc'), 
+      asoRef,
+      where("employeeId", "==", pacienteId),
+      orderBy("data_emissao", "desc"),
       limit(1)
     );
-    
+
     try {
       const snap = await getDocs(q);
       if (snap.empty) {
@@ -74,9 +78,9 @@ export const buscarHistoricoPacienteTool = ai.defineTool(
       const data = snap.docs[0].data();
       return {
         encontrado: true,
-        ultimoAsoData: data.data_emissao || '---',
-        statusUltimoAso: data.resultado || 'APTO',
-        restricoes: data.restricoes || []
+        ultimoAsoData: data.data_emissao || "---",
+        statusUltimoAso: data.resultado || "APTO",
+        restricoes: data.restricoes || [],
       };
     } catch (error) {
       console.error("Erro ao buscar no Firestore:", error);
@@ -89,7 +93,7 @@ export const buscarHistoricoPacienteTool = ai.defineTool(
 
 const medicalAssistantFlow = ai.defineFlow(
   {
-    name: 'medicalAssistantFlow',
+    name: "medicalAssistantFlow",
     inputSchema: z.object({
       mensagemMedico: z.string(),
       pacienteId: z.string(),
@@ -118,6 +122,9 @@ const medicalAssistantFlow = ai.defineFlow(
   }
 );
 
-export async function medicalAssistant(input: { mensagemMedico: string; pacienteId: string }): Promise<string> {
+export async function medicalAssistant(input: {
+  mensagemMedico: string;
+  pacienteId: string;
+}): Promise<string> {
   return medicalAssistantFlow(input);
 }

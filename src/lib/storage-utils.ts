@@ -6,16 +6,16 @@ import { doc, updateDoc, Firestore } from "firebase/firestore";
  * Segue a arquitetura Multi-tenant: /companies/{companyId}
  */
 export async function uploadCompanyLogo(
-  storage: FirebaseStorage, 
-  db: Firestore, 
-  file: File, 
+  storage: FirebaseStorage,
+  db: Firestore,
+  file: File,
   userId: string,
   companyId: string
 ) {
   try {
-    const fileExtension = file.name.split('.').pop();
+    const fileExtension = file.name.split(".").pop();
     const storagePath = `companies/${companyId}/branding/logo.${fileExtension}`;
-    
+
     const storageRef = ref(storage, storagePath);
     const snapshot = await uploadBytes(storageRef, file);
     const downloadURL = await getDownloadURL(snapshot.ref);
@@ -24,7 +24,7 @@ export async function uploadCompanyLogo(
     const companyRef = doc(db, "companies", companyId);
     await updateDoc(companyRef, {
       logoUrl: downloadURL,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     });
 
     return downloadURL;

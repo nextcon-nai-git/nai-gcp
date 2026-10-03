@@ -1,4 +1,4 @@
-import * as admin from 'firebase-admin';
+import * as admin from "firebase-admin";
 
 // O Next.js tenta inicializar isso várias vezes durante o hot-reload no ambiente de dev,
 // então nós checamos se o 'admin.apps.length' já tem um app iniciado.
@@ -9,9 +9,9 @@ if (!admin.apps.length) {
     admin.initializeApp({
       projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
     });
-    console.log('Firebase Admin Initialized successfully.');
+    console.log("Firebase Admin Initialized successfully.");
   } catch (error) {
-    console.error('Firebase Admin initialization error', error);
+    console.error("Firebase Admin initialization error", error);
   }
 }
 

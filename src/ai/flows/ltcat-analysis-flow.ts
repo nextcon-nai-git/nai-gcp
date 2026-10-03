@@ -1,12 +1,12 @@
-'use server';
+"use server";
 /**
  * @fileOverview NAI LTCAT Scanner - Analisador de laudos LTCAT (PDF).
- * 
+ *
  * - analyzeLtcatPdf - Extrai dados de exposição e enquadramento previdenciário.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from "@/ai/genkit";
+import { z } from "genkit";
 
 const LtcatAnalysisInputSchema = z.object({
   pdfDataUri: z.string().describe("O arquivo LTCAT em formato PDF codificado em Base64."),
@@ -20,12 +20,14 @@ const LtcatAnalysisOutputSchema = z.object({
     cnpj: z.string().describe("CNPJ identificado."),
     date: z.string().describe("Data do laudo."),
   }),
-  hazards: z.array(z.object({
-    agent: z.string().describe("Agente nocivo (Ruído, Calor, Químico, etc)."),
-    intensity: z.string().describe("Intensidade ou concentração medida."),
-    limit: z.string().describe("Limite de tolerância NR-15."),
-    specialRetirement: z.boolean().describe("Indica se há direito a aposentadoria especial."),
-  })),
+  hazards: z.array(
+    z.object({
+      agent: z.string().describe("Agente nocivo (Ruído, Calor, Químico, etc)."),
+      intensity: z.string().describe("Intensidade ou concentração medida."),
+      limit: z.string().describe("Limite de tolerância NR-15."),
+      specialRetirement: z.boolean().describe("Indica se há direito a aposentadoria especial."),
+    })
+  ),
   recommendations: z.array(z.string()).describe("Medidas de controle sugeridas."),
   aiInsight: z.string().describe("Resumo jurídico-previdenciário para o cliente."),
 });
@@ -36,9 +38,9 @@ export async function analyzeLtcatPdf(input: LtcatAnalysisInput): Promise<LtcatA
 }
 
 const prompt = ai.definePrompt({
-  name: 'ltcatAnalysisPrompt',
-  input: {schema: LtcatAnalysisInputSchema},
-  output: {schema: LtcatAnalysisOutputSchema},
+  name: "ltcatAnalysisPrompt",
+  input: { schema: LtcatAnalysisInputSchema },
+  output: { schema: LtcatAnalysisOutputSchema },
   prompt: `Você é a NAI, especialista em Higiene Ocupacional e Direito Previdenciário.
 Analise o LTCAT (Laudo Técnico das Condições Ambientais de Trabalho) em anexo.
 
@@ -53,13 +55,13 @@ Documento: {{media url=pdfDataUri contentType="application/pdf"}}`,
 
 const ltcatAnalysisFlow = ai.defineFlow(
   {
-    name: 'ltcatAnalysisFlow',
+    name: "ltcatAnalysisFlow",
     inputSchema: LtcatAnalysisInputSchema,
     outputSchema: LtcatAnalysisOutputSchema,
   },
-  async input => {
-    const {output} = await prompt(input);
-    if (!output) throw new Error('A NAI não conseguiu processar este LTCAT.');
+  async (input) => {
+    const { output } = await prompt(input);
+    if (!output) throw new Error("A NAI não conseguiu processar este LTCAT.");
     return output;
   }
 );

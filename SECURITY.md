@@ -6,17 +6,18 @@ Este projeto trata de dados sensíveis, incluindo dados de saúde, documentos de
 
 ## Versões suportadas
 
-| Versão | Suporte |
-| --- | --- |
-| main / branch principal | :white_check_mark: |
-| branches de desenvolvimento | :warning: somente com validação e revisão |
-| versões antigas | :x: sem garantia de correções de segurança |
+| Versão                      | Suporte                                    |
+| --------------------------- | ------------------------------------------ |
+| main / branch principal     | :white_check_mark:                         |
+| branches de desenvolvimento | :warning: somente com validação e revisão  |
+| versões antigas             | :x: sem garantia de correções de segurança |
 
 ## Como reportar uma vulnerabilidade
 
 Se você descobrir uma vulnerabilidade de segurança, por favor, não a publique publicamente em issues abertamente acessíveis.
 
 Entre em contato por e-mail ou via canal privado do responsável pela manutenção do projeto. O relatório deve incluir:
+
 - descrição da falha
 - impacto potencial
 - passos para reprodução

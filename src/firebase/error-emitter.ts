@@ -1,12 +1,12 @@
-'use client';
-import { FirestorePermissionError } from '@/firebase/errors';
+"use client";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 /**
  * Defines the shape of all possible events and their corresponding payload types.
  * This centralizes event definitions for type safety across the application.
  */
 export interface AppEvents {
-  'permission-error': FirestorePermissionError;
+  "permission-error": FirestorePermissionError;
 }
 
 // A generic type for a callback function.
@@ -43,7 +43,7 @@ function createEventEmitter<T extends Record<string, any>>() {
       if (!events[eventName]) {
         return;
       }
-      events[eventName] = events[eventName]?.filter(cb => cb !== callback);
+      events[eventName] = events[eventName]?.filter((cb) => cb !== callback);
     },
 
     /**
@@ -55,7 +55,7 @@ function createEventEmitter<T extends Record<string, any>>() {
       if (!events[eventName]) {
         return;
       }
-      events[eventName]?.forEach(callback => callback(data));
+      events[eventName]?.forEach((callback) => callback(data));
     },
   };
 }

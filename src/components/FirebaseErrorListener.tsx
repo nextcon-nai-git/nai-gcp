@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { useState, useEffect } from "react";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 /**
  * Listener global para erros de permissão do Firestore.
@@ -16,10 +16,10 @@ export function FirebaseErrorListener() {
       setError(error);
     };
 
-    errorEmitter.on('permission-error', handleError);
+    errorEmitter.on("permission-error", handleError);
 
     return () => {
-      errorEmitter.off('permission-error', handleError);
+      errorEmitter.off("permission-error", handleError);
     };
   }, []);
 
