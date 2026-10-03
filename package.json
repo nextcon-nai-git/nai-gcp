@@ -81,12 +81,12 @@
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^4.0.1",
-    "@types/node": "^20",
+    "@types/node": "^22",
     "@types/react": "^19.2.1",
     "@types/react-dom": "^19.2.1",
     "@types/wav": "^1.0.4",
     "@vitejs/plugin-react": "^6.0.1",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "5.0.2",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.3",
     "genkit-cli": "1.29.0",
@@ -97,7 +97,7 @@
     "tsx": "^4.19.2",
     "typescript": "^5",
     "vite-tsconfig-paths": "^6.1.1",
-    "vitest": "^5.0.2"
+    "vitest": "5.0.2"
   },
   "overrides": {
     "postcss": "$postcss",
