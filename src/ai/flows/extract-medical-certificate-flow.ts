@@ -1,20 +1,24 @@
-'use server';
+"use server";
 /**
  * @fileOverview Fluxo NAI para extração de dados estruturados de atestados médicos.
- * 
+ *
  * - extractMedicalCertificate - Função que analisa o texto e extrai entidades para o eSocial.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from "@/ai/genkit";
+import { z } from "genkit";
 
-const ExtractCertificateInputSchema = z.string().describe('O texto bruto extraído do atestado médico (via OCR ou cópia).');
+const ExtractCertificateInputSchema = z
+  .string()
+  .describe("O texto bruto extraído do atestado médico (via OCR ou cópia).");
 
 const ExtractCertificateOutputSchema = z.object({
-  nomePaciente: z.string().describe('Nome completo do paciente localizado no documento em CAIXA ALTA.'),
-  cid: z.string().optional().describe('Código CID-10 identificado (Ex: M54.5).'),
-  diasAfastamento: z.number().describe('Quantidade de dias de repouso/afastamento recomendados.'),
-  dataAtestado: z.string().describe('Data de emissão do atestado no formato ISO (YYYY-MM-DD).'),
+  nomePaciente: z
+    .string()
+    .describe("Nome completo do paciente localizado no documento em CAIXA ALTA."),
+  cid: z.string().optional().describe("Código CID-10 identificado (Ex: M54.5)."),
+  diasAfastamento: z.number().describe("Quantidade de dias de repouso/afastamento recomendados."),
+  dataAtestado: z.string().describe("Data de emissão do atestado no formato ISO (YYYY-MM-DD)."),
 });
 
 export type ExtractCertificateOutput = z.infer<typeof ExtractCertificateOutputSchema>;
@@ -22,7 +26,9 @@ export type ExtractCertificateOutput = z.infer<typeof ExtractCertificateOutputSc
 /**
  * Função wrapper para chamar o fluxo de extração de atestados.
  */
-export async function extractMedicalCertificate(rawText: string): Promise<ExtractCertificateOutput> {
+export async function extractMedicalCertificate(
+  rawText: string
+): Promise<ExtractCertificateOutput> {
   return extractMedicalCertificateFlow(rawText);
 }
 
@@ -31,7 +37,7 @@ export async function extractMedicalCertificate(rawText: string): Promise<Extrac
  */
 const extractMedicalCertificateFlow = ai.defineFlow(
   {
-    name: 'extractMedicalCertificateFlow',
+    name: "extractMedicalCertificateFlow",
     inputSchema: ExtractCertificateInputSchema,
     outputSchema: ExtractCertificateOutputSchema,
   },
@@ -51,10 +57,10 @@ const extractMedicalCertificateFlow = ai.defineFlow(
       3. Extraia apenas o valor numérico dos dias de afastamento.
       4. Formate a data como YYYY-MM-DD.
       5. Seja extremamente preciso, este dado alimenta o firewall do governo.`,
-      output: { schema: ExtractCertificateOutputSchema }
+      output: { schema: ExtractCertificateOutputSchema },
     });
 
-    if (!output) throw new Error('A NAI não conseguiu interpretar os dados deste atestado.');
+    if (!output) throw new Error("A NAI não conseguiu interpretar os dados deste atestado.");
     return output;
   }
 );

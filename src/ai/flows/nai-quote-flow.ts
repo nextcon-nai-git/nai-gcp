@@ -1,11 +1,11 @@
-'use server';
+"use server";
 /**
  * @fileOverview Agente "nai" - Comercial Nextcon.
  * Responsável por elaborar propostas comerciais e garantir a compreensão do cliente.
  */
 
-import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { ai } from "@/ai/genkit";
+import { z } from "genkit";
 
 const DadosEmpresaInputSchema = z.object({
   nomeEmpresa: z.string(),
@@ -16,7 +16,7 @@ const DadosEmpresaInputSchema = z.object({
   telefone: z.string(),
   quantidadeFuncionarios: z.number().describe("Número total de funcionários"),
   grauDeRisco: z.number().min(1).max(4).describe("Grau de Risco da empresa (1 a 4)"),
-  necessidades: z.string().describe("O que o cliente pediu")
+  necessidades: z.string().describe("O que o cliente pediu"),
 });
 export type DadosEmpresaInput = z.infer<typeof DadosEmpresaInputSchema>;
 
@@ -27,18 +27,20 @@ const OrcamentoOutputSchema = z.object({
       categoria: z.string(),
       nomeServico: z.string(),
       justificativaLegal: z.string(),
-      valorEstimado: z.number()
+      valorEstimado: z.number(),
     })
   ),
   valorTotalAvulso: z.number(),
   valorTotalMensal: z.number().optional(),
-  instrucoesConfirmacao: z.string().describe("Texto solicitando assinatura e confirmação de leitura."),
-  dicaDaNai: z.string()
+  instrucoesConfirmacao: z
+    .string()
+    .describe("Texto solicitando assinatura e confirmação de leitura."),
+  dicaDaNai: z.string(),
 });
 export type OrcamentoOutput = z.infer<typeof OrcamentoOutputSchema>;
 
 const quotePrompt = ai.definePrompt({
-  name: 'nai_Commercial_Prompt',
+  name: "nai_Commercial_Prompt",
   input: { schema: DadosEmpresaInputSchema },
   output: { schema: OrcamentoOutputSchema },
   prompt: `Você é o agente "nai", responsável pelo braço Comercial da Nextcon.
@@ -65,11 +67,11 @@ export async function generateNaiQuote(input: DadosEmpresaInput): Promise<Orcame
 
 ai.defineFlow(
   {
-    name: 'nai_Commercial_Flow',
+    name: "nai_Commercial_Flow",
     inputSchema: DadosEmpresaInputSchema,
     outputSchema: OrcamentoOutputSchema,
   },
-  async input => {
+  async (input) => {
     return generateNaiQuote(input);
   }
 );

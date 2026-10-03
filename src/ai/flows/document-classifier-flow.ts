@@ -1,11 +1,11 @@
-'use server';
+"use server";
 /**
  * @fileOverview Classificador Inteligente de Documentos SST da NextCon.
  * Identifica o tipo de laudo baseado no conteúdo textual do PDF.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from "@/ai/genkit";
+import { z } from "genkit";
 
 const ClassifierInputSchema = z.object({
   pdfDataUri: z.string().describe("O arquivo em formato PDF codificado em Base64."),
@@ -14,11 +14,23 @@ const ClassifierInputSchema = z.object({
 export type ClassifierInput = z.infer<typeof ClassifierInputSchema>;
 
 const ClassifierOutputSchema = z.object({
-  docType: z.enum([
-    'pgr', 'pcmso', 'ltcat', 'nr15', 'nr16', 
-    'ergonomia', 'nr10', 'nr12', 'os', 'epi', 
-    'apr', 'pca', 'ppr'
-  ]).describe("O tipo técnico identificado do documento."),
+  docType: z
+    .enum([
+      "pgr",
+      "pcmso",
+      "ltcat",
+      "nr15",
+      "nr16",
+      "ergonomia",
+      "nr10",
+      "nr12",
+      "os",
+      "epi",
+      "apr",
+      "pca",
+      "ppr",
+    ])
+    .describe("O tipo técnico identificado do documento."),
   confidence: z.number().describe("Nível de confiança da classificação (0-100)."),
   reasoning: z.string().describe("Breve explicação do porquê desta classificação."),
 });
@@ -29,9 +41,9 @@ export async function classifyDocument(input: ClassifierInput): Promise<Classifi
 }
 
 const prompt = ai.definePrompt({
-  name: 'documentClassifierPrompt',
-  input: {schema: ClassifierInputSchema},
-  output: {schema: ClassifierOutputSchema},
+  name: "documentClassifierPrompt",
+  input: { schema: ClassifierInputSchema },
+  output: { schema: ClassifierOutputSchema },
   prompt: `Você é o triador inteligente da NextCon Saúde Empresarial.
 Analise o documento PDF em anexo e o nome do arquivo para determinar em qual categoria técnica de SST ele se enquadra.
 
@@ -56,13 +68,13 @@ CONTEÚDO DO DOCUMENTO: {{media url=pdfDataUri contentType="application/pdf"}}`,
 
 const classifyFlow = ai.defineFlow(
   {
-    name: 'documentClassifierFlow',
+    name: "documentClassifierFlow",
     inputSchema: ClassifierInputSchema,
     outputSchema: ClassifierOutputSchema,
   },
-  async input => {
-    const {output} = await prompt(input);
-    if (!output) throw new Error('A NAI não conseguiu identificar este tipo de documento.');
+  async (input) => {
+    const { output } = await prompt(input);
+    if (!output) throw new Error("A NAI não conseguiu identificar este tipo de documento.");
     return output;
   }
 );

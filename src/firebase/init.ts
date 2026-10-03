@@ -1,11 +1,10 @@
+"use client";
 
-'use client';
-
-import { firebaseConfig } from '@/firebase/config';
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore'
-import { getStorage } from 'firebase/storage';
+import { firebaseConfig } from "@/firebase/config";
+import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 /**
  * Inicializa os serviços do Firebase de forma resiliente para o ambiente de produção.
@@ -26,6 +25,6 @@ export function getSdks(firebaseApp: FirebaseApp) {
     auth: getAuth(firebaseApp),
     firestore: getFirestore(firebaseApp),
     // Força o uso do bucket definido no config para garantir persistência de documentos SST
-    storage: getStorage(firebaseApp, firebaseConfig.storageBucket)
+    storage: getStorage(firebaseApp, firebaseConfig.storageBucket),
   };
 }

@@ -1,9 +1,9 @@
-'use client';
-import { getAuth, type User } from 'firebase/auth';
+"use client";
+import { getAuth, type User } from "firebase/auth";
 
 export type SecurityRuleContext = {
   path: string;
-  operation: 'get' | 'list' | 'create' | 'update' | 'delete' | 'write';
+  operation: "get" | "list" | "create" | "update" | "delete" | "write";
   requestResourceData?: any;
 };
 
@@ -51,13 +51,16 @@ function buildAuthObject(currentUser: User | null): FirebaseAuthObject | null {
     phone_number: currentUser.phoneNumber,
     sub: currentUser.uid,
     firebase: {
-      identities: currentUser.providerData.reduce((acc, p) => {
-        if (p.providerId) {
-          acc[p.providerId] = [p.uid];
-        }
-        return acc;
-      }, {} as Record<string, string[]>),
-      sign_in_provider: currentUser.providerData[0]?.providerId || 'custom',
+      identities: currentUser.providerData.reduce(
+        (acc, p) => {
+          if (p.providerId) {
+            acc[p.providerId] = [p.uid];
+          }
+          return acc;
+        },
+        {} as Record<string, string[]>
+      ),
+      sign_in_provider: currentUser.providerData[0]?.providerId || "custom",
       tenant: currentUser.tenantId,
     },
   };
@@ -117,7 +120,7 @@ export class FirestorePermissionError extends Error {
   constructor(context: SecurityRuleContext) {
     const requestObject = buildRequestObject(context);
     super(buildErrorMessage(requestObject));
-    this.name = 'FirebaseError';
+    this.name = "FirebaseError";
     this.request = requestObject;
   }
 }

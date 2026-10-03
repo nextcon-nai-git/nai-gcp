@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server';
-import { initializeFirebase } from '@/firebase/init';
-import { doc, getDoc } from 'firebase/firestore';
+import { NextResponse } from "next/server";
+import { initializeFirebase } from "@/firebase/init";
+import { doc, getDoc } from "firebase/firestore";
 
 /**
  * @fileOverview API Pública para o Widget da NAI.
@@ -10,7 +10,7 @@ import { doc, getDoc } from 'firebase/firestore';
 export async function GET() {
   try {
     const { firestore } = initializeFirebase();
-    
+
     // Busca o roteiro de vendas padrão no Firestore
     const pitchRef = doc(firestore, "config_nai_avatar", "pitch_vendas_padrao");
     const pitchSnap = await getDoc(pitchRef);
@@ -18,30 +18,30 @@ export async function GET() {
     if (!pitchSnap.exists()) {
       return NextResponse.json(
         { sucesso: false, mensagem: "Roteiro NAI não localizado." },
-        { 
+        {
           status: 404,
           headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
-          }
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+          },
         }
       );
     }
 
     // Retorna os dados com headers de CORS para permitir uso externo
     return NextResponse.json(
-      { 
-        sucesso: true, 
-        dados: pitchSnap.data() 
+      {
+        sucesso: true,
+        dados: pitchSnap.data(),
       },
       {
         status: 200,
         headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        }
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
       }
     );
   } catch (error) {
@@ -58,9 +58,9 @@ export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
     headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
     },
   });
 }

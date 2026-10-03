@@ -1,4 +1,3 @@
-
 "use server";
 
 /**
@@ -8,14 +7,14 @@
  * - Retorna o resultado estruturado para a UI.
  */
 
-import { z } from 'genkit';
-import { ai } from '@/ai/genkit';
-import { initializeFirebase } from '@/firebase/init';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { z } from "genkit";
+import { ai } from "@/ai/genkit";
+import { initializeFirebase } from "@/firebase/init";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 // 1. Definição do Esquema de Saída para garantir estabilidade na UI
 const AnaliseRiscoSchema = z.object({
-  nivel_risco_geral: z.enum(['Baixo', 'Médio', 'Alto', 'Crítico']),
+  nivel_risco_geral: z.enum(["Baixo", "Médio", "Alto", "Crítico"]),
   resumo_executivo: z.string().describe("Resumo em 2 frases sobre a situação da obra."),
   acoes_imediatas_recomendadas: z.array(z.string()).describe("Lista de até 3 ações cruciais."),
 });
@@ -34,9 +33,9 @@ export async function processarRelatorioSST(dadosDoRelatorio: any) {
       prompt: `Você é um Engenheiro de Segurança do Trabalho sênior da Nextcon. 
       Analise este relatório de visita técnica e extraia o nível de risco e as ações prioritárias: 
       ${JSON.stringify(dadosDoRelatorio)}`,
-      output: { 
-        schema: AnaliseRiscoSchema 
-      }
+      output: {
+        schema: AnaliseRiscoSchema,
+      },
     });
 
     if (!output) {
@@ -45,26 +44,25 @@ export async function processarRelatorioSST(dadosDoRelatorio: any) {
 
     // Passo B: Persistência no Firestore
     const { firestore } = initializeFirebase();
-    const docRef = await addDoc(collection(firestore, 'relatorios_sst'), {
+    const docRef = await addDoc(collection(firestore, "relatorios_sst"), {
       dados_originais: dadosDoRelatorio.relatorio_visita_tecnica || dadosDoRelatorio,
       analise_ia: output,
-      status_resolucao: 'Pendente',
+      status_resolucao: "Pendente",
       criado_em: serverTimestamp(),
-      processado_por: 'NAI Server Action v1.3'
+      processado_por: "NAI Server Action v1.3",
     });
 
     // Passo C: Retorno para a UI
-    return { 
-      sucesso: true, 
-      relatorioId: docRef.id, 
-      analise: output 
+    return {
+      sucesso: true,
+      relatorioId: docRef.id,
+      analise: output,
     };
-
   } catch (error: any) {
     console.error("❌ Erro fatal na Server Action NAI:", error);
-    return { 
-      sucesso: false, 
-      erro: error.message || "Não foi possível processar e salvar o relatório." 
+    return {
+      sucesso: false,
+      erro: error.message || "Não foi possível processar e salvar o relatório.",
     };
   }
 }

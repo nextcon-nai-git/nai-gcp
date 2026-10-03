@@ -1,42 +1,49 @@
-
-'use server';
+"use server";
 /**
  * @fileOverview NAI Medical Intel - Gerador de Resumo Clínico SOAP.
  * Analisa a transcrição da teleconsulta e estrutura o prontuário automaticamente.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from "@/ai/genkit";
+import { z } from "genkit";
 
 const SOAPSummaryInputSchema = z.object({
-  transcript: z.string().describe('A transcrição completa da consulta médica.'),
-  patientHistory: z.string().optional().describe('Histórico prévio de alergias e medicamentos.'),
+  transcript: z.string().describe("A transcrição completa da consulta médica."),
+  patientHistory: z.string().optional().describe("Histórico prévio de alergias e medicamentos."),
 });
 
 const SOAPSummaryOutputSchema = z.object({
-  subjective: z.string().describe('Sintomas, queixas e relatos do paciente.'),
-  objective: z.string().describe('Sinais vitais mencionados e observações clínicas do médico.'),
-  assessment: z.string().describe('Diagnóstico presumido ou definitivo e raciocínio clínico.'),
-  plan: z.string().describe('Conduta, prescrições, exames solicitados e orientações.'),
-  cid10: z.array(z.object({
-    code: z.string(),
-    description: z.string()
-  })).describe('Sugestão de códigos CID-10 baseados na conversa.'),
-  criticalAlerts: z.array(z.string()).describe('Alertas de interações medicamentosas ou urgências detectadas.'),
+  subjective: z.string().describe("Sintomas, queixas e relatos do paciente."),
+  objective: z.string().describe("Sinais vitais mencionados e observações clínicas do médico."),
+  assessment: z.string().describe("Diagnóstico presumido ou definitivo e raciocínio clínico."),
+  plan: z.string().describe("Conduta, prescrições, exames solicitados e orientações."),
+  cid10: z
+    .array(
+      z.object({
+        code: z.string(),
+        description: z.string(),
+      })
+    )
+    .describe("Sugestão de códigos CID-10 baseados na conversa."),
+  criticalAlerts: z
+    .array(z.string())
+    .describe("Alertas de interações medicamentosas ou urgências detectadas."),
 });
 
 export type SOAPSummaryOutput = z.infer<typeof SOAPSummaryOutputSchema>;
 
-export async function generateSoapSummary(input: z.infer<typeof SOAPSummaryInputSchema>): Promise<SOAPSummaryOutput> {
-  const {output} = await soapPrompt(input);
-  if (!output) throw new Error('A NAI não conseguiu processar o resumo SOAP.');
+export async function generateSoapSummary(
+  input: z.infer<typeof SOAPSummaryInputSchema>
+): Promise<SOAPSummaryOutput> {
+  const { output } = await soapPrompt(input);
+  if (!output) throw new Error("A NAI não conseguiu processar o resumo SOAP.");
   return output;
 }
 
 const soapPrompt = ai.definePrompt({
-  name: 'generateSoapSummaryPrompt',
-  input: {schema: SOAPSummaryInputSchema},
-  output: {schema: SOAPSummaryOutputSchema},
+  name: "generateSoapSummaryPrompt",
+  input: { schema: SOAPSummaryInputSchema },
+  output: { schema: SOAPSummaryOutputSchema },
   prompt: `Você é a NAI, assistente médica de elite especializada em auditoria e prontuário digital.
 Sua tarefa é ler a transcrição de uma teleconsulta e gerar o resumo no formato SOAP.
 
@@ -59,11 +66,11 @@ INSTRUÇÕES:
 
 ai.defineFlow(
   {
-    name: 'generateSoapSummaryFlow',
+    name: "generateSoapSummaryFlow",
     inputSchema: SOAPSummaryInputSchema,
     outputSchema: SOAPSummaryOutputSchema,
   },
-  async input => {
+  async (input) => {
     return generateSoapSummary(input);
   }
 );

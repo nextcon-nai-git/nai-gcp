@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { useAuth, useUser } from '@/firebase';
-import { signOut } from 'firebase/auth';
-import { usePathname, useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
-import * as React from 'react';
-import { TopNav } from '@/components/layout/top-nav';
-import { AppSidebar } from '@/components/layout/app-sidebar';
-import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
-import { NaiFloatingWidget } from '@/components/commercial/nai-floating-widget';
+import { useAuth, useUser } from "@/firebase";
+import { signOut } from "firebase/auth";
+import { usePathname, useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import * as React from "react";
+import { TopNav } from "@/components/layout/top-nav";
+import { AppSidebar } from "@/components/layout/app-sidebar";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { NaiFloatingWidget } from "@/components/commercial/nai-floating-widget";
 
 /**
  * @fileOverview Gatekeeper de Autenticação da Plataforma NAI.
@@ -21,7 +21,7 @@ export function AppContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [mounted, setMounted] = React.useState(false);
 
-  const isLoginPage = React.useMemo(() => pathname === '/login', [pathname]);
+  const isLoginPage = React.useMemo(() => pathname === "/login", [pathname]);
 
   React.useEffect(() => {
     setMounted(true);
@@ -30,7 +30,7 @@ export function AppContent({ children }: { children: React.ReactNode }) {
   // Lógica de Redirecionamento Estrito
   React.useEffect(() => {
     if (mounted && !isUserLoading && !user && !isLoginPage) {
-      router.replace('/login');
+      router.replace("/login");
     }
   }, [user, isUserLoading, isLoginPage, pathname, router, mounted]);
 
@@ -52,9 +52,13 @@ export function AppContent({ children }: { children: React.ReactNode }) {
         <div className="mt-12 flex flex-col items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-1000">
           <div className="flex items-center gap-3">
             <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
-            <span className="text-xs font-black text-white/60 uppercase tracking-[0.4em]">NextCon Intelligence</span>
+            <span className="text-xs font-black text-white/60 uppercase tracking-[0.4em]">
+              NextCon Intelligence
+            </span>
           </div>
-          <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest">Sincronizando protocolos de elite 2026...</p>
+          <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest">
+            Sincronizando protocolos de elite 2026...
+          </p>
         </div>
       </div>
     );
@@ -63,17 +67,42 @@ export function AppContent({ children }: { children: React.ReactNode }) {
   // Do not mount protected children while a redirect to login is pending.
   if (!isLoginPage && !user && !userError) return null;
 
-  if (!isLoginPage && (userError || !role || role === 'USER')) {
-    return <main className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-      <section aria-labelledby="profile-status" className="w-full max-w-lg rounded-2xl border bg-white p-8 shadow-sm">
-        <h1 id="profile-status" className="text-2xl font-bold text-slate-900">{userError ? 'Não foi possível carregar seu acesso' : 'Sua conta aguarda liberação'}</h1>
-        <p role="status" className="mt-3 text-sm leading-6 text-slate-600">{userError ? 'Tente novamente para sincronizar seu perfil.' : 'Seu cadastro foi preparado. Peça ao administrador a definição do seu perfil e das empresas que você pode acessar.'}</p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <button type="button" onClick={() => window.location.reload()} className="rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white">Verificar novamente</button>
-          <button type="button" onClick={() => { void signOut(auth).catch(() => window.location.reload()); }} className="rounded-xl border px-4 py-3 text-sm font-semibold">Sair da conta</button>
-        </div>
-      </section>
-    </main>;
+  if (!isLoginPage && (userError || !role || role === "USER")) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+        <section
+          aria-labelledby="profile-status"
+          className="w-full max-w-lg rounded-2xl border bg-white p-8 shadow-sm"
+        >
+          <h1 id="profile-status" className="text-2xl font-bold text-slate-900">
+            {userError ? "Não foi possível carregar seu acesso" : "Sua conta aguarda liberação"}
+          </h1>
+          <p role="status" className="mt-3 text-sm leading-6 text-slate-600">
+            {userError
+              ? "Tente novamente para sincronizar seu perfil."
+              : "Seu cadastro foi preparado. Peça ao administrador a definição do seu perfil e das empresas que você pode acessar."}
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white"
+            >
+              Verificar novamente
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void signOut(auth).catch(() => window.location.reload());
+              }}
+              className="rounded-xl border px-4 py-3 text-sm font-semibold"
+            >
+              Sair da conta
+            </button>
+          </div>
+        </section>
+      </main>
+    );
   }
 
   // 2. Renderiza apenas a tela de login se não autenticado
@@ -89,9 +118,7 @@ export function AppContent({ children }: { children: React.ReactNode }) {
         <SidebarInset className="flex flex-col h-full overflow-hidden">
           <TopNav />
           <main className="flex-1 overflow-y-auto p-6 md:p-10 scrollbar-thin">
-            <div className="max-w-7xl mx-auto animate-in fade-in duration-500">
-              {children}
-            </div>
+            <div className="max-w-7xl mx-auto animate-in fade-in duration-500">{children}</div>
           </main>
         </SidebarInset>
         <NaiFloatingWidget />
