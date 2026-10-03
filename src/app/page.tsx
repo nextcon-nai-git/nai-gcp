@@ -31,16 +31,14 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import MedicalCopilot from "@/components/medical/medical-copilot";
 import { useDebounce } from "@/hooks/useDebounce";
 
-const Sparkline = dynamic(
-  () => import("@/components/dashboard/sparkline").then((module) => module.Sparkline),
-  { ssr: false }
+// Dynamic imports para heavy libraries
+const RechartsChart = dynamic(
+  () => import("./recharts-wrapper"),
+  { ssr: false, loading: () => <div className="h-64 bg-slate-100 rounded-lg" /> }
 );
-const MedicalCopilot = dynamic(() => import("@/components/medical/medical-copilot"), {
-  ssr: false,
-  loading: () => <div className="h-full min-h-40 animate-pulse rounded-xl bg-slate-100" />,
-});
 
 function TypewriterText({ text, delay = 10 }: { text: string; delay?: number }) {
   const [displayedText, setDisplayedText] = React.useState("");
@@ -49,7 +47,6 @@ function TypewriterText({ text, delay = 10 }: { text: string; delay?: number }) 
     let i = 0;
     const interval = setInterval(() => {
       if (i < text.length) {
-        // Usa a versão em callback de setDisplayedText para evitar problemas de dependência
         setDisplayedText(text.substring(0, i + 1));
         i++;
       } else {
@@ -114,8 +111,10 @@ export default function Dashboard() {
   const [isClient, setIsClient] = React.useState(false);
 
   const [fapValue, setFapValue] = React.useState([0.74]);
-  const debouncedFapValue = useDebounce(fapValue, 150);
+  const debouncedFapValue = useDebounce(fapValue, 300); // Debounce slider
+  
   const [payroll, setPayroll] = React.useState(150000);
+  const debouncedPayroll = useDebounce(payroll, 300); // Debounce input
 
   const profileRef = useMemoFirebase(() => {
     if (!db || !user) return null;
@@ -144,8 +143,8 @@ export default function Dashboard() {
   }, []);
 
   const potentialSavings = React.useMemo(() => {
-    return payroll * 0.02 * (1 - debouncedFapValue[0]) * 12;
-  }, [payroll, debouncedFapValue]);
+    return debouncedPayroll * 0.02 * (1 - debouncedFapValue[0]) * 12;
+  }, [debouncedPayroll, debouncedFapValue]);
 
   const mockDataCocel = React.useMemo(
     () => [
@@ -221,7 +220,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           {/* Alerta de Caso Real: Nativa */}
-          <Card className="border-none bg-blue-50 ring-2 ring-blue-100 rounded-[2.5rem] overflow-hidden shadow-xl animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100 fill-mode-both hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-500/20 transition-all">
+          <Card className="border-none bg-blue-50 ring-2 ring-blue-100 rounded-[2.5rem] overflow-hidden shadow-xl animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100 fill-mode-both">
             <div className="p-8 flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="flex items-center gap-5">
                 <div className="p-4 bg-primary text-white rounded-3xl shadow-lg">
@@ -248,7 +247,8 @@ export default function Dashboard() {
             </div>
           </Card>
 
-          <Card className="card-shadow border-none bg-white rounded-[2.5rem] overflow-hidden group animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200 fill-mode-both hover:-translate-y-1 hover:shadow-2xl transition-all">
+          {/* Resumo Operacional com Gráficos Dinâmicos */}
+          <Card className="card-shadow border-none bg-white rounded-[2.5rem] overflow-hidden group animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200 fill-mode-both hover:-translate-y-1">
             <CardHeader className="pb-4 px-8 pt-8">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -275,7 +275,7 @@ export default function Dashboard() {
             <CardContent className="px-8 pb-8 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-slate-50 p-6 rounded-3xl border shadow-inner flex flex-col justify-center relative overflow-hidden group">
-                  <Sparkline data={mockDataCocel} color="#10b981" isCurrency={true} />
+                  <RechartsChart data={mockDataCocel} color="#10b981" isCurrency={true} />
                   <div className="relative z-10 pointer-events-none group-hover:pointer-events-auto">
                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">
                       Contrato COCEL Aditivo
@@ -292,7 +292,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="bg-slate-50 p-6 rounded-3xl border shadow-inner flex flex-col justify-center relative overflow-hidden group">
-                  <Sparkline data={mockDataVigilancia} color="#3b82f6" />
+                  <RechartsChart data={mockDataVigilancia} color="#3b82f6" />
                   <div className="relative z-10 pointer-events-none group-hover:pointer-events-auto">
                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">
                       Vigilância Total
@@ -330,8 +330,9 @@ export default function Dashboard() {
           </Card>
         </div>
 
+        {/* Simulador ROI com Debouncing */}
         <div className="space-y-8">
-          <Card className="card-shadow border-none bg-white rounded-[2.5rem] overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300 fill-mode-both hover:-translate-y-1 hover:shadow-2xl transition-all">
+          <Card className="card-shadow border-none bg-white rounded-[2.5rem] overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300 fill-mode-both hover:-translate-y-1">
             <CardHeader className="bg-primary/5 pb-6 p-8 border-b">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-primary text-white rounded-xl shadow-lg">
@@ -349,7 +350,7 @@ export default function Dashboard() {
                     Fator FAP Alvo
                   </label>
                   <span className="text-xl font-black text-primary tracking-tighter">
-                    {fapValue[0].toFixed(2)}
+                    {debouncedFapValue[0].toFixed(2)}
                   </span>
                 </div>
                 <Slider
@@ -362,7 +363,7 @@ export default function Dashboard() {
                 />
               </div>
               <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100 shadow-inner relative overflow-hidden group">
-                <Sparkline
+                <RechartsChart
                   data={roiData}
                   color={potentialSavings > 0 ? "#10b981" : "#ef4444"}
                   isCurrency={true}
@@ -401,6 +402,7 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Medical Copilot */}
       <Sheet>
         <SheetTrigger asChild>
           <button className="fixed bottom-8 right-8 h-16 w-16 rounded-full bg-primary shadow-2xl hover:scale-105 transition-transform duration-300 flex items-center justify-center p-0 z-50 ring-4 ring-primary/20">
