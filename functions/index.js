@@ -54,7 +54,7 @@ async function withTimeout(operation, timeoutMs, message) {
 async function streamPdfAsBase64(file) {
   const stream = file.createReadStream();
   let timeout;
-  const encodedChunks = [];
+  let base64 = "";
   let remainder = Buffer.alloc(0);
   let bytesRead = 0;
 
@@ -70,13 +70,13 @@ async function streamPdfAsBase64(file) {
       bytesRead += chunk.length;
       const encodableLength = data.length - (data.length % 3);
       if (encodableLength > 0) {
-        encodedChunks.push(data.subarray(0, encodableLength).toString("base64"));
+        base64 += data.subarray(0, encodableLength).toString("base64");
       }
       remainder = Buffer.from(data.subarray(encodableLength));
     }
 
-    if (remainder.length > 0) encodedChunks.push(remainder.toString("base64"));
-    return { base64: encodedChunks.join(""), bytesRead };
+    if (remainder.length > 0) base64 += remainder.toString("base64");
+    return { base64, bytesRead };
   } finally {
     clearTimeout(timeout);
   }
