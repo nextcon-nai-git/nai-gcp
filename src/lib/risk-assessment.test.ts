@@ -12,6 +12,17 @@ describe("risk assessment", () => {
     expect(getRiskLevel(score)).toBe(level);
   });
 
+  it.each([
+    [4, "baixo"],
+    [5, "moderado"],
+    [11, "moderado"],
+    [12, "alto"],
+    [19, "alto"],
+    [20, "critico"],
+  ])("classifies score %i at a risk-level boundary", (score, level) => {
+    expect(getRiskLevel(score)).toBe(level);
+  });
+
   it("keeps the score inside the 1–25 matrix", () => {
     expect(calculateRiskScore(0, 0)).toBe(1);
     expect(calculateRiskScore(8, 8)).toBe(25);
