@@ -3,9 +3,18 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import LoginPage from "./page";
 
-const mocks = vi.hoisted(() => ({ auth: {}, signIn: vi.fn(), replace: vi.fn(), toast: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  auth: { languageCode: null as string | null },
+  signIn: vi.fn(),
+  sendReset: vi.fn(),
+  replace: vi.fn(),
+  toast: vi.fn(),
+}));
 vi.mock("@/firebase", () => ({ useAuth: () => mocks.auth }));
-vi.mock("firebase/auth", () => ({ signInWithEmailAndPassword: mocks.signIn }));
+vi.mock("firebase/auth", () => ({
+  signInWithEmailAndPassword: mocks.signIn,
+  sendPasswordResetEmail: mocks.sendReset,
+}));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: mocks.toast }) }));
 
@@ -16,6 +25,8 @@ beforeEach(async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   window.history.replaceState(null, "", "/login");
   mocks.signIn.mockResolvedValue({});
+  mocks.sendReset.mockResolvedValue(undefined);
+  mocks.auth.languageCode = null;
   element = document.createElement("div");
   document.body.appendChild(element);
   root = createRoot(element);
@@ -47,14 +58,32 @@ async function submit() {
   });
 }
 
+async function clickButton(text: string) {
+  const button = [...element.querySelectorAll<HTMLButtonElement>("button")].find(
+    (candidate) => candidate.textContent?.trim() === text
+  );
+  expect(button).toBeDefined();
+  await act(async () => button!.click());
+}
+
+async function fillEmail(value: string) {
+  await act(async () => {
+    const input = element.querySelector<HTMLInputElement>("#login-email")!;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
 describe("password login", () => {
-  it("offers only the labeled email/password form and does not sign in automatically", () => {
+  it("offers labeled email/password fields and recovery without automatic requests", () => {
     expect(element.querySelectorAll("form")).toHaveLength(1);
     expect(element.querySelectorAll("input")).toHaveLength(2);
-    expect(element.querySelectorAll("button")).toHaveLength(1);
+    expect(element.querySelectorAll("button")).toHaveLength(2);
+    expect(element.textContent).toContain("Esqueci minha senha");
     expect(element.querySelector('label[for="login-email"]')).not.toBeNull();
     expect(element.querySelector('label[for="login-password"]')).not.toBeNull();
     expect(mocks.signIn).not.toHaveBeenCalled();
+    expect(mocks.sendReset).not.toHaveBeenCalled();
   });
 
   it("normalizes the email and always enters the home page after authentication", async () => {
@@ -79,7 +108,7 @@ describe("password login", () => {
     );
     await fillCredentials();
     await submit();
-    expect(element.querySelector("button")?.disabled).toBe(true);
+    expect(element.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true);
     expect([...element.querySelectorAll("input")].every((input) => input.disabled)).toBe(true);
     await submit();
     expect(mocks.signIn).toHaveBeenCalledOnce();
@@ -94,7 +123,7 @@ describe("password login", () => {
     });
     await fillCredentials();
     await submit();
-    expect(element.querySelector("button")?.disabled).toBe(false);
+    expect(element.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(false);
     expect(mocks.toast).toHaveBeenCalledWith(
       expect.objectContaining({ description: "Verifique sua conexão e tente novamente." })
     );
@@ -102,5 +131,119 @@ describe("password login", () => {
     await submit();
     expect(mocks.signIn).toHaveBeenCalledTimes(2);
     expect(mocks.replace).toHaveBeenCalledExactlyOnceWith("/");
+  });
+});
+
+describe("password recovery", () => {
+  it("keeps the email, removes the password and permits returning to login", async () => {
+    await fillCredentials();
+    await clickButton("Esqueci minha senha");
+    expect(element.querySelector("h2")?.textContent).toBe("Recuperar senha");
+    expect(element.querySelectorAll("input")).toHaveLength(1);
+    expect(element.querySelector<HTMLInputElement>("#login-email")?.value).toBe(
+      "Person@Example.test"
+    );
+    expect(element.querySelector("#login-password")).toBeNull();
+    expect(mocks.signIn).not.toHaveBeenCalled();
+    expect(mocks.sendReset).not.toHaveBeenCalled();
+    await clickButton("Voltar ao login");
+    expect(element.querySelector<HTMLInputElement>("#login-email")?.value).toBe(
+      "Person@Example.test"
+    );
+    expect(element.querySelector<HTMLInputElement>("#login-password")?.value).toBe("");
+  });
+
+  it("requests a Portuguese reset email without signing in or redirecting", async () => {
+    await clickButton("Esqueci minha senha");
+    await fillEmail("Person@Example.test");
+    await submit();
+    expect(mocks.sendReset).toHaveBeenCalledExactlyOnceWith(mocks.auth, "person@example.test");
+    expect(mocks.auth.languageCode).toBe("pt-BR");
+    expect(element.querySelector('[role="status"]')?.textContent).toContain(
+      "Se este e-mail estiver cadastrado"
+    );
+    expect(element.querySelector('[role="status"]')?.textContent).toContain("pasta de spam");
+    expect(mocks.signIn).not.toHaveBeenCalled();
+    expect(mocks.replace).not.toHaveBeenCalled();
+    await submit();
+    expect(mocks.sendReset).toHaveBeenCalledOnce();
+  });
+
+  it("blocks duplicate sends, changes and navigation while the request is pending", async () => {
+    let finish!: () => void;
+    mocks.sendReset.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        })
+    );
+    await clickButton("Esqueci minha senha");
+    await fillEmail("person@example.test");
+    await act(async () => {
+      const form = element.querySelector("form")!;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      }
+    });
+    expect(mocks.sendReset).toHaveBeenCalledOnce();
+    expect([...element.querySelectorAll("button")].every((button) => button.disabled)).toBe(true);
+    expect(element.querySelector<HTMLInputElement>("#login-email")?.disabled).toBe(true);
+    await act(async () => finish());
+    expect(element.querySelector('[role="status"]')).not.toBeNull();
+    await clickButton("Voltar ao login");
+    expect(element.querySelector<HTMLInputElement>("#login-email")?.disabled).toBe(false);
+  });
+
+  it.each(["", "not-an-email"])(
+    "does not send a request for an invalid email: %s",
+    async (email) => {
+      await clickButton("Esqueci minha senha");
+      await fillEmail(email);
+      await submit();
+      expect(mocks.sendReset).not.toHaveBeenCalled();
+      expect(element.querySelector('[role="alert"]')?.textContent).toContain("e-mail válido");
+    }
+  );
+
+  it("shows the same confirmation for registered and unknown email addresses", async () => {
+    await clickButton("Esqueci minha senha");
+    await fillEmail("person@example.test");
+    await submit();
+    const confirmation = element.querySelector('[role="status"]')?.textContent;
+    await clickButton("Voltar ao login");
+    await clickButton("Esqueci minha senha");
+    mocks.sendReset.mockRejectedValueOnce({
+      code: "auth/user-not-found",
+      message: "private-account-detail",
+    });
+    await submit();
+    expect(element.querySelector('[role="status"]')?.textContent).toBe(confirmation);
+    expect(element.querySelector('[role="alert"]')).toBeNull();
+    expect(element.textContent).not.toContain("private-account-detail");
+    expect(mocks.signIn).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["auth/network-request-failed", "Verifique sua conexão e tente novamente."],
+    ["auth/too-many-requests", "Muitas solicitações. Aguarde um pouco antes de tentar novamente."],
+    ["auth/invalid-email", "Informe um e-mail válido para recuperar sua senha."],
+    [
+      "auth/internal-error",
+      "Não foi possível solicitar a recuperação. Tente novamente em instantes.",
+    ],
+  ])("permits retry after %s without exposing provider details", async (code, message) => {
+    await clickButton("Esqueci minha senha");
+    await fillEmail("person@example.test");
+    mocks.sendReset.mockRejectedValueOnce({ code, message: "private-provider-detail" });
+    await submit();
+    expect(element.querySelector('[role="alert"]')?.textContent).toBe(message);
+    expect(element.textContent).not.toContain("private-provider-detail");
+    expect(element.querySelector('[role="status"]')).toBeNull();
+    expect(element.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(false);
+    await submit();
+    expect(mocks.sendReset).toHaveBeenCalledTimes(2);
+    expect(element.querySelector('[role="alert"]')).toBeNull();
+    expect(element.querySelector('[role="status"]')).not.toBeNull();
+    expect(mocks.replace).not.toHaveBeenCalled();
   });
 });
