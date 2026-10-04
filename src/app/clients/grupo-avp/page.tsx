@@ -34,33 +34,23 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { GrupoAvpAsoManager } from "@/components/clients/grupo-avp-aso-manager";
+import { AvpSchedulingRequestForm } from "@/components/clients/avp-scheduling-request-form";
 import { GrupoAvpCredenciamentoHub } from "@/components/clients/grupo-avp-credenciamento-hub";
 
 export default function GrupoAvpClientHubPage() {
   const { toast } = useToast();
   const [copiedChannel, setCopiedChannel] = React.useState<string | null>(null);
 
-  // Form State para Simulação de Agendamento
-  const [formData, setFormData] = React.useState({
-    fullName: "",
-    birthDate: "",
-    cpf: "",
-    rg: "",
-    phone: "",
-    email: "",
-    admissionDate: "",
-    role: "",
-    unitName: "",
-    cnpj: "",
-    examType: "ADMISSIONAL",
+  const [queueSummary, setQueueSummary] = React.useState({
+    total: 0,
+    urgentes: 0,
+    cidades: 0,
+    concluidos: 0,
   });
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Checklist de Ações do Workshop
   const [tasks, setTasks] = React.useState([
@@ -143,55 +133,6 @@ export default function GrupoAvpClientHubPage() {
     setTimeout(() => setCopiedChannel(null), 2500);
   };
 
-  const isFormValid = Boolean(
-    formData.fullName &&
-    formData.birthDate &&
-    formData.cpf &&
-    formData.rg &&
-    formData.phone &&
-    formData.email &&
-    formData.admissionDate &&
-    formData.role &&
-    formData.unitName &&
-    formData.cnpj
-  );
-
-  const handleSimulateSchedule = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isFormValid) {
-      toast({
-        title: "Dados Incompletos!",
-        description:
-          "Preencha todos os 10 campos obrigatórios para não suspender a contagem do SLA.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      toast({
-        title: "Solicitação Enviada com Sucesso!",
-        description: `Agendamento para ${formData.fullName} enviado para a central NextCon. SLA de confirmação: até 4 horas úteis via WhatsApp.`,
-      });
-      // Reset
-      setFormData({
-        fullName: "",
-        birthDate: "",
-        cpf: "",
-        rg: "",
-        phone: "",
-        email: "",
-        admissionDate: "",
-        role: "",
-        unitName: "",
-        cnpj: "",
-        examType: "ADMISSIONAL",
-      });
-    }, 1200);
-  };
-
   return (
     <div className="space-y-10 animate-in fade-in duration-500 pb-24 text-slate-900">
       {/* BANNER PRINCIPAL GRUPO AVP & NEXTCON */}
@@ -211,7 +152,7 @@ export default function GrupoAvpClientHubPage() {
                 </span>
                 <span className="text-white/40">•</span>
                 <span className="text-xs font-black tracking-widest text-slate-300 uppercase">
-                  192 Unidades
+                  {queueSummary.cidades} Municípios na fila
                 </span>
               </div>
               <h1 className="text-2xl sm:text-4xl font-black font-headline uppercase tracking-tight text-white mt-1">
@@ -240,19 +181,23 @@ export default function GrupoAvpClientHubPage() {
               Capilaridade
             </span>
             <strong className="text-xl sm:text-2xl font-black font-headline text-accent">
-              192 Unidades
+              {queueSummary.cidades} Municípios na fila
             </strong>
-            <span className="text-[9px] text-slate-300 block mt-0.5">Cobertura Nacional 100%</span>
+            <span className="text-[9px] text-slate-300 block mt-0.5">
+              Cidades com solicitações importadas
+            </span>
           </div>
 
           <div className="p-4 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10">
             <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">
-              Vidas Gerenciadas
+              Exames concluídos
             </span>
             <strong className="text-xl sm:text-2xl font-black font-headline text-white">
-              +5.000 Vidas
+              {queueSummary.concluidos} Exames feitos
             </strong>
-            <span className="text-[9px] text-slate-300 block mt-0.5">Colaboradores no Brasil</span>
+            <span className="text-[9px] text-slate-300 block mt-0.5">
+              Conforme o status da fila
+            </span>
           </div>
 
           <div className="p-4 rounded-2xl bg-emerald-500/10 backdrop-blur-sm border border-emerald-400/30">
@@ -260,9 +205,11 @@ export default function GrupoAvpClientHubPage() {
               Fila de ASOs
             </span>
             <strong className="text-xl sm:text-2xl font-black font-headline text-emerald-400">
-              223 Solicitações
+              {queueSummary.total} Solicitações
             </strong>
-            <span className="text-[9px] text-emerald-200 block mt-0.5">102 Cidades Atendidas</span>
+            <span className="text-[9px] text-emerald-200 block mt-0.5">
+              {queueSummary.cidades} Cidades na fila
+            </span>
           </div>
 
           <div className="p-4 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10">
@@ -295,9 +242,9 @@ export default function GrupoAvpClientHubPage() {
               value="asos"
               className="rounded-xl py-2.5 px-4 text-xs font-black uppercase tracking-wider data-[state=active]:bg-primary data-[state=active]:text-white gap-2 transition-all"
             >
-              <FileSpreadsheet size={15} /> Gestão de ASOs (223)
+              <FileSpreadsheet size={15} /> Gestão de ASOs ({queueSummary.total})
               <Badge className="bg-rose-500 text-white text-[9px] h-4 px-1.5 rounded-full font-bold">
-                44 Urgentes
+                {queueSummary.urgentes} Urgentes
               </Badge>
             </TabsTrigger>
 
@@ -335,24 +282,29 @@ export default function GrupoAvpClientHubPage() {
         </div>
 
         {/* TAB 1: GESTÃO DE ASOS */}
-        <TabsContent value="asos" className="space-y-6 focus-visible:outline-none">
+        <TabsContent
+          value="asos"
+          forceMount
+          className="space-y-6 focus-visible:outline-none data-[state=inactive]:hidden"
+        >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
                 <Badge className="bg-primary text-white font-black text-[9px] uppercase tracking-wider px-2.5 h-6">
-                  BANCO DE DADOS OFICIAL AVP
+                  FILA DA PLANILHA AVP
                 </Badge>
                 <h2 className="text-2xl font-black font-headline text-primary uppercase">
                   Fila Nacional de ASOs em Andamento
                 </h2>
               </div>
               <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">
-                223 solicitações operacionais mapeadas em 102 municípios • Filtros por status,
-                responsável (Kelly, Letícia, Felipe, Isabelle), urgência e clínicas.
+                {queueSummary.total} solicitações em {queueSummary.cidades} municípios da fila
+                importada • Filtros por status, responsável (Kelly, Letícia, Felipe, Isabelle),
+                urgência e clínicas.
               </p>
             </div>
           </div>
-          <GrupoAvpAsoManager />
+          <GrupoAvpAsoManager onQueueSummaryChange={setQueueSummary} />
         </TabsContent>
 
         {/* TAB 1.5: CENTRAL NACIONAL DE CREDENCIAMENTO BRASIL (WHATSAPP 1-CLIQUE) */}
@@ -659,176 +611,12 @@ export default function GrupoAvpClientHubPage() {
                     </h3>
                   </div>
                   <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">
-                    Preencha os 10 dados obrigatórios para garantir a contagem ininterrupta do SLA
-                    de 4 horas
+                    Prepare e revise os 10 dados obrigatórios. O envio será concluído na conversa
+                    com a central Nextcon.
                   </p>
                 </div>
 
-                <form onSubmit={handleSimulateSchedule} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-700">
-                        1. Nome Completo do Colaborador *
-                      </Label>
-                      <Input
-                        placeholder="Ex: João da Silva Santos"
-                        value={formData.fullName}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, fullName: e.target.value }))
-                        }
-                        className="rounded-xl h-11 text-xs"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-700">
-                        2. Data de Nascimento *
-                      </Label>
-                      <Input
-                        type="date"
-                        value={formData.birthDate}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, birthDate: e.target.value }))
-                        }
-                        className="rounded-xl h-11 text-xs"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-700">3. CPF *</Label>
-                      <Input
-                        placeholder="000.000.000-00"
-                        value={formData.cpf}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, cpf: e.target.value }))}
-                        className="rounded-xl h-11 text-xs"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-700">4. RG *</Label>
-                      <Input
-                        placeholder="Ex: 12.345.678-9"
-                        value={formData.rg}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, rg: e.target.value }))}
-                        className="rounded-xl h-11 text-xs"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-700">
-                        5. Telefone / WhatsApp do Colaborador *
-                      </Label>
-                      <Input
-                        placeholder="(00) 00000-0000"
-                        value={formData.phone}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, phone: e.target.value }))
-                        }
-                        className="rounded-xl h-11 text-xs"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-700">
-                        6. E-mail do Colaborador *
-                      </Label>
-                      <Input
-                        type="email"
-                        placeholder="colaborador@email.com"
-                        value={formData.email}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, email: e.target.value }))
-                        }
-                        className="rounded-xl h-11 text-xs"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-700">
-                        7. Data Prevista de Admissão *
-                      </Label>
-                      <Input
-                        type="date"
-                        value={formData.admissionDate}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, admissionDate: e.target.value }))
-                        }
-                        className="rounded-xl h-11 text-xs"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-700">
-                        8. Cargo / Função *
-                      </Label>
-                      <Input
-                        placeholder="Ex: Operador de Caixa / Atendente"
-                        value={formData.role}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, role: e.target.value }))}
-                        className="rounded-xl h-11 text-xs"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-700">
-                        9. Unidade AVP (Cidade/UF) *
-                      </Label>
-                      <Input
-                        placeholder="Ex: Unidade Curitiba Centro (PR)"
-                        value={formData.unitName}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, unitName: e.target.value }))
-                        }
-                        className="rounded-xl h-11 text-xs"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-700">
-                        10. CNPJ da Unidade Empregadora *
-                      </Label>
-                      <Input
-                        placeholder="00.000.000/0000-00"
-                        value={formData.cnpj}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, cnpj: e.target.value }))}
-                        className="rounded-xl h-11 text-xs"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="pt-2 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs">
-                      {isFormValid ? (
-                        <span className="text-emerald-700 font-bold flex items-center gap-1">
-                          <CheckCircle2 size={14} /> Todos os 10 campos preenchidos. SLA garantido!
-                        </span>
-                      ) : (
-                        <span className="text-amber-600 font-bold flex items-center gap-1">
-                          <AlertTriangle size={14} /> Preencha todos os campos para habilitar o
-                          envio.
-                        </span>
-                      )}
-                    </div>
-
-                    <Button
-                      type="submit"
-                      disabled={!isFormValid || isSubmitting}
-                      className="rounded-2xl bg-primary hover:bg-primary/90 text-white font-black text-xs uppercase tracking-wider h-11 px-6 gap-2 shadow-lg"
-                    >
-                      <Send size={15} /> {isSubmitting ? "Enviando..." : "Enviar Solicitação"}
-                    </Button>
-                  </div>
-                </form>
+                <AvpSchedulingRequestForm />
               </Card>
             </div>
 

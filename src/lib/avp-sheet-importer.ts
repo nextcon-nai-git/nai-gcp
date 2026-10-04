@@ -49,6 +49,9 @@ const HEADER_MAPPINGS: Record<string, (keyof GrupoAvpAso)[]> = {
   diasparado: ["diasParado"],
   dias: ["diasParado"],
   sla: ["diasParado"],
+  uf: ["uf"],
+  estado: ["uf"],
+  sigladoestado: ["uf"],
   cidade: ["cidade"],
   municipio: ["cidade"],
   cidadeuf: ["cidade"],
@@ -70,6 +73,8 @@ const HEADER_MAPPINGS: Record<string, (keyof GrupoAvpAso)[]> = {
   afazer: ["oQueFazer"],
   acao: ["oQueFazer"],
   observacao: ["oQueFazer"],
+  observacoes: ["oQueFazer"],
+  observacoesoquefazer: ["oQueFazer"],
   obs: ["oQueFazer"],
   status: ["status"],
   situacao: ["status"],
@@ -117,6 +122,8 @@ export function normalizeAsoStatus(rawStatus: string): AsoStatus {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
+  if (/NAO (?:AGENDADO|REALIZADO|CONCLUIDO)|EXAME NAO (?:FEITO|REALIZADO)/.test(s))
+    return "NÃO INICIADO";
   if (s.includes("AGENDADO")) return "AGENDADO";
   if (s.includes("NAO INICIADO") || s.includes("PENDENTE")) return "NÃO INICIADO";
   if (s.includes("EXAME FEITO") || s.includes("CONCLUIDO") || s.includes("REALIZADO"))
@@ -150,8 +157,9 @@ export function extractCityAndUf(rawCity: string): { cidade: string; uf: string 
 }
 
 // Converte qualquer linha de objeto arbitrário para uma estrutura parcial de GrupoAvpAso
-export function mapRowToAso(rowObj: Record<string, any>, index: number): Partial<GrupoAvpAso> {
+export function mapRowToAso(rowObj: Record<string, any>, _index: number): Partial<GrupoAvpAso> {
   const aso: Partial<GrupoAvpAso> = {};
+  let explicitUf: string | undefined;
 
   for (const [key, value] of Object.entries(rowObj)) {
     if (value === undefined || value === null) continue;
@@ -162,7 +170,41 @@ export function mapRowToAso(rowObj: Record<string, any>, index: number): Partial
     const targetProp = HEADER_MAPPINGS[normKey]?.[0];
 
     if (targetProp) {
-      if (targetProp === "status") {
+      if (targetProp === "uf") {
+        const candidate = strVal.toUpperCase();
+        if (
+          [
+            "AC",
+            "AL",
+            "AP",
+            "AM",
+            "BA",
+            "CE",
+            "DF",
+            "ES",
+            "GO",
+            "MA",
+            "MT",
+            "MS",
+            "MG",
+            "PA",
+            "PB",
+            "PR",
+            "PE",
+            "PI",
+            "RJ",
+            "RN",
+            "RS",
+            "RO",
+            "RR",
+            "SC",
+            "SP",
+            "SE",
+            "TO",
+          ].includes(candidate)
+        )
+          explicitUf = candidate;
+      } else if (targetProp === "status") {
         aso.status = normalizeAsoStatus(strVal);
       } else if (targetProp === "urgencia") {
         aso.urgencia = strVal.toUpperCase().includes("URGENT") ? "URGENTE" : "NORMAL";
@@ -179,25 +221,8 @@ export function mapRowToAso(rowObj: Record<string, any>, index: number): Partial
     }
   }
 
-  // Fallbacks obrigatórios
-  if (!aso.numero) {
-    aso.numero = "";
-  }
-  if (!aso.colaborador) {
-    aso.colaborador = `Colaborador Desconhecido ${aso.numero || index + 1}`;
-  }
-  if (!aso.status) {
-    aso.status = "NÃO INICIADO";
-  }
-  if (!aso.urgencia) {
-    aso.urgencia = "NORMAL";
-  }
-  if (!aso.tipoExame) {
-    aso.tipoExame = "Admissional";
-  }
-  if (!aso.responsavel) {
-    aso.responsavel = "NÃO ATRIBUÍDO";
-  }
+  // Defaults belong only to new records; an omitted column must not reset existing work.
+  if (explicitUf) aso.uf = explicitUf;
 
   return aso;
 }
@@ -236,7 +261,13 @@ export async function parseExcelBuffer(buffer: ArrayBuffer): Promise<Record<stri
       if (number === 1) return;
       const record: Record<string, unknown> = {};
       headers.forEach((header, index) => {
-        if (header) record[header] = row.getCell(index + 1).text;
+        if (header) {
+          const cell = row.getCell(index + 1);
+          record[header] =
+            cell.value instanceof Date
+              ? cell.value.toLocaleDateString("pt-BR", { timeZone: "UTC" })
+              : cell.text;
+        }
       });
       rows.push(record);
     });
@@ -257,13 +288,32 @@ export function mergeSpreadsheetData(
 
   // Indexa a lista atual por 'numero' e por chave composta 'colaborador_cidade'
   const currentByNumber = new Map<string, GrupoAvpAso>();
-  const currentByComposite = new Map<string, GrupoAvpAso>();
+  const currentByComposite = new Map<string, GrupoAvpAso[]>();
+  const compositeKey = (item: Partial<GrupoAvpAso>) =>
+    item.colaborador && item.cidade
+      ? `${item.colaborador.trim().toLowerCase()}|${item.cidade.trim().toLowerCase()}`
+      : "";
+  const indexComposite = (item: GrupoAvpAso) => {
+    const key = compositeKey(item);
+    const matches = currentByComposite.get(key) || [];
+    currentByComposite.set(key, [...matches, item]);
+  };
 
   currentList.forEach((item) => {
     currentByNumber.set(item.numero.trim().toLowerCase(), item);
-    const compKey = `${item.colaborador.trim().toLowerCase()}|${item.cidade.trim().toLowerCase()}`;
-    currentByComposite.set(compKey, item);
+    indexComposite(item);
   });
+
+  const reservedNumbers = new Set(currentByNumber.keys());
+  importedRows.forEach((row, idx) => {
+    try {
+      const number = mapRowToAso(row, idx).numero?.trim().toLowerCase();
+      if (number) reservedNumbers.add(number);
+    } catch {
+      // The import loop reports malformed rows with their line number.
+    }
+  });
+  let nextNumber = currentList.length + 1;
 
   const mergedMap = new Map<string, GrupoAvpAso>();
   // Preenche inicialmente com cópias dos existentes
@@ -279,15 +329,34 @@ export function mergeSpreadsheetData(
     try {
       const parsed = mapRowToAso(row, idx);
       const parsedNum = parsed.numero?.trim().toLowerCase();
-      const compKey = `${parsed.colaborador?.trim().toLowerCase()}|${parsed.cidade?.trim().toLowerCase()}`;
+      const compKey = compositeKey(parsed);
 
       // Localiza registro existente
       let existing = parsedNum ? currentByNumber.get(parsedNum) : undefined;
       if (!existing && compKey) {
-        existing = currentByComposite.get(compKey);
+        const candidates = (currentByComposite.get(compKey) || [])
+          .map((candidate) => mergedMap.get(candidate.id)!)
+          .filter((candidate) => !parsed.uf || parsed.uf === "BR" || candidate.uf === parsed.uf);
+        if (candidates.length > 1) {
+          errors.push(
+            `Linha ${idx + 1}: há mais de uma solicitação para esse colaborador e cidade. Informe o número ou a UF para identificar o pedido.`
+          );
+          return;
+        }
+        existing = candidates[0];
       }
 
       if (existing) {
+        if (
+          parsed.colaborador &&
+          parsed.colaborador.trim().toLowerCase() !== existing.colaborador.trim().toLowerCase()
+        ) {
+          errors.push(
+            `Linha ${idx + 1}: o número ${parsed.numero} pertence a outro colaborador. Confira a numeração antes de importar.`
+          );
+          return;
+        }
+
         // Objeto em mergedMap
         const target = mergedMap.get(existing.id)!;
         let hasChanges = false;
@@ -304,20 +373,38 @@ export function mergeSpreadsheetData(
           "telefoneClinica",
           "emailClinica",
           "telefoneGestor",
+          "dataPedido",
+          "cnpjClinica",
+          "chavePix",
+          "enderecoClinica",
+          "oQueFazer",
+          "colaborador",
+          "cidade",
+          "uf",
+          "tipoExame",
+          "tipoSolicitacao",
+          "diasParado",
         ];
 
         checkFields.forEach((field) => {
           const newVal = parsed[field];
           const oldVal = target[field];
+          if (
+            field === "uf" &&
+            newVal === "BR" &&
+            parsed.cidade === target.cidade &&
+            target.uf !== "BR"
+          )
+            return;
 
           if (newVal !== undefined && newVal !== null && String(newVal).trim() !== "") {
-            if (String(newVal).trim() !== String(oldVal || "").trim()) {
+            if (String(newVal).trim() !== String(oldVal ?? "").trim()) {
               diffLog.push({
                 numero: target.numero,
                 colaborador: target.colaborador,
                 cidade: target.cidade,
                 campo: field,
-                valorAnterior: String(oldVal || "—"),
+                valorAnterior: String(oldVal ?? "—"),
                 valorNovo: String(newVal),
               });
               (target as any)[field] = newVal;
@@ -326,12 +413,10 @@ export function mergeSpreadsheetData(
           }
         });
 
-        // Atualiza outros campos se fornecidos
-        if (parsed.dataPedido && !target.dataPedido) target.dataPedido = parsed.dataPedido;
-        if (parsed.cnpjClinica && !target.cnpjClinica) target.cnpjClinica = parsed.cnpjClinica;
-        if (parsed.chavePix && !target.chavePix) target.chavePix = parsed.chavePix;
-        if (parsed.enderecoClinica && !target.enderecoClinica)
-          target.enderecoClinica = parsed.enderecoClinica;
+        if (hasChanges) {
+          target.cidadeRaw = `${target.cidade} / ${target.uf}`;
+          target.urgenciaRaw = target.urgencia;
+        }
 
         if (hasChanges) {
           updatedCount++;
@@ -339,11 +424,20 @@ export function mergeSpreadsheetData(
           unchangedCount++;
         }
       } else {
+        if (!parsed.colaborador?.trim()) {
+          errors.push(
+            `Linha ${idx + 1}: informe o nome do colaborador para criar uma solicitação.`
+          );
+          return;
+        }
+        while (reservedNumbers.has(String(nextNumber))) nextNumber++;
+        const number = parsed.numero || String(nextNumber++);
+        reservedNumbers.add(number.trim().toLowerCase());
         // Novo registro!
         const newId = `avp_aso_imported_${Date.now()}_${idx}`;
         const newAso: GrupoAvpAso = {
           id: newId,
-          numero: parsed.numero || String(currentList.length + addedCount + 1),
+          numero: number,
           urgencia: (parsed.urgencia as AsoUrgency) || "NORMAL",
           urgenciaRaw: (parsed.urgencia as string) || "NORMAL",
           dataPedido: parsed.dataPedido || new Date().toLocaleDateString("pt-BR"),
@@ -373,6 +467,8 @@ export function mergeSpreadsheetData(
 
         mergedMap.set(newId, newAso);
         addedCount++;
+        if (newAso.numero.trim()) currentByNumber.set(newAso.numero.trim().toLowerCase(), newAso);
+        indexComposite(newAso);
 
         diffLog.push({
           numero: newAso.numero,
