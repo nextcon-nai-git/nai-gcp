@@ -1,18 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  UploadCloud,
-  FileText,
-  Trash2,
-  Eye,
-  CheckCircle2,
-  Loader2,
-  Paperclip,
-  FileCheck,
-  AlertCircle,
-  Download,
-} from "lucide-react";
+import { UploadCloud, FileText, Trash2, Eye, Loader2, Paperclip, FileCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -26,7 +15,6 @@ import { useToast } from "@/hooks/use-toast";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { firebaseConfig } from "@/firebase/config";
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { cn } from "@/lib/utils";
 
 function safeDocumentUrl(raw: string): string | undefined {
   try {

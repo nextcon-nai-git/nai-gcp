@@ -1,25 +1,12 @@
 "use client";
 
 import * as React from "react";
-import {
-  FileText,
-  Plus,
-  Loader2,
-  CheckCircle2,
-  Building2,
-  Search,
-  ChevronRight,
-  Database,
-  RefreshCw,
-  Zap,
-  Target,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { FileText, Plus, Loader2, CheckCircle2, ChevronRight, RefreshCw, Zap } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { useFirestore, useUser, useCollection, useMemoFirebase } from "@/firebase";
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import {
   collection,
   query,
@@ -37,12 +24,10 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface QueueItem {
   id: string;
@@ -297,7 +282,7 @@ export default function ContractsManagement() {
               <ScrollArea className="max-h-[60vh] p-8">
                 <div className="space-y-6">
                   <div className="p-6 bg-slate-50 rounded-3xl border italic text-sm text-slate-700">
-                    "{viewingContract.summary}"
+                    &quot;{viewingContract.summary}&quot;
                   </div>
                   <div className="space-y-4">
                     <h4 className="text-[10px] font-black uppercase text-primary">

@@ -9,11 +9,8 @@ import {
   FileSearch,
   CheckCircle2,
   Zap,
-  ArrowRight,
   ClipboardList,
   Gavel,
-  History,
-  Terminal,
   Database,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -22,7 +19,6 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { runComplianceAudit, type ComplianceOutput } from "@/ai/flows/compliance-auditor-flow";
 import { cn } from "@/lib/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Table,
   TableBody,
@@ -248,7 +244,7 @@ export default function ComplianceAuditPage() {
                             </TableCell>
                             <TableCell>
                               <p className="text-[10px] font-medium text-slate-600 leading-relaxed italic max-w-[200px]">
-                                "{item.why}"
+                                &quot;{item.why}&quot;
                               </p>
                             </TableCell>
                             <TableCell>

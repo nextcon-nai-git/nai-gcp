@@ -13,25 +13,19 @@ import {
   HeartPulse,
   Stethoscope,
   Database,
-  Search,
   Scale,
   Sparkles,
-  ChevronRight,
-  ClipboardList,
-  Fingerprint,
   Video,
   FileText,
-  Building2,
   HardHat,
   ArrowRight,
   DollarSign,
   ClipboardCheck,
   ShieldAlert,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 /**
@@ -192,9 +186,9 @@ export default function NaiFlowManual() {
             Bem-vindo ao Futuro da SST
           </h2>
           <p className="text-slate-600 font-medium leading-relaxed max-w-3xl italic">
-            "Este guia foi desenhado para traduzir a complexidade tecnológica da plataforma NAI em
-            passos simples. Abaixo, detalhamos cada botão, pilar e fluxo para que você extraia o
-            máximo de ROI da sua gestão."
+            &quot;Este guia foi desenhado para traduzir a complexidade tecnológica da plataforma NAI
+            em passos simples. Abaixo, detalhamos cada botão, pilar e fluxo para que você extraia o
+            máximo de ROI da sua gestão.&quot;
           </p>
         </div>
       </div>

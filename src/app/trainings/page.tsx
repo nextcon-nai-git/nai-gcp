@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import {
-  GraduationCap,
   Calendar,
   Users,
   Clock,
@@ -11,7 +10,6 @@ import {
   HardHat,
   Brain,
   Building2,
-  FileText,
   QrCode,
   Zap,
   AlertCircle,
@@ -117,7 +115,7 @@ export default function TrainingDashboard() {
                     Sessão Ativa: NR-18
                   </Badge>
                   <p className="text-xs text-slate-500 italic">
-                    "Geolocalização e Biometria Facial ativas para conformidade NR-01."
+                    &quot;Geolocalização e Biometria Facial ativas para conformidade NR-01.&quot;
                   </p>
                 </div>
               </div>
@@ -311,8 +309,8 @@ export default function TrainingDashboard() {
                 <CardContent className="p-8 pt-0 space-y-6">
                   <div className="p-5 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-md">
                     <p className="text-sm italic leading-relaxed text-white/80">
-                      "O engajamento digital na rede subiu 15%. Turmas presenciais com QR Code
-                      reduziram o tempo de processamento de certificados."
+                      &quot;O engajamento digital na rede subiu 15%. Turmas presenciais com QR Code
+                      reduziram o tempo de processamento de certificados.&quot;
                     </p>
                   </div>
                   <Button className="w-full h-14 bg-accent text-primary font-black uppercase text-[10px] rounded-xl shadow-xl hover:opacity-90">
@@ -428,8 +426,8 @@ export default function TrainingDashboard() {
                     Biblioteca Técnica NAI
                   </h3>
                   <p className="text-sm text-slate-600 leading-relaxed font-medium italic">
-                    "Centralizamos todos os materiais didáticos, vídeos instrucionais e guias de
-                    normas para que a expertise técnica da rede seja escalável e perene."
+                    &quot;Centralizamos todos os materiais didáticos, vídeos instrucionais e guias
+                    de normas para que a expertise técnica da rede seja escalável e perene.&quot;
                   </p>
                   <div className="flex gap-4 pt-4">
                     <div className="flex flex-col">

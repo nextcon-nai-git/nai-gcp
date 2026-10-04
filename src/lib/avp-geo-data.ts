@@ -1,5 +1,5 @@
 // Coordenadas Geográficas e Metadados Cartográficos dos 101 Municípios da Fila Grupo AVP
-import { GrupoAvpAso, AsoStatus } from "./grupo-avp-asos-data";
+import { GrupoAvpAso } from "./grupo-avp-asos-data";
 
 export interface CityGeoCoordinate {
   cidade: string;

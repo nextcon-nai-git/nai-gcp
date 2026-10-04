@@ -3,49 +3,28 @@
 import * as React from "react";
 import {
   Bot,
-  FileText,
   CheckCircle2,
-  AlertTriangle,
   Loader2,
   Sparkles,
   Zap,
-  Save,
   Download,
-  History,
-  FileCheck,
   ChevronRight,
-  User,
-  MapPin,
-  Mail,
-  Phone,
   LayoutGrid,
   TrendingDown,
   Scale,
   Calendar,
   ShieldCheck,
-  Briefcase,
 } from "lucide-react";
 import { gerarOrcamentoComNai } from "@/actions/nai-quote";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore, useStorage, useDoc, useMemoFirebase } from "@/firebase";
-import {
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-  addDoc,
-  serverTimestamp,
-  updateDoc,
-  doc,
-} from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { collection, doc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
-import jsPDF from "jspdf";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { NaiSalesPitch } from "./nai-sales-pitch";
 
@@ -321,7 +300,7 @@ export function NaiQuoteComponent() {
                       </div>
                     </div>
                     <p className="text-sm italic text-slate-300 leading-relaxed font-medium">
-                      "{orcamento.roiEstimado.descricaoBeneficio}"
+                      &quot;{orcamento.roiEstimado.descricaoBeneficio}&quot;
                     </p>
                   </div>
                 </div>
@@ -454,7 +433,7 @@ export function NaiQuoteComponent() {
                     Dica Estratégica NAI:
                   </h4>
                   <p className="text-sm italic font-medium leading-relaxed">
-                    "{orcamento.dicaEstrategica}"
+                    &quot;{orcamento.dicaEstrategica}&quot;
                   </p>
                 </div>
               </div>

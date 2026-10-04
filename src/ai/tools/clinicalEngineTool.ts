@@ -57,7 +57,6 @@ export const evaluateClinicalLinesTool = ai.defineTool(
   },
   async (patientData) => {
     try {
-      console.log(`[evaluateClinicalLinesTool] Avaliando paciente: ${patientData.nome}`);
       const resultados = clinicalEngine.avaliarPaciente(patientData);
 
       return {

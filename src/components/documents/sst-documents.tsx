@@ -85,6 +85,7 @@ export const SSTDocument = ({ data, company, type }: any) => (
     <Page size="A4" style={styles.page}>
       {/* Header Corporativo: Cliente vs Nextcon */}
       <View style={styles.header}>
+        {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image has no alt */}
         <Image src={company?.logoUrl || NEXTCON_LOGO} style={styles.logoClient} />
         <View style={styles.docInfo}>
           <Text style={styles.docTitle}>{type}</Text>
@@ -93,6 +94,7 @@ export const SSTDocument = ({ data, company, type }: any) => (
             Emissão: {new Date().toLocaleDateString("pt-BR")}
           </Text>
         </View>
+        {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image has no alt */}
         <Image src={NEXTCON_LOGO} style={styles.logoNextcon} />
       </View>
 

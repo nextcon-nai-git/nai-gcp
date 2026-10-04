@@ -3,17 +3,8 @@
 import * as React from "react";
 import {
   ClipboardCheck,
-  FileText,
-  MapPin,
-  User,
-  Calendar,
-  Clock,
-  AlertTriangle,
   ShieldCheck,
-  CheckCircle2,
-  HardHat,
   Zap,
-  Activity,
   Flame,
   Biohazard,
   ArrowLeft,
@@ -22,10 +13,8 @@ import {
   Stethoscope,
   Building2,
   Wrench,
-  Sparkles,
-  Info,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { ShieldCheck, UserCheck, Eye, FileText, Lock } from "lucide-react";
+import { ShieldCheck, Eye, FileText } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MedicalAuditLogger, MedicalAuditEntry } from "@/lib/medical-audit-logger";

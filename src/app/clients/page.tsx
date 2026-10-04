@@ -12,11 +12,9 @@ import {
   MoreVertical,
   Pencil,
   Trash2,
-  CheckCircle2,
   Globe,
   ShieldCheck,
   RefreshCw,
-  UserCheck,
   CloudLightning,
   Target,
   Database,
@@ -31,7 +29,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -58,7 +56,6 @@ import {
   orderBy,
   doc,
   deleteDoc,
-  updateDoc,
   where,
   setDoc,
   serverTimestamp,
@@ -1048,7 +1045,7 @@ function SwipeableCompanyRow({
       >
         <div className="flex items-center gap-3">
           <Trash2 size={20} className="animate-pulse text-white" />
-          <span className="truncate max-w-[200px]">Excluir "{company.name}"?</span>
+          <span className="truncate max-w-[200px]">Excluir &quot;{company.name}&quot;?</span>
         </div>
         <div className="flex items-center gap-2">
           <Button

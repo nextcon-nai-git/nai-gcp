@@ -1,13 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -33,10 +27,8 @@ import {
   ExternalLink,
   Copy,
   Search,
-  MessageSquare,
   Sparkles,
   MapPin,
-  ArrowRight,
   Send,
   Phone,
 } from "lucide-react";

@@ -1,32 +1,14 @@
 "use client";
 
 import * as React from "react";
-import {
-  Activity,
-  Brain,
-  Zap,
-  Lock,
-  Sparkles,
-  Mic,
-  MicOff,
-  Loader2,
-  CheckCircle2,
-  HeartPulse,
-  Signal,
-  PencilLine,
-  ChevronDown,
-  Check,
-} from "lucide-react";
+import { Zap, Lock, Mic, MicOff, Loader2, CheckCircle2, HeartPulse } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { cn } from "@/lib/utils";
-import { AreaChart, Area, ResponsiveContainer } from "recharts";
 import { generateSoapSummary, type SOAPSummaryOutput } from "@/ai/flows/generate-soap-summary-flow";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useUser } from "@/firebase";
@@ -286,7 +268,7 @@ export function ClinicalSidebar({
                     Resumo SOAP Automatizado
                   </p>
                   <p className="text-xs text-slate-700 leading-relaxed italic line-clamp-4">
-                    "{soapResult.subjective}"
+                    &quot;{soapResult.subjective}&quot;
                   </p>
                 </div>
               </div>
@@ -313,7 +295,8 @@ export function ClinicalSidebar({
         <div className="p-4 bg-blue-50 border border-blue-100 rounded-[2rem] flex gap-3">
           <Lock className="size-4 text-primary shrink-0 mt-0.5" />
           <p className="text-[9px] text-primary/70 font-medium leading-relaxed italic">
-            "Sincronização HIPAA V4.0 Ativa. O prontuário será auditado via motor NAI Forensic."
+            &quot;Sincronização HIPAA V4.0 Ativa. O prontuário será auditado via motor NAI
+            Forensic.&quot;
           </p>
         </div>
         <Button

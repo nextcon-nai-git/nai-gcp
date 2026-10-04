@@ -36,8 +36,8 @@ export function OperationTab() {
         <div className="space-y-2">
           <h4 className="text-sm font-black text-primary uppercase">Fechamento de Insumos</h4>
           <p className="text-xs text-primary/70 leading-relaxed font-medium italic">
-            "O técnico do sábado é responsável pela reposição de DEA e Oxigênio para a
-            segunda-feira."
+            &quot;O técnico do sábado é responsável pela reposição de DEA e Oxigênio para a
+            segunda-feira.&quot;
           </p>
         </div>
       </Card>

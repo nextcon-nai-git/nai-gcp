@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateCollisionFreeProtocol } from "@/services/compliance-service";
-import { normalizeTaskStatus, OPERATIONAL_COLUMNS, SGI_OPERATIONAL_COLUMNS } from "@/types/kanban";
+import { normalizeTaskStatus, OPERATIONAL_COLUMNS } from "@/types/kanban";
 
 describe("Compliance & Kanban Improvements", () => {
   describe("Canal de Denúncias - Protocolos sem Colisão", () => {

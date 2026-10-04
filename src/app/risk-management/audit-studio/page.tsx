@@ -2,22 +2,8 @@
 
 import * as React from "react";
 import { useState, useTransition, useOptimistic, useEffect, useRef } from "react";
-import {
-  Zap,
-  Brain,
-  Sparkles,
-  ShieldAlert,
-  Loader2,
-  Plus,
-  AlertTriangle,
-  CheckCircle2,
-  Database,
-  Building2,
-  Terminal,
-  ChevronRight,
-  Monitor,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Brain, Sparkles, Loader2, Plus, Database, Terminal, Monitor } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -257,8 +243,8 @@ export default function NaiAuditStudio() {
               </h2>
             </div>
             <p className="text-xs text-slate-400 mb-8 leading-relaxed font-medium italic">
-              "Dispare a auditoria forense cruzando dados com a base do eSocial e as 38 Normas
-              Regulamentadoras."
+              &quot;Dispare a auditoria forense cruzando dados com a base do eSocial e as 38 Normas
+              Regulamentadoras.&quot;
             </p>
             <Button
               onClick={handleTriggerAIAudit}

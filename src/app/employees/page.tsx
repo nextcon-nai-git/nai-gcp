@@ -2,29 +2,19 @@
 
 import * as React from "react";
 import {
-  Users,
   UserPlus,
   Search,
   Loader2,
-  MoreVertical,
   Trash2,
-  Pencil,
   CheckCircle2,
-  AlertCircle,
   Sparkles,
-  Zap,
-  Globe,
   Stethoscope,
-  Calendar,
   AlertTriangle,
   HeartPulse,
   ChevronRight,
   ClipboardList,
-  ShieldCheck,
-  Activity,
   FileText,
   Clock,
-  Building2,
   TrendingUp,
   BarChart3,
   Plus,
@@ -58,8 +48,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Sheet,
@@ -70,21 +58,7 @@ import {
   SheetTrigger,
   SheetFooter,
 } from "@/components/ui/sheet";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { useCollection, useUser, useMemoFirebase, useFirestore, useDoc } from "@/firebase";
+import { useCollection, useUser, useMemoFirebase, useFirestore } from "@/firebase";
 import {
   collection,
   query,
@@ -95,18 +69,11 @@ import {
   addDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import {
-  addDocumentNonBlocking,
-  deleteDocumentNonBlocking,
-  setDocumentNonBlocking,
-} from "@/firebase/non-blocking-updates";
+import { deleteDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { extractEmployeesFromText } from "@/ai/flows/employee-extraction-flow";
 import { extractDocumentAutofillData } from "@/ai/flows/document-ocr-autofill-flow";
 import { useSearchParams } from "next/navigation";
 import { ScrollArea } from "@/components/ui/scroll-area";

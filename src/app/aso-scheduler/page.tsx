@@ -10,20 +10,12 @@ import {
   runAsoOrchestratorAnalysisAction,
 } from "@/actions/aso-scheduler-actions";
 import { INITIAL_PARTNER_CLINICS, PIPELINE_STEPS_CONFIG } from "@/lib/aso-scheduler-data";
-import {
-  AsoRequest,
-  AsoPipelineStep,
-  ExamType,
-  PartnerClinic,
-  DigitalKit,
-} from "@/types/aso-scheduler-types";
+import { AsoRequest, AsoPipelineStep, ExamType, DigitalKit } from "@/types/aso-scheduler-types";
 import { AsoSystemOrchestratorOutput } from "@/ai/flows/aso-scheduler-system-flow";
 import {
   Calendar,
   ClipboardList,
   Building2,
-  UserCheck,
-  CheckCircle2,
   AlertTriangle,
   Send,
   Loader2,
@@ -32,20 +24,11 @@ import {
   Copy,
   Check,
   FileText,
-  Search,
   Plus,
-  ArrowRight,
   ChevronRight,
-  ShieldCheck,
-  Stethoscope,
   Activity,
-  Users,
   MapPin,
-  Clock,
   Star,
-  Zap,
-  Filter,
-  CheckSquare,
   AlertCircle,
   Brain,
 } from "lucide-react";
@@ -684,8 +667,9 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                 <div className="text-xs text-slate-500 italic py-16 text-center border border-dashed border-slate-800 rounded-xl space-y-2">
                   <Sparkles className="w-8 h-8 mx-auto text-slate-700" />
                   <p>
-                    Preencha os dados ao lado e clique em <strong>"Simular Triagem IA"</strong> para
-                    visualizar a atuação dos 7 agentes de IA antes de enviar.
+                    Preencha os dados ao lado e clique em{" "}
+                    <strong>&quot;Simular Triagem IA&quot;</strong> para visualizar a atuação dos 7
+                    agentes de IA antes de enviar.
                   </p>
                 </div>
               )}

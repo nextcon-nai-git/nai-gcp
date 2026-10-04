@@ -3,28 +3,17 @@
 import * as React from "react";
 import {
   ShieldCheck,
-  Sparkles,
   MessageSquare,
-  AlertTriangle,
   Loader2,
   Send,
   UserCheck,
   UserX,
   Lock,
-  ArrowRight,
   CheckCircle2,
   Scale,
   ClipboardList,
-  ShieldAlert,
 } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter,
-} from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,7 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore } from "@/firebase";
 import { criarDenuncia, CATEGORIAS_COMPLIANCE } from "@/services/compliance-service";
@@ -99,7 +87,7 @@ export default function CompliancePublicPage() {
             </h3>
           </div>
           <p className="text-xs text-slate-400 italic">
-            "Utilize este código para futuras consultas ao status do seu relato."
+            &quot;Utilize este código para futuras consultas ao status do seu relato.&quot;
           </p>
           <Button
             onClick={() => window.location.reload()}

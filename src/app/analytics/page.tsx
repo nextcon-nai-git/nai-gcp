@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import {
-  TrendingUp,
   TrendingDown,
   DollarSign,
   Activity,
@@ -10,11 +9,9 @@ import {
   Brain,
   AlertCircle,
   AlertTriangle,
-  Sparkles,
   Zap,
   ArrowUpRight,
   ShieldAlert,
-  Clock,
   Gauge,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -147,8 +144,8 @@ export default function AnalyticsDashboard() {
                 Análise NAI Neural:
               </p>
               <p className="text-xs italic text-slate-300 leading-relaxed font-medium">
-                "A Linha B apresenta 85% de chance de incidente ergonômico devido ao cansaço
-                acumulado por horas extras e calor acima da média histórica hoje."
+                &quot;A Linha B apresenta 85% de chance de incidente ergonômico devido ao cansaço
+                acumulado por horas extras e calor acima da média histórica hoje.&quot;
               </p>
             </div>
 
@@ -280,9 +277,9 @@ export default function AnalyticsDashboard() {
                 </h3>
               </div>
               <p className="text-lg italic text-slate-300 leading-relaxed font-medium">
-                "A correlação entre o calor extremo de Joinville e os registros de fadiga via
+                &quot;A correlação entre o calor extremo de Joinville e os registros de fadiga via
                 Wearables na Britânia Fábrica 01 sugere uma janela crítica entre 14h e 16h. Reduza a
-                carga horária em 15% neste período para evitar afastamentos B91."
+                carga horária em 15% neste período para evitar afastamentos B91.&quot;
               </p>
             </div>
             <Button className="h-16 px-10 bg-accent text-primary font-black uppercase text-xs tracking-widest rounded-2xl shadow-2xl hover:scale-105 active:scale-95 transition-all shrink-0">

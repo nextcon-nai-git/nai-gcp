@@ -3,29 +3,20 @@
 import * as React from "react";
 import {
   Plus,
-  Building2,
   FileUp,
   Loader2,
   Database,
-  Trash2,
-  Calendar,
-  MessageSquareText,
   ShieldCheck,
   Brain,
-  AlertTriangle,
   Sparkles,
-  Search,
-  ChevronRight,
   FileSearch,
-  X,
   Clock,
   PieChart as PieChartIcon,
   Accessibility,
   Flame,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -42,7 +33,6 @@ import {
   collection,
   query,
   orderBy,
-  doc,
   addDoc,
   serverTimestamp,
   collectionGroup,
@@ -50,7 +40,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { cn } from "@/lib/utils";
 import { classifyDocument } from "@/ai/flows/document-classifier-flow";
-import { analyzeSafetyReport, type ReportAnalysisOutput } from "@/ai/flows/report-analysis-flow";
+import { type ReportAnalysisOutput } from "@/ai/flows/report-analysis-flow";
 import { STORAGE_PATHS } from "@/lib/storage-paths";
 import { useSgi } from "@/contexts/sgi-context";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -396,7 +386,7 @@ export default function ReportsCenter() {
               <ScrollArea className="max-h-[60vh] p-8">
                 <div className="space-y-6">
                   <div className="p-6 bg-slate-50 rounded-3xl border italic text-sm text-slate-700 leading-relaxed">
-                    "{selectedAnalysis.resumo_executivo || "Análise concluída."}"
+                    &quot;{selectedAnalysis.resumo_executivo || "Análise concluída."}&quot;
                   </div>
                   {(selectedAnalysis as any).acoes_imediatas_recomendadas && (
                     <div className="space-y-3">

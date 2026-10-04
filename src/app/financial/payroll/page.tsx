@@ -4,7 +4,6 @@ import * as React from "react";
 import {
   Users,
   Calendar,
-  CheckCircle2,
   Loader2,
   Zap,
   FileText,
@@ -15,21 +14,12 @@ import {
   Printer,
   DollarSign,
   CloudLightning,
-  MonitorCheck,
-  History,
-  SendHorizontal,
   Brain,
   LayoutGrid,
   Settings,
-  MoreVertical,
-  Clock,
-  CheckCircle,
-  AlertTriangle,
   ArrowRight,
-  Database,
   MailCheck,
   FileDown,
-  UserPlus,
   Plane,
   Share2,
   FileSearch,
@@ -63,11 +53,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { useFirestore } from "@/firebase";
 
 const MOCK_COMPANIES_STATUS = [
   {
@@ -528,9 +516,9 @@ export default function PayrollManagementPage() {
                   </h3>
                 </div>
                 <p className="text-lg italic text-slate-300 font-medium leading-relaxed max-w-xl">
-                  "A projeção de caixa para Março/2026 indica um aumento de 18% no custo fixo devido
-                  ao vencimento simultâneo de férias de 3 gestores. Recomendamos o escalonamento
-                  para evitar impacto no fluxo operacional."
+                  &quot;A projeção de caixa para Março/2026 indica um aumento de 18% no custo fixo
+                  devido ao vencimento simultâneo de férias de 3 gestores. Recomendamos o
+                  escalonamento para evitar impacto no fluxo operacional.&quot;
                 </p>
               </div>
             </Card>

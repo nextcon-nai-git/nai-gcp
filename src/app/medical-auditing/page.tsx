@@ -5,7 +5,6 @@ import {
   ShieldPlus,
   Loader2,
   CheckCircle2,
-  Sparkles,
   Zap,
   CircleDollarSign,
   TrendingDown,
@@ -14,8 +13,6 @@ import {
   Gavel,
   HeartPulse,
   ShieldAlert,
-  ChevronRight,
-  Info,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -200,7 +197,7 @@ export default function MedicalAuditingDashboard() {
                             {item.patient}
                           </p>
                           <p className="text-[10px] text-slate-500 font-medium italic mt-0.5">
-                            "{item.cause}"
+                            &quot;{item.cause}&quot;
                           </p>
                         </div>
                       </div>
@@ -226,8 +223,9 @@ export default function MedicalAuditingDashboard() {
                     <Brain className="size-5" /> Fundamentação NAI
                   </h3>
                   <p className="text-sm italic font-medium leading-relaxed text-slate-300">
-                    "O motor NAI Forensic cruza jurisprudência do STJ (Tema 1069) com as diretrizes
-                    de utilização da ANS para neutralizar liminares sem base técnica."
+                    &quot;O motor NAI Forensic cruza jurisprudência do STJ (Tema 1069) com as
+                    diretrizes de utilização da ANS para neutralizar liminares sem base
+                    técnica.&quot;
                   </p>
                 </div>
                 <div className="space-y-4">

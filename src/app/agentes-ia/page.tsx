@@ -8,14 +8,8 @@ import { SESMT_AGENTS_CONFIG, AgentRole } from "@/ai/sesmt-agents-config";
 import type { SesmtAgentOutput } from "@/ai/flows/sesmt-agents-flow";
 import { getAllowedAgentsForUser } from "@/lib/agent-access-control";
 import {
-  ShieldAlert,
-  HardHat,
-  Stethoscope,
-  Activity,
-  HeartPulse,
   Brain,
   MessageSquare,
-  Sparkles,
   Users,
   CheckCircle2,
   AlertTriangle,

@@ -4,8 +4,6 @@
  * Mapeamento de 1 a 9 Agentes de IA com Transbordo Humano Contextualizado.
  */
 
-import { AgentRole } from "@/ai/sesmt-agents-config";
-
 export interface WhatsappDepartment {
   optionNumber: number;
   id: string;

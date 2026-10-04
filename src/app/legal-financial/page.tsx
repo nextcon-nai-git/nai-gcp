@@ -1,24 +1,14 @@
 "use client";
 
 import * as React from "react";
-import {
-  Scale,
-  Calculator,
-  TrendingDown,
-  Landmark,
-  FileText,
-  Loader2,
-  Gavel,
-  DollarSign,
-  User,
-} from "lucide-react";
+import { Scale, Calculator, Landmark, Loader2, Gavel } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { useCollection, useUser, useMemoFirebase, useFirestore, useDoc } from "@/firebase";
-import { collection, query, orderBy, collectionGroup, doc, where } from "firebase/firestore";
+import { collection, query, orderBy, collectionGroup, doc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { useSgi } from "@/contexts/sgi-context";
 
@@ -32,7 +22,6 @@ import {
   PieChart,
   Sparkles,
   Upload,
-  Scale as ScaleIcon,
 } from "lucide-react";
 
 export default function LegalFinancial() {
@@ -362,7 +351,7 @@ export default function LegalFinancial() {
                           Alegado
                         </p>
                         <p className="text-[10px] font-bold text-primary truncate italic">
-                          "{item.disease}"
+                          &quot;{item.disease}&quot;
                         </p>
                       </div>
                       <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">

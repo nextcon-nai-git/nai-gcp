@@ -11,17 +11,12 @@ import {
   AlertTriangle,
   Clock,
   Check,
-  Copy,
-  ExternalLink,
-  Database,
   ArrowRight,
   ShieldCheck,
   Sparkles,
   Info,
   Layers,
   Link as LinkIcon,
-  Play,
-  Square,
   FileText,
 } from "lucide-react";
 import {
@@ -452,7 +447,7 @@ export function GrupoAvpSheetSyncModal({
                 <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
                   <Info size={12} className="text-slate-400" /> Dica: No Google Sheets,
                   certifique-se de que a planilha está com o acesso geral definido como{" "}
-                  <strong>"Qualquer pessoa com o link" (Leitor)</strong>.
+                  <strong>&quot;Qualquer pessoa com o link&quot; (Leitor)</strong>.
                 </p>
               </div>
 

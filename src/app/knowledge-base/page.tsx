@@ -6,10 +6,8 @@ import {
   Send,
   BookOpen,
   ShieldCheck,
-  Loader2,
   Stethoscope,
   HardHat,
-  Volume2,
   ShoppingCart,
   Rocket,
   AlertTriangle,
@@ -237,7 +235,7 @@ export default function KnowledgeBase() {
                             Análise Estratégica:
                           </p>
                           <p className="text-xs italic text-primary/80 font-medium">
-                            "{msg.advice}"
+                            &quot;{msg.advice}&quot;
                           </p>
                         </div>
                       )}
@@ -317,8 +315,8 @@ export default function KnowledgeBase() {
             </CardHeader>
             <CardContent className="p-0 space-y-4">
               <p className="text-xs text-white/60 leading-relaxed italic">
-                "A NAI utiliza inteligência financeira para calcular o investimento baseado no seu
-                Grau de Risco estimado."
+                &quot;A NAI utiliza inteligência financeira para calcular o investimento baseado no
+                seu Grau de Risco estimado.&quot;
               </p>
               <div className="p-4 bg-white/5 rounded-2xl border border-white/10 space-y-3">
                 <p className="text-[9px] font-black uppercase text-accent">O que informar:</p>

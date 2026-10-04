@@ -2,19 +2,11 @@
 
 import * as React from "react";
 import {
-  Building2,
   DollarSign,
-  TrendingUp,
   TrendingDown,
-  ArrowUpRight,
   ShieldCheck,
   Brain,
-  Zap,
-  LayoutGrid,
-  Scale,
   Calculator,
-  AlertTriangle,
-  MoveUp,
   FileWarning,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -151,10 +143,11 @@ export default function FapRatSimulator() {
                 Análise NAI Strategy
               </h4>
               <p className="text-sm text-slate-600 leading-relaxed font-medium italic">
-                "Sua empresa está operando com um FAP de <strong>{currentFap.toFixed(2)}</strong>.
-                Ao reduzir o índice para o bônus máximo (0.50) através da nossa gestão preventiva, o
-                impacto financeiro positivo será equivalente a um aporte de capital de{" "}
-                <strong>{(potentialSaving / 1000).toFixed(0)}k</strong> no EBITDA anual."
+                &quot;Sua empresa está operando com um FAP de{" "}
+                <strong>{currentFap.toFixed(2)}</strong>. Ao reduzir o índice para o bônus máximo
+                (0.50) através da nossa gestão preventiva, o impacto financeiro positivo será
+                equivalente a um aporte de capital de{" "}
+                <strong>{(potentialSaving / 1000).toFixed(0)}k</strong> no EBITDA anual.&quot;
               </p>
             </div>
           </Card>
@@ -213,8 +206,8 @@ export default function FapRatSimulator() {
                   <ShieldCheck size={24} className="text-emerald-400" />
                 </div>
                 <p className="text-[11px] text-white/60 font-medium leading-relaxed italic">
-                  "Este valor representa o potencial de geração de caixa direta na sua folha de
-                  pagamento."
+                  &quot;Este valor representa o potencial de geração de caixa direta na sua folha de
+                  pagamento.&quot;
                 </p>
               </div>
               <Button className="w-full h-18 bg-accent text-primary font-black uppercase text-xs tracking-widest rounded-2xl shadow-2xl hover:scale-[1.02] active:scale-95 transition-all">

@@ -6,17 +6,10 @@ import {
   CheckCircle2,
   Clock,
   FileEdit,
-  ArrowRight,
   Link2,
-  Calendar,
-  User,
-  DollarSign,
-  Shield,
   Activity,
-  Building2,
   Plus,
   Loader2,
-  AlertCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,23 +23,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase";
-import { collection, query, orderBy, doc, where, collectionGroup } from "firebase/firestore";
+import { collection, query, orderBy, doc, collectionGroup } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { useSgi } from "@/contexts/sgi-context";
 

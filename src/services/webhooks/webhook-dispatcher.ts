@@ -1,8 +1,6 @@
 import { createHmac, randomUUID } from "crypto";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import {
-  Firestore,
-  DocumentReference,
   getFirestore,
   collection,
   doc,
@@ -13,8 +11,6 @@ import {
   query,
   where,
   serverTimestamp,
-  orderBy,
-  limit,
 } from "firebase/firestore";
 import { firebaseConfig } from "@/firebase/config";
 import { WebhookRecord, WebhookEvent } from "@/types/developer";

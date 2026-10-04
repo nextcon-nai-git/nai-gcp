@@ -1,26 +1,14 @@
 "use client";
 
 import * as React from "react";
-import {
-  Stethoscope,
-  Activity,
-  HeartPulse,
-  CheckCircle2,
-  Save,
-  type LucideIcon,
-  Loader2,
-  Play,
-  Square,
-  ClipboardList,
-} from "lucide-react";
+import { Stethoscope, Activity, HeartPulse, Play, Square, ClipboardList } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { useFirestore, useUser, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, where, limit } from "firebase/firestore";
+import { useFirestore } from "@/firebase";
 import { CETESB_SESMT_TEAM } from "@/lib/real-data";
 
 interface ChecklistItem {
@@ -234,7 +222,7 @@ export function ProfessionalEvolutionTab() {
             </div>
             <div className="pt-6 border-t border-dashed flex justify-between items-center">
               <p className="text-[10px] text-slate-400 italic">
-                "Registro auditável para medição do contrato CETESB."
+                &quot;Registro auditável para medição do contrato CETESB.&quot;
               </p>
               <Button
                 disabled={currentPercent < 100}

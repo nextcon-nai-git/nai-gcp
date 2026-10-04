@@ -24,27 +24,15 @@ interface SignatureData {
 
 import * as React from "react";
 import {
-  HeartPulse,
-  Stethoscope,
-  CheckCircle2,
   Plus,
-  QrCode,
   Zap,
-  Users,
   Search,
   Loader2,
-  Clock,
   ShieldCheck,
-  Camera,
-  Building2,
-  User,
   Calendar as CalendarIcon,
   FileText,
-  ChevronRight,
-  AlertTriangle,
   Save,
   Sparkles,
-  FileUp,
   Upload,
 } from "lucide-react";
 import { processDigitalAsoIngestion } from "@/ai/flows/aso-full-ingestion-flow";
@@ -69,7 +57,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -97,12 +84,7 @@ import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { DigitalSignatureDialog } from "@/components/medical/digital-signature-dialog";
 import type { MedicalAppointment, S2220Event } from "@/types/schema";
 import { useSgi } from "@/contexts/sgi-context";
-import {
-  ESOCIAL_TP_ASO,
-  ESOCIAL_RES_ASO,
-  ESOCIAL_IND_RESULT,
-  NR35_MANDATORY_EXAMS,
-} from "@/lib/esocial-codes";
+import { ESOCIAL_TP_ASO, ESOCIAL_RES_ASO, NR35_MANDATORY_EXAMS } from "@/lib/esocial-codes";
 import { GRUPO_AVP_ASO_LIST } from "@/lib/grupo-avp-asos-data";
 
 export default function HealthControl() {

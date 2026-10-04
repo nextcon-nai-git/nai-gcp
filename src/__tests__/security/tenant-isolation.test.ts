@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { requireTenant, requireRole, requirePermission } from "@/lib/auth";
+import { requireTenant, requireRole } from "@/lib/auth";
 import { AuthContext } from "@/lib/auth/auth-context";
 import { requireApiScope, requireApiTenant, ApiKeyContext } from "@/lib/auth/api-key";
 

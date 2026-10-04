@@ -5,10 +5,8 @@ import {
   FileSearch,
   UploadCloud,
   ShieldAlert,
-  ShieldCheck,
   Loader2,
   AlertTriangle,
-  FileText,
   User,
   Stethoscope,
   Calendar,
@@ -17,9 +15,8 @@ import {
   XCircle,
   Sparkles,
   ExternalLink,
-  ShieldQuestion,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -291,7 +288,7 @@ export default function MedicalCertificatesPage() {
                       <FileSearch className="size-3" /> Diagnóstico NAI Forensic
                     </p>
                     <p className="text-sm leading-relaxed text-primary/80 italic">
-                      "{result.reasoning}"
+                      &quot;{result.reasoning}&quot;
                     </p>
                   </div>
 

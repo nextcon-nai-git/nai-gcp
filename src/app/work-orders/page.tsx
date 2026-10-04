@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import {
-  FileText,
   Download,
   Share2,
   Printer,
@@ -10,17 +9,9 @@ import {
   Ship,
   AlertTriangle,
   ShieldCheck,
-  CheckCircle2,
   UserCheck,
-  ArrowRight,
-  HardHat,
   Anchor,
-  Droplets,
-  Zap,
   RotateCcw,
-  Building2,
-  Calendar,
-  Eye,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,7 +22,6 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import {
   getDefaultConstrufamOsData,
-  generateConstrufamOsPdf,
   downloadConstrufamOsPdf,
   getWhatsAppOsDispatchMessage,
 } from "@/services/documents/construfam-os-pdf-generator";
@@ -659,11 +649,11 @@ export default function WorkOrdersPage() {
 
               {/* Termo de Compromisso */}
               <p className="text-[11px] text-slate-700 dark:text-slate-300 italic text-justify leading-relaxed">
-                "Declaro que recebi da CONSTRUFAM ENGENHARIA E EMPREENDIMENTOS LTDA a presente Ordem
-                de Serviço de NR-01 referente às atividades operacionais e embarcadas em bacias
-                hidrográficas/PCHs, tendo sido treinado e orientado acerca de todos os riscos,
-                especialmente o risco de afogamento e uso do colete salva-vidas. Comprometo-me a
-                cumpri-la integralmente sob as penas da lei."
+                &quot;Declaro que recebi da CONSTRUFAM ENGENHARIA E EMPREENDIMENTOS LTDA a presente
+                Ordem de Serviço de NR-01 referente às atividades operacionais e embarcadas em
+                bacias hidrográficas/PCHs, tendo sido treinado e orientado acerca de todos os
+                riscos, especialmente o risco de afogamento e uso do colete salva-vidas.
+                Comprometo-me a cumpri-la integralmente sob as penas da lei.&quot;
               </p>
 
               {/* Assinaturas */}

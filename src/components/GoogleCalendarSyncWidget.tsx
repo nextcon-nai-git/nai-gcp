@@ -6,10 +6,7 @@ import {
   ExternalLink,
   RefreshCw,
   CheckCircle2,
-  Clock,
   CalendarPlus,
-  Building2,
-  Stethoscope,
   Loader2,
   Sparkles,
 } from "lucide-react";
@@ -18,7 +15,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
-  generateGoogleCalendarEventUrl,
   syncNaiEventsToGoogleCalendar,
   CalendarEventPayload,
 } from "@/actions/google-calendar-sync";

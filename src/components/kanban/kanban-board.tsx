@@ -24,7 +24,7 @@ import {
   deleteDocumentNonBlocking,
 } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Archive, Sparkles } from "lucide-react";
+import { Trash2, Archive } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface KanbanBoardProps {

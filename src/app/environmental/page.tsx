@@ -4,18 +4,10 @@ import * as React from "react";
 import {
   Wind,
   Trash2,
-  Droplet,
-  Zap,
-  Activity,
-  TrendingUp,
   ShieldCheck,
   AlertTriangle,
   Plus,
-  ArrowRight,
   Brain,
-  Sparkles,
-  PieChart,
-  BarChart3,
   Waves,
   Flame,
   CloudRain,
@@ -25,20 +17,13 @@ import {
   Leaf,
   RefreshCw,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase";
-import { collection, query, orderBy, doc, where } from "firebase/firestore";
+import { useUser, useFirestore, useMemoFirebase, useDoc } from "@/firebase";
+import { doc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { useSgi } from "@/contexts/sgi-context";
 
@@ -146,7 +131,7 @@ export default function EnvironmentalManagement() {
                   Significância Ambiental
                 </h3>
                 <p className="text-sm text-slate-500 font-medium italic">
-                  "AIA: Severidade do Impacto x Frequência do Aspecto."
+                  &quot;AIA: Severidade do Impacto x Frequência do Aspecto.&quot;
                 </p>
                 <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 space-y-4">
                   <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
@@ -226,7 +211,7 @@ export default function EnvironmentalManagement() {
                 </div>
                 <Progress value={85} className="h-1.5 bg-slate-100" />
                 <p className="text-[10px] text-slate-500 italic">
-                  "Gatilho de coleta em 900kg via MTR digital."
+                  &quot;Gatilho de coleta em 900kg via MTR digital.&quot;
                 </p>
               </div>
               <Button className="w-full bg-primary h-11 text-[9px] font-black uppercase rounded-xl">
@@ -250,7 +235,7 @@ export default function EnvironmentalManagement() {
                 </div>
                 <Progress value={92} className="h-1.5 bg-slate-100" />
                 <p className="text-[10px] text-slate-500 italic">
-                  "Meta Lixo Zero: Desviar 100% de aterro."
+                  &quot;Meta Lixo Zero: Desviar 100% de aterro.&quot;
                 </p>
               </div>
               <Button
@@ -271,8 +256,8 @@ export default function EnvironmentalManagement() {
                 </Badge>
                 <h4 className="text-lg font-black uppercase tracking-tight">Economia Circular</h4>
                 <p className="text-xs text-white/60 leading-relaxed italic">
-                  "A reutilização de sobras de madeira para pallets internos reduziu o custo de
-                  descarte em 14% este mês."
+                  &quot;A reutilização de sobras de madeira para pallets internos reduziu o custo de
+                  descarte em 14% este mês.&quot;
                 </p>
               </div>
             </Card>
@@ -354,7 +339,7 @@ function ControlCard({ aspect, impact, control, icon: Icon, color }: any) {
           Controle Operacional:
         </p>
         <p className="text-[11px] font-medium text-primary/80 italic leading-relaxed">
-          "{control}"
+          &quot;{control}&quot;
         </p>
       </div>
     </Card>

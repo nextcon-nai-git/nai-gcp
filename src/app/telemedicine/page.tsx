@@ -5,25 +5,17 @@ import {
   Video,
   Calendar,
   User,
-  Stethoscope,
   Plus,
-  ExternalLink,
   Loader2,
-  CheckCircle2,
   Clock,
-  Search,
-  XCircle,
-  AlertCircle,
   ShieldCheck,
   Lock,
   Brain,
   Zap,
   ChevronRight,
   MailCheck,
-  ClipboardList,
-  Info,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -45,20 +37,11 @@ import {
 } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import {
-  collection,
-  query,
-  orderBy,
-  limit,
-  Timestamp,
-  serverTimestamp,
-  doc,
-} from "firebase/firestore";
+import { collection, query, orderBy, limit, Timestamp, serverTimestamp } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { gerarLinkMeet } from "@/actions/telemedicine";
 import { cn } from "@/lib/utils";
 import { ClinicalSidebar } from "@/components/telemedicine/clinical-sidebar";
-import { CalendarSyncButton } from "@/components/telemedicine/calendar-sync-button";
 
 /**
  * @fileOverview Telemedicina Segura - Auditoria Firestore Real & Trava Acessibilidade.
@@ -237,8 +220,8 @@ export default function TelemedicinePage() {
                 <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex gap-3">
                   <MailCheck className="size-4 text-emerald-600 shrink-0 mt-0.5" />
                   <p className="text-[9px] text-emerald-800 font-bold leading-relaxed italic">
-                    "O convite será enviado automaticamente pelo motor NAI para o Gmail do paciente
-                    e do médico."
+                    &quot;O convite será enviado automaticamente pelo motor NAI para o Gmail do
+                    paciente e do médico.&quot;
                   </p>
                 </div>
 
@@ -406,8 +389,8 @@ export default function TelemedicinePage() {
                 <p className="text-xl font-black text-emerald-400">ATIVO (HIPAA v4.0)</p>
               </div>
               <p className="text-[10px] leading-relaxed italic text-white/40 border-t border-white/5 pt-4">
-                "Todo agendamento dispara convites automáticos sincronizados com calendários Google
-                via motor NAI API."
+                &quot;Todo agendamento dispara convites automáticos sincronizados com calendários
+                Google via motor NAI API.&quot;
               </p>
             </div>
           </Card>

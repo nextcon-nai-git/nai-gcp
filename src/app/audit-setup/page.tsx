@@ -2,20 +2,13 @@
 
 import * as React from "react";
 import {
-  Database,
   Loader2,
   CheckCircle2,
   ShieldCheck,
   ArrowLeft,
-  Sparkles,
-  Zap,
-  RefreshCw,
-  ShieldAlert,
   Terminal,
-  Cpu,
   MonitorCheck,
   Target,
-  Scale,
 } from "lucide-react";
 import {
   Card,
@@ -215,7 +208,7 @@ export default function AuditSetupPage() {
               <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               <Terminal className="size-6 text-emerald-400 shrink-0 relative z-10" />
               <p className="text-xs font-mono text-slate-300 italic leading-relaxed relative z-10">
-                "{status}"
+                &quot;{status}&quot;
               </p>
             </div>
           )}

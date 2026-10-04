@@ -3,19 +3,13 @@
 import * as React from "react";
 import {
   Users,
-  UserPlus,
   Search,
-  Loader2,
   MoreVertical,
   Trash2,
   Pencil,
   CheckCircle2,
-  Sparkles,
   ShieldCheck,
   Building2,
-  Phone,
-  Mail,
-  Calendar,
   FileText,
   Briefcase,
   BadgeCheck,
@@ -80,7 +74,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 const nxcEmployeeSchema = z.object({

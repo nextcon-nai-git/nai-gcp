@@ -4,27 +4,18 @@ import * as React from "react";
 import {
   ClipboardCheck,
   FileText,
-  MapPin,
-  User,
-  Calendar,
-  Clock,
   AlertTriangle,
   ShieldCheck,
   CheckCircle2,
   HardHat,
-  Hammer,
   Construction,
-  ChevronRight,
   ArrowLeft,
-  Info,
-  BadgeAlert,
   Zap,
-  PenTool,
   Printer,
   Download,
   XCircle,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -35,9 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from "next/link";
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 /**
@@ -134,8 +123,8 @@ export default function NativaTechnicalVisitReport() {
                   <ShieldCheck className="size-5 text-accent" /> Inspeção de Segurança
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed italic">
-                  "Identificar riscos e sugerir ações corretivas e preventivas para as unidades
-                  Laguna e Mônaco."
+                  &quot;Identificar riscos e sugerir ações corretivas e preventivas para as unidades
+                  Laguna e Mônaco.&quot;
                 </p>
               </div>
               <div className="p-6 bg-slate-50 rounded-3xl border shadow-inner space-y-3">
@@ -143,8 +132,8 @@ export default function NativaTechnicalVisitReport() {
                   <FileText className="size-5 text-accent" /> Auditoria Documental
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed italic">
-                  "Verificação de documentação de segurança do trabalho como fichas de EPI e
-                  treinamentos necessários relacionados a área de segurança do trabalho."
+                  &quot;Verificação de documentação de segurança do trabalho como fichas de EPI e
+                  treinamentos necessários relacionados a área de segurança do trabalho.&quot;
                 </p>
               </div>
             </div>
@@ -279,7 +268,7 @@ export default function NativaTechnicalVisitReport() {
                       </TableCell>
                       <TableCell className="pr-8">
                         <p className="text-[10px] text-slate-600 italic font-medium leading-relaxed">
-                          "{item.rec}"
+                          &quot;{item.rec}&quot;
                         </p>
                       </TableCell>
                     </TableRow>

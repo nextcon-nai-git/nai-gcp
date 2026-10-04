@@ -3,33 +3,21 @@
 import * as React from "react";
 import {
   Database,
-  Zap,
   Loader2,
   CheckCircle2,
-  FileUp,
-  TrendingUp,
-  Building2,
   Scale,
-  DollarSign,
   Download,
-  Mail,
   RefreshCw,
-  Plus,
   CloudLightning,
   Network,
   Brain,
-  Globe,
-  Settings,
-  ShieldCheck,
   FileSearch,
   Lock,
-  ChevronRight,
   Send,
-  AlertCircle,
   FileCheck,
   Cpu,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -41,7 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from "@/firebase";
+import { useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase";
 import {
   collection,
   query,
@@ -52,17 +40,11 @@ import {
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
-import { processFiscalDocument, type FiscalDocOutput } from "@/ai/flows/real-time-fiscal-flow";
+import { processFiscalDocument } from "@/ai/flows/real-time-fiscal-flow";
 import { cn } from "@/lib/utils";
 import { useSgi } from "@/contexts/sgi-context";
 import { FiscalDocument, Company } from "@/types/schema";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { HolidayBillingWidget } from "@/components/financial/holiday-billing-widget";
 
@@ -508,10 +490,10 @@ export function FiscalIntelligenceTab() {
                       <h5 className="text-[10px] font-black uppercase">Parecer Contábil NAI:</h5>
                     </div>
                     <p className="text-[11px] text-emerald-900/70 leading-relaxed font-medium italic">
-                      "
+                      &quot;
                       {selectedDoc.accountingNote ||
                         "Escrituração realizada com base na tipicidade do serviço e retenções na fonte aplicáveis."}
-                      "
+                      &quot;
                     </p>
                   </div>
                 </div>
@@ -572,7 +554,7 @@ function StatusCard({
         </div>
       </div>
       <p className="text-[8px] text-slate-400 font-medium leading-tight mt-4 uppercase italic">
-        "{desc}"
+        &quot;{desc}&quot;
       </p>
     </Card>
   );

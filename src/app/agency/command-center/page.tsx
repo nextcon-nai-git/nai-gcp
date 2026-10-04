@@ -1,22 +1,10 @@
 "use client";
 
 import * as React from "react";
-import {
-  ShieldAlert,
-  Stethoscope,
-  Clock,
-  CheckCircle2,
-  AlertTriangle,
-  LayoutDashboard,
-  MoreVertical,
-  Plus,
-  Building2,
-  CalendarDays,
-} from "lucide-react";
+import { Clock, MoreVertical, Plus, Building2, CalendarDays } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Separator } from "@/components/ui/separator";
 
 interface KanbanAction {
   id: number;

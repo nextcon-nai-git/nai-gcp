@@ -959,7 +959,7 @@ export default function CassiBillingPage() {
                 <CardContent className="text-xs space-y-2 text-amber-900/80 dark:text-amber-200/80">
                   <p>
                     <strong>Atenção (Item 29 do Manual):</strong> Guias em{" "}
-                    <em>"Pendentes Transmissão"</em> devem ser enviadas em até{" "}
+                    <em>&quot;Pendentes Transmissão&quot;</em> devem ser enviadas em até{" "}
                     <strong>10 dias corridos</strong>.
                   </p>
                   <p>
@@ -1092,8 +1092,8 @@ export default function CassiBillingPage() {
                     Acesso e Login (Págs. 3-4)
                   </h4>
                   <p>
-                    Acesso ao portal CASSI &gt; "Prestador" &gt; "Gestão de Documentos Eletrônicos
-                    de Prestador" com CPF/CNPJ e Senha.
+                    Acesso ao portal CASSI &gt; &quot;Prestador&quot; &gt; &quot;Gestão de
+                    Documentos Eletrônicos de Prestador&quot; com CPF/CNPJ e Senha.
                   </p>
                 </div>
 
@@ -1157,8 +1157,8 @@ export default function CassiBillingPage() {
                     Revisão, Transmissão & 10 Dias (Págs. 16-21)
                   </h4>
                   <p>
-                    Aba "Resumo" &gt; "Confirmar Revisão" &gt; "Enviar Guias". Monitoramento na aba
-                    Pendentes de Transmissão (limite de 10 dias).
+                    Aba &quot;Resumo&quot; &gt; &quot;Confirmar Revisão&quot; &gt; &quot;Enviar
+                    Guias&quot;. Monitoramento na aba Pendentes de Transmissão (limite de 10 dias).
                   </p>
                 </div>
               </div>

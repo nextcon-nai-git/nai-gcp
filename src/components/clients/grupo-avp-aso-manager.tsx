@@ -3,34 +3,26 @@
 import * as React from "react";
 import {
   Search,
-  Filter,
   Download,
-  Phone,
-  Mail,
   MapPin,
   Calendar,
   Clock,
-  User,
   AlertTriangle,
   CheckCircle2,
-  AlertCircle,
   Copy,
   ExternalLink,
   ChevronLeft,
   ChevronRight,
   Sparkles,
   Building2,
-  DollarSign,
-  CreditCard,
   MessageSquare,
   RefreshCw,
   Eye,
   FileSpreadsheet,
   Cloud,
-  UploadCloud,
   ShieldAlert,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -52,7 +44,7 @@ import {
 import { useUser } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { GRUPO_AVP_ASO_LIST, GrupoAvpAso, AsoStatus, AsoUrgency } from "@/lib/grupo-avp-asos-data";
+import { GRUPO_AVP_ASO_LIST, GrupoAvpAso, AsoStatus } from "@/lib/grupo-avp-asos-data";
 import { GrupoAvpQueueMap } from "@/components/clients/grupo-avp-queue-map";
 import { GrupoAvpSheetSyncModal } from "@/components/clients/grupo-avp-sheet-sync-modal";
 import { GrupoAvpRedundancyModal } from "@/components/clients/grupo-avp-redundancy-modal";

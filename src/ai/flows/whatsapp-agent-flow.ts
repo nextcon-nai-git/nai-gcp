@@ -11,7 +11,6 @@ import {
   identifyDepartmentFromInput,
   isHumanHandoffRequested,
   generateHumanHandoffResponse,
-  WhatsappDepartment,
   NEXTCON_WHATSAPP_DISPLAY,
 } from "@/lib/whatsapp-routing";
 import { SESMT_AGENTS_CONFIG } from "@/ai/sesmt-agents-config";

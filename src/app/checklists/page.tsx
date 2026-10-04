@@ -1,24 +1,8 @@
 "use client";
 
 import * as React from "react";
-import {
-  ClipboardCheck,
-  Loader2,
-  ShieldAlert,
-  HeartPulse,
-  CheckCircle2,
-  FileText,
-  Sparkles,
-  Search,
-  ChevronRight,
-  AlertTriangle,
-  Save,
-  Zap,
-  X,
-  PenTool,
-  Layers,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Loader2, ShieldAlert, HeartPulse, X, PenTool, Layers } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -57,9 +41,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { NR_CHECKLISTS, getGenericChecklist, NRChecklist, ChecklistItem } from "@/lib/nr-data";
+import { NR_CHECKLISTS, getGenericChecklist, NRChecklist } from "@/lib/nr-data";
 import { STORAGE_PATHS } from "@/lib/storage-paths";
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 type ChecklistStatus = "CONFORME" | "NÃO CONFORME" | "NÃO AVALIADO" | null;
 
@@ -324,7 +307,7 @@ export default function ChecklistsPage() {
 
           <DialogFooter className="p-6 bg-white border-t shrink-0 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="text-[10px] font-black uppercase text-slate-400 italic">
-              "Este preenchimento alimenta o laudo PDF automático."
+              &quot;Este preenchimento alimenta o laudo PDF automático.&quot;
             </div>
             <div className="flex gap-2">
               <Button

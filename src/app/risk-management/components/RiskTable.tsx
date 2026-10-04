@@ -63,7 +63,9 @@ export function RiskTable({ risks }: RiskTableProps) {
                   <p className="text-xs font-black text-primary">{risk.intensity}</p>
                 </TableCell>
                 <TableCell className="pr-8 text-right">
-                  <p className="text-[10px] font-bold text-slate-400 italic">"{risk.control}"</p>
+                  <p className="text-[10px] font-bold text-slate-400 italic">
+                    &quot;{risk.control}&quot;
+                  </p>
                 </TableCell>
               </TableRow>
             );

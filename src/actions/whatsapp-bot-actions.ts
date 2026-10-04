@@ -5,11 +5,6 @@ import {
   WhatsappSessionState,
   WhatsappBotResponse,
 } from "@/ai/flows/whatsapp-agent-flow";
-import {
-  WHATSAPP_DEPARTMENTS,
-  NEXTCON_WHATSAPP_DISPLAY,
-  NEXTCON_WHATSAPP_NUMBER,
-} from "@/lib/whatsapp-routing";
 
 export interface SendSimulatedWhatsappMessageInput {
   phone: string;

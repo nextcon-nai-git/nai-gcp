@@ -4,17 +4,14 @@ import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  Bell,
   Search,
   Settings,
   ChevronDown,
   Building2,
   ShieldCheck,
-  UserCircle,
   WifiOff,
   ShieldAlert,
   Menu,
-  Sparkles,
   Command,
   Plus,
   Stethoscope,
@@ -23,10 +20,9 @@ import {
   LifeBuoy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import Image from "next/image";
 import { useUser, useMemoFirebase, useFirestore, useCollection, useDoc } from "@/firebase";
-import { collection, query, orderBy, where, doc, limit } from "firebase/firestore";
+import { collection, query, orderBy, doc } from "firebase/firestore";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,17 +30,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { PlatformFeedback } from "@/components/feedback/platform-feedback";
 import { OfflineSyncBadge } from "@/components/layout/offline-sync-badge";
-import { cn } from "@/lib/utils";
 import { useSgi } from "@/contexts/sgi-context";
 import { REAL_COMPANIES } from "@/lib/real-data";
 import { useSidebar } from "@/components/ui/sidebar";

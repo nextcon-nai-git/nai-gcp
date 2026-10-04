@@ -33,8 +33,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
-import { useUser, useFirestore } from "@/firebase";
+import { useFirestore } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
@@ -127,7 +126,7 @@ export function AttendanceTab({ attendances, loading }: AttendanceTabProps) {
                           </div>
                         </TableCell>
                         <TableCell className="text-left text-xs font-medium text-slate-600 truncate max-w-[300px]">
-                          "{item.complaint}"
+                          &quot;{item.complaint}&quot;
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-[8px] font-black uppercase h-5">
@@ -174,7 +173,7 @@ export function AttendanceTab({ attendances, loading }: AttendanceTabProps) {
                               <ClipboardList className="size-4 text-accent" /> Relato Clínico
                             </h4>
                             <div className="p-6 bg-slate-50 rounded-[2rem] border italic text-sm text-slate-700 leading-relaxed shadow-inner">
-                              "{item.complaint}"
+                              &quot;{item.complaint}&quot;
                             </div>
                           </div>
                           {item.care_lines?.length > 0 && (

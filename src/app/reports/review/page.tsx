@@ -9,14 +9,12 @@ import {
   Building2,
   Calendar,
   AlertTriangle,
-  CheckCircle2,
   ShieldCheck,
   Zap,
   ChevronRight,
   Brain,
   Sparkles,
   ShieldPlus,
-  Scale,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -97,7 +95,7 @@ export default function PaginaRelatorio() {
                   <Brain className="size-5 text-emerald-600" /> Resumo Executivo da Auditoria
                 </h3>
                 <p className="text-sm font-medium text-slate-600 leading-relaxed italic">
-                  "{analiseIA.resumo_executivo}"
+                  &quot;{analiseIA.resumo_executivo}&quot;
                 </p>
               </div>
 
@@ -265,7 +263,7 @@ export default function PaginaRelatorio() {
               <h4 className="text-sm font-black text-primary uppercase">Selo de Auditoria</h4>
             </div>
             <p className="text-[10px] text-primary/70 leading-relaxed font-bold italic uppercase tracking-tighter">
-              "Validado conforme protocolos de governança Nextcon v2.6."
+              &quot;Validado conforme protocolos de governança Nextcon v2.6.&quot;
             </p>
           </Card>
         </div>

@@ -1,10 +1,4 @@
-import {
-  Firestore,
-  writeBatch,
-  DocumentReference,
-  SetOptions,
-  UpdateData,
-} from "firebase/firestore";
+import { Firestore, writeBatch, DocumentReference, SetOptions } from "firebase/firestore";
 
 export interface BatchWrite {
   type: "set" | "update" | "delete";

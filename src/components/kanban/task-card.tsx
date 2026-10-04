@@ -5,17 +5,11 @@ import { useDraggable } from "@dnd-kit/core";
 import { OpsTask } from "@/types/schema";
 import {
   Clock,
-  Brain,
   Building2,
-  MapPin,
-  CircleDollarSign,
-  Briefcase,
   Sparkles,
   ListTodo,
   ShieldAlert,
   Hash,
-  AlertCircle,
-  Pencil,
   UserCheck,
   ChevronRight,
 } from "lucide-react";

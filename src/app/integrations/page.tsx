@@ -9,10 +9,7 @@ import {
   Cpu,
   RefreshCw,
   CheckCircle2,
-  AlertCircle,
   Clock,
-  ArrowRight,
-  Send,
   FileText,
   Users,
   Stethoscope,
@@ -20,22 +17,16 @@ import {
   Bot,
   ShieldCheck,
   Sparkles,
-  ExternalLink,
-  Settings2,
   DollarSign,
   Workflow,
-  Check,
-  Copy,
-  Key,
   Terminal,
   Activity,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 

@@ -16,11 +16,8 @@ import {
   ArrowRight,
   Command,
   Bot,
-  Upload,
-  Clock,
   Zap,
   CheckCircle2,
-  Calendar,
   LifeBuoy,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";

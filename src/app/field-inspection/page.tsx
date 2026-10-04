@@ -3,20 +3,10 @@
 import * as React from "react";
 import {
   Camera,
-  UploadCloud,
   ShieldAlert,
-  CheckCircle2,
-  AlertTriangle,
   Sparkles,
   Share2,
   BrainCircuit,
-  Send,
-  Clock,
-  User,
-  MapPin,
-  FileText,
-  RefreshCw,
-  Building2,
   HardHat,
   ChevronDown,
   ChevronUp,
@@ -26,7 +16,7 @@ import {
   Check,
   Save,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -486,7 +476,7 @@ export default function FieldInspectionPage() {
               </div>
               <h2 className="text-xl font-black text-white">{report.inspectionTitle}</h2>
               <p className="text-xs text-slate-300 italic max-w-2xl leading-relaxed">
-                "{report.executiveSummary}"
+                &quot;{report.executiveSummary}&quot;
               </p>
               <div className="flex items-center gap-2 text-[11px] text-emerald-400 font-mono pt-1">
                 <Save className="size-3.5" />

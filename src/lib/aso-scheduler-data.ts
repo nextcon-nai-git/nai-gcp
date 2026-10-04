@@ -2,7 +2,7 @@
  * @fileOverview Base de Dados Inicial e Mock Data para o Agendador de ASOs + Kits de Clínicas (NAI)
  */
 
-import { PartnerClinic, AsoRequest, AsoPipelineStep, ExamType } from "@/types/aso-scheduler-types";
+import { PartnerClinic, AsoRequest, AsoPipelineStep } from "@/types/aso-scheduler-types";
 
 export const INITIAL_PARTNER_CLINICS: PartnerClinic[] = [
   {

@@ -6,7 +6,6 @@ import {
   Lock,
   Loader2,
   CheckCircle2,
-  AlertCircle,
   Fingerprint,
   Key,
   Calendar,
@@ -24,7 +23,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
 
 interface DigitalSignatureDialogProps {
   isOpen: boolean;
@@ -156,8 +154,8 @@ export function DigitalSignatureDialog({
           <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-100 rounded-xl">
             <Lock className="size-4 text-primary shrink-0 mt-0.5" />
             <p className="text-[9px] text-primary/70 leading-relaxed font-medium italic">
-              "Esta assinatura possui o mesmo valor jurídico de um reconhecimento de firma em
-              cartório, conforme MP 2.200-2/2001."
+              &quot;Esta assinatura possui o mesmo valor jurídico de um reconhecimento de firma em
+              cartório, conforme MP 2.200-2/2001.&quot;
             </p>
           </div>
         </div>

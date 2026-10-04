@@ -9,46 +9,27 @@ import {
   HardHat,
   Stethoscope,
   Users,
-  Phone,
-  Mail,
-  Globe,
-  Calendar,
-  AlertTriangle,
   CheckCircle2,
   MapPin,
   Activity,
   FileText,
-  ExternalLink,
   MessageCircle,
-  Download,
-  ArrowRight,
-  Clock,
   ClipboardCheck,
-  BadgeCheck,
-  FileSpreadsheet,
-  Layers,
-  Scale,
   Search,
-  Share2,
-  Check,
   ChevronRight,
   TrendingDown,
   Sparkles,
-  Printer,
   Copy,
-  AlertCircle,
-  HelpCircle,
-  Briefcase,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useSgi } from "@/contexts/sgi-context";
-import { REAL_COMPANIES, REAL_EMPLOYEES, REAL_PROVIDERS } from "@/lib/real-data";
-import { getConsolidatedProviders, ConsolidatedProvider } from "@/lib/all-consolidated-providers";
+import { REAL_COMPANIES, REAL_EMPLOYEES } from "@/lib/real-data";
+import { getConsolidatedProviders } from "@/lib/all-consolidated-providers";
 import { cn } from "@/lib/utils";
 import { useFirestore, useUser } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";

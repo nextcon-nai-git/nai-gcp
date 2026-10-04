@@ -68,7 +68,6 @@ export const syncUserClaims = onDocumentWritten("users/{userId}", async (event) 
 
   try {
     await getAuth().setCustomUserClaims(userId, claims);
-    console.log(`Claims atualizadas para ${userId}:`, claims);
   } catch (error) {
     console.error("Erro ao atualizar claims:", error);
   }
@@ -182,9 +181,6 @@ export const analisarPgrEmSegundoPlano = onDocumentCreated(
           },
         });
 
-        console.log(
-          `NAI Engine: PGR ${docId} analisado com sucesso (tentativa ${attempt + 1}).`
-        );
         return; // Sucesso, sai do loop
       } catch (erro) {
         lastError = erro as Error;

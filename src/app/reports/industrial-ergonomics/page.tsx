@@ -1,18 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  ArrowLeft,
-  Sparkles,
-  Zap,
-  ShieldCheck,
-  Activity,
-  Brain,
-  TrendingDown,
-  Info,
-  Clock,
-  LayoutGrid,
-} from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
@@ -117,8 +106,8 @@ export default function IndustrialErgonomicsPage() {
                   Matriz de Rodízio NAI
                 </p>
                 <p className="text-[11px] text-slate-400 leading-relaxed italic">
-                  "Divisão simétrica em 4 grupos (20% a 40%) estruturada para o balanceamento
-                  sistêmico de fadiga muscular."
+                  &quot;Divisão simétrica em 4 grupos (20% a 40%) estruturada para o balanceamento
+                  sistêmico de fadiga muscular.&quot;
                 </p>
               </div>
             </div>
@@ -148,7 +137,7 @@ export default function IndustrialErgonomicsPage() {
                     <span className="text-purple-500 font-black text-xs">#{p.seq}</span>
                     <div className="text-[10px] leading-tight">
                       <strong className="text-slate-200 block uppercase mb-1">{p.atv}</strong>
-                      <span className="text-slate-400 italic">"{p.queixa}"</span>
+                      <span className="text-slate-400 italic">&quot;{p.queixa}&quot;</span>
                     </div>
                   </div>
                 ))}

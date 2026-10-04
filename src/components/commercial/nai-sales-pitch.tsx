@@ -1,22 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  ShieldCheck,
-  ClipboardCheck,
-  GraduationCap,
-  Sparkles,
-  ChevronRight,
-  Zap,
-  HardHat,
-  Stethoscope,
-  Bot,
-  ShoppingCart,
-  TrendingDown,
-  Scale,
-  FileText,
-  Calendar,
-} from "lucide-react";
+import { Sparkles, ChevronRight, Bot, FileText, Calendar } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -86,7 +71,7 @@ export function NaiSalesPitch() {
         <div className="flex-1 space-y-2 relative">
           <div className="bg-slate-50 p-5 rounded-3xl rounded-tl-none border shadow-inner relative">
             <p className="text-sm italic text-slate-600 font-bold leading-relaxed">
-              "{PITCH_DATA.avatar.saudacao_inicial}"
+              &quot;{PITCH_DATA.avatar.saudacao_inicial}&quot;
             </p>
           </div>
           <div className="pl-2 text-left">

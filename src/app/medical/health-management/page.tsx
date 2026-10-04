@@ -5,21 +5,14 @@ import {
   HeartPulse,
   ShieldCheck,
   Lock,
-  Calendar,
   FileUp,
   Loader2,
   Activity,
   Filter,
-  Sparkles,
-  Zap,
-  TrendingUp,
-  Brain,
-  ChevronRight,
-  Plus,
   ArrowRight,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,7 +42,6 @@ import { useSgi } from "@/contexts/sgi-context";
 import { REAL_NURSING_ATTENDANCES } from "@/lib/real-data";
 import { useToast } from "@/hooks/use-toast";
 import Papa from "papaparse";
-import { cn } from "@/lib/utils";
 
 const MONTHS = [
   { value: "01", label: "Janeiro" },

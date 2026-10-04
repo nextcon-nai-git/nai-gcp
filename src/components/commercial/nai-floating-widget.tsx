@@ -4,7 +4,6 @@ import * as React from "react";
 import {
   X,
   Sparkles,
-  Zap,
   Loader2,
   ArrowRight,
   ArrowLeft,
@@ -12,11 +11,8 @@ import {
   FileText,
   Calendar,
   Send,
-  RefreshCcw,
   Menu,
-  MapPin,
   MessageSquare,
-  CheckCircle2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -383,7 +379,7 @@ export function NaiFloatingWidget() {
                 <div className="bg-white p-5 rounded-[2rem] rounded-tl-none border-l-4 border-accent shadow-sm relative">
                   <Sparkles className="absolute -top-2 -right-2 size-5 text-accent animate-pulse" />
                   <p className="text-xs italic text-slate-700 font-bold leading-relaxed">
-                    "{AGENT_CONFIG.welcome_msg}"
+                    &quot;{AGENT_CONFIG.welcome_msg}&quot;
                   </p>
                 </div>
 

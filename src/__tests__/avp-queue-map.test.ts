@@ -4,7 +4,6 @@ import {
   aggregateAvpLocalities,
   AVP_CITY_COORDINATES,
   ASO_STATUS_CONFIG,
-  projectLatLng,
 } from "@/lib/avp-geo-data";
 
 describe("NAI - Mapeamento Geográfico da Fila do Grupo AVP", () => {

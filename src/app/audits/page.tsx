@@ -2,28 +2,21 @@
 
 import * as React from "react";
 import {
-  Layers,
   Plus,
   ShieldCheck,
-  Building2,
   FileText,
-  Search,
   Loader2,
-  PlayCircle,
   Save,
   ChevronRight,
   X,
-  Globe,
   Info,
-  Lock,
-  ShieldAlert,
   Zap,
   Globe2,
   ClipboardCheck,
   Scale,
   Brain,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -34,14 +27,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
@@ -363,8 +354,8 @@ export default function IsoAuditsElite() {
                 <Brain className="size-3" /> IA Preditora ISO
               </h4>
               <p className="text-[11px] leading-relaxed italic text-white/60">
-                "O motor NAI cruzou os dados do PGR com os registros de treinamento e identificou um
-                gap de 12% no Requisito 7.2 da ISO 45001."
+                &quot;O motor NAI cruzou os dados do PGR com os registros de treinamento e
+                identificou um gap de 12% no Requisito 7.2 da ISO 45001.&quot;
               </p>
             </div>
           </Card>
@@ -537,8 +528,8 @@ export default function IsoAuditsElite() {
                 <div className="w-full flex items-center gap-4 p-5 bg-emerald-50 rounded-[1.5rem] border-2 border-dashed border-emerald-200">
                   <ShieldCheck className="size-8 text-emerald-600 shrink-0" />
                   <p className="text-[10px] text-emerald-800 font-black leading-relaxed uppercase italic">
-                    "O encerramento deste ciclo gerará o relatório GRI 403 e a trilha de evidências
-                    criptográfica para certificação global."
+                    &quot;O encerramento deste ciclo gerará o relatório GRI 403 e a trilha de
+                    evidências criptográfica para certificação global.&quot;
                   </p>
                 </div>
                 <Button

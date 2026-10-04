@@ -7,7 +7,7 @@
  */
 
 import { initializeFirebase } from "@/firebase/init";
-import { doc, setDoc, collection, addDoc, writeBatch, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, collection } from "firebase/firestore";
 
 export interface EtlIngestionResult {
   success: boolean;

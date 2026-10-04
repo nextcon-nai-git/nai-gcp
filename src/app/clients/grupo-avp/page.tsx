@@ -1,37 +1,23 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import {
   Building2,
-  Users,
-  MapPin,
   Clock,
-  Phone,
   Mail,
   MessageSquare,
   CheckCircle2,
   AlertTriangle,
-  FileText,
   Calendar,
   ShieldCheck,
-  Sparkles,
   Send,
   ExternalLink,
-  Download,
   Copy,
   Check,
-  ArrowRight,
-  Layers,
-  Stethoscope,
-  AlertCircle,
-  HelpCircle,
-  Video,
   ListTodo,
-  UserCheck,
   FileSpreadsheet,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";

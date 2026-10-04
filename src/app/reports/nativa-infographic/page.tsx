@@ -1,19 +1,8 @@
 "use client";
 
 import * as React from "react";
-import {
-  ClipboardCheck,
-  Printer,
-  ArrowLeft,
-  Zap,
-  ShieldCheck,
-  Activity,
-  HeartPulse,
-  Brain,
-  Construction,
-} from "lucide-react";
+import { ArrowLeft, ShieldCheck, HeartPulse } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -144,7 +133,9 @@ function InfographicCard({ ghe, roles, desc, riskLevel, riskColor, riskDetail, p
           {ghe}
         </span>
         <h3 className="text-lg font-black text-slate-200 uppercase tracking-tight">{roles}</h3>
-        <p className="text-xs text-slate-400 leading-relaxed font-medium italic">"{desc}"</p>
+        <p className="text-xs text-slate-400 leading-relaxed font-medium italic">
+          &quot;{desc}&quot;
+        </p>
       </div>
 
       <div className="flex flex-col gap-3 lg:w-1/3">

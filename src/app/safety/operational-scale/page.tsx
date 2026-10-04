@@ -153,7 +153,7 @@ export default function SafetyOperationalScale() {
             <div>
               <h3 className="text-lg font-black uppercase">Diferenciais NAI</h3>
               <p className="text-xs text-white/60 font-medium italic">
-                "Evidências Fotográficas via Mobile e GPS ativo."
+                &quot;Evidências Fotográficas via Mobile e GPS ativo.&quot;
               </p>
             </div>
           </div>
@@ -231,8 +231,8 @@ export default function SafetyOperationalScale() {
               Nota Operacional de Equipe
             </h4>
             <p className="text-xs text-primary/70 leading-relaxed font-medium italic">
-              "O TST escalado para o sábado deve realizar a inspeção periférica e o checklist de
-              geradores para a liberação das atividades de segunda-feira."
+              &quot;O TST escalado para o sábado deve realizar a inspeção periférica e o checklist
+              de geradores para a liberação das atividades de segunda-feira.&quot;
             </p>
           </div>
         </div>

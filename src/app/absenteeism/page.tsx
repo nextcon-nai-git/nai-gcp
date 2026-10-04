@@ -18,7 +18,6 @@ import {
   User,
   FileText,
   Scale,
-  X,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -60,7 +59,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase";
+import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { useSgi } from "@/contexts/sgi-context";
 import {
   collection,
@@ -766,8 +765,8 @@ export default function AbsenteeismPage() {
 
                                 <DialogFooter className="p-6 bg-white border-t shrink-0 flex flex-col sm:flex-row justify-between items-center gap-4">
                                   <div className="text-[10px] font-black uppercase text-slate-400 italic flex items-center gap-2">
-                                    <ArrowRight className="size-3 text-accent" /> "Dossiês blindados
-                                    com AET e PGR geram êxito de 91% no INSS."
+                                    <ArrowRight className="size-3 text-accent" /> &quot;Dossiês
+                                    blindados com AET e PGR geram êxito de 91% no INSS.&quot;
                                   </div>
                                   <div className="flex gap-2">
                                     {isClient && (
@@ -880,8 +879,8 @@ export default function AbsenteeismPage() {
                 </p>
               </div>
               <p className="text-[11px] leading-relaxed italic text-white/60">
-                "O monitoramento preventivo nas fases 1 e 2 do workflow reduz significativamente a
-                aplicação indevida de benefícios acidentários."
+                &quot;O monitoramento preventivo nas fases 1 e 2 do workflow reduz
+                significativamente a aplicação indevida de benefícios acidentários.&quot;
               </p>
             </CardContent>
           </Card>
@@ -893,8 +892,8 @@ export default function AbsenteeismPage() {
             <div className="space-y-1">
               <h4 className="text-sm font-black text-primary uppercase">Efeito Jurídico</h4>
               <p className="text-xs text-slate-500 font-medium leading-relaxed italic">
-                "Contestações fundamentadas com laudos técnicos garantem a correta caracterização
-                dos benefícios no INSS."
+                &quot;Contestações fundamentadas com laudos técnicos garantem a correta
+                caracterização dos benefícios no INSS.&quot;
               </p>
             </div>
           </Card>

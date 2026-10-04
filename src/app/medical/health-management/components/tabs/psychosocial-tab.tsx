@@ -111,8 +111,8 @@ export function PsychosocialTab() {
             </CardHeader>
             <CardContent className="p-0 space-y-8">
               <p className="text-[15px] italic text-white/90 leading-relaxed font-medium">
-                "Detectada correlação crítica de 0.82 entre stress e absenteísmo na unidade
-                principal. Recomendamos Pausa Ativa iminente de 15min."
+                &quot;Detectada correlação crítica de 0.82 entre stress e absenteísmo na unidade
+                principal. Recomendamos Pausa Ativa iminente de 15min.&quot;
               </p>
               <Dialog open={isBlitzOpen} onOpenChange={setIsBlitzOpen}>
                 <DialogTrigger asChild>

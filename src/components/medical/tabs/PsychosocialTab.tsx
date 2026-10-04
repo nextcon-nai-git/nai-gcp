@@ -10,7 +10,7 @@ import {
   TrendingUp,
   ShieldAlert,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -143,7 +143,8 @@ export function PsychosocialTab() {
             <CardContent className="p-0 space-y-6 text-left">
               <div className="p-4 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-md">
                 <p className="text-sm italic text-white/80 leading-relaxed font-medium">
-                  "Detectada correlação de 0.82 entre stress e absenteísmo na unidade principal."
+                  &quot;Detectada correlação de 0.82 entre stress e absenteísmo na unidade
+                  principal.&quot;
                 </p>
               </div>
               <Button

@@ -1,14 +1,7 @@
 "use client";
 
 import React from "react";
-import {
-  Activity,
-  TrendingUp,
-  AlertTriangle,
-  ShieldCheck,
-  HeartPulse,
-  BrainCircuit,
-} from "lucide-react";
+import { TrendingUp, AlertTriangle, ShieldCheck, HeartPulse, BrainCircuit } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";

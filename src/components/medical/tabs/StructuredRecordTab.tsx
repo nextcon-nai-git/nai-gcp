@@ -17,9 +17,8 @@ import {
   History,
   ShieldCheck,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { REAL_CLINICAL_RECORDS, REAL_EMPLOYEES } from "@/lib/real-data";
@@ -225,7 +224,7 @@ export function StructuredRecordTab() {
                                   Conduta NAI:
                                 </span>
                                 <span className="text-[11px] font-medium text-slate-600 leading-relaxed italic">
-                                  "{line.conduct}"
+                                  &quot;{line.conduct}&quot;
                                 </span>
                               </div>
                             </div>
@@ -251,7 +250,8 @@ export function StructuredRecordTab() {
                     Segurança de Acesso
                   </p>
                   <p className="text-xs font-bold text-primary italic">
-                    "Sua visualização deste prontuário foi registrada para fins de auditoria HIPAA."
+                    &quot;Sua visualização deste prontuário foi registrada para fins de auditoria
+                    HIPAA.&quot;
                   </p>
                 </div>
               </div>

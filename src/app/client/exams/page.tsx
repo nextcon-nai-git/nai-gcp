@@ -2,19 +2,15 @@
 
 import * as React from "react";
 import {
-  HeartPulse,
   Search,
   CheckCircle2,
   AlertCircle,
-  FileText,
   Download,
   Loader2,
-  SendHorizontal,
-  CloudDownload,
   ShieldCheck,
   Globe,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -248,8 +244,8 @@ export default function ClientExamsHistory() {
             <h4 className="text-sm font-black text-primary uppercase">NAI eSocial Engine</h4>
           </div>
           <p className="text-[11px] text-primary/70 leading-relaxed font-medium italic">
-            "Nosso motor de transmissão envia o evento S-2220 automaticamente para o governo assim
-            que o médico finaliza o atendimento, eliminando o risco de atrasos na folha."
+            &quot;Nosso motor de transmissão envia o evento S-2220 automaticamente para o governo
+            assim que o médico finaliza o atendimento, eliminando o risco de atrasos na folha.&quot;
           </p>
         </div>
       </div>

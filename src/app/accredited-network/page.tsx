@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { OccupationalClinicsMap } from "@/components/providers/occupational-clinics-map";
-import { MapPin, Building2, Sparkles, ShieldCheck, PhoneCall, Globe } from "lucide-react";
+import { MapPin, Building2, ShieldCheck, PhoneCall, Globe } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";

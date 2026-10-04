@@ -13,18 +13,13 @@ import {
   Loader2,
   Zap,
   Terminal,
-  ShieldCheck,
   RefreshCw,
-  Clock,
-  ArrowRight,
   ChevronRight,
-  ExternalLink,
   Network,
   Cpu,
-  Globe,
   Database,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -287,7 +282,7 @@ export default function DeveloperHubPanel() {
                       {item.target}
                     </h4>
                     <p className="text-xs text-slate-500 font-medium leading-relaxed mt-2 italic">
-                      "{item.mechanism}"
+                      &quot;{item.mechanism}&quot;
                     </p>
                   </div>
                 </div>

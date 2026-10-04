@@ -5,9 +5,7 @@ import {
   generateOneClickCredenciamentoUrl,
   getNationalClinicsStats,
   searchNationalClinics,
-  updateClinicOutreachStatus,
   formatBrazilianPhoneDisplay,
-  NationalOccupationalClinic,
 } from "@/lib/avp-national-clinics-directory";
 
 describe("NAI National Clinics Directory & 1-Click WhatsApp Credenciamento", () => {

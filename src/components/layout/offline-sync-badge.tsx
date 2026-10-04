@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Wifi, WifiOff, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Wifi, WifiOff, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { offlineStorage } from "@/lib/offline-storage";
 import { useToast } from "@/hooks/use-toast";

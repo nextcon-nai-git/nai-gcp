@@ -7,41 +7,21 @@ import {
   Sparkles,
   CheckCircle2,
   Database,
-  Cpu,
   Network,
   FileText,
-  Users,
-  Stethoscope,
   MessageSquare,
   Bot,
   ShieldCheck,
   DollarSign,
   Printer,
-  Copy,
   Check,
-  ArrowRight,
-  Layers,
-  Workflow,
   Zap,
   BarChart3,
-  TrendingUp,
-  Share2,
-  Lock,
-  Globe,
-  Sliders,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 export default function MiddlewareIntegrationsProposalPage() {

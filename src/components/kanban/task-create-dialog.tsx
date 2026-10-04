@@ -2,17 +2,7 @@
 
 import * as React from "react";
 import { TaskStatus, Priority, TaskType } from "@/types/schema";
-import {
-  Save,
-  Loader2,
-  Plus,
-  ClipboardList,
-  Building2,
-  Calendar,
-  Layers,
-  Sparkles,
-  UserCheck,
-} from "lucide-react";
+import { Save, Loader2, Calendar, Layers, Sparkles, UserCheck } from "lucide-react";
 import {
   Sheet,
   SheetContent,

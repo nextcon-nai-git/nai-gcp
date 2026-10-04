@@ -1,24 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  Plus,
-  Search,
-  LayoutGrid,
-  Calendar as CalendarIcon,
-  Filter,
-  Sparkles,
-  Brain,
-  ShieldCheck,
-  Activity,
-  ArrowUpRight,
-  Building2,
-  Loader2,
-  Database,
-  Zap,
-  UserCheck,
-} from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Plus, LayoutGrid, Brain, Activity, Building2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase";
@@ -40,10 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
-import { OpsTask, TaskType, Priority } from "@/types/schema";
+import { OpsTask } from "@/types/schema";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
-import { Badge } from "@/components/ui/badge";
 import { OPERATIONAL_COLUMNS } from "@/types/kanban";
 
 export default function EnterpriseOpsHub() {

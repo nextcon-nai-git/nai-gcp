@@ -6,17 +6,7 @@ import {
   syncDocumentToGoogleDrive,
   GoogleDriveBackupStatus,
 } from "@/actions/google-drive-backup";
-import {
-  Cloud,
-  HardDrive,
-  RefreshCw,
-  CheckCircle2,
-  ShieldCheck,
-  ExternalLink,
-  FolderGit2,
-  Sparkles,
-  Loader2,
-} from "lucide-react";
+import { HardDrive, RefreshCw, CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

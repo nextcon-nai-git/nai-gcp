@@ -1,29 +1,23 @@
 "use client";
 
 import * as React from "react";
-import { OpsTask, TaskStatus, Priority, TaskType } from "@/types/schema";
+import { OpsTask } from "@/types/schema";
 import {
   X,
   Save,
   Loader2,
   Trash2,
   Plus,
-  CheckCircle2,
-  AlertTriangle,
   ClipboardList,
-  Building2,
   Calendar,
   Layers,
   ShieldCheck,
   UserCheck,
   FileUp,
-  FileText,
   History,
   ExternalLink,
   Paperclip,
-  Pencil,
   Bot,
-  Zap,
 } from "lucide-react";
 import {
   Sheet,
@@ -35,7 +29,6 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,

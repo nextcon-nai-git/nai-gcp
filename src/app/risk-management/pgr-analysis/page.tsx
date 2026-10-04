@@ -4,29 +4,14 @@ import * as React from "react";
 import {
   FileUp,
   Loader2,
-  Sparkles,
   ShieldCheck,
-  AlertTriangle,
   ArrowLeft,
   Brain,
-  Zap,
-  CheckCircle2,
-  FileText,
   Volume2,
-  Database,
-  RefreshCw,
-  Building2,
   MapPin,
-  Target,
   UploadCloud,
   Calendar,
-  AlertOctagon,
-  CheckSquare,
-  ShieldAlert,
-  Navigation,
-  Layers,
   Clock,
-  ExternalLink,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,8 +20,8 @@ import { useToast } from "@/hooks/use-toast";
 import { analyzePgrPdf, type PgrAnalysisOutput } from "@/ai/flows/pgr-analysis-flow";
 import { generateVoiceResponse } from "@/ai/flows/voice-response-flow";
 import { syncDocumentToGoogleDrive } from "@/actions/google-drive-backup";
-import { useFirestore, useUser, useDoc, useMemoFirebase, useStorage } from "@/firebase";
-import { doc, updateDoc, collection, addDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { useFirestore, useUser, useStorage } from "@/firebase";
+import { doc, collection, addDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { cn } from "@/lib/utils";
 import { STORAGE_PATHS } from "@/lib/storage-paths";
@@ -441,7 +426,7 @@ export default function PgrAnalysisPage() {
                 </CardHeader>
                 <CardContent className="p-6">
                   <p className="text-sm leading-relaxed text-slate-700 font-medium italic p-4 bg-primary/5 rounded-2xl border border-primary/5">
-                    "{result.parecerTecnicoIA}"
+                    &quot;{result.parecerTecnicoIA}&quot;
                   </p>
                 </CardContent>
               </Card>

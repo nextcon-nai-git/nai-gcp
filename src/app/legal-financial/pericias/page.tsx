@@ -3,35 +3,24 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  Scale,
   Gavel,
-  Calendar,
   MapPin,
-  User,
   Clock,
-  Building2,
   FileText,
   CheckCircle2,
-  AlertCircle,
   RefreshCw,
-  Download,
-  Filter,
-  Search,
   ArrowLeft,
   Sparkles,
   ExternalLink,
   Copy,
   Check,
-  AlertTriangle,
   Stethoscope,
   ShieldCheck,
-  ChevronRight,
   Printer,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,

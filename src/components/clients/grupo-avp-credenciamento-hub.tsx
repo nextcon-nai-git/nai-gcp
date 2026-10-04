@@ -3,9 +3,7 @@
 import * as React from "react";
 import {
   Search,
-  Filter,
   Phone,
-  Mail,
   MapPin,
   Building2,
   Send,
@@ -14,16 +12,11 @@ import {
   Plus,
   CheckCircle2,
   Clock,
-  Sparkles,
-  ShieldAlert,
   MessageSquare,
-  RefreshCw,
   Eye,
   Check,
-  Globe,
-  Share2,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -58,7 +51,6 @@ import {
   generateOneClickCredenciamentoUrl,
   generateCredenciamentoProposalText,
   formatBrazilianPhoneDisplay,
-  OFFICIAL_CREDENCIAMENTO_SENDER,
 } from "@/lib/avp-national-clinics-directory";
 
 const BRAZIL_STATES = [

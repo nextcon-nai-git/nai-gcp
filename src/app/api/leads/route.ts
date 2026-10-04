@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase/init";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc } from "firebase/firestore";
 
 /**
  * @fileOverview API Pública para Captura de Leads (Site -> Kanban).

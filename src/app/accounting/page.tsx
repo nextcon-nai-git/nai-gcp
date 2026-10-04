@@ -2,14 +2,10 @@
 
 import * as React from "react";
 import {
-  Calculator,
   Landmark,
   CalendarDays,
-  Search,
-  Plus,
   Loader2,
   CheckCircle2,
-  RefreshCw,
   TrendingUp,
   ShieldCheck,
   Brain,
@@ -18,30 +14,22 @@ import {
   DollarSign,
   FileText,
   Boxes,
-  ArrowUpRight,
   Send,
   CloudLightning,
-  Archive,
-  Download,
-  Lock,
   Users,
-  FileSearch,
   FileStack,
   BarChart3,
-  History,
   FileDigit,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, doc, where, serverTimestamp } from "firebase/firestore";
+import { useUser, useFirestore } from "@/firebase";
 import { cn } from "@/lib/utils";
 import { useSgi } from "@/contexts/sgi-context";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
@@ -266,8 +254,8 @@ export default function AccountingModule() {
                       <CloudLightning size={14} className="text-blue-500" /> Fiscal Data Stream
                     </h4>
                     <p className="text-sm font-bold text-primary leading-relaxed italic">
-                      "NFS-e capturadas em tempo real são liquidadas automaticamente no razão
-                      contábil conforme o regime tributário."
+                      &quot;NFS-e capturadas em tempo real são liquidadas automaticamente no razão
+                      contábil conforme o regime tributário.&quot;
                     </p>
                   </div>
                   <div className="p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100 space-y-4 hover:shadow-inner transition-all">
@@ -275,8 +263,8 @@ export default function AccountingModule() {
                       <Users size={14} className="text-purple-500" /> Payroll Integration
                     </h4>
                     <p className="text-sm font-bold text-primary leading-relaxed italic">
-                      "Encargos e salários liquidados na Folha geram provisões automáticas no
-                      Balancete de Verificação."
+                      &quot;Encargos e salários liquidados na Folha geram provisões automáticas no
+                      Balancete de Verificação.&quot;
                     </p>
                   </div>
                 </div>
@@ -360,9 +348,9 @@ export default function AccountingModule() {
                     <Brain className="size-5" /> Cognitive Performance
                   </h3>
                   <p className="text-lg italic text-slate-300 leading-relaxed font-medium">
-                    "A margem operacional de 51,8% representa um recorde trimestral para o grupo. A
-                    integração Omie identificou uma economia de escala de 12.4% nos custos
-                    variáveis."
+                    &quot;A margem operacional de 51,8% representa um recorde trimestral para o
+                    grupo. A integração Omie identificou uma economia de escala de 12.4% nos custos
+                    variáveis.&quot;
                   </p>
                   <div className="space-y-4">
                     <div className="p-6 bg-white/5 rounded-3xl border border-white/10 backdrop-blur-md">
@@ -451,8 +439,9 @@ export default function AccountingModule() {
             <div className="p-6 bg-blue-50 border border-blue-100 rounded-[2rem] flex gap-5 items-start shadow-inner">
               <Brain className="size-8 text-primary shrink-0 mt-1 opacity-40" />
               <p className="text-xs text-primary/70 font-medium leading-relaxed italic">
-                "A inteligência em lote detecta automaticamente pagamentos de impostos, salários e
-                recebimentos de clientes, realizando a baixa por competência no razão contábil."
+                &quot;A inteligência em lote detecta automaticamente pagamentos de impostos,
+                salários e recebimentos de clientes, realizando a baixa por competência no razão
+                contábil.&quot;
               </p>
             </div>
 

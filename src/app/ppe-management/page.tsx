@@ -5,26 +5,18 @@ import {
   ShieldCheck,
   UserCheck,
   AlertTriangle,
-  FileUp,
   Plus,
   Fingerprint,
   Search,
   Loader2,
   Zap,
-  Building2,
   CheckCircle2,
   Brain,
   Sparkles,
   FileText,
   Save,
   Check,
-  Award,
-  RefreshCw,
-  Clock,
   Layers,
-  XCircle,
-  HelpCircle,
-  Hash,
   Briefcase,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -62,9 +54,8 @@ import {
 import { useSgi } from "@/contexts/sgi-context";
 import { useToast } from "@/hooks/use-toast";
 import { extractPpeSheetData, ExtractPpeSheetOutput } from "@/ai/flows/ppe-sheet-ocr-flow";
-import { PpeCatalogItem, PpeDeliveryReceipt, CaStatus } from "@/types/schema";
+import { PpeCatalogItem } from "@/types/schema";
 import { PpeCatalogService, INITIAL_PPE_CATALOG } from "@/services/ppe/ppe-catalog-service";
-import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 export default function PpeManagement() {
@@ -741,7 +732,7 @@ export default function PpeManagement() {
                         {extractedData.nomeColaborador}
                       </h3>
                       <p className="text-[10px] text-slate-500 font-medium italic">
-                        "{extractedData.parecerCompliance}"
+                        &quot;{extractedData.parecerCompliance}&quot;
                       </p>
                     </Card>
 

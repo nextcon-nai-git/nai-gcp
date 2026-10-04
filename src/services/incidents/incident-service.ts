@@ -4,8 +4,6 @@ import {
   analyzeIncidentWithNormativeGrounding,
   TechnicalIncidentOpinion,
 } from "@/services/ai/incident-investigation-engine";
-import { AuthContext } from "@/lib/auth/auth-context";
-import { ApiKeyContext } from "@/lib/auth/api-key";
 
 export interface CreateIncidentInput {
   type: string;

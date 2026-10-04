@@ -13,17 +13,12 @@ import {
   CheckCircle2,
   Stethoscope,
   Globe,
-  Zap,
   ShieldCheck,
   Building2,
   ExternalLink,
   Activity,
-  HeartPulse,
   Sparkles,
-  Camera,
   ImageIcon,
-  Hospital,
-  X,
   BadgeCheck,
   Mail,
   MessageCircle,
@@ -34,19 +29,15 @@ import {
   Briefcase,
   Info,
   Paperclip,
-  FileSearch,
   FileText,
   Users,
   RefreshCw,
   ReceiptText,
   Copy,
   Printer,
-  QrCode,
   Barcode,
-  Calculator,
-  Landmark,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -64,8 +55,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -89,7 +78,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore, useCollection, useMemoFirebase, useStorage } from "@/firebase";
@@ -101,7 +89,6 @@ import {
   serverTimestamp,
   setDoc,
   writeBatch,
-  where,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useForm } from "react-hook-form";
@@ -177,7 +164,7 @@ import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import Papa from "papaparse";
 import { useSgi } from "@/contexts/sgi-context";
-import { generateProviderInviteMessage, OFFICIAL_BASE_URL } from "@/lib/domain-config";
+import { generateProviderInviteMessage } from "@/lib/domain-config";
 import { getConsolidatedProviders } from "@/lib/all-consolidated-providers";
 
 const providerSchema = z.object({
@@ -1544,8 +1531,8 @@ export default function ProvidersManagement() {
                       <div className="mt-4 px-2 flex items-center gap-3">
                         <Info size={14} className="text-primary/40" />
                         <p className="text-[9px] text-primary/40 font-bold uppercase italic">
-                          "O prestador terá acesso estritamente aos dados das unidades selecionadas
-                          acima."
+                          &quot;O prestador terá acesso estritamente aos dados das unidades
+                          selecionadas acima.&quot;
                         </p>
                       </div>
                     </Card>

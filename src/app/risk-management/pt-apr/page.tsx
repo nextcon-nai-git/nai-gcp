@@ -4,25 +4,18 @@ import * as React from "react";
 import {
   FileDigit,
   Plus,
-  Search,
-  ShieldAlert,
   Zap,
-  Loader2,
   CheckCircle2,
   HardHat,
   Flame,
   ZapOff,
-  Building2,
   Lock,
   ArrowRight,
   Sparkles,
   ClipboardCheck,
-  AlertTriangle,
   UserCheck,
   ShieldCheck,
-  FileText,
   Clock,
-  Info,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,7 +32,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -303,8 +295,8 @@ export default function PtAprDigital() {
                       <Lock className="size-4" /> Trava de Segurança
                     </h3>
                     <p className="text-xs italic text-slate-300 font-medium leading-relaxed">
-                      "O motor NAI não permite a emissão da Permissão de Trabalho (PT) sem que todos
-                      os itens da APR sejam validados via assinatura digital."
+                      &quot;O motor NAI não permite a emissão da Permissão de Trabalho (PT) sem que
+                      todos os itens da APR sejam validados via assinatura digital.&quot;
                     </p>
                     <div className="space-y-2">
                       <div className="flex justify-between text-[9px] font-black uppercase text-white/40">

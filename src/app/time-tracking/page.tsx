@@ -5,23 +5,17 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  Building2,
   User,
   ShieldCheck,
-  Calendar as CalendarIcon,
   FileText,
   Download,
   Lock,
   Coffee,
   LogIn,
   LogOut,
-  Search,
-  Sparkles,
-  MapPin,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -32,15 +26,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import {
-  collection,
-  query,
-  orderBy,
-  where,
-  doc,
-  setDoc,
-  serverTimestamp,
-} from "firebase/firestore";
+import { collection, query, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useSgi } from "@/contexts/sgi-context";
 import { cn } from "@/lib/utils";
 

@@ -3,15 +3,11 @@
 import * as React from "react";
 import {
   HardHat,
-  Building2,
   Zap,
   FileText,
   Loader2,
-  ShieldCheck,
-  Target,
   Construction,
   Sparkles,
-  ArrowRight,
   TrendingDown,
   Activity,
   HeartPulse,
@@ -19,31 +15,18 @@ import {
   Scale,
   CheckCircle2,
   CalendarDays,
-  DollarSign,
   UserCheck,
-  Users,
   Stethoscope,
   Brain,
-  Wind,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useUser, useFirestore } from "@/firebase";
+import { useFirestore } from "@/firebase";
 import { collection } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { cn } from "@/lib/utils";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const SCENARIOS = {
   standard: {
@@ -420,7 +403,7 @@ export default function ConstructionProposalPage() {
             </CardHeader>
             <CardContent className="p-8 text-center space-y-4">
               <div className="inline-flex p-4 bg-blue-50 rounded-2xl border border-blue-100 text-blue-700 font-bold text-sm italic">
-                "{current.scaleText}"
+                &quot;{current.scaleText}&quot;
               </div>
               <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
                 *Dimensionamento garantindo a conformidade legal e o bem-estar da equipe técnica em
@@ -462,9 +445,9 @@ export default function ConstructionProposalPage() {
                 </div>
 
                 <p className="text-[10px] leading-relaxed italic text-white/40 border-t border-white/5 pt-4">
-                  "A economia gerada no FAP cobre cerca de{" "}
+                  &quot;A economia gerada no FAP cobre cerca de{" "}
                   {Math.round((annualSaving / (totalMonthly * 12)) * 100)}% do investimento anual
-                  total nesta proposta."
+                  total nesta proposta.&quot;
                 </p>
               </div>
             </div>

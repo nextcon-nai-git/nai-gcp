@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { MedicalAuditLogger } from "@/lib/medical-audit-logger";
-import { maskPatientName, maskCpf, maskPhone } from "@/lib/logger";
+import { maskPatientName, maskCpf } from "@/lib/logger";
 
 describe("NAI - Medical Compliance & Occupational Health Rules (NR-07, NR-35, CFM)", () => {
   describe("NR-35 - Trabalho em Altura: Bloqueio de Aptidão por Ausência de Exames Mandatórios", () => {

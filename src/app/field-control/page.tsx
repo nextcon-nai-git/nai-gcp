@@ -3,16 +3,11 @@
 import * as React from "react";
 import {
   Cpu,
-  ShieldCheck,
   XCircle,
   CheckCircle2,
   Loader2,
   Fingerprint,
-  AlertTriangle,
-  Lock,
-  Signal,
   Zap,
-  Activity,
   ShieldAlert,
   ArrowRight,
   Camera,
@@ -41,7 +36,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy, limit, addDoc, serverTimestamp } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { REAL_EMPLOYEES } from "@/lib/real-data";
@@ -199,7 +194,7 @@ export default function FieldControlElite() {
                         {lastResult.message}
                       </p>
                       <p className="text-[11px] text-white/40 font-bold uppercase tracking-widest max-w-[250px] mx-auto leading-relaxed italic">
-                        "{lastResult.detail}"
+                        &quot;{lastResult.detail}&quot;
                       </p>
                     </div>
                   </div>
@@ -342,8 +337,9 @@ export default function FieldControlElite() {
               Áreas de Risco Ativas
             </h4>
             <p className="text-sm text-white/60 leading-relaxed font-medium italic">
-              "Delimitação digital via CFTV integrada (NR-12). O motor Vision AI envia comando
-              imediato de parada para máquinas se houver detecção de invasão em zonas de perigo."
+              &quot;Delimitação digital via CFTV integrada (NR-12). O motor Vision AI envia comando
+              imediato de parada para máquinas se houver detecção de invasão em zonas de
+              perigo.&quot;
             </p>
           </div>
         </div>

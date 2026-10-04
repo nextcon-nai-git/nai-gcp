@@ -1,4 +1,4 @@
-import { AgentRole, SESMT_AGENTS_CONFIG } from "@/ai/flows/sesmt-agents-flow";
+import { AgentRole } from "@/ai/flows/sesmt-agents-flow";
 
 export interface UserAgentPermissionInfo {
   userRole?: string | null;

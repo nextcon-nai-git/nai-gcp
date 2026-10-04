@@ -3,27 +3,19 @@
 import * as React from "react";
 import {
   ArrowLeft,
-  Flame,
   ShieldCheck,
   Zap,
-  FileText,
   Printer,
-  Download,
   Building2,
   MapPin,
   Calendar,
-  AlertTriangle,
-  CheckCircle2,
-  Lock,
   Target,
   Thermometer,
   HardHat,
   ShieldAlert,
-  Wind,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -192,9 +184,9 @@ export default function FireSafetyCetesbPage() {
                   <ShieldAlert size={12} /> Diagnóstico NAI Forensic:
                 </p>
                 <p className="text-[11px] text-slate-400 leading-relaxed font-medium italic">
-                  "A unidade apresenta 100% de conformidade com a IT-16. O AVCB nº {data.avcb} está
-                  plenamente assegurado. Recomenda-se apenas a substituição preventiva das
-                  sinalizações fotoluminescentes no Bloco 4."
+                  &quot;A unidade apresenta 100% de conformidade com a IT-16. O AVCB nº {data.avcb}{" "}
+                  está plenamente assegurado. Recomenda-se apenas a substituição preventiva das
+                  sinalizações fotoluminescentes no Bloco 4.&quot;
                 </p>
               </div>
             </div>

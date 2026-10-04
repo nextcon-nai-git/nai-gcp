@@ -4,19 +4,14 @@ import * as React from "react";
 import {
   Camera,
   MapPin,
-  ShieldCheck,
-  UserCheck,
-  RefreshCw,
   CheckCircle2,
   FileDown,
   Lock,
   ShieldAlert,
   Loader2,
   Building2,
-  HardHat,
-  Sparkles,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +29,6 @@ import { useStorage, useUser, useFirestore, useCollection, useMemoFirebase } fro
 import { ref, uploadString } from "firebase/storage";
 import { collection, query, orderBy, addDoc, serverTimestamp } from "firebase/firestore";
 import { useSgi } from "@/contexts/sgi-context";
-import { cn } from "@/lib/utils";
 
 /**
  * @fileOverview Quiosque Digital de EPI - NR-06 v2.8
@@ -473,9 +467,9 @@ export default function PpeKiosk() {
                 Entrega Validada e Salva!
               </h2>
               <p className="text-muted-foreground text-sm font-medium italic">
-                "O recibo com a evidência biométrica foi arquivado na pasta mestre de{" "}
+                &quot;O recibo com a evidência biométrica foi arquivado na pasta mestre de{" "}
                 <strong>{currentCompany?.name}</strong> para o colaborador{" "}
-                <strong>{currentEmployee?.name}</strong>."
+                <strong>{currentEmployee?.name}</strong>.&quot;
               </p>
             </div>
             <div className="grid grid-cols-1 gap-3 pt-4">

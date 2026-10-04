@@ -11,23 +11,14 @@ import {
   Activity,
   HeartPulse,
   ShieldCheck,
-  FileText,
   DollarSign,
   Users,
   Printer,
-  Send,
-  Mail,
-  Phone,
   Award,
   Check,
   Copy,
-  Download,
-  ChevronRight,
-  Layers,
   Smile,
   ArrowRight,
-  TrendingUp,
-  Brain,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

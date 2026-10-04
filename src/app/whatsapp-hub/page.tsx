@@ -14,8 +14,6 @@ import {
   ExternalLink,
   Shield,
   Activity,
-  Layers,
-  ChevronRight,
   Zap,
   Building,
   HeartPulse,
@@ -28,12 +26,10 @@ import {
   Check,
   Mic,
   Camera,
-  FileCheck2,
 } from "lucide-react";
 import {
   WHATSAPP_DEPARTMENTS,
   NEXTCON_WHATSAPP_DISPLAY,
-  NEXTCON_WHATSAPP_NUMBER,
   generateWhatsappWelcomeMenu,
 } from "@/lib/whatsapp-routing";
 import {
@@ -405,25 +401,25 @@ export default function WhatsappHubPage() {
                     onClick={() => handleSendMessage("Preciso falar com o Pablo sobre orçamento")}
                     className="text-xs bg-indigo-950/60 hover:bg-indigo-900/60 text-indigo-300 border border-indigo-800/50 px-3 py-1.5 rounded-lg transition"
                   >
-                    💬 "Orçamento com Pablo"
+                    💬 &quot;Orçamento com Pablo&quot;
                   </button>
                   <button
                     onClick={() => handleSendMessage("Quero agendar exame demissional para amanhã")}
                     className="text-xs bg-cyan-950/60 hover:bg-cyan-900/60 text-cyan-300 border border-cyan-800/50 px-3 py-1.5 rounded-lg transition"
                   >
-                    💬 "Agendar demissional"
+                    💬 &quot;Agendar demissional&quot;
                   </button>
                   <button
                     onClick={() => handleSendMessage("Preciso falar com atendente humano")}
                     className="text-xs bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/50 px-3 py-1.5 rounded-lg transition"
                   >
-                    👤 "Falar com Humano"
+                    👤 &quot;Falar com Humano&quot;
                   </button>
                   <button
                     onClick={() => handleSendMessage("MENU")}
                     className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg transition"
                   >
-                    🔄 "MENU"
+                    🔄 &quot;MENU&quot;
                   </button>
                 </div>
               </div>

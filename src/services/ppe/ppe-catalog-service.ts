@@ -4,7 +4,7 @@
  * e geração de termos de entrega com assinatura digital e hash imutável.
  */
 
-import { PpeCatalogItem, PpeDeliveryReceipt, CaStatus, PpeCategory } from "@/types/schema";
+import { PpeCatalogItem, PpeDeliveryReceipt, CaStatus } from "@/types/schema";
 import { createHash } from "crypto";
 
 export const INITIAL_PPE_CATALOG: PpeCatalogItem[] = [

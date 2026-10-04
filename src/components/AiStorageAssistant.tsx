@@ -2,15 +2,7 @@
 
 import * as React from "react";
 import { executarComandoStorage } from "@/actions/ia-storage";
-import {
-  Bot,
-  FolderPlus,
-  Loader2,
-  Sparkles,
-  CheckCircle2,
-  AlertCircle,
-  Database,
-} from "lucide-react";
+import { FolderPlus, Loader2, CheckCircle2, AlertCircle, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -136,7 +128,9 @@ export default function AiStorageAssistant() {
               ) : (
                 <AlertCircle className="size-5 text-red-500 shrink-0" />
               )}
-              <p className="text-xs font-bold leading-relaxed italic">"{resultado.mensagem}"</p>
+              <p className="text-xs font-bold leading-relaxed italic">
+                &quot;{resultado.mensagem}&quot;
+              </p>
             </div>
           )}
         </form>

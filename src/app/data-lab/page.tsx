@@ -2,26 +2,20 @@
 
 import * as React from "react";
 import {
-  Database,
   Binary,
   Loader2,
   UploadCloud,
-  ShieldCheck,
-  Sparkles,
   FileSearch,
   Code,
   Zap,
-  Brain,
   AlertTriangle,
-  RefreshCw,
   Terminal,
-  Cpu,
   Fingerprint,
   Info,
   Camera,
   CheckCircle2,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -195,8 +189,8 @@ export default function DataLabPage() {
                 <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-100 rounded-2xl">
                   <Info className="size-4 text-primary shrink-0" />
                   <p className="text-[9px] text-primary/70 font-medium italic leading-relaxed">
-                    "O agente processará o OCR e extrairá entidades para persistência direta no
-                    Firestore via payload JSON rigoroso."
+                    &quot;O agente processará o OCR e extrairá entidades para persistência direta no
+                    Firestore via payload JSON rigoroso.&quot;
                   </p>
                 </div>
               </div>
@@ -213,7 +207,9 @@ export default function DataLabPage() {
                   Risco Crítico Detectado
                 </h4>
               </div>
-              <p className="text-sm font-bold leading-relaxed">"{result.criticalAlert}"</p>
+              <p className="text-sm font-bold leading-relaxed">
+                &quot;{result.criticalAlert}&quot;
+              </p>
             </div>
           )}
         </div>

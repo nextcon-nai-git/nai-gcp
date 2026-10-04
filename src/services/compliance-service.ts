@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  getFirestore,
   doc,
   setDoc,
   getDoc,

@@ -1,20 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  Cloud,
-  Zap,
-  RefreshCw,
-  ExternalLink,
-  Cpu,
-  Globe,
-  Key,
-  Box,
-  Lock,
-  CreditCard,
-  ShieldAlert,
-  Database,
-} from "lucide-react";
+import { Cloud, Zap, RefreshCw, Cpu, Lock, CreditCard, ShieldAlert, Database } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -178,8 +165,8 @@ export default function CloudInfraPage() {
             </CardHeader>
             <CardContent className="p-0 space-y-6">
               <p className="text-xs text-white/60 leading-relaxed font-medium italic">
-                "Todo o tráfego é protegido pelo Google Cloud Armor e possui certificação SSL/TLS
-                automática."
+                &quot;Todo o tráfego é protegido pelo Google Cloud Armor e possui certificação
+                SSL/TLS automática.&quot;
               </p>
               <Button className="w-full h-14 bg-accent text-primary font-black uppercase text-[10px] rounded-2xl shadow-xl hover:opacity-90 transition-all">
                 Ver Logs de Acesso

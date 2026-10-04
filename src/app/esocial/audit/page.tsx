@@ -3,23 +3,15 @@
 import * as React from "react";
 import {
   ShieldAlert,
-  AlertTriangle,
   CheckCircle2,
   Search,
   Sparkles,
   Send,
-  FileCheck,
-  TrendingDown,
   BrainCircuit,
-  DollarSign,
-  ArrowRight,
-  Download,
-  Share2,
   RefreshCw,
   Building2,
-  UserX,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -182,7 +174,7 @@ export default function EsocialAuditPage() {
           </CardHeader>
           <CardContent className="p-6">
             <p className="text-sm text-slate-300 leading-relaxed font-medium">
-              "{report.executiveStrategicAdvice}"
+              &quot;{report.executiveStrategicAdvice}&quot;
             </p>
           </CardContent>
         </Card>

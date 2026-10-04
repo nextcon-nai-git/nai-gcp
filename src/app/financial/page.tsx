@@ -2,22 +2,16 @@
 
 import * as React from "react";
 import {
-  DollarSign,
   Briefcase,
-  Layers,
-  TrendingDown,
   Calculator,
   UserCheck,
-  Scale,
   Plus,
   Building2,
   FileText,
-  FileUp,
   TrendingUp,
   Stethoscope,
   Activity,
   HeartPulse,
-  History,
   MoreVertical,
   Loader2,
   Database,
@@ -46,13 +40,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase";
-import { collection, query, orderBy, doc, collectionGroup, where } from "firebase/firestore";
+import { collection, query, orderBy, doc, collectionGroup } from "firebase/firestore";
 import { cn } from "@/lib/utils";
-import {
-  CETESB_SESMT_TEAM,
-  CETESB_BILLING_MATRIX,
-  CETESB_JULY_2026_BILLING,
-} from "@/lib/real-data";
+import { CETESB_SESMT_TEAM, CETESB_JULY_2026_BILLING } from "@/lib/real-data";
 import { FiscalIntelligenceTab } from "@/components/financial/fiscal-intelligence-tab";
 import { BankStatementConciliation } from "@/components/financial/bank-statement-conciliation";
 import { DreStatementTab } from "@/components/financial/dre-statement-tab";
@@ -267,9 +257,9 @@ export default function FinancialModule() {
                     Resumo Executivo Julho/2026
                   </h3>
                   <p className="text-lg font-medium text-emerald-800 leading-relaxed italic max-w-xl">
-                    "O faturamento total de{" "}
+                    &quot;O faturamento total de{" "}
                     <strong className="text-emerald-950">R$ 46.603,75</strong> foi validado e está
-                    pronto para emissão de nota fiscal técnica."
+                    pronto para emissão de nota fiscal técnica.&quot;
                   </p>
                 </div>
                 <div className="text-center md:text-right shrink-0 relative z-10 bg-white/20 p-8 rounded-[2.5rem] backdrop-blur-md border border-white/30 shadow-2xl">
@@ -409,8 +399,9 @@ export default function FinancialModule() {
                       Parecer da Auditoria
                     </h4>
                     <p className="text-base italic text-slate-300 font-medium leading-relaxed">
-                      "As rubricas médicas e de engenharia foram cruzadas com os logs de ponto
-                      digital e evidências de plantão, garantindo 100% de integridade financeira."
+                      &quot;As rubricas médicas e de engenharia foram cruzadas com os logs de ponto
+                      digital e evidências de plantão, garantindo 100% de integridade
+                      financeira.&quot;
                     </p>
                   </div>
                   <div className="pt-6 border-t border-white/10 space-y-4">

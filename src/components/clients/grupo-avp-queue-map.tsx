@@ -46,10 +46,8 @@ import {
 import {
   BRAZIL_STATES_PATHS,
   BrazilStatePath,
-  BRAZIL_STATE_VIEWBOXES,
   getStateViewBox,
   getCityViewBox,
-  StateViewBoxData,
 } from "@/lib/brazil-states-paths";
 import { GLOBAL_CLINICS_CATALOG } from "@/lib/avp-clinics-data";
 import {

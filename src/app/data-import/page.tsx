@@ -1,35 +1,13 @@
 "use client";
 
 import * as React from "react";
-import {
-  Loader2,
-  Database,
-  Scale,
-  CheckCircle2,
-  LayoutGrid,
-  AlertCircle,
-  FileSpreadsheet,
-  Sparkles,
-  Zap,
-  TrendingUp,
-  History,
-  Users,
-  Layers,
-} from "lucide-react";
+import { Loader2, Database, FileSpreadsheet, Layers } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore } from "@/firebase";
-import { doc, writeBatch, collection } from "firebase/firestore";
-import {
-  REAL_EMPLOYEES,
-  REAL_COMPANIES,
-  REAL_EXAMS_HISTORY,
-  DRE_2025_HISTORY,
-  REAL_CONTRACTS,
-  REAL_PROVIDERS,
-  REAL_HIERARCHICAL_DATA,
-} from "@/lib/real-data";
+import { doc, writeBatch } from "firebase/firestore";
+import { REAL_COMPANIES, REAL_CONTRACTS, REAL_HIERARCHICAL_DATA } from "@/lib/real-data";
 
 export default function UnifiedImportCenter() {
   const { toast } = useToast();
@@ -45,8 +23,6 @@ export default function UnifiedImportCenter() {
     try {
       const batch = writeBatch(db);
       const now = new Date().toISOString();
-
-      console.log("🚀 Iniciando Injeção Hierárquica...");
 
       REAL_HIERARCHICAL_DATA.forEach((client) => {
         // 1. Cria/Atualiza Empresa na Raiz
@@ -177,8 +153,8 @@ export default function UnifiedImportCenter() {
           </CardHeader>
           <CardContent className="p-8 space-y-4">
             <p className="text-sm text-slate-500 leading-relaxed font-medium italic">
-              "Colaboradores injetados como subcoleções de cada empresa, garantindo conformidade
-              total com a LGPD e regras de acesso do sistema."
+              &quot;Colaboradores injetados como subcoleções de cada empresa, garantindo
+              conformidade total com a LGPD e regras de acesso do sistema.&quot;
             </p>
           </CardContent>
         </Card>

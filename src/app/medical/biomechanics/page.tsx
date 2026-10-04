@@ -1,23 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useState, useTransition, useOptimistic, useRef } from "react";
+import { useState, useTransition } from "react";
 import {
   Brain,
-  Sparkles,
-  Activity,
-  ShieldAlert,
-  Zap,
-  HardHat,
-  ChevronRight,
   Loader2,
-  Stethoscope,
-  Building2,
-  Info,
-  CheckCircle2,
   AlertTriangle,
-  Timer,
-  Scale,
   Dna,
   Gauge,
   ClipboardList,
@@ -25,20 +13,15 @@ import {
   Play,
   Video,
   Scan,
-  MoveUp,
-  FileSearch,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useSgi } from "@/contexts/sgi-context";
-import { useUser, useDoc, useMemoFirebase, useFirestore } from "@/firebase";
-import { doc } from "firebase/firestore";
+import { useUser, useFirestore } from "@/firebase";
 
 type SeverityLevel = "NENHUM" | "BAIXO" | "MÉDIO" | "ALTO" | "CRÍTICO";
 
@@ -314,7 +297,7 @@ export default function BiomechanicsPage() {
                         Parecer Diagnóstico AI
                       </p>
                       <p className="text-sm font-bold text-red-900 italic leading-relaxed">
-                        "{videoResult.diagnosis}"
+                        &quot;{videoResult.diagnosis}&quot;
                       </p>
                     </div>
                     <div className="space-y-3">

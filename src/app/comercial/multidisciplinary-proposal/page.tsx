@@ -11,20 +11,15 @@ import {
   FileText,
   CheckCircle2,
   DollarSign,
-  Zap,
-  Building2,
-  HeartPulse,
-  Scale,
   ArrowRight,
   Info,
   Loader2,
-  Sparkles,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useUser, useFirestore } from "@/firebase";
+import { useFirestore } from "@/firebase";
 import { collection } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { cn } from "@/lib/utils";
@@ -163,8 +158,8 @@ export default function MultidisciplinaryProposalPage() {
                 devido a afastamentos.
               </p>
               <div className="p-6 bg-slate-50 rounded-3xl border-l-4 border-primary italic text-primary/70 font-medium">
-                "Nosso objetivo não é apenas cumprir a legislação (NRs), mas atuar de forma
-                estratégica para proteger o principal ativo da sua empresa: as pessoas."
+                &quot;Nosso objetivo não é apenas cumprir a legislação (NRs), mas atuar de forma
+                estratégica para proteger o principal ativo da sua empresa: as pessoas.&quot;
               </div>
             </div>
           </Card>

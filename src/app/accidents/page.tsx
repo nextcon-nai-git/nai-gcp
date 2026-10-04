@@ -536,7 +536,7 @@ export default function AccidentsCAT() {
                             Incidente
                           </h4>
                           <p className="text-sm font-medium text-slate-700 leading-relaxed italic">
-                            "{selectedIncident.description}"
+                            &quot;{selectedIncident.description}&quot;
                           </p>
                           <div className="pt-4 grid grid-cols-2 gap-4 border-t">
                             <div className="space-y-1">
@@ -760,7 +760,7 @@ export default function AccidentsCAT() {
 
                   <div className="p-8 bg-white border-t shrink-0 flex justify-between items-center">
                     <p className="text-[10px] font-bold uppercase text-slate-400 italic">
-                      "Integração contínua eSocial v_S_01_02_00 (CAT S-2210)."
+                      &quot;Integração contínua eSocial v_S_01_02_00 (CAT S-2210).&quot;
                     </p>
                     <Button
                       onClick={() => setSelectedIncident(null)}

@@ -9,11 +9,9 @@ import {
   Minus,
   FileText,
   Loader2,
-  CheckCircle2,
   Sparkles,
   Briefcase,
   Brain,
-  Zap,
   LayoutGrid,
   TrendingUp,
   Globe,
@@ -38,12 +36,10 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { NaiQuoteComponent } from "@/components/commercial/nai-quote-component";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { COMMERCIAL_COLUMNS } from "@/types/kanban";
 import { OpsTask } from "@/types/schema";
-import { cn } from "@/lib/utils";
 
 export default function ComercialPortal() {
   const { toast } = useToast();
@@ -386,8 +382,8 @@ export default function ComercialPortal() {
                     </div>
                     <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
                       <p className="text-[10px] leading-relaxed text-slate-300 font-medium italic">
-                        "O escopo selecionado será processado pela NAI para gerar a precificação
-                        final baseada no perfil da unidade."
+                        &quot;O escopo selecionado será processado pela NAI para gerar a
+                        precificação final baseada no perfil da unidade.&quot;
                       </p>
                     </div>
                   </div>
@@ -474,7 +470,7 @@ export default function ComercialPortal() {
               {erroRadar && (
                 <div className="p-6 bg-red-50 border border-red-100 rounded-3xl flex items-center gap-4 text-red-700 mb-8 shadow-inner">
                   <AlertTriangle className="size-6 shrink-0" />
-                  <p className="text-sm font-bold italic">"{erroRadar}"</p>
+                  <p className="text-sm font-bold italic">&quot;{erroRadar}&quot;</p>
                 </div>
               )}
 
@@ -505,7 +501,7 @@ export default function ComercialPortal() {
                       </div>
 
                       <p className="text-xs text-slate-500 font-medium italic leading-relaxed line-clamp-3 mb-8 bg-slate-50 p-4 rounded-2xl border-2 border-dashed">
-                        "{item.objetoCompra}"
+                        &quot;{item.objetoCompra}&quot;
                       </p>
 
                       <div className="mt-auto space-y-4 pt-4 border-t border-dashed">

@@ -4,21 +4,15 @@ import * as React from "react";
 import {
   Scale,
   ShieldCheck,
-  DollarSign,
   FileText,
   Sparkles,
   Copy,
   Check,
-  Download,
-  AlertTriangle,
   BrainCircuit,
-  UserCheck,
   Building2,
-  RefreshCw,
-  TrendingUp,
   FileBadge,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";

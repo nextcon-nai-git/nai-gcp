@@ -3,23 +3,14 @@
 import * as React from "react";
 import {
   CheckCircle2,
-  AlertCircle,
   ShieldCheck,
-  Sparkles,
-  Loader2,
   SendHorizontal,
-  RefreshCw,
-  Link as LinkIcon,
   Activity,
-  Terminal,
-  ShieldAlert,
   Zap,
-  Scale,
-  Lock,
   Clock,
   Info,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -30,7 +21,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase";
 import { collection, query, orderBy, doc } from "firebase/firestore";
@@ -136,8 +126,9 @@ export default function EsocialAudit() {
             Protocolo de Resiliência Ativo
           </h4>
           <p className="text-xs text-primary/70 italic leading-relaxed">
-            "Os eventos são gerados localmente e enfileirados. Nossa API monitora a estabilidade do
-            governo e reagenda o envio automaticamente em caso de falha externa (HTTP 503/504)."
+            &quot;Os eventos são gerados localmente e enfileirados. Nossa API monitora a
+            estabilidade do governo e reagenda o envio automaticamente em caso de falha externa
+            (HTTP 503/504).&quot;
           </p>
         </div>
       </div>

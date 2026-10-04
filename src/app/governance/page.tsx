@@ -4,23 +4,18 @@ import * as React from "react";
 import {
   Scale,
   ShieldCheck,
-  Brain,
   Zap,
   Building2,
   CheckCircle2,
   Globe,
   Loader2,
-  RefreshCw,
   ShieldAlert,
   Landmark,
   ShieldQuestion,
-  Info,
   Lock,
   Database,
   History,
-  FileSearch,
   Eye,
-  Activity,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -209,8 +204,8 @@ export default function CorporateGovernance() {
                         Segurança em Repouso
                       </p>
                       <p className="text-xs italic text-slate-300 font-medium">
-                        "Criptografia AES-256 ativa em todos os buckets de documentos e tabelas de
-                        prontuário."
+                        &quot;Criptografia AES-256 ativa em todos os buckets de documentos e tabelas
+                        de prontuário.&quot;
                       </p>
                     </div>
                     <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
@@ -218,8 +213,8 @@ export default function CorporateGovernance() {
                         Segurança em Trânsito
                       </p>
                       <p className="text-xs italic text-slate-300 font-medium">
-                        "Protocolo TLS 1.3 obrigatório para todas as chamadas de API e streaming
-                        NAI."
+                        &quot;Protocolo TLS 1.3 obrigatório para todas as chamadas de API e
+                        streaming NAI.&quot;
                       </p>
                     </div>
                   </div>
@@ -236,8 +231,8 @@ export default function CorporateGovernance() {
                   </h4>
                 </div>
                 <p className="text-[10px] text-slate-500 leading-relaxed font-medium italic">
-                  "Tempo médio de resposta a alertas de segurança:{" "}
-                  <span className="text-emerald-600 font-black">1.4s (Automático)</span>."
+                  &quot;Tempo médio de resposta a alertas de segurança:{" "}
+                  <span className="text-emerald-600 font-black">1.4s (Automático)</span>.&quot;
                 </p>
                 <Button
                   variant="outline"
@@ -307,8 +302,8 @@ export default function CorporateGovernance() {
                     <Zap className="size-4" /> NAI Legal Scan
                   </h3>
                   <p className="text-xs italic text-slate-300 font-medium leading-relaxed">
-                    "A NAI monitorou 1.204 atos normativos hoje. Identificamos que a Portaria X
-                    sobre Resíduos Químicos afeta seus processos vigentes."
+                    &quot;A NAI monitorou 1.204 atos normativos hoje. Identificamos que a Portaria X
+                    sobre Resíduos Químicos afeta seus processos vigentes.&quot;
                   </p>
                   <Button
                     variant="outline"
@@ -377,8 +372,8 @@ export default function CorporateGovernance() {
                     <Zap className="size-4" /> Inteligência Regulatória
                   </h3>
                   <p className="text-xs italic text-slate-300 font-medium leading-relaxed">
-                    "A NAI realiza varreduras automáticas a cada 24h em 42 bases de dados
-                    governamentais para antecipar riscos de bloqueio contratual."
+                    &quot;A NAI realiza varreduras automáticas a cada 24h em 42 bases de dados
+                    governamentais para antecipar riscos de bloqueio contratual.&quot;
                   </p>
                   <div className="pt-4 border-t border-white/10">
                     <p className="text-[8px] font-black uppercase text-white/40 tracking-[0.3em]">
@@ -404,7 +399,7 @@ function SystemStatusItem({ system, status, detail, icon: Icon, color }: any) {
         </div>
         <div>
           <p className="text-xs font-black text-primary uppercase">{system}</p>
-          <p className="text-[10px] text-slate-500 italic">"{detail}"</p>
+          <p className="text-[10px] text-slate-500 italic">&quot;{detail}&quot;</p>
         </div>
       </div>
       <Badge
@@ -431,7 +426,7 @@ function LiraItem({ law, scope, evaluation, status, impact }: any) {
         <div className="space-y-1">
           <p className="text-xs font-black text-primary uppercase leading-tight">{law}</p>
           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{scope}</p>
-          <p className="text-[10px] text-slate-500 font-medium italic">"{evaluation}"</p>
+          <p className="text-[10px] text-slate-500 font-medium italic">&quot;{evaluation}&quot;</p>
         </div>
       </div>
       <div className="flex items-center gap-4">

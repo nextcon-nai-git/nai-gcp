@@ -1,17 +1,8 @@
 "use client";
 
 import * as React from "react";
-import {
-  AlertTriangle,
-  Camera,
-  Send,
-  Loader2,
-  CheckCircle2,
-  MapPin,
-  ShieldAlert,
-  ArrowLeft,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Camera, Send, Loader2, MapPin, ShieldAlert, ArrowLeft } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";

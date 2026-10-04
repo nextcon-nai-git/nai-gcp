@@ -7,7 +7,6 @@ import {
   Stethoscope,
   Brain,
   Thermometer,
-  TrendingUp,
   CheckCircle2,
   Loader2,
   Save,
@@ -269,8 +268,8 @@ export function ProfessionalEvolutionTab({ onNavigateToOperation }: Professional
 
           <div className="pt-6 border-t border-dashed flex flex-col sm:flex-row justify-between items-center gap-4">
             <p className="text-[10px] text-slate-400 italic font-medium">
-              "O preenchimento deste checklist alimenta os KPIs de performance tributária da
-              unidade."
+              &quot;O preenchimento deste checklist alimenta os KPIs de performance tributária da
+              unidade.&quot;
             </p>
             <Button
               disabled={isProtocolLoading}
