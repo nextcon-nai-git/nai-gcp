@@ -29,19 +29,15 @@ jobs:
 
       - name: Prettier (check)
         run: npm run format:check
-        continue-on-error: true
 
       - name: ESLint
         run: npm run lint
-        continue-on-error: true
 
       - name: Type-check
         run: npm run type-check
-        continue-on-error: true
 
       - name: Tests with coverage
         run: npm run test:coverage
-        continue-on-error: true
 
       - name: Build
         run: npm run build

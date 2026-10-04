@@ -83,6 +83,11 @@ export function AppContent({ children }: { children: React.ReactNode }) {
               ? "Tente novamente para sincronizar seu perfil."
               : "Seu cadastro foi preparado. Peça ao administrador a definição do seu perfil e das empresas que você pode acessar."}
           </p>
+          {user?.email && (
+            <p className="mt-4 break-all text-sm text-slate-600">
+              Conta conectada: <strong>{user.email}</strong>
+            </p>
+          )}
           <div className="mt-6 flex flex-wrap gap-3">
             <button
               type="button"
@@ -98,7 +103,7 @@ export function AppContent({ children }: { children: React.ReactNode }) {
               }}
               className="rounded-xl border px-4 py-3 text-sm font-semibold"
             >
-              Sair da conta
+              Entrar com outra conta
             </button>
           </div>
         </section>

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import {
   FileSpreadsheet,
   Cloud,
@@ -51,6 +51,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { GrupoAvpAso } from "@/lib/grupo-avp-asos-data";
 import {
+  formatGoogleSheetsCsvUrl,
   parseSpreadsheetText,
   parseExcelBuffer,
   mergeSpreadsheetData,
@@ -64,6 +65,7 @@ interface GrupoAvpSheetSyncModalProps {
   currentAsos: GrupoAvpAso[];
   onApplyUpdate: (newAsos: GrupoAvpAso[], diffSummary?: string) => void;
   onResetOriginal?: () => void;
+  onSyncActivityChange?: (enabled: boolean) => void;
 }
 
 const STORAGE_SYNC_KEY = "nai_grupo_avp_sheet_sync_config";
@@ -75,12 +77,15 @@ export function GrupoAvpSheetSyncModal({
   currentAsos,
   onApplyUpdate,
   onResetOriginal,
+  onSyncActivityChange,
 }: GrupoAvpSheetSyncModalProps) {
   const { toast } = useToast();
   const auth = useAuth();
   const { user } = useUser();
   const storageKey = `${STORAGE_SYNC_KEY}:${user?.uid || "signed-out"}`;
-  const syncingRef = useRef(false);
+  const requestRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(false);
+  const [configOwner, setConfigOwner] = useState<string | null>(null);
 
   // Estados de Sincronização Google Sheets
   const [sheetUrl, setSheetUrl] = useState<string>(DEFAULT_AVP_SHEET_URL);
@@ -98,8 +103,57 @@ export function GrupoAvpSheetSyncModal({
   const [importResult, setImportResult] = useState<SheetImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const context = {
+    storageKey,
+    userId: user?.uid,
+    sheetUrl,
+    autoSyncEnabled,
+    pollInterval,
+    currentAsos,
+  };
+  const latestRef = useRef(context);
+  useLayoutEffect(() => {
+    latestRef.current = context;
+  });
+  const importRowsRef = useRef<Record<string, unknown>[] | null>(null);
+  const manualGeneration = useRef(0);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      requestRef.current?.abort();
+      requestRef.current = null;
+      manualGeneration.current++;
+    };
+  }, []);
+
+  useEffect(() => {
+    setIsSyncing(false);
+    setSyncStatus("IDLE");
+    setSyncErrorMessage(null);
+    return () => {
+      requestRef.current?.abort();
+      requestRef.current = null;
+    };
+  }, [storageKey, sheetUrl]);
+
+  useEffect(() => {
+    onSyncActivityChange?.(
+      !!user?.uid && configOwner === storageKey && autoSyncEnabled && !!sheetUrl.trim()
+    );
+  }, [user?.uid, configOwner, storageKey, autoSyncEnabled, sheetUrl, onSyncActivityChange]);
+
   // Carrega configuração salva no localStorage
   useEffect(() => {
+    setSheetUrl(DEFAULT_AVP_SHEET_URL);
+    setAutoSyncEnabled(false);
+    setPollInterval(300);
+    setImportResult(null);
+    setPastedText("");
+    setIsProcessingFile(false);
+    importRowsRef.current = null;
+    manualGeneration.current++;
     try {
       setLastSyncTime(null);
       setSyncErrorMessage(null);
@@ -107,11 +161,15 @@ export function GrupoAvpSheetSyncModal({
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.sheetUrl) setSheetUrl(parsed.sheetUrl);
+        if (typeof parsed.sheetUrl === "string") setSheetUrl(parsed.sheetUrl);
         else setSheetUrl(DEFAULT_AVP_SHEET_URL);
         if (typeof parsed.autoSyncEnabled === "boolean") setAutoSyncEnabled(parsed.autoSyncEnabled);
-        if (parsed.pollInterval) setPollInterval(parsed.pollInterval);
-        if (parsed.lastSyncTime) setLastSyncTime(new Date(parsed.lastSyncTime));
+        if ([60, 120, 300, 600].includes(parsed.pollInterval)) setPollInterval(parsed.pollInterval);
+        if (
+          typeof parsed.lastSyncTime === "string" &&
+          Number.isFinite(Date.parse(parsed.lastSyncTime))
+        )
+          setLastSyncTime(new Date(parsed.lastSyncTime));
         setSyncStatus("IDLE");
       } else {
         setSheetUrl(DEFAULT_AVP_SHEET_URL);
@@ -120,11 +178,19 @@ export function GrupoAvpSheetSyncModal({
       }
     } catch (e) {
       console.warn("Não foi possível carregar config de sync do localStorage", e);
+    } finally {
+      setConfigOwner(storageKey);
     }
   }, [storageKey]);
 
   // Salva configuração no localStorage sempre que houver mudança
-  const saveConfig = (url: string, enabled: boolean, interval: number, lastSync?: Date) => {
+  const saveConfig = (
+    url: string,
+    enabled: boolean,
+    interval: number,
+    lastSync: Date | null = lastSyncTime
+  ) => {
+    if (!user?.uid || latestRef.current.storageKey !== storageKey) return;
     try {
       localStorage.setItem(
         storageKey,
@@ -132,7 +198,7 @@ export function GrupoAvpSheetSyncModal({
           sheetUrl: url,
           autoSyncEnabled: enabled,
           pollInterval: interval,
-          lastSyncTime: lastSync ? lastSync.toISOString() : lastSyncTime?.toISOString(),
+          lastSyncTime: lastSync?.toISOString(),
         })
       );
     } catch (e) {
@@ -140,111 +206,136 @@ export function GrupoAvpSheetSyncModal({
     }
   };
 
-  // Função central de Sincronização com a Planilha Online do Google Drive
+  // Ignora respostas de outra conta, outro link ou uma versão antiga da fila.
   const handleFetchGoogleSheet = async (showToast = true) => {
-    if (!sheetUrl.trim()) {
-      toast({
-        title: "URL Ausente",
-        description: "Insira o link da planilha do Google Drive ou Google Sheets.",
-        variant: "destructive",
-      });
+    if (!user?.uid || configOwner !== storageKey || requestRef.current) return;
+    const snapshot = latestRef.current;
+    const { error: urlError } = formatGoogleSheetsCsvUrl(snapshot.sheetUrl);
+    if (urlError) {
+      setSyncStatus("ERROR");
+      setSyncErrorMessage(urlError);
+      if (showToast)
+        toast({
+          title: "Confira o link da planilha",
+          description: urlError,
+          variant: "destructive",
+        });
       return;
     }
 
-    if (syncingRef.current) return;
-    syncingRef.current = true;
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const isCurrent = () =>
+      mountedRef.current &&
+      requestRef.current === controller &&
+      latestRef.current.storageKey === snapshot.storageKey &&
+      latestRef.current.sheetUrl === snapshot.sheetUrl;
+    const timeout = setTimeout(
+      () => controller.abort(new Error("A consulta demorou mais de 30 segundos. Tente novamente.")),
+      30_000
+    );
+    controller.signal.addEventListener("abort", () => clearTimeout(timeout), { once: true });
     setIsSyncing(true);
     setSyncErrorMessage(null);
 
     try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) throw new Error("Entre novamente para sincronizar.");
+      const account = auth.currentUser;
+      if (!account || account.uid !== snapshot.userId)
+        throw new Error("Entre novamente para sincronizar.");
+      const token = await account.getIdToken();
+      if (!isCurrent()) return;
+      const requestedRows = latestRef.current.currentAsos;
       const res = await fetch("/api/clients/grupo-avp/sync-sheets", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          sheetUrl: sheetUrl.trim(),
-          currentAsos,
-        }),
+        signal: controller.signal,
+        body: JSON.stringify({ sheetUrl: snapshot.sheetUrl.trim(), currentAsos: requestedRows }),
       });
-
       const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        setSyncStatus("ERROR");
-        setSyncErrorMessage(data.error || "Erro ao consultar a planilha no Google Drive.");
-        if (showToast) {
-          toast({
-            title: "Erro na Sincronização",
-            description:
-              data.details || data.error || "Verifique se a planilha tem permissão de leitura.",
-            variant: "destructive",
-          });
-        }
-        return;
-      }
-
-      // Sincronização com Sucesso!
+      if (!isCurrent()) return;
+      if (!res.ok || !data.success)
+        throw new Error(data.error || "Não foi possível consultar a planilha.");
       const result: SheetImportResult = data.mergeResult;
+      if (!result?.success || !Array.isArray(result.mergedAsos))
+        throw new Error(result?.errors?.[0] || "A resposta da planilha é inválida.");
+      if (latestRef.current.currentAsos !== requestedRows)
+        throw new Error(
+          "A fila foi alterada durante a consulta. Sincronize novamente para preservar suas alterações."
+        );
+
       const now = new Date();
       setLastSyncTime(now);
       setSyncStatus("CONNECTED");
-      saveConfig(sheetUrl, autoSyncEnabled, pollInterval, now);
-
-      if (result.diffLog && result.diffLog.length > 0) {
+      const latest = latestRef.current;
+      saveConfig(snapshot.sheetUrl, latest.autoSyncEnabled, latest.pollInterval, now);
+      if (result.errors.length)
+        setSyncErrorMessage("Confira as linhas não importadas: " + result.errors.join(" "));
+      if (result.diffLog.length)
         setLiveDiffLogs((prev) => [...result.diffLog, ...prev].slice(0, 50));
-      }
-
-      // Se houveram alterações ou novos itens, aplica na hora!
-      if (result.updatedCount > 0 || result.addedCount > 0) {
+      if (result.updatedCount || result.addedCount) {
         onApplyUpdate(
           result.mergedAsos,
-          `Google Sheets: ${result.updatedCount} atualizado(s), ${result.addedCount} adicionado(s)`
+          "Google Planilhas: " +
+            result.updatedCount +
+            " atualizado(s), " +
+            result.addedCount +
+            " adicionado(s)"
         );
-
+        if (showToast)
+          toast({
+            title: "Fila atualizada",
+            description:
+              result.updatedCount + " atualizado(s) e " + result.addedCount + " novo(s).",
+          });
+      } else if (showToast)
         toast({
-          title: "Planilha Online Atualizada!",
-          description: `Detectadas alterações: ${result.updatedCount} ASO(s) atualizados e ${result.addedCount} novos adicionados da planilha do Drive!`,
-          className: "bg-emerald-950 border-emerald-500 text-white",
+          title: "Consulta concluída",
+          description: result.totalParsed + " linhas consultadas; nenhuma alteração detectada.",
         });
-      } else if (showToast) {
-        toast({
-          title: "Sincronização Concluída",
-          description: `Planilha do Drive consultada com sucesso (${result.totalParsed} linhas). Todos os status já estão 100% atualizados!`,
-        });
-      }
-    } catch (err: any) {
+    } catch (err) {
+      if (!isCurrent()) return;
+      const message = controller.signal.aborted
+        ? "A consulta demorou mais de 30 segundos. Tente novamente."
+        : err instanceof SyntaxError
+          ? "Não foi possível ler a resposta do servidor. Tente novamente."
+          : err instanceof Error
+            ? err.message
+            : "Não foi possível conectar ao serviço de sincronização.";
       setSyncStatus("ERROR");
-      setSyncErrorMessage(err?.message || "Erro de conexão com o servidor.");
-      if (showToast) {
+      setSyncErrorMessage(message);
+      if (showToast)
         toast({
-          title: "Falha de Conexão",
-          description: "Não foi possível conectar ao serviço de sincronização.",
+          title: "Sincronização não concluída",
+          description: message,
           variant: "destructive",
         });
-      }
     } finally {
-      syncingRef.current = false;
-      setIsSyncing(false);
+      clearTimeout(timeout);
+      if (requestRef.current === controller) {
+        requestRef.current = null;
+        if (mountedRef.current) setIsSyncing(false);
+      }
     }
   };
+  const fetchRef = useRef(handleFetchGoogleSheet);
+  useLayoutEffect(() => {
+    fetchRef.current = handleFetchGoogleSheet;
+  });
 
-  // Efeito de Polling Contínuo em Segundo Plano quando autoSyncEnabled está ativo
+  // O intervalo não reinicia quando a fila muda; ao voltar à aba, consulta a versão atual.
   useEffect(() => {
-    if (!autoSyncEnabled || !sheetUrl.trim()) return;
-
-    // Executa a primeira consulta imediatamente se nunca consultou
-    if (!lastSyncTime) {
-      handleFetchGoogleSheet(false);
-    }
-
-    const intervalMs = Math.max(60, pollInterval) * 1000;
-    const timer = setInterval(() => {
-      handleFetchGoogleSheet(false);
-    }, intervalMs);
-
-    return () => clearInterval(timer);
-  }, [autoSyncEnabled, sheetUrl, pollInterval, currentAsos]);
+    if (!user?.uid || configOwner !== storageKey || !autoSyncEnabled || !sheetUrl.trim()) return;
+    const syncVisible = () => {
+      if (document.visibilityState !== "hidden") void fetchRef.current(false);
+    };
+    syncVisible();
+    const timer = setInterval(syncVisible, Math.max(60, pollInterval) * 1000);
+    document.addEventListener("visibilitychange", syncVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", syncVisible);
+    };
+  }, [user?.uid, configOwner, storageKey, autoSyncEnabled, sheetUrl, pollInterval]);
 
   // Upload Manual de Arquivo (.xlsx, .csv, .tsv)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -255,14 +346,17 @@ export function GrupoAvpSheetSyncModal({
       return;
     }
 
+    const generation = ++manualGeneration.current;
+    const owner = storageKey;
     setIsProcessingFile(true);
     setImportResult(null);
+    importRowsRef.current = null;
 
     try {
       const fileName = file.name.toLowerCase();
       let rows: Record<string, any>[] = [];
 
-      if (fileName.endsWith(".xlsx")) {
+      if (fileName.endsWith(".xlsx") || fileName.endsWith(".xlsm")) {
         const buffer = await file.arrayBuffer();
         rows = await parseExcelBuffer(buffer);
       } else {
@@ -270,6 +364,12 @@ export function GrupoAvpSheetSyncModal({
         rows = parseSpreadsheetText(text);
       }
 
+      if (
+        !mountedRef.current ||
+        latestRef.current.storageKey !== owner ||
+        manualGeneration.current !== generation
+      )
+        return;
       if (rows.length === 0) {
         toast({
           title: "Arquivo Vazio ou Incompatível",
@@ -280,7 +380,8 @@ export function GrupoAvpSheetSyncModal({
         return;
       }
 
-      const result = mergeSpreadsheetData(currentAsos, rows);
+      const result = mergeSpreadsheetData(latestRef.current.currentAsos, rows);
+      importRowsRef.current = rows;
       setImportResult(result);
 
       toast({
@@ -288,13 +389,24 @@ export function GrupoAvpSheetSyncModal({
         description: `Planilha lida com sucesso: ${result.updatedCount} ASO(s) com mudanças de status/dados e ${result.addedCount} novos detectados. Revise o preview antes de aplicar.`,
       });
     } catch (err: any) {
+      if (
+        !mountedRef.current ||
+        latestRef.current.storageKey !== owner ||
+        manualGeneration.current !== generation
+      )
+        return;
       toast({
         title: "Erro ao Ler Arquivo",
         description: err?.message || "Ocorreu um erro ao processar a planilha.",
         variant: "destructive",
       });
     } finally {
-      setIsProcessingFile(false);
+      if (
+        mountedRef.current &&
+        latestRef.current.storageKey === owner &&
+        manualGeneration.current === generation
+      )
+        setIsProcessingFile(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
@@ -324,7 +436,9 @@ export function GrupoAvpSheetSyncModal({
         return;
       }
 
+      manualGeneration.current++;
       const result = mergeSpreadsheetData(currentAsos, rows);
+      importRowsRef.current = rows;
       setImportResult(result);
 
       toast({
@@ -344,12 +458,21 @@ export function GrupoAvpSheetSyncModal({
 
   // Confirmação da aplicação da importação manual
   const handleApplyImport = () => {
-    if (!importResult) return;
-
+    if (!importResult || !importRowsRef.current) return;
+    const latestResult = mergeSpreadsheetData(currentAsos, importRowsRef.current);
+    if (!latestResult.success) {
+      toast({
+        title: "Confira a importação",
+        description: latestResult.errors[0] || "Nenhuma linha válida encontrada.",
+        variant: "destructive",
+      });
+      return;
+    }
     onApplyUpdate(
-      importResult.mergedAsos,
-      `Importação Manual: ${importResult.updatedCount} atualizado(s), ${importResult.addedCount} adicionado(s)`
+      latestResult.mergedAsos,
+      `Importação Manual: ${latestResult.updatedCount} atualizado(s), ${latestResult.addedCount} adicionado(s)`
     );
+    importRowsRef.current = null;
 
     toast({
       title: "Fila do Grupo AVP Atualizada!",
@@ -383,8 +506,8 @@ export function GrupoAvpSheetSyncModal({
             Importação Automática & Sincronização Google Drive
           </DialogTitle>
           <DialogDescription className="text-xs text-slate-400 font-medium">
-            Atualize os status da fila do Grupo AVP em tempo real diretamente da planilha online do
-            Google Drive ou realize upload manual de arquivos Excel e CSV.
+            Atualize a fila do Grupo AVP por consultas periódicas à planilha online do Google Drive
+            ou realize upload manual de arquivos Excel e CSV.
           </DialogDescription>
         </DialogHeader>
 
@@ -426,17 +549,23 @@ export function GrupoAvpSheetSyncModal({
 
               {/* CAMPO DE URL DO GOOGLE SHEETS */}
               <div className="space-y-2 pt-2">
-                <Label className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <Label
+                  htmlFor="avp-sheet-url"
+                  className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5"
+                >
                   <LinkIcon size={13} className="text-blue-400" /> Link Compartilhável da Planilha
                   Google (Drive / Sheets):
                 </Label>
                 <div className="flex gap-2">
                   <Input
                     placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XR.../edit"
+                    id="avp-sheet-url"
                     value={sheetUrl}
                     onChange={(e) => {
+                      setLastSyncTime(null);
+                      setLiveDiffLogs([]);
                       setSheetUrl(e.target.value);
-                      saveConfig(e.target.value, autoSyncEnabled, pollInterval);
+                      saveConfig(e.target.value, autoSyncEnabled, pollInterval, null);
                     }}
                     className="bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-600 rounded-xl text-xs font-mono h-11"
                   />
@@ -450,9 +579,9 @@ export function GrupoAvpSheetSyncModal({
                   </Button>
                 </div>
                 <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
-                  <Info size={12} className="text-slate-400" /> Dica: No Google Sheets,
-                  certifique-se de que a planilha está com o acesso geral definido como{" "}
-                  <strong>"Qualquer pessoa com o link" (Leitor)</strong>.
+                  <Info size={12} className="text-slate-400" /> Use um link CSV que já permita
+                  leitura pelo servidor. Para planilhas restritas, importe XLSX/CSV pelas permissões
+                  existentes.
                 </p>
               </div>
 
@@ -478,7 +607,7 @@ export function GrupoAvpSheetSyncModal({
                       Consulta Automática em Segundo Plano (Auto-Sync)
                     </div>
                     <div className="text-[11px] text-slate-400">
-                      Atualiza o sistema e o mapa assim que houver edição na planilha
+                      Consulta enquanto esta página estiver aberta; o padrão é a cada 5 minutos
                     </div>
                   </div>
                 </div>
@@ -499,10 +628,10 @@ export function GrupoAvpSheetSyncModal({
                       <SelectValue placeholder="Intervalo" />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-slate-800 text-slate-200">
-                      <SelectItem value="15">A cada 15 seg</SelectItem>
-                      <SelectItem value="30">A cada 30 seg (Padrão)</SelectItem>
                       <SelectItem value="60">A cada 1 min</SelectItem>
-                      <SelectItem value="300">A cada 5 min</SelectItem>
+                      <SelectItem value="120">A cada 2 min</SelectItem>
+                      <SelectItem value="300">A cada 5 min (Padrão)</SelectItem>
+                      <SelectItem value="600">A cada 10 min</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -602,7 +731,7 @@ export function GrupoAvpSheetSyncModal({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".xlsx, .csv, .tsv, .txt"
+                accept=".xlsx, .xlsm, .csv, .tsv, .txt"
                 onChange={handleFileUpload}
                 className="hidden"
                 id="file-upload-input"

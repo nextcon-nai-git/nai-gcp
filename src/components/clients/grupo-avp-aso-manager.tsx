@@ -50,6 +50,9 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { useUser } from "@/firebase";
+import { useAvpQueue } from "@/hooks/use-avp-queue";
+import { buildAvpQueueCsv } from "@/lib/avp-queue-export";
+import { normalizeNavigationSearch } from "@/lib/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { GRUPO_AVP_ASO_LIST, GrupoAvpAso, AsoStatus, AsoUrgency } from "@/lib/grupo-avp-asos-data";
@@ -61,28 +64,19 @@ import {
   generateWhatsAppAppointmentMessage,
 } from "@/lib/avp-clinic-intelligence";
 
-export function GrupoAvpAsoManager() {
+export function GrupoAvpAsoManager({
+  onQueueSummaryChange,
+}: {
+  onQueueSummaryChange?: (summary: {
+    total: number;
+    urgentes: number;
+    cidades: number;
+    concluidos: number;
+  }) => void;
+} = {}) {
   const { toast } = useToast();
   const { user } = useUser();
-  const cacheKey = `nai_grupo_avp_asos_cache:${user?.uid || "signed-out"}`;
-
-  // Estado dinâmico da fila de ASOs (inicia com cache local ou com a fila inicial vazia)
-  const [asosList, setAsosList] = React.useState<GrupoAvpAso[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed;
-          }
-        }
-      } catch (e) {
-        console.warn("Erro ao ler cache de ASOs", e);
-      }
-    }
-    return GRUPO_AVP_ASO_LIST;
-  });
+  const { asosList, updateAsos } = useAvpQueue(user?.uid ?? null);
 
   // Modal de Sincronização Google Sheets / Importação
   const [isSyncModalOpen, setIsSyncModalOpen] = React.useState<boolean>(false);
@@ -90,60 +84,32 @@ export function GrupoAvpAsoManager() {
   // Modal do Radar de Contingência (2+ Clínicas por Polo)
   const [isRedundancyModalOpen, setIsRedundancyModalOpen] = React.useState<boolean>(false);
 
-  // Monitora se a sincronização com Google Drive está ativa
-  React.useEffect(() => {
-    try {
-      const saved = localStorage.getItem(
-        `nai_grupo_avp_sheet_sync_config:${user?.uid || "signed-out"}`
-      );
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.autoSyncEnabled && parsed.sheetUrl) {
-          setIsAutoSyncActive(true);
-        }
-      }
-    } catch (e) {}
-  }, []);
-
-  // Aplicação de atualizações vindas da planilha ou Google Drive
-  const handleApplyBatchUpdate = (newAsos: GrupoAvpAso[], summary?: string) => {
-    setAsosList(newAsos);
-    try {
-      localStorage.setItem(cacheKey, JSON.stringify(newAsos));
-    } catch (e) {}
-    try {
-      const saved = localStorage.getItem(
-        `nai_grupo_avp_sheet_sync_config:${user?.uid || "signed-out"}`
-      );
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setIsAutoSyncActive(!!parsed.autoSyncEnabled && !!parsed.sheetUrl);
-      }
-    } catch (e) {}
-  };
-
-  // Limpa a fila local para uma nova importação
-  const handleResetOriginal = () => {
-    setAsosList(GRUPO_AVP_ASO_LIST);
-    try {
-      localStorage.removeItem(cacheKey);
-    } catch (e) {}
-  };
-
-  // Atualização direta de um ASO individual (pelo modal ou linha)
-  const handleUpdateSingleAso = (updated: GrupoAvpAso) => {
-    setAsosList((prev) => {
-      const next = prev.map((a) => (a.id === updated.id ? updated : a));
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify(next));
-      } catch (e) {}
-      return next;
-    });
-    setSelectedAso(updated);
+  const reportStorageFailure = () =>
     toast({
-      title: "ASO Atualizado",
-      description: `Status do colaborador ${updated.colaborador} atualizado para ${updated.status}.`,
+      title: "Alteração disponível nesta aba",
+      description:
+        "O navegador não permitiu salvar a fila localmente. Exporte a planilha antes de fechar a página.",
+      variant: "destructive",
     });
+
+  const handleApplyBatchUpdate = (newAsos: GrupoAvpAso[]) => {
+    if (!updateAsos(newAsos)) reportStorageFailure();
+  };
+
+  const handleResetOriginal = () => {
+    if (!updateAsos(GRUPO_AVP_ASO_LIST)) reportStorageFailure();
+    setSelectedAso(null);
+  };
+
+  const handleUpdateSingleAso = (updated: GrupoAvpAso) => {
+    const saved = updateAsos((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+    setSelectedAso(updated);
+    if (!saved) reportStorageFailure();
+    else
+      toast({
+        title: "ASO atualizado",
+        description: "A alteração foi salva na fila deste navegador.",
+      });
   };
 
   // Estados de Filtro
@@ -159,6 +125,11 @@ export function GrupoAvpAsoManager() {
 
   // Modal de Detalhes
   const [selectedAso, setSelectedAso] = React.useState<GrupoAvpAso | null>(null);
+
+  React.useEffect(() => {
+    setSelectedAso(null);
+    setCurrentPage(1);
+  }, [user?.uid]);
 
   // Contatos de WhatsApp e Clínicas parseados para o ASO selecionado
   const selectedAsoClinics = React.useMemo(() => {
@@ -214,15 +185,24 @@ export function GrupoAvpAsoManager() {
     return { total, agendados, naoIniciados, urgentes, concluidos, emTratamento, cancelados };
   }, [asosList]);
 
+  React.useEffect(() => {
+    onQueueSummaryChange?.({
+      total: metrics.total,
+      urgentes: metrics.urgentes,
+      concluidos: metrics.concluidos,
+      cidades: new Set(asosList.map((item) => item.cidade + "|" + item.uf)).size,
+    });
+  }, [metrics, asosList, onQueueSummaryChange]);
+
   // Filtragem
   const filteredList = React.useMemo(() => {
     return asosList.filter((item) => {
       // Busca textual
       if (searchTerm.trim()) {
-        const query = searchTerm.toLowerCase();
-        const matchColab = item.colaborador.toLowerCase().includes(query);
-        const matchCidade = item.cidade.toLowerCase().includes(query);
-        const matchClinica = item.nomeClinica.toLowerCase().includes(query);
+        const query = normalizeNavigationSearch(searchTerm);
+        const matchColab = normalizeNavigationSearch(item.colaborador).includes(query);
+        const matchCidade = normalizeNavigationSearch(item.cidade).includes(query);
+        const matchClinica = normalizeNavigationSearch(item.nomeClinica).includes(query);
         const matchGestor = item.telefoneGestor.includes(query);
         const matchNum = item.numero.includes(query);
         if (!matchColab && !matchCidade && !matchClinica && !matchGestor && !matchNum) {
@@ -260,7 +240,7 @@ export function GrupoAvpAsoManager() {
 
       return true;
     });
-  }, [searchTerm, statusFilter, responsibleFilter, urgencyFilter, ufFilter]);
+  }, [asosList, searchTerm, statusFilter, responsibleFilter, urgencyFilter, ufFilter]);
 
   // Itens da Página Atual
   const totalPages = Math.ceil(filteredList.length / pageSize) || 1;
@@ -268,6 +248,10 @@ export function GrupoAvpAsoManager() {
     const start = (currentPage - 1) * pageSize;
     return filteredList.slice(start, start + pageSize);
   }, [filteredList, currentPage, pageSize]);
+
+  React.useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
 
   // Resetar página ao mudar filtros
   React.useEffect(() => {
@@ -302,70 +286,32 @@ export function GrupoAvpAsoManager() {
     });
   };
 
-  // Exportar para CSV
+  // Exporta somente a seleção atual, com caracteres e fórmulas tratados como texto.
   const handleExportCsv = () => {
-    const headers = [
-      "Nº",
-      "Urgência",
-      "Data Pedido",
-      "Dias Parado",
-      "Cidade",
-      "UF",
-      "Colaborador",
-      "Tipo Exame",
-      "Telefone Gestor",
-      "Status",
-      "Responsável",
-      "Data Agendada",
-      "Clínica",
-      "Telefone Clínica",
-      "Valor ASO",
-      "CNPJ Clínica",
-      "Chave PIX",
-      "PIX Realizado?",
-      "Endereço Clínica",
-      "Observações / O Que Fazer",
-    ];
-
-    const rows = filteredList.map((item) => [
-      `"${item.numero || ""}"`,
-      `"${item.urgencia}"`,
-      `"${item.dataPedido}"`,
-      item.diasParado,
-      `"${item.cidade}"`,
-      `"${item.uf}"`,
-      `"${item.colaborador}"`,
-      `"${item.tipoExame}"`,
-      `"${item.telefoneGestor}"`,
-      `"${item.status}"`,
-      `"${item.responsavel}"`,
-      `"${item.dataAgendada}"`,
-      `"${item.nomeClinica.replace(/"/g, '""')}"`,
-      `"${item.telefoneClinica.replace(/"/g, '""')}"`,
-      `"${item.valorAso}"`,
-      `"${item.cnpjClinica}"`,
-      `"${item.chavePix}"`,
-      `"${item.pixRealizado}"`,
-      `"${item.enderecoClinica.replace(/"/g, '""')}"`,
-      `"${item.oQueFazer.replace(/"/g, '""')}"`,
-    ]);
-
-    const csvContent =
-      "data:text/csv;charset=utf-8,\uFEFF" +
-      [headers.join(";"), ...rows.map((e) => e.join(";"))].join("\n");
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `ASOs_Grupo_AVP_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    toast({
-      title: "Download Iniciado! 📊",
-      description: `Arquivo CSV gerado com ${filteredList.length} registros exportados.`,
-    });
+    try {
+      const blob = new Blob([buildAvpQueueCsv(filteredList)], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `ASOs_Grupo_AVP_${new Date().toISOString().split("T")[0]}.csv`;
+      document.body.appendChild(link);
+      try {
+        link.click();
+      } finally {
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+      toast({
+        title: "Planilha preparada",
+        description: `${filteredList.length} registros na seleção exportada.`,
+      });
+    } catch {
+      toast({
+        title: "Não foi possível exportar",
+        description: "Tente novamente neste navegador.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Cores de Status
@@ -1313,6 +1259,7 @@ export function GrupoAvpAsoManager() {
         currentAsos={asosList}
         onApplyUpdate={handleApplyBatchUpdate}
         onResetOriginal={handleResetOriginal}
+        onSyncActivityChange={setIsAutoSyncActive}
       />
 
       {/* MODAL DO RADAR DE CONTINGÊNCIA (2+ CLÍNICAS POR POLO) */}

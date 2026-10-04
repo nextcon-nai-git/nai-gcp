@@ -51,6 +51,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { getActiveNavigationHref, normalizeNavigationSearch } from "@/lib/navigation";
 import { usePathname, useRouter } from "next/navigation";
 
 import {
@@ -296,7 +297,7 @@ export function AppSidebar() {
 
   // Filtragem dos módulos de acordo com o texto digitado
   const filteredModules = React.useMemo(() => {
-    const query = filterText.toLowerCase().trim();
+    const query = normalizeNavigationSearch(filterText);
     return NAV_MODULES.map((module) => {
       if (isEngineeringProvider && module.label !== "OPERACIONAL — ENGENHARIA") return null;
       if (isHealthProvider && module.label !== "OPERACIONAL — SAÚDE") return null;
@@ -305,12 +306,12 @@ export function AppSidebar() {
 
       const matchedItems = module.items.filter(
         (item) =>
-          item.title.toLowerCase().includes(query) ||
+          normalizeNavigationSearch(item.title).includes(query) ||
           item.href.toLowerCase().includes(query) ||
-          (item.badge && item.badge.toLowerCase().includes(query))
+          (item.badge && normalizeNavigationSearch(item.badge).includes(query))
       );
 
-      if (matchedItems.length === 0 && !module.label.toLowerCase().includes(query)) {
+      if (matchedItems.length === 0 && !normalizeNavigationSearch(module.label).includes(query)) {
         return null;
       }
 
@@ -320,6 +321,11 @@ export function AppSidebar() {
       };
     }).filter(Boolean) as NavModule[];
   }, [filterText, isEngineeringProvider, isHealthProvider]);
+
+  const activeHref = getActiveNavigationHref(
+    pathname,
+    NAV_MODULES.flatMap((module) => module.items.map((item) => item.href))
+  );
 
   return (
     <Sidebar className="border-r border-sidebar-border bg-[#001F3F] text-white">
@@ -396,9 +402,7 @@ export function AppSidebar() {
                 </SidebarGroupLabel>
                 <SidebarMenu className="space-y-0.5">
                   {module.items.map((item) => {
-                    const isActive =
-                      pathname === item.href ||
-                      (item.href !== "/" && pathname.startsWith(item.href));
+                    const isActive = activeHref === item.href;
                     const Icon = item.icon;
                     return (
                       <SidebarMenuItem key={item.title}>

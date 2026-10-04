@@ -1,10 +1,11 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { signOut } from "firebase/auth";
 import { AppContent } from "./app-content";
 
 const state = vi.hoisted(() => ({
-  user: null as { uid: string } | null,
+  user: null as { uid: string; email?: string } | null,
   role: null as string | null,
   isUserLoading: false,
   userError: null as Error | null,
@@ -40,6 +41,7 @@ beforeEach(() => {
     pathname: "/clients",
   });
   state.replace.mockClear();
+  vi.mocked(signOut).mockClear();
   element = document.createElement("div");
   document.body.appendChild(element);
   root = createRoot(element);
@@ -87,12 +89,19 @@ describe("application access gate", () => {
   );
 
   it("shows recovery controls without mounting protected data after a profile failure", async () => {
-    state.user = { uid: "alice" };
+    state.user = { uid: "alice", email: "account@example.test" };
     state.userError = new Error("profile unavailable");
     const mounted = await renderProtectedChild();
     expect(mounted).not.toHaveBeenCalled();
     expect(element.textContent).toContain("Não foi possível carregar seu acesso");
-    expect(element.textContent).toContain("Sair da conta");
+    expect(element.textContent).toContain("account@example.test");
+    const switchAccount = Array.from(element.querySelectorAll("button")).find(
+      (button) => button.textContent === "Entrar com outra conta"
+    );
+    expect(switchAccount).toBeDefined();
+    await act(async () => switchAccount!.click());
+    expect(signOut).toHaveBeenCalledOnce();
+    expect(mounted).not.toHaveBeenCalled();
   });
 
   it("renders a provisioned account and keeps the login page available", async () => {

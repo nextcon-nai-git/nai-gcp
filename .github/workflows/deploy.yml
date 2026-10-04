@@ -1,4 +1,4 @@
-name: CI/CD
+name: Firebase validation
 
 on:
   pull_request:
@@ -6,6 +6,19 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      deploy_firestore:
+        description: Deploy tested Firestore rules and indexes (requires configured credentials)
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firebase-validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
@@ -28,13 +41,9 @@ jobs:
 
       - name: Audit production dependencies (critical)
         run: npm audit --omit=dev --audit-level=critical
-        continue-on-error: true
 
-      # The existing repository-wide lint debt is reported without blocking the
-      # release gates below. Keep typecheck, tests and build mandatory.
-      - name: Run lint (existing debt)
+      - name: Run lint
         run: npm run lint
-        continue-on-error: true
 
       - name: Run type check
         run: npm run typecheck
@@ -62,9 +71,11 @@ jobs:
           NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
-  deploy:
-    name: Deploy to Firebase
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  # The website is released by the connected App Hosting backend from main.
+  # Rules/indexes are a separate, explicitly requested deployment.
+  deploy-firestore:
+    name: Deploy tested Firestore rules and indexes
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.deploy_firestore
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -82,17 +93,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit
-
-      - name: Build project
-        run: npm run build
-        env:
-          NEXT_PUBLIC_FIREBASE_PROJECT_ID: studio-8439299034-125c7
-          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
-          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
-          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
-          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Prepare Firebase release credentials
         env:
@@ -115,24 +115,6 @@ jobs:
 
       - name: Deploy tested Firestore rules
         run: npx --yes firebase-tools@14.22.0 deploy --only firestore:rules,firestore:indexes --project studio-8439299034-125c7 --non-interactive
-        continue-on-error: true
-
-      - name: Deploy hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-          projectId: studio-8439299034-125c7
-          channelId: live
-        continue-on-error: true
-
-      - name: Deploy functions
-        uses: w9jds/firebase-action@master
-        with:
-          args: deploy --only functions
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        continue-on-error: true
 
       - name: Remove temporary release credentials
         if: always()
