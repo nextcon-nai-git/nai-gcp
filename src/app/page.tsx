@@ -35,10 +35,10 @@ import MedicalCopilot from "@/components/medical/medical-copilot";
 import { useDebounce } from "@/hooks/useDebounce";
 
 // Dynamic imports para heavy libraries
-const RechartsChart = dynamic(
-  () => import("./recharts-wrapper"),
-  { ssr: false, loading: () => <div className="h-64 bg-slate-100 rounded-lg" /> }
-);
+const RechartsChart = dynamic(() => import("./recharts-wrapper"), {
+  ssr: false,
+  loading: () => <div className="h-64 bg-slate-100 rounded-lg" />,
+});
 
 function TypewriterText({ text, delay = 10 }: { text: string; delay?: number }) {
   const [displayedText, setDisplayedText] = React.useState("");
@@ -112,7 +112,7 @@ export default function Dashboard() {
 
   const [fapValue, setFapValue] = React.useState([0.74]);
   const debouncedFapValue = useDebounce(fapValue, 300); // Debounce slider
-  
+
   const [payroll, setPayroll] = React.useState(150000);
   const debouncedPayroll = useDebounce(payroll, 300); // Debounce input
 

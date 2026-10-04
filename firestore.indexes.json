@@ -49,9 +49,7 @@
     {
       "collectionGroup": "__default__",
       "fieldPath": "createdAt",
-      "indexes": [
-        { "order": "Descending", "queryScope": "Collection" }
-      ]
+      "indexes": [{ "order": "Descending", "queryScope": "Collection" }]
     }
   ]
 }

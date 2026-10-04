@@ -18,10 +18,7 @@ export interface BatchWrite {
  * Máximo de 500 operações por lote (limite do Firestore).
  * Retorna array de promises para cada lote.
  */
-export async function batchWriteOptimized(
-  db: Firestore,
-  writes: BatchWrite[]
-): Promise<void[]> {
+export async function batchWriteOptimized(db: Firestore, writes: BatchWrite[]): Promise<void[]> {
   const BATCH_SIZE = 450; // Deixa margem de segurança (limite é 500)
   const results: Promise<void>[] = [];
 
@@ -32,7 +29,8 @@ export async function batchWriteOptimized(
     for (const write of chunk) {
       switch (write.type) {
         case "set":
-          batch.set(write.ref, write.data || {}, write.options);
+          if (write.options) batch.set(write.ref, write.data || {}, write.options);
+          else batch.set(write.ref, write.data || {});
           break;
         case "update":
           batch.update(write.ref, write.data || {});
@@ -46,7 +44,7 @@ export async function batchWriteOptimized(
     results.push(batch.commit());
   }
 
-  return Promise.all(results).then(() => {});
+  return Promise.all(results);
 }
 
 /**

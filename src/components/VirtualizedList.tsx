@@ -1,54 +1,55 @@
 "use client";
 
-import React from "react";
-import { FixedSizeList as List } from "react-window";
-import AutoSizer from "react-virtualized-auto-sizer";
+import { List, type RowComponentProps } from "react-window";
+import type { CSSProperties, ReactNode } from "react";
 
-export interface VirtualizedListProps<T> {
+interface VirtualizedRowProps<T> {
   items: T[];
-  itemHeight: number;
-  renderItem: (index: number, item: T) => React.ReactNode;
-  className?: string;
-  maxHeight?: string | number;
+  renderItem: (item: T, index: number) => ReactNode;
 }
 
-/**
- * Componente para renderizar listas grandes com virtualization.
- * Apenas items visíveis são renderizados, melhorando performance drasticamente.
- *
- * @example
- * ```tsx
- * <VirtualizedList
- *   items={appointments}
- *   itemHeight={80}
- *   renderItem={(idx, appointment) => <AppointmentCard {...appointment} />}
- *   maxHeight={600}
- * />
- * ```
- */
-export function VirtualizedList<T extends { id: string }>(
-  { items, itemHeight, renderItem, className, maxHeight = 600 }: VirtualizedListProps<T>
-) {
-  const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => (
-    <div style={style} key={items[index]?.id}>
-      {renderItem(index, items[index])}
+interface VirtualizedListProps<T> {
+  items: T[];
+  height: number;
+  itemHeight: number;
+  renderItem: (item: T, index: number) => ReactNode;
+  className?: string;
+}
+
+function VirtualizedRow<T>({
+  index,
+  style,
+  items,
+  renderItem,
+}: RowComponentProps<VirtualizedRowProps<T>>) {
+  return (
+    <div style={style as CSSProperties} role="listitem">
+      {renderItem(items[index], index)}
     </div>
   );
+}
+
+export function VirtualizedList<T>({
+  items,
+  height,
+  itemHeight,
+  renderItem,
+  className,
+}: VirtualizedListProps<T>) {
+  if (items.length === 0) return null;
 
   return (
-    <div className={className} style={{ height: maxHeight, width: "100%" }}>
-      <AutoSizer>
-        {({ height, width }) => (
-          <List
-            height={height}
-            itemCount={items.length}
-            itemSize={itemHeight}
-            width={width}
-          >
-            {Row}
-          </List>
-        )}
-      </AutoSizer>
-    </div>
+    <List
+      aria-label="Virtualized list"
+      role="list"
+      className={className}
+      defaultHeight={height}
+      overscanCount={3}
+      rowComponent={VirtualizedRow<T>}
+      rowCount={items.length}
+      rowHeight={itemHeight}
+      rowProps={{ items, renderItem }}
+      style={{ width: "100%", height }}
+    />
   );
 }

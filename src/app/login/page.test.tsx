@@ -6,13 +6,20 @@ import LoginPage from "./page";
 const mocks = vi.hoisted(() => ({
   auth: { languageCode: null as string | null },
   signIn: vi.fn(),
+  googleSignIn: vi.fn(),
+  googleParameters: vi.fn(),
   sendReset: vi.fn(),
   replace: vi.fn(),
   toast: vi.fn(),
 }));
 vi.mock("@/firebase", () => ({ useAuth: () => mocks.auth }));
 vi.mock("firebase/auth", () => ({
+  GoogleAuthProvider: class {
+    providerId = "google.com";
+    setCustomParameters = mocks.googleParameters;
+  },
   signInWithEmailAndPassword: mocks.signIn,
+  signInWithPopup: mocks.googleSignIn,
   sendPasswordResetEmail: mocks.sendReset,
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace }) }));
@@ -25,6 +32,7 @@ beforeEach(async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   window.history.replaceState(null, "", "/login");
   mocks.signIn.mockResolvedValue({});
+  mocks.googleSignIn.mockResolvedValue({});
   mocks.sendReset.mockResolvedValue(undefined);
   mocks.auth.languageCode = null;
   element = document.createElement("div");
@@ -78,11 +86,12 @@ describe("password login", () => {
   it("offers labeled email/password fields and recovery without automatic requests", () => {
     expect(element.querySelectorAll("form")).toHaveLength(1);
     expect(element.querySelectorAll("input")).toHaveLength(2);
-    expect(element.querySelectorAll("button")).toHaveLength(2);
+    expect(element.querySelectorAll("button")).toHaveLength(3);
     expect(element.textContent).toContain("Esqueci minha senha");
     expect(element.querySelector('label[for="login-email"]')).not.toBeNull();
     expect(element.querySelector('label[for="login-password"]')).not.toBeNull();
     expect(mocks.signIn).not.toHaveBeenCalled();
+    expect(mocks.googleSignIn).not.toHaveBeenCalled();
     expect(mocks.sendReset).not.toHaveBeenCalled();
   });
 
@@ -131,6 +140,127 @@ describe("password login", () => {
     await submit();
     expect(mocks.signIn).toHaveBeenCalledTimes(2);
     expect(mocks.replace).toHaveBeenCalledExactlyOnceWith("/");
+  });
+});
+
+describe("Google login", () => {
+  it("offers Google access without requiring an email or password", async () => {
+    const button = [...element.querySelectorAll<HTMLButtonElement>("button")].find(
+      (candidate) => candidate.textContent?.trim() === "Entrar com Google"
+    )!;
+    expect(button.type).toBe("button");
+    expect(mocks.googleSignIn).not.toHaveBeenCalled();
+    await clickButton("Entrar com Google");
+    expect(mocks.googleSignIn).toHaveBeenCalledExactlyOnceWith(
+      mocks.auth,
+      expect.objectContaining({ providerId: "google.com" })
+    );
+    expect(mocks.googleParameters).toHaveBeenCalledExactlyOnceWith({ prompt: "select_account" });
+    expect(mocks.auth.languageCode).toBe("pt-BR");
+    expect(mocks.signIn).not.toHaveBeenCalled();
+    expect(mocks.sendReset).not.toHaveBeenCalled();
+    expect(mocks.replace).toHaveBeenCalledExactlyOnceWith("/");
+  });
+
+  it("blocks duplicate clicks and password access while Google authentication is pending", async () => {
+    let finish!: () => void;
+    mocks.googleSignIn.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        })
+    );
+    await act(async () => {
+      const googleButton = [...element.querySelectorAll<HTMLButtonElement>("button")].find(
+        (candidate) => candidate.textContent?.trim() === "Entrar com Google"
+      )!;
+      googleButton.click();
+      googleButton.click();
+      element
+        .querySelector("form")!
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect(mocks.googleSignIn).toHaveBeenCalledOnce();
+    expect(mocks.signIn).not.toHaveBeenCalled();
+    expect([...element.querySelectorAll("button")].every((button) => button.disabled)).toBe(true);
+    expect([...element.querySelectorAll("input")].every((input) => input.disabled)).toBe(true);
+    expect(mocks.replace).not.toHaveBeenCalled();
+    await act(async () => finish());
+    expect(mocks.replace).toHaveBeenCalledExactlyOnceWith("/");
+  });
+
+  it("does not start Google authentication during password sign-in", async () => {
+    let finish!: () => void;
+    mocks.signIn.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        })
+    );
+    await fillCredentials();
+    await act(async () => {
+      element
+        .querySelector("form")!
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      [...element.querySelectorAll<HTMLButtonElement>("button")]
+        .find((candidate) => candidate.textContent?.trim() === "Entrar com Google")!
+        .click();
+    });
+    expect(mocks.googleSignIn).not.toHaveBeenCalled();
+    await act(async () => finish());
+  });
+
+  it.each(["auth/popup-closed-by-user", "auth/cancelled-popup-request"])(
+    "permits retry without an error after cancellation: %s",
+    async (code) => {
+      mocks.googleSignIn.mockRejectedValueOnce({ code });
+      await clickButton("Entrar com Google");
+      expect(element.querySelector('[role="alert"]')).toBeNull();
+      expect(mocks.toast).not.toHaveBeenCalled();
+      expect(mocks.replace).not.toHaveBeenCalled();
+      expect([...element.querySelectorAll("button")].every((button) => !button.disabled)).toBe(
+        true
+      );
+      await clickButton("Entrar com Google");
+      expect(mocks.googleSignIn).toHaveBeenCalledTimes(2);
+      expect(mocks.replace).toHaveBeenCalledExactlyOnceWith("/");
+    }
+  );
+
+  it.each([
+    [
+      "auth/popup-blocked",
+      "Permita a abertura da janela do Google no navegador e tente novamente.",
+    ],
+    ["auth/network-request-failed", "Verifique sua conexão e tente novamente."],
+    ["auth/too-many-requests", "Muitas tentativas. Aguarde um pouco antes de tentar novamente."],
+    [
+      "auth/account-exists-with-different-credential",
+      "Este e-mail já usa outro método de acesso. Entre com e-mail e senha.",
+    ],
+    ["auth/internal-error", "Não foi possível entrar com Google. Tente novamente em instantes."],
+  ])("permits retry after %s without exposing credentials", async (code, message) => {
+    mocks.googleSignIn.mockRejectedValueOnce({ code, message: "private-provider-token" });
+    await clickButton("Entrar com Google");
+    expect(element.querySelector('[role="alert"]')?.textContent).toBe(message);
+    expect(element.textContent).not.toContain("private-provider-token");
+    expect(mocks.replace).not.toHaveBeenCalled();
+    await clickButton("Entrar com Google");
+    expect(element.querySelector('[role="alert"]')).toBeNull();
+    expect(mocks.googleSignIn).toHaveBeenCalledTimes(2);
+    expect(mocks.replace).toHaveBeenCalledExactlyOnceWith("/");
+  });
+
+  it("hides Google access and clears its error while recovering a password", async () => {
+    mocks.googleSignIn.mockRejectedValueOnce({ code: "auth/popup-blocked" });
+    await clickButton("Entrar com Google");
+    await clickButton("Esqueci minha senha");
+    expect(element.textContent).not.toContain("Entrar com Google");
+    expect(element.querySelector('[role="alert"]')).toBeNull();
+    await clickButton("Voltar ao login");
+    expect(element.textContent).toContain("Entrar com Google");
+    expect(element.querySelector('[role="alert"]')).toBeNull();
+    expect(mocks.googleSignIn).toHaveBeenCalledOnce();
   });
 });
 

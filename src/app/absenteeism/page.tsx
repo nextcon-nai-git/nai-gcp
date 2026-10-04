@@ -71,10 +71,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
 import dynamic from "next/dynamic";
-const PDFDownloadLink = dynamic(
-  () => import("@react-pdf/renderer").then((module) => module.PDFDownloadLink),
-  { ssr: false }
-);
+const PDFDownloadLink = dynamic(() => import("@/components/documents/pdf-download-link"), {
+  ssr: false,
+});
 const MedicalReferralReport = dynamic(
   () =>
     import("@/components/documents/medical-referral-report").then(
