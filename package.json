@@ -103,6 +103,8 @@
   },
   "overrides": {
     "postcss": "$postcss",
-    "picomatch@<2.3.2": "^2.3.2"
+    "picomatch@<2.3.2": "^2.3.2",
+    "@grpc/grpc-js": ">=1.14.0",
+    "adm-zip": ">=0.5.12"
   }
 }
