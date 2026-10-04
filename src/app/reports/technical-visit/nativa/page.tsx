@@ -40,6 +40,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
+/**
+ * @fileOverview Relatório de Visita Técnica - Benchmark Nativa Empreendimentos.
+ * Exibe dados reais da auditoria de campo Laguna e Mônaco.
+ */
 export default function NativaTechnicalVisitReport() {
   return (
     <div className="max-w-5xl mx-auto space-y-10 animate-in fade-in duration-700 pb-20">
@@ -102,7 +106,7 @@ export default function NativaTechnicalVisitReport() {
                 <p className="text-[9px] font-black uppercase text-white/40 tracking-widest">
                   Responsável (Engenheiro)
                 </p>
-                <p className="text-sm font-bold uppercase">Cassio Vinicius</p>
+                <p className="text-sm font-bold uppercase">Responsável Técnico</p>
                 <p className="text-[10px] font-medium text-white/60">Telefone: 41 9 9666-2019</p>
               </div>
               <div className="space-y-1">
@@ -139,8 +143,8 @@ export default function NativaTechnicalVisitReport() {
                   <FileText className="size-5 text-accent" /> Auditoria Documental
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed italic">
-                  "Verificação de fichas de EPI e cronogramas de treinamento obrigatórios (NR-01,
-                  06, 18, 35)."
+                  "Verificação de documentação de segurança do trabalho como fichas de EPI e
+                  treinamentos necessários relacionados a área de segurança do trabalho."
                 </p>
               </div>
             </div>
@@ -180,7 +184,7 @@ export default function NativaTechnicalVisitReport() {
                   {[
                     {
                       id: 1,
-                      desc: "Ausência de linha de vida complementar no último andar",
+                      desc: "Ausência de linha de vida complementar no último andar da obra",
                       nr: "35",
                       risk: "Grave",
                       prio: "Alta",
@@ -188,11 +192,11 @@ export default function NativaTechnicalVisitReport() {
                     },
                     {
                       id: 2,
-                      desc: "Ausência de parapeito e redes de proteção danificadas",
-                      nr: "18/35",
+                      desc: "Ausência de parapeito em alguns locais e redes de proteção danificadas",
+                      nr: "18 / 35",
                       risk: "Grave",
                       prio: "Alta",
-                      rec: "Instalar/adequar redes e colocar sinalização de advertência.",
+                      rec: "Instalar/adequar parapeitos e redes de proteção e colocar placas de sinalização para se manter longe das beiradas",
                     },
                     {
                       id: 3,
@@ -200,23 +204,23 @@ export default function NativaTechnicalVisitReport() {
                       nr: "18",
                       risk: "Médio",
                       prio: "Média",
-                      rec: "Colocar tampas com angulação de 45° para evitar tropeços.",
+                      rec: "Colocar tampas nos buracos com angulação de cerca de 45° para evitar tropeços",
                     },
                     {
                       id: 4,
-                      desc: "Serras circulares em não conformidade (Laguna e Mônaco)",
-                      nr: "12/18",
+                      desc: "Serra em não conformidade – próximo aos banheiros (Laguna) / Serra em não conformidade (Mônaco)",
+                      nr: "12 / 18",
                       risk: "Grave",
                       prio: "Alta",
-                      rec: "Adequação imediata conforme Anexo I (NR-12).",
+                      rec: "Ver anexo I com recomendações de segurança",
                     },
                     {
                       id: 5,
-                      desc: "Serra com peça quebrada no estacionamento",
-                      nr: "12/18",
+                      desc: "Serra com peça quebrada no ambiente térreo, estacionamento",
+                      nr: "12 / 18",
                       risk: "Grave",
                       prio: "Alta",
-                      rec: "Realizar a troca da peça danificada e enclausuramento.",
+                      rec: "Realizar a troca da peça danificada. Realizar implementação de medidas de segurança aplicáveis do anexo I.",
                     },
                     {
                       id: 6,
@@ -224,7 +228,7 @@ export default function NativaTechnicalVisitReport() {
                       nr: "18",
                       risk: "Médio",
                       prio: "Médio",
-                      rec: "Instalar proteção física no perímetro do poço.",
+                      rec: "Instalar proteção no poço",
                     },
                     {
                       id: 7,
@@ -232,15 +236,15 @@ export default function NativaTechnicalVisitReport() {
                       nr: "18",
                       risk: "Médio",
                       prio: "Médio",
-                      rec: "Instalar proteção complementar nas bandejas de proteção.",
+                      rec: "Instalar a proteção complementar nas bandejas",
                     },
                     {
                       id: 8,
-                      desc: "Pessoas com vestimentas inapropriadas pela obra",
+                      desc: "Pessoas com vestimentas inapropriadas circulando pela obra",
                       nr: "6",
                       risk: "Médio",
                       prio: "Médio",
-                      rec: "Fornecer orientações e EPIs para visitantes.",
+                      rec: "Fornecer orientações de vestimenta e EPIS para as pessoas que forem visitar a obra",
                     },
                   ].map((item) => (
                     <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors">
@@ -299,22 +303,22 @@ export default function NativaTechnicalVisitReport() {
                   type: "Inicial",
                 },
                 {
-                  title: "NR-35 - Trabalho em Altura",
-                  app: "Colaboradores em Lajes",
-                  valid: "2 anos",
-                  type: "Crítico",
-                },
-                {
-                  title: "NR-12 - Operação de Serras",
-                  app: "Carpinteiros / Operadores",
+                  title: "NR-06 - Equipamentos de Proteção Individual (EPI)",
+                  app: "Anual (boa prática)",
                   valid: "Anual",
-                  type: "Específico",
+                  type: "SST",
                 },
                 {
                   title: "NR-18 - Construção Civil",
                   app: "Todos os colaboradores",
                   valid: "Anual",
                   type: "Setorial",
+                },
+                {
+                  title: "NR-35 - Trabalho em Altura",
+                  app: "Colaboradores em Lajes",
+                  valid: "2 anos",
+                  type: "Crítico",
                 },
               ].map((trn) => (
                 <div
@@ -394,7 +398,7 @@ export default function NativaTechnicalVisitReport() {
               <div className="space-y-4">
                 <div className="w-64 border-b-2 border-slate-200 mx-auto py-4"></div>
                 <div>
-                  <p className="font-black text-primary uppercase text-sm">Cassio Vinicius</p>
+                  <p className="font-black text-primary uppercase text-sm">Responsável Técnico</p>
                   <p className="text-[10px] font-bold text-slate-400 uppercase">
                     Engenheiro Civil - Nativa Empreendimentos
                   </p>
@@ -431,18 +435,23 @@ export default function NativaTechnicalVisitReport() {
                     {[
                       {
                         item: "Zona de Corte",
-                        desc: "Disco exposto sem coifa superior e cutelo divisor.",
-                        ref: "12.38 / 12.55",
+                        desc: "Disco exposto acima da mesa, sem coifa superior eficiente; Ausência de cutelo divisor (anti-recuo); Abertura frontal permite acesso direto da mão ao disco",
+                        ref: "12.38 / 12.39 / 12.55 — NÃO ATENDE",
                       },
                       {
-                        item: "Transmissão",
-                        desc: "Correias e polias inferiores totalmente expostas.",
-                        ref: "12.38",
+                        item: "Parte inferior da máquina",
+                        desc: "Correias, polias e eixo totalmente expostas; Possibilidade de acesso por baixo da mesa",
+                        ref: "12.38 — NÃO ATENDE",
                       },
                       {
                         item: "Sistema Elétrico",
-                        desc: "Painel improvisado, fiação aparente e sem proteção contra religamento.",
-                        ref: "12.56 / 12.71",
+                        desc: "Painel improvisado, sem grau de proteção adequado (IP); Fiação aparente; Botão de emergência existe, mas sem análise de categoria de segurança; Não é possível garantir não religamento automático",
+                        ref: "12.56 / 12.63 / 12.71 — NÃO ATENDE",
+                      },
+                      {
+                        item: "Ergonomia e ambiente",
+                        desc: "Mesa irregular e desgastada; Acúmulo excessivo de serragem (risco secundário); Falta de empurrador visível para peças pequenas",
+                        ref: "NÃO ATENDE",
                       },
                     ].map((f, i) => (
                       <div key={i} className="flex gap-3">
@@ -451,8 +460,8 @@ export default function NativaTechnicalVisitReport() {
                           <p className="text-xs font-bold text-primary">{f.item}</p>
                           <p className="text-[10px] text-slate-500 leading-tight">{f.desc}</p>
                           <Badge
-                            variant="secondary"
-                            className="text-[8px] p-0 font-mono text-red-400 uppercase bg-transparent hover:bg-transparent"
+                            variant="outline"
+                            className="text-[8px] border-none p-0 font-mono text-red-400 uppercase"
                           >
                             Ref: {f.ref}
                           </Badge>

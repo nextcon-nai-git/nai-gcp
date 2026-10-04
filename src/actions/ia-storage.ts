@@ -4,9 +4,12 @@
  * @fileOverview Server Action para processamento de comandos de Storage via IA.
  */
 
-import { extractStorageData } from "@/ai/flows/storage-manager-flow";
+import { extractStorageData, StorageManagerOutput } from "@/ai/flows/storage-manager-flow";
+import { ActionResult } from "@/types/schema";
 
-export async function executarComandoStorage(comando: string) {
+export async function executarComandoStorage(
+  comando: string
+): Promise<ActionResult<StorageManagerOutput>> {
   try {
     // Chama o fluxo do Genkit para extrair metadados do prompt do usuário
     const metadata = await extractStorageData(comando);
@@ -15,8 +18,9 @@ export async function executarComandoStorage(comando: string) {
       sucesso: true,
       dados: metadata,
     };
-  } catch (error: any) {
-    console.error("Erro na NAI Storage:", error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+    console.error("Erro na NAI Storage:", errorMessage);
     return {
       sucesso: false,
       mensagem:

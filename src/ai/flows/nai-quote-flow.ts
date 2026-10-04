@@ -1,73 +1,108 @@
 "use server";
 /**
- * @fileOverview Agente "nai" - Comercial Nextcon.
- * Responsável por elaborar propostas comerciais e garantir a compreensão do cliente.
+ * @fileOverview Agente "nai" - Comercial Nextcon de Elite.
+ * Responsável por elaborar propostas comerciais de SST com foco em ROI,
+ * conformidade legal (NR-01/07) e viabilidade financeira.
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "genkit";
+import { z } from "zod";
 
 const DadosEmpresaInputSchema = z.object({
   nomeEmpresa: z.string(),
   nomeSolicitante: z.string().describe("Nome da pessoa que está pedindo o orçamento"),
+  setor: z.string().describe("Setor de atuação (ex: Construção, Indústria, Varejo)"),
   cidade: z.string(),
   estado: z.string(),
   email: z.string().email(),
   telefone: z.string(),
   quantidadeFuncionarios: z.number().describe("Número total de funcionários"),
   grauDeRisco: z.number().min(1).max(4).describe("Grau de Risco da empresa (1 a 4)"),
-  necessidades: z.string().describe("O que o cliente pediu"),
+  servicosDesejados: z
+    .string()
+    .optional()
+    .describe("Lista de serviços extras como LTCAT, ASOs, Treinamentos"),
+  necessidades: z.string().describe("Contexto ou dor do cliente"),
 });
 export type DadosEmpresaInput = z.infer<typeof DadosEmpresaInputSchema>;
 
 const OrcamentoOutputSchema = z.object({
-  mensagemIntrodutoria: z.string().describe("Saudação comercial"),
-  servicosRecomendados: z.array(
-    z.object({
-      categoria: z.string(),
-      nomeServico: z.string(),
-      justificativaLegal: z.string(),
-      valorEstimado: z.number(),
-    })
-  ),
-  valorTotalAvulso: z.number(),
-  valorTotalMensal: z.number().optional(),
-  instrucoesConfirmacao: z
-    .string()
-    .describe("Texto solicitando assinatura e confirmação de leitura."),
-  dicaDaNai: z.string(),
+  propostaExecutiva: z.object({
+    apresentacao: z.string().describe("Saudação comercial e contextualização técnica."),
+    justificativaNormativa: z.string().describe("Menção aos itens da NR-01 (GRO) e NR-07 (PCMSO)."),
+    analiseImpactoFinanceiro: z
+      .string()
+      .describe("Impacto da não conformidade com decretos de penalidades."),
+  }),
+  roiEstimado: z.object({
+    valorEconomiaAnual: z
+      .number()
+      .describe("Estimativa de redução de passivo trabalhista e multas."),
+    descricaoBeneficio: z
+      .string()
+      .describe("Explicação de como o ASO Digital e Gestão Ativa geram ganho."),
+  }),
+  cronograma: z
+    .array(
+      z.object({
+        fase: z.string().describe("Etapa (ex: Diagnóstico, Implantação GRO, Treinamentos)"),
+        prazo: z.string(),
+        atactivities: z.array(z.string()).describe("Lista de atividades técnicas desta fase"),
+      })
+    )
+    .describe("Etapas de implementação segmentadas"),
+  pacotes: z
+    .array(
+      z.object({
+        nome: z.string().describe("Ex: Essencial, Intermediário, Elite"),
+        servicosInclusos: z.array(z.string()),
+        valorImplementacao: z.number(),
+        valorMensal: z.number().optional(),
+        destaque: z.string().describe("Vantagem deste pacote"),
+      })
+    )
+    .describe("3 opções de pacotes com descontos progressivos"),
+  dicaEstrategica: z.string().describe("Insight Nextcon para fechamento do contrato."),
 });
 export type OrcamentoOutput = z.infer<typeof OrcamentoOutputSchema>;
 
 const quotePrompt = ai.definePrompt({
-  name: "nai_Commercial_Prompt",
+  name: "nai_Commercial_Elite_Prompt",
   input: { schema: DadosEmpresaInputSchema },
   output: { schema: OrcamentoOutputSchema },
-  prompt: `Você é o agente "nai", responsável pelo braço Comercial da Nextcon.
-Sua tarefa é elaborar e enviar propostas comerciais de SST altamente estratégicas.
+  prompt: `Você é o braço Comercial de Elite da Nextcon. Sua missão é elaborar uma proposta comercial detalhada e persuasiva conforme as diretrizes 2026.
 
-INSTRUÇÕES DO AGENTE:
-1. Elabore a proposta baseada nas necessidades: "{{{necessidades}}}".
-2. Utilize precificação baseada em R$ 850 para PGR e R$ 650 para PCMSO como valores base.
-3. Ao finalizar a elaboração, você DEVE obrigatoriamente solicitar ao cliente a ASSINATURA e a CONFIRMAÇÃO DE LEITURA E COMPREENSÃO da proposta no campo 'instrucoesConfirmacao'.
-4. Utilize tom vendedor, porém consultivo.
+DIRETRIZES DA PROPOSTA:
+1. FOCO EM ROI: Demonstre que investir em SST é economia, não custo. Estime a redução de passivos com base na folha para {{{quantidadeFuncionarios}}} funcionários.
+2. CONFORMIDADE LEGAL: Cite especificamente itens da NR-01 (sobre GRO/PGR) e NR-07 (abrangência do PCMSO). Mencione o Decreto de multas.
+3. SEGMENTAÇÃO: Divida a entrega em fases (Diagnóstico, Implementação GRO/PGR, PCMSO, Treinamentos).
+4. PACOTES: Ofereça 3 opções (Essencial, Intermediário e Elite) com descontos progressivos por volume.
+5. PENALIDADES: Avalie o impacto financeiro da não conformidade conforme decretos de multas de SST.
+6. ASO DIGITAL: Destaque os benefícios da integração total e agilidade jurídica conforme legislação 2026.
 
-DADOS DO CLIENTE:
+DADOS DO PROSPECT:
 - Empresa: {{{nomeEmpresa}}}
-- Solicitante: {{{nomeSolicitante}}}
+- Setor: {{{setor}}}
 - Vidas: {{{quantidadeFuncionarios}}}
-- Risco: {{{grauDeRisco}}}`,
+- Risco: {{{grauDeRisco}}}
+- Serviços Específicos: {{{servicosDesejados}}}
+- Contexto: {{{necessidades}}}
+
+ESTRUTURA DE PREÇOS BASE (USE COMO REFERÊNCIA):
+- PGR: R$ 850 a R$ 2.500 (depende do risco)
+- PCMSO: R$ 650 a R$ 1.500
+- Gestão Mensal: R$ 15 a R$ 45 por vida.`,
 });
 
 export async function generateNaiQuote(input: DadosEmpresaInput): Promise<OrcamentoOutput> {
   const { output } = await quotePrompt(input);
-  if (!output) throw new Error('O agente comercial "nai" falhou ao gerar a proposta.');
+  if (!output) throw new Error("O motor comercial NAI falhou ao estruturar a proposta de elite.");
   return output;
 }
 
 ai.defineFlow(
   {
-    name: "nai_Commercial_Flow",
+    name: "nai_Commercial_Elite_Flow",
     inputSchema: DadosEmpresaInputSchema,
     outputSchema: OrcamentoOutputSchema,
   },

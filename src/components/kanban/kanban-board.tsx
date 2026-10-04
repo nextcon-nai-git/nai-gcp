@@ -10,6 +10,7 @@ import {
   useSensor,
   useSensors,
   closestCorners,
+  useDroppable,
 } from "@dnd-kit/core";
 import { OpsTask, TaskStatus } from "@/types/schema";
 import { KANBAN_COLUMNS as DEFAULT_COLUMNS } from "@/types/kanban";
@@ -18,13 +19,47 @@ import { TaskCard } from "./task-card";
 import { createPortal } from "react-dom";
 import { useFirestore, useUser } from "@/firebase";
 import { doc } from "firebase/firestore";
-import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import {
+  updateDocumentNonBlocking,
+  deleteDocumentNonBlocking,
+} from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
+import { Trash2, Archive, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface KanbanBoardProps {
   tasks: OpsTask[];
   columns?: { id: any; title: string; color: string }[];
   boardType?: "commercial" | "operational";
+}
+
+function SpecialDropZone({
+  id,
+  label,
+  icon: Icon,
+  activeColor,
+}: {
+  id: string;
+  label: string;
+  icon: any;
+  activeColor: string;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "flex-1 flex flex-col items-center justify-center gap-2 p-6 rounded-3xl border-2 border-dashed transition-all duration-300",
+        isOver
+          ? cn("scale-105 border-transparent text-white shadow-2xl", activeColor)
+          : "border-slate-200 bg-slate-50 text-slate-400 opacity-60"
+      )}
+    >
+      <Icon className={cn("size-6", isOver ? "animate-bounce" : "")} />
+      <span className="text-[10px] font-black uppercase tracking-widest">{label}</span>
+    </div>
+  );
 }
 
 export function KanbanBoard({
@@ -61,52 +96,66 @@ export function KanbanBoard({
     if (!over) return;
 
     const taskId = active.id as string;
-    const newStatus = over.id as TaskStatus;
+    const dropTargetId = over.id as string;
 
     const currentTask = tasks.find((t) => t.id === taskId);
-    if (!currentTask || currentTask.status === newStatus) return;
+    if (!currentTask || !db || !currentTask.companyId) return;
 
-    // --- LOGICA DE TRANSIÇÃO COMERCIAL -> OPERACIONAL ---
-    // Se o board é comercial e movemos de "implementation" para fora ou finalizamos a etapa
-    // Aqui tratamos a lógica solicitada: "Depois da etapa Implantação Projeto, deve ir para o Card Operação - Projeto Iniciado"
+    const taskRef = doc(db, "companies", currentTask.companyId, "tasks", taskId);
 
-    // Atualiza estado local
+    // --- LÓGICA DE EXCLUSÃO (LIXO) ---
+    if (dropTargetId === "trash") {
+      if (confirm(`Deseja excluir permanentemente o card "${currentTask.title}"?`)) {
+        setTasks((prev) => prev.filter((t) => t.id !== taskId));
+        deleteDocumentNonBlocking(taskRef);
+        toast({ title: "Card Excluído", description: "O registro foi removido da base Nextcon." });
+      }
+      return;
+    }
+
+    // --- LÓGICA DE ARQUIVAMENTO ---
+    if (dropTargetId === "archive") {
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      updateDocumentNonBlocking(taskRef, { status: "archived" });
+      toast({
+        title: "Card Arquivado",
+        description: "O registro será mantido por 1 ano para fins de auditoria.",
+      });
+      return;
+    }
+
+    // --- LÓGICA DE TRANSIÇÃO ENTRE COLUNAS ---
+    const newStatus = dropTargetId as TaskStatus;
+    if (currentTask.status === newStatus) return;
+
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)));
 
-    // Persiste no Firestore
-    if (user && db && currentTask.companyId) {
-      const taskRef = doc(db, "companies", currentTask.companyId, "tasks", taskId);
+    if (boardType === "commercial" && newStatus === "implementation") {
+      toast({
+        title: "Iniciando Implantação",
+        description: "O projeto está sendo preparado para a engenharia.",
+      });
+    }
 
-      // Se era comercial e foi movido para 'implementation' (ou além no futuro)
-      if (boardType === "commercial" && newStatus === "implementation") {
-        toast({
-          title: "Iniciando Implantação",
-          description: "O projeto está sendo preparado para a engenharia.",
-        });
-      }
+    updateDocumentNonBlocking(taskRef, { status: newStatus });
 
-      // Se o usuário concluir a implantação, podemos mudar para 'started' (Projeto Iniciado na Operação)
-      // Nota: Esta lógica assume que 'started' é o próximo passo após a venda.
-      updateDocumentNonBlocking(taskRef, { status: newStatus });
-
-      if (newStatus === "done") {
-        toast({
-          title: "Tarefa Finalizada",
-          description: "Gatilhando automação de documentos e envio eSocial...",
-        });
-      }
+    if (newStatus === "done") {
+      toast({
+        title: "Tarefa Finalizada",
+        description: "Gatilhando automação de documentos e envio eSocial...",
+      });
     }
   }
 
   return (
-    <div className="h-full overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden">
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex h-full gap-6 overflow-x-auto pb-4 scrollbar-thin">
+        <div className="flex h-full gap-6 overflow-x-auto pb-4 scrollbar-thin flex-1">
           {columns.map((col) => (
             <div key={col.id} className="h-full">
               <KanbanColumn
@@ -118,6 +167,24 @@ export function KanbanBoard({
             </div>
           ))}
         </div>
+
+        {/* Zonas Especiais de Drop - Aparecem apenas durante o arraste */}
+        {activeTask && (
+          <div className="fixed bottom-10 left-1/2 -translate-x-1/2 w-full max-w-2xl px-6 flex gap-4 animate-in slide-in-from-bottom-10 duration-500 z-50">
+            <SpecialDropZone
+              id="archive"
+              label="Arquivar (1 Ano)"
+              icon={Archive}
+              activeColor="bg-amber-600"
+            />
+            <SpecialDropZone
+              id="trash"
+              label="Lixo (Excluir)"
+              icon={Trash2}
+              activeColor="bg-red-600"
+            />
+          </div>
+        )}
 
         {typeof document !== "undefined" &&
           createPortal(

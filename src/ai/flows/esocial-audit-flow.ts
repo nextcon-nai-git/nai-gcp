@@ -8,7 +8,7 @@
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "genkit";
+import { z } from "zod";
 
 const EsocialAuditInputSchema = z.object({
   riskList: z.array(z.string()).describe("Lista de perigos/riscos identificados no PGR."),

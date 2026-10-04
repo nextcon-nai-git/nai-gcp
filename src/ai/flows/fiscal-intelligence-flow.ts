@@ -6,7 +6,7 @@
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "genkit";
+import { z } from "zod";
 
 const FiscalInputSchema = z.object({
   companySegment: z.string().describe("Segmento da empresa (ex: Serviços de SST)."),

@@ -1,59 +1,31 @@
 "use client";
 
+import * as React from "react";
 import { useDraggable } from "@dnd-kit/core";
-import { OpsTask, Priority, TaskType } from "@/types/schema";
+import { OpsTask } from "@/types/schema";
 import {
-  AlertCircle,
-  Calendar,
-  FileText,
-  HardHat,
-  ShieldCheck,
   Clock,
   Brain,
-  CheckSquare,
-  Zap,
   Building2,
-  Sparkles,
-  ArrowRightCircle,
-  Briefcase,
-  TrendingUp,
   MapPin,
-  User,
-  Phone,
-  BarChart3,
+  CircleDollarSign,
+  Briefcase,
+  Sparkles,
+  ListTodo,
+  ShieldAlert,
+  Hash,
+  AlertCircle,
+  Pencil,
+  UserCheck,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, isValid } from "date-fns";
-import { Progress } from "@/components/ui/progress";
+import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { useFirestore } from "@/firebase";
-import { doc } from "firebase/firestore";
-import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { useToast } from "@/hooks/use-toast";
-
-const TypeIcon = ({ type }: { type: TaskType }) => {
-  switch (type) {
-    case "pgr":
-      return <FileText className="w-4 h-4 text-blue-600" />;
-    case "treinamento":
-      return <HardHat className="w-4 h-4 text-orange-600" />;
-    case "esocial":
-      return <Zap className="w-4 h-4 text-purple-600" />;
-    case "pcmso":
-      return <ShieldCheck className="w-4 h-4 text-emerald-600" />;
-    case "ltcat":
-      return <FileText className="w-4 h-4 text-indigo-600" />;
-    case "iot_check":
-      return <Clock className="w-4 h-4 text-amber-600" />;
-    case "vistoria":
-      return <MapPin className="w-4 h-4 text-blue-500" />;
-    case "comercial":
-      return <TrendingUp className="w-4 h-4 text-emerald-500" />;
-    default:
-      return <AlertCircle className="w-4 h-4 text-gray-500" />;
-  }
-};
+import { Progress } from "@/components/ui/progress";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TaskEditDialog } from "./task-edit-dialog";
 
 const priorityStyles = {
   low: "border-l-slate-300",
@@ -62,20 +34,44 @@ const priorityStyles = {
   critical: "border-l-red-600 shadow-lg shadow-red-500/10",
 };
 
+const priorityColors = {
+  low: "text-slate-400 bg-slate-100 border-slate-200",
+  medium: "text-blue-600 bg-blue-50 border-blue-200",
+  high: "text-orange-600 bg-orange-50 border-orange-200",
+  critical: "text-red-600 bg-red-50 border-red-200",
+};
+
 function safeFormat(date: any, formatStr: string) {
-  if (!date) return "---";
+  if (!date) return "";
   const d = new Date(date);
-  if (!isValid(d)) return "---";
-  return format(d, formatStr);
+  if (!isValid(d)) return "";
+  return format(d, formatStr, { locale: ptBR });
 }
 
 export function TaskCard({ task }: { task: OpsTask }) {
-  const db = useFirestore();
-  const { toast } = useToast();
+  const [isShaking, setIsShaking] = React.useState(false);
+  const [isEditDialogOpen, setIsEditOpen] = React.useState(false);
+  const prevTaskRef = React.useRef(task);
+
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
     data: task,
   });
+
+  React.useEffect(() => {
+    if (
+      prevTaskRef.current.lastComment !== task.lastComment ||
+      prevTaskRef.current.progress !== task.progress ||
+      prevTaskRef.current.status !== task.status ||
+      prevTaskRef.current.title !== task.title ||
+      prevTaskRef.current.responsibleId !== task.responsibleId
+    ) {
+      setIsShaking(true);
+      const timer = setTimeout(() => setIsShaking(false), 800);
+      prevTaskRef.current = task;
+      return () => clearTimeout(timer);
+    }
+  }, [task]);
 
   const style = transform
     ? {
@@ -84,143 +80,163 @@ export function TaskCard({ task }: { task: OpsTask }) {
       }
     : undefined;
 
-  const checklist = task.checklist || [];
-  const completedChecks = checklist.filter((c) => c.checked).length;
-  const totalChecks = checklist.length;
-  const progress = totalChecks > 0 ? (completedChecks / totalChecks) * 100 : 0;
-
-  // Visual marker for real data vs mocks - made generic
-  const isPriorityCase = task.ai_risk_score !== undefined && task.ai_risk_score > 50;
-
-  const handlePromoteToOps = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!db || !task.companyId) return;
-    const taskRef = doc(db, "companies", task.companyId, "tasks", task.id);
-    updateDocumentNonBlocking(taskRef, { status: "started" });
-    toast({
-      title: "Promovido para Operação",
-      description: "O projeto agora está na fase 'Projeto Iniciado' da engenharia.",
-    });
-  };
+  const progress = task.progress !== undefined ? task.progress : task.status === "done" ? 100 : 0;
+  const totalItems = task.checklist?.length || 0;
+  const checkedItems = task.checklist?.filter((item) => item.checked).length || 0;
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...listeners}
-      {...attributes}
-      className={cn(
-        "relative p-5 mb-4 rounded-3xl cursor-grab active:cursor-grabbing group touch-none transition-all",
-        "bg-white/80 backdrop-blur-sm border border-slate-100 hover:bg-white hover:scale-[1.02]",
-        "border-l-[8px]",
-        priorityStyles[task.priority],
-        isDragging ? "opacity-50 rotate-2 scale-105 shadow-2xl" : "shadow-sm",
-        isPriorityCase && "ring-1 ring-primary/5 bg-gradient-to-br from-white to-blue-50/30"
-      )}
-    >
-      <div className="flex justify-between items-start mb-4">
-        <div className="flex flex-col gap-1.5 flex-1 min-w-0 mr-2">
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-              <TypeIcon type={task.type} />
-              {task.type}
-            </span>
-            {task.origin?.includes("commercial") && (
-              <Badge className="bg-blue-50 text-blue-600 text-[7px] font-black border-none uppercase px-1.5 h-4 gap-1">
-                <BarChart3 className="size-2" /> Vindo do Comercial
+    <>
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...listeners}
+        {...attributes}
+        onClick={(e) => {
+          if (transform) return;
+          setIsEditOpen(true);
+        }}
+        className={cn(
+          "relative p-6 mb-4 rounded-[1.75rem] cursor-grab active:cursor-grabbing transition-all",
+          "bg-white border border-slate-200 hover:shadow-2xl hover:border-primary/10 hover:ring-4 ring-primary/5",
+          "border-l-[8px]",
+          priorityStyles[task.priority],
+          isDragging ? "opacity-50 rotate-3 scale-105 shadow-2xl z-50" : "shadow-sm",
+          isShaking ? "animate-shake ring-2 ring-accent border-accent" : ""
+        )}
+      >
+        {/* 1. Header: Status Butler e Prioridade */}
+        <div className="flex justify-between items-start mb-5">
+          <div className="flex flex-wrap gap-1.5">
+            <Badge
+              className={cn(
+                "text-[8px] font-black uppercase h-5 px-3 rounded-lg border shadow-sm",
+                priorityColors[task.priority]
+              )}
+            >
+              {task.priority === "critical" ? "⚡ GARGALO" : task.priority.toUpperCase()}
+            </Badge>
+            {task.agentEnabled && (
+              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 font-black text-[8px] h-5 px-2.5 rounded-lg flex items-center gap-1">
+                <div className="size-1.5 bg-emerald-500 rounded-full animate-pulse" /> NAI BOT
               </Badge>
             )}
           </div>
-          <h4 className="text-sm font-black text-primary leading-tight font-headline uppercase tracking-tight">
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  className={cn(
+                    "size-9 rounded-2xl flex items-center justify-center transition-all",
+                    task.agentEnabled
+                      ? "bg-accent text-primary shadow-lg scale-110"
+                      : "bg-slate-50 text-slate-300 border border-slate-100"
+                  )}
+                >
+                  {task.agentEnabled ? (
+                    <Sparkles className="size-4 animate-pulse" />
+                  ) : (
+                    <ShieldAlert className="size-4" />
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 text-white border-none rounded-xl p-3 shadow-2xl">
+                <p className="text-[10px] font-black uppercase tracking-widest">
+                  {task.agentEnabled ? "Butler NAI Ativo" : "Monitoramento Manual"}
+                </p>
+                <p className="text-[9px] opacity-70 mt-1">
+                  {task.agentEnabled
+                    ? "Sincronização WhatsApp automática."
+                    : "Aguardando atualização técnica."}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+
+        {/* 2. Título e Unidade Técnica */}
+        <div className="space-y-2 mb-5 text-left">
+          <h4 className="text-[14px] font-black text-primary leading-tight uppercase font-headline group-hover:text-accent transition-colors">
             {task.title}
           </h4>
-        </div>
-
-        {task.ai_risk_score !== undefined && (
-          <div
-            className={cn(
-              "size-10 rounded-2xl flex flex-col items-center justify-center border shadow-inner shrink-0",
-              task.ai_risk_score > 70 ? "bg-red-50 border-red-100" : "bg-blue-50 border-blue-100"
-            )}
-          >
-            <Brain
-              className={cn("size-3.5", task.ai_risk_score > 70 ? "text-red-500" : "text-blue-500")}
-            />
-            <span className="text-[9px] font-black">{task.ai_risk_score}%</span>
-          </div>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2 mb-4">
-        <div className="size-6 rounded-lg bg-primary/5 flex items-center justify-center">
-          <Building2 className="size-3.5 text-primary/40" />
-        </div>
-        <span className="text-[10px] font-black text-slate-500 truncate uppercase tracking-tighter">
-          {task.companyName || "Unidade Técnica"}
-        </span>
-      </div>
-
-      {(task as any).metadata?.contato_nome && (
-        <div className="mb-5 p-3 bg-white/50 rounded-2xl border border-dashed border-emerald-200 space-y-2">
-          <p className="text-[8px] font-black uppercase text-emerald-600 flex items-center gap-1">
-            <Sparkles className="size-2.5" /> Lead Externo
-          </p>
-          <div className="flex flex-col gap-1">
-            <p className="text-[10px] font-bold text-primary flex items-center gap-1.5 uppercase">
-              <User className="size-3 text-slate-400" /> {(task as any).metadata.contato_nome}
+          <div className="flex items-center gap-2">
+            <Building2 className="size-3 text-slate-400 shrink-0" />
+            <p className="text-[10px] font-black uppercase text-slate-600 truncate tracking-tight">
+              {task.companyName}
             </p>
           </div>
         </div>
-      )}
 
-      <div className="space-y-2.5">
-        <div className="flex justify-between items-center text-[9px] font-black uppercase text-slate-400 tracking-widest">
-          <span className="flex items-center gap-1.5">
-            <CheckSquare className="size-3.5 text-accent" />
-            Conformidade: {completedChecks}/{totalChecks}
-          </span>
-          <span className="text-primary">{Math.round(progress)}%</span>
-        </div>
-        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-          <div
-            className={cn(
-              "h-full transition-all duration-500",
-              progress === 100 ? "bg-accent" : "bg-primary"
-            )}
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
-
-      {task.status === "implementation" && (
-        <Button
-          onClick={handlePromoteToOps}
-          className="w-full mt-4 h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[9px] tracking-widest rounded-xl gap-2 shadow-lg"
-        >
-          <ArrowRightCircle className="size-3.5" /> Ativar Operação
-        </Button>
-      )}
-
-      <div className="flex items-center justify-between mt-5 pt-4 border-t border-dashed border-slate-100">
-        <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold bg-slate-50 px-3 py-1.5 rounded-xl">
-          <Calendar className="w-3.5 h-3.5" />
-          <span>{safeFormat(task.dueDate, "dd/MM/yyyy")}</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {isPriorityCase && (
-            <div
-              className="size-8 rounded-2xl bg-accent/10 flex items-center justify-center text-accent"
-              title="Monitoramento Ativo"
-            >
-              <Sparkles className="size-4" />
+        {/* 3. CAMPOS CUSTOMIZADOS (Custom Fields) */}
+        <div className="grid grid-cols-2 gap-2 mb-6 p-4 bg-slate-50/80 rounded-[1.25rem] border border-slate-100 shadow-inner group/fields">
+          <div className="space-y-1">
+            <p className="text-[8px] font-black text-slate-400 uppercase flex items-center gap-1 tracking-widest">
+              <Hash className="size-2.5" /> CNAE
+            </p>
+            <p className="text-[10px] font-bold text-primary font-mono">{task.cnae || "---"}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[8px] font-black text-slate-400 uppercase flex items-center gap-1 tracking-widest">
+              <ShieldAlert className="size-2.5" /> Risco
+            </p>
+            <p className="text-[10px] font-black text-red-600 uppercase">
+              Grau {task.riskDegree || "N/I"}
+            </p>
+          </div>
+          {task.responsibleName && (
+            <div className="space-y-1 col-span-2 border-t border-slate-200 pt-3 mt-1 flex justify-between items-center">
+              <div>
+                <p className="text-[8px] font-black text-slate-400 uppercase flex items-center gap-1 tracking-widest">
+                  <UserCheck className="size-2.5" /> Responsável
+                </p>
+                <p className="text-[10px] font-black text-accent truncate uppercase leading-none mt-1">
+                  {task.responsibleName}
+                </p>
+              </div>
+              <ChevronRight className="size-4 text-slate-300 group-hover/fields:translate-x-1 transition-transform" />
             </div>
           )}
-          <div className="size-8 rounded-2xl bg-primary text-white flex items-center justify-center text-[10px] font-black shadow-lg shadow-primary/20">
-            NC
+        </div>
+
+        {/* 4. Checklist Progress - Agile Standardization */}
+        {totalItems > 0 && (
+          <div className="space-y-2 mb-6">
+            <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-tighter">
+              <div className="flex items-center gap-2">
+                <ListTodo className="size-3 text-accent" />
+                <span className="text-slate-500">
+                  Compliance: {checkedItems}/{totalItems}
+                </span>
+              </div>
+              <span className={cn(progress === 100 ? "text-emerald-600" : "text-primary")}>
+                {progress}%
+              </span>
+            </div>
+            <Progress value={progress} className="h-2 bg-slate-100 rounded-full" />
+          </div>
+        )}
+
+        {/* 5. Footer: Datas e Equipe */}
+        <div className="flex items-center justify-between pt-4 border-t border-dashed border-slate-200">
+          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold bg-slate-100 px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
+            <Clock className="size-3 text-slate-400" />
+            <span className="tracking-tighter uppercase">
+              SLA: {safeFormat(task.dueDate, "dd/MM/yy")}
+            </span>
+          </div>
+
+          <div className="flex items-center -space-x-3">
+            <div className="size-9 rounded-2xl border-2 border-white bg-primary text-white flex items-center justify-center text-[9px] font-black uppercase shadow-lg group-hover:scale-110 transition-transform">
+              NX
+            </div>
+            <div className="size-9 rounded-2xl border-2 border-white bg-slate-200 flex items-center justify-center text-[9px] font-black uppercase text-slate-400 shadow-md">
+              {task.companyName.substring(0, 2)}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      <TaskEditDialog isOpen={isEditDialogOpen} onOpenChange={setIsEditOpen} task={task} />
+    </>
   );
 }

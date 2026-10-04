@@ -51,34 +51,37 @@ export default function MedicalCertificatesPage() {
     setResult(null);
 
     try {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = async () => {
-        const base64 = reader.result as string;
-        const analysis = await validateMedicalCertificate({
-          fileDataUri: base64,
-          fileName: file.name,
-        });
-        setResult(analysis);
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error("Falha ao ler o arquivo do atestado."));
+        reader.readAsDataURL(file);
+      });
 
-        if (analysis.authenticity === "forged") {
-          toast({
-            variant: "destructive",
-            title: "Alerta de Fraude!",
-            description: "A NAI detectou sinais críticos de falsificação.",
-          });
-        } else {
-          toast({
-            title: "Análise Concluída",
-            description: "O documento foi processado pela inteligência NAI.",
-          });
-        }
-      };
+      const analysis = await validateMedicalCertificate({
+        fileDataUri: base64,
+        fileName: file.name,
+      });
+      setResult(analysis);
+
+      if (analysis.authenticity === "forged") {
+        toast({
+          variant: "destructive",
+          title: "Alerta de Fraude!",
+          description: "A NAI detectou sinais críticos de falsificação.",
+        });
+      } else {
+        toast({
+          title: "Análise Concluída",
+          description: "O documento foi periciado com sucesso pela NAI.",
+        });
+      }
     } catch (error: any) {
+      console.error("[Medical Certificate Validation Error]:", error);
       toast({
         variant: "destructive",
         title: "Erro na NAI",
-        description: "Não foi possível validar o atestado.",
+        description: error?.message || "Não foi possível validar o atestado.",
       });
     } finally {
       setIsAnalyzing(false);

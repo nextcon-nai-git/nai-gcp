@@ -1,27 +1,30 @@
 /**
- * Utilitário para geração de links do WhatsApp com mensagens pré-formatadas.
+ * NEXTCON PLATFORM - MESSAGING UTILS 2026
+ * Gerador de links do WhatsApp com templates contextuais da NAI.
  */
 
 export function getWhatsAppLink(phone: string, message: string): string {
   if (!phone) return "#";
-  // Remove caracteres não numéricos do telefone
   const cleanPhone = phone.replace(/\D/g, "");
-  // Garante o código do país se não houver
   const formattedPhone = cleanPhone.length <= 11 ? `55${cleanPhone}` : cleanPhone;
   const encodedMessage = encodeURIComponent(message);
   return `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
 }
 
 export const MSG_TEMPLATES = {
+  // Chamada para Exame Ocupacional (Periódico)
   EXAME_VENCENDO: (nome: string, exame: string, data: string) =>
-    `Olá ${nome}, a Nextcon Saúde Empresarial informa que seu exame de ${exame} está com vencimento previsto para ${data}. Favor entrar em contato para agendamento.`,
+    `Olá ${nome.toUpperCase()}, aqui é da Nextcon Saúde. 🩺\n\nIdentificamos que seu exame de *${exame}* tem vencimento previsto para *${data}*.\n\nPor favor, entre em contato para agendarmos sua avaliação clínica e garantir sua aptidão no eSocial. Obrigado!`,
 
-  AVISO_GESTOR: (gestor: string, colaborador: string, exame: string) =>
-    `Prezado ${gestor}, informamos que o colaborador ${colaborador} possui uma pendência de ${exame} que precisa ser regularizada. Atenciosamente, Nextcon.`,
+  // Alerta para Gestor de Unidade
+  AVISO_GESTOR: (gestor: string, colaborador: string, pendencia: string) =>
+    `Prezado ${gestor}, informamos que o colaborador *${colaborador}* possui uma pendência crítica de *${pendencia}* identificada pela NAI.\n\nSolicitamos a regularização imediata para evitar multas automáticas do firewall e-Social. Atenciosamente, NextconSST.`,
 
+  // Alerta de Limbo (Previdenciário)
   ALERTA_LIMBO: (colaborador: string) =>
-    `Atenção: Identificamos um possível nexo NTEP para o colaborador ${colaborador}. Favor verificar o painel Sentinela do Limbo na plataforma NAI.`,
+    `🚨 *ALERTA SENTINELA NAI* 🚨\n\nIdentificamos uma possível caracterização de nexo acidentário (NTEP) para o colaborador *${colaborador}*.\n\nO dossiê de contestação já está disponível no portal do RH. Favor validar com urgência.`,
 
+  // Confirmação de Agendamento Profissional
   CONFIRMACAO_AGENDAMENTO: (
     colaborador: string,
     exame: string,
@@ -30,8 +33,9 @@ export const MSG_TEMPLATES = {
     hora: string,
     endereco: string
   ) =>
-    `Olá ${colaborador}! 🩺\n\nSeu exame ocupacional (${exame}) foi agendado pela Nextcon.\n\n📍 Local: ${clinica}\n📅 Data: ${data}\n⏰ Horário: ${hora}\n🏠 Endereço: ${endereco}\n\n⚠️ Lembre-se de levar um documento com foto. Em caso de imprevisto, avise com 24h de antecedência.`,
+    `Olá ${colaborador}! 🩺\n\nSeu exame ocupacional (*${exame}*) foi agendado pela Nextcon.\n\n📍 *Local:* ${clinica}\n📅 *Data:* ${data}\n⏰ *Horário:* ${hora}\n🏠 *Endereço:* ${endereco}\n\n⚠️ *Atenção:* Leve um documento original com foto. Caso não possa comparecer, avise com 24h de antecedência para evitarmos cobrança de No-Show.`,
 
+  // Solicitação de Grade para Clínica Prestadora
   SOLICITAR_GRADE_CLINICA: (clinica: string) =>
-    `Olá equipe ${clinica}! 🏥\n\nAqui é da Nextcon Saúde. Poderiam nos fornecer os horários disponíveis para exames Admissionais e Periódicos para esta semana? Obrigado!`,
+    `Olá equipe ${clinica}! 🏥\n\nAqui é da Nextcon Saúde Empresarial. Poderiam nos fornecer os horários disponíveis para exames Admissionais e Periódicos para esta semana? Estamos com demanda de rede ativa. Obrigado!`,
 };

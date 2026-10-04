@@ -5,7 +5,7 @@
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "genkit";
+import { z } from "zod";
 
 const EmployeeExtractionInputSchema = z.object({
   rawText: z.string().describe("O texto bruto copiado de um PDF, Excel ou documento de RH."),

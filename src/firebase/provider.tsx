@@ -40,6 +40,7 @@ export interface FirebaseServicesAndUser extends FirebaseContextState {
 }
 
 export interface UserHookResult {
+  servedCompanies: string[];
   user: User | null;
   role: string | null;
   companyId: string | null;
@@ -111,6 +112,7 @@ export const useFirebase = (): FirebaseServicesAndUser => {
     user: context.user,
     role: context.role,
     companyId: context.companyId,
+    servedCompanies: context.servedCompanies || [],
     isUserLoading: context.isUserLoading,
     userError: context.userError,
   } as FirebaseServicesAndUser;
@@ -128,6 +130,13 @@ export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T {
 }
 
 export const useUser = (): UserHookResult => {
-  const { user, role, companyId, isUserLoading, userError } = useFirebase();
-  return { user, role, companyId, isUserLoading, userError };
+  const { user, role, companyId, servedCompanies, isUserLoading, userError } = useFirebase();
+  return {
+    user,
+    role,
+    companyId,
+    servedCompanies: servedCompanies || [],
+    isUserLoading,
+    userError,
+  };
 };

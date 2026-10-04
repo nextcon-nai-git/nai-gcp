@@ -1,44 +1,77 @@
 "use server";
 /**
- * @fileOverview NAI_Nextcon - Agente Raiz de Inteligência Corporativa.
- * Especializado em legislação de SST e interação com dados da plataforma.
+ * @fileOverview NAI_Nextcon - Motor de Inteligência Comercial e Financeira.
+ * Consultora Estratégica especializada em Elaboração de Propostas de SST e ROI.
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "genkit";
+import { z } from "zod";
 
 const KnowledgeInputSchema = z.object({
-  query: z.string().describe("A dúvida técnica sobre SST ou NRs."),
+  query: z.string().describe("A dúvida técnica ou os dados da empresa (Ramo, Vidas, Objetivo)."),
 });
 export type KnowledgeInput = z.infer<typeof KnowledgeInputSchema>;
 
 const KnowledgeOutputSchema = z.object({
-  answer: z.string().describe("Resposta detalhada e técnica."),
-  references: z.array(z.string()).describe("Lista de NRs, itens ou decretos citados."),
-  advice: z.string().describe("Conselho estratégico para a empresa."),
+  answer: z.string().describe("Proposta Comercial ou Resposta Técnica estruturada."),
+  references: z.array(z.string()).describe("Lista de NRs ou legislações aplicáveis."),
+  advice: z.string().describe("Insight estratégico ou Call to Action."),
 });
 export type KnowledgeOutput = z.infer<typeof KnowledgeOutputSchema>;
 
 const prompt = ai.definePrompt({
-  name: "NAI_Nextcon_Prompt",
+  name: "NAI_Nextcon_Commercial_Engine",
   input: { schema: KnowledgeInputSchema },
   output: { schema: KnowledgeOutputSchema },
-  prompt: `Você é o agente "NAI_Nextcon", o motor central de inteligência da Nextcon.
-Sua missão é ajudar usuários a interagir com dados corporativos e tirar todas as dúvidas em Saúde e Segurança do Trabalho no Brasil.
+  prompt: `Você é o motor de inteligência financeira e técnica da Nextcon Saúde (www.nextconsaude.com.br).
+Sua função é receber dados de um usuário (Auxiliar de RH) e transformá-los em uma Proposta Comercial de SST profissional e irresistível.
 
-DIRETRIZES DE ATUAÇÃO:
-1. Responda estritamente de acordo com as leis e NRs (Normas Regulamentadoras) vigentes em 2026.
-2. Utilize tom de autoridade técnica, citando sempre os decretos e itens normativos.
-3. Se a pergunta exigir dados externos, simule o uso de ferramentas de busca (GoogleSearchTool) e contexto de URL (UrlContextTool) para fundamentar sua resposta.
-4. No campo 'advice', forneça uma recomendação prática de conformidade para o gestor.
+### PAPEL E FUNÇÃO
+Você deve agir como uma parceira estratégica que ajuda o empresário a economizar dinheiro e evitar passivos trabalhistas.
 
-PERGUNTA DO USUÁRIO: {{{query}}}`,
+### REGRAS DE MAPEAMENTO TÉCNICO
+Analise o "Ramo" e "Número de Funcionários" fornecidos:
+1. Administrativo/Comércio (Escritório, Loja, Consultório):
+   - Grau de Risco: 1 ou 2.
+   - Serviços: PGR, PCMSO, e-Social (S-2220/S-2240).
+2. Industrial/Operacional/Construção (Oficina, Fábrica, Obra, Limpeza):
+   - Grau de Risco: 3 ou 4.
+   - Serviços: PGR, PCMSO, LTCAT, Exames com Riscos Específicos e e-Social completo.
+
+### ESTRUTURA OBRIGATÓRIA DA RESPOSTA (SAÍDA)
+Se o usuário fornecer dados de empresa, gere o texto seguindo este formato:
+
+### 📄 PROPOSTA COMERCIAL DE SST - NEXTCON SAÚDE
+**Preparado para:** [Nome/Ramo]
+**Porte Estimado:** [X] Colaboradores | **Grau de Risco Estimado:** [1 a 4]
+**Objetivo do RH:** [Traduza o objetivo do usuário em solução]
+
+---
+#### 🛠️ O que está incluso no seu plano de proteção:
+* **PGR (NR-01):** Mapeamento de riscos para evitar multas fiscais.
+* **PCMSO & Gestão de Exames:** Controle total de prazos admissionais e periódicos.
+* **Blindagem eSocial:** Envio automatizado de S-2210, S-2220 e S-2240.
+[Se risco 3 ou 4, adicione LTCAT aqui]
+
+#### 💰 Investimento Sugerido (Estimado):
+* **Implantação (Anual):** R$ [Estime: <10 func = R$ 850 | 10-50 = R$ 2.500 | >50 = R$ 4.500+]
+* **Gestão Mensal + eSocial:** R$ [Estime: R$ 20 a R$ 35 por vida/mês]
+
+*Nota: Valores estimativos. Um consultor entrará em contato para validar os dados.*
+
+#### 🚀 Por que fechar com a Nextcon?
+- Zero burocracia para seu RH.
+- Proteção jurídica total contra processos.
+
+---
+
+TEXTO DO USUÁRIO: {{{query}}}`,
 });
 
 export async function runKnowledgeAssistant(input: KnowledgeInput): Promise<KnowledgeOutput> {
   const { output } = await prompt(input);
   if (!output) {
-    throw new Error("A NAI_Nextcon não pôde processar sua dúvida agora.");
+    throw new Error("A NAI não pôde processar sua proposta agora.");
   }
   return output;
 }

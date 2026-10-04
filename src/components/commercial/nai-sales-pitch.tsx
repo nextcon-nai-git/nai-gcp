@@ -2,60 +2,63 @@
 
 import * as React from "react";
 import {
-  ShieldPlus,
-  CircleDollarSign,
-  HardHat,
+  ShieldCheck,
+  ClipboardCheck,
+  GraduationCap,
   Sparkles,
   ChevronRight,
   Zap,
-  Loader2,
-  MessageSquare,
-  ShieldCheck,
-  ClipboardCheck,
-  Zap as ZapIcon,
+  HardHat,
+  Stethoscope,
+  Bot,
+  ShoppingCart,
+  TrendingDown,
+  Scale,
+  FileText,
+  Calendar,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 
-const NAI_AVATAR_URL =
-  "https://firebasestorage.googleapis.com/v0/b/studio-8439299034-125c7.firebasestorage.app/o/logo%2FAvatar%20Nextcon%20NAI.png?alt=media";
+const NAI_AVATAR_URL = "/images/nai_health_avatar.png";
 
 const PITCH_DATA = {
   avatar: {
     nome: "NAI",
-    titulo: "Inteligência Nextcon",
+    titulo: "Consultora Comercial Estratégica",
     saudacao_inicial:
-      "Olá. Eu sou a NAI. Enquanto você cota seu orçamento, saiba: você não está contratando apenas um software, mas um parceiro de inteligência em conformidade SST.",
+      "Olá! Sou a NAI, consultora especialista em gestão estratégica de SST da Nextcon. Como posso ajudar sua empresa hoje?",
   },
   pilares_venda: [
     {
       ordem: 1,
-      icone: ClipboardCheck,
-      titulo: "Gestão de PGR e PCMSO",
-      resumo: "Elaboração e controle de programas conforme NR-01 e NR-07.",
+      icone: FileText,
+      titulo: "Elaboração de Documentos (PGR, LTCAT, etc.)",
+      resumo:
+        "Elaboração e gestão completa de laudos técnicos, PGR, PCMSO, LTCAT e programas de segurança.",
       texto_completo:
-        "Minha inteligência permite mapear riscos em tempo real e sugerir protocolos médicos precisos, garantindo que o PGR e o PCMSO da sua empresa estejam sempre atualizados e tecnicamente sólidos.",
+        "Emitimos e mantemos atualizados todos os documentos obrigatórios de SST (PGR, PCMSO, LTCAT e laudos), garantindo conformidade total e integração automatizada aos eventos do eSocial.",
     },
     {
       ordem: 2,
-      icone: ZapIcon,
-      titulo: "Auditoria eSocial",
-      resumo: "Validação de eventos S-2210, S-2220 e S-2240.",
+      icone: Calendar,
+      titulo: "Agendamento de Exames Ocupacionais (ASO)",
+      resumo: "Agendamento rápido de ASOs e exames complementares em rede credenciada nacional.",
       texto_completo:
-        "Eu atuo como um firewall antes de qualquer envio. Verifico a consistência dos dados do eSocial para evitar multas por inconsistências entre o ambiente de trabalho e o monitoramento de saúde.",
+        "Centralizamos o agendamento de ASOs admissionais, periódicos e demissionais com rede de clínicas parceiras espalhadas por todo o Brasil, com controle em tempo real do vencimento de ASO.",
     },
     {
       ordem: 3,
-      icone: HardHat,
-      titulo: "Consultoria em NRs",
-      resumo: "Suporte técnico especializado em todas as Normas Regulamentadoras.",
+      icone: Sparkles,
+      titulo: "Outras Demandas de SST (Especificar)",
+      resumo: "Consultoria sob medida para treinamentos de NRs, eSocial e gestão de riscos.",
       texto_completo:
-        "Tenho acesso imediato a toda a legislação de SST vigente em 2026. Posso tirar dúvidas técnicas sobre qualquer NR e sugerir medidas de controle de engenharia ou administrativas.",
+        "Sua empresa tem uma demanda específica? Atendemos treinamentos das NRs, auditorias, suporte para fiscalização e soluções customizadas de gestão em saúde ocupacional.",
     },
   ],
-  cta_final: "A Nextcon é sobre gestão de conformidade. Blinde sua operação agora.",
+  cta_final: "Nextcon Saúde: Gestão Inteligente para Ambientes Produtivos.",
 };
 
 export function NaiSalesPitch() {
@@ -63,10 +66,9 @@ export function NaiSalesPitch() {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-left-4 duration-700">
-      {/* Balão de Fala e Avatar */}
       <div className="flex items-start gap-5 p-6 bg-white rounded-[2.5rem] border shadow-sm relative group">
         <div className="relative shrink-0 mt-2">
-          <div className="size-20 rounded-[1.5rem] bg-[#090e24] flex items-center justify-center overflow-hidden shadow-xl border-2 border-primary/10">
+          <div className="size-20 rounded-[1.5rem] bg-[#090e24] flex items-center justify-center overflow-hidden shadow-xl border-2 border-primary/10 relative">
             <Image
               src={NAI_AVATAR_URL}
               alt="Avatar NAI"
@@ -77,17 +79,17 @@ export function NaiSalesPitch() {
             />
           </div>
           <div className="absolute -bottom-1 -right-1 size-6 bg-primary rounded-full border-2 border-white flex items-center justify-center">
-            <Zap className="size-3 text-white fill-current" />
+            <Bot className="size-3 text-white" />
           </div>
         </div>
 
         <div className="flex-1 space-y-2 relative">
           <div className="bg-slate-50 p-5 rounded-3xl rounded-tl-none border shadow-inner relative">
-            <p className="text-sm italic text-slate-600 leading-relaxed font-medium">
+            <p className="text-sm italic text-slate-600 font-bold leading-relaxed">
               "{PITCH_DATA.avatar.saudacao_inicial}"
             </p>
           </div>
-          <div className="pl-2">
+          <div className="pl-2 text-left">
             <h4 className="text-sm font-black text-primary uppercase tracking-tight leading-none">
               {PITCH_DATA.avatar.nome}
             </h4>
@@ -98,7 +100,6 @@ export function NaiSalesPitch() {
         </div>
       </div>
 
-      {/* Pilares de Venda Interativos */}
       <div className="space-y-3">
         {PITCH_DATA.pilares_venda.map((pilar) => {
           const Icon = pilar.icone;
@@ -127,7 +128,7 @@ export function NaiSalesPitch() {
                   >
                     <Icon className="size-5" />
                   </div>
-                  <div className="flex-1 space-y-1 min-w-0">
+                  <div className="flex-1 space-y-1 min-w-0 text-left">
                     <div className="flex justify-between items-center">
                       <h5 className="font-black text-primary uppercase text-xs tracking-tight">
                         {pilar.titulo}
@@ -167,21 +168,17 @@ export function NaiSalesPitch() {
         })}
       </div>
 
-      {/* CTA Final */}
       <div className="p-6 bg-[#090e24] rounded-[2.5rem] text-white relative overflow-hidden shadow-2xl">
         <div className="absolute top-0 right-0 p-4 opacity-10 rotate-12">
           <Sparkles className="size-20 text-white" />
         </div>
         <div className="relative z-10 flex flex-col items-center text-center gap-3">
           <Badge className="bg-white/10 text-white border-none text-[8px] font-black uppercase tracking-[0.3em]">
-            Compliance 2026
+            Nextcon Commercial Specialist
           </Badge>
           <h3 className="text-xs font-bold leading-tight uppercase tracking-widest">
             {PITCH_DATA.cta_final}
           </h3>
-          <div className="mt-2 flex items-center gap-2 text-[9px] font-black text-slate-400 uppercase">
-            <MessageSquare className="size-3" /> NAI Forensic Sales Engine
-          </div>
         </div>
       </div>
     </div>

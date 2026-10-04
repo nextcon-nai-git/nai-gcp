@@ -1,28 +1,22 @@
 {
   "placeholderImages": [
     {
+      "id": "avatar-nai",
+      "description": "NAI 3D Healthcare AI Assistant Avatar",
+      "imageUrl": "/images/nai_health_avatar.png",
+      "imageHint": "futuristic 3d medical ai assistant avatar"
+    },
+    {
+      "id": "brasao-nxc",
+      "description": "Brasão Logo Nextcon Branco",
+      "imageUrl": "https://firebasestorage.googleapis.com/v0/b/studio-8439299034-125c7.firebasestorage.app/o/logo%2FBrasa%CC%83o%20Logo%20NXC%20Branco.png?alt=media&token=c47decf6-fa71-4f99-b4fe-0200d3159de7",
+      "imageHint": "logo crest"
+    },
+    {
       "id": "safety-officer",
       "description": "Professional safety officer in work environment",
       "imageUrl": "https://picsum.photos/seed/safety1/800/600",
       "imageHint": "safety officer"
-    },
-    {
-      "id": "industrial-site",
-      "description": "Modern industrial facility showing safety markings",
-      "imageUrl": "https://picsum.photos/seed/site2/800/600",
-      "imageHint": "industrial safety"
-    },
-    {
-      "id": "medical-checkup",
-      "description": "Occupational health checkup in progress",
-      "imageUrl": "https://picsum.photos/seed/health3/800/600",
-      "imageHint": "medical occupational"
-    },
-    {
-      "id": "avatar-nai",
-      "description": "NAI AI Assistant Avatar",
-      "imageUrl": "https://firebasestorage.googleapis.com/v0/b/studio-8439299034-125c7.firebasestorage.app/o/logo%2FAvatar%20Nextcon%20NAI.png?alt=media",
-      "imageHint": "ai avatar"
     }
   ]
 }

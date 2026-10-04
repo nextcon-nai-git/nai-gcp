@@ -4,9 +4,12 @@
  * @fileOverview Server Action para processamento de orçamentos via IA NAI.
  */
 
-import { generateNaiQuote, type DadosEmpresaInput } from "@/ai/flows/nai-quote-flow";
+import { generateNaiQuote, DadosEmpresaInput, OrcamentoOutput } from "@/ai/flows/nai-quote-flow";
+import { ActionResult } from "@/types/schema";
 
-export async function gerarOrcamentoComNai(dados: DadosEmpresaInput) {
+export async function gerarOrcamentoComNai(
+  dados: DadosEmpresaInput
+): Promise<ActionResult<OrcamentoOutput>> {
   try {
     // Chama o fluxo do Genkit passando os dados do formulário
     const resposta = await generateNaiQuote(dados);
@@ -15,8 +18,9 @@ export async function gerarOrcamentoComNai(dados: DadosEmpresaInput) {
       sucesso: true,
       orcamento: resposta,
     };
-  } catch (error: any) {
-    console.error("Erro na NAI:", error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+    console.error("Erro na NAI:", errorMessage);
     return {
       sucesso: false,
       mensagem:

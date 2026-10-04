@@ -6,7 +6,7 @@
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "genkit";
+import { z } from "zod";
 import { initializeFirebase } from "@/firebase/init";
 import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
 

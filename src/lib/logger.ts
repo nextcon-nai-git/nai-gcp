@@ -23,7 +23,13 @@ function serialize(entry: LogContext): string {
   return JSON.stringify(
     { ...entry, toJSON: undefined },
     function (this: unknown, key: string, value: unknown) {
-      if (secretKeys.has(key.toLowerCase().replace(/[-_]/g, ""))) return "[REDACTED]";
+      if (
+        secretKeys.has(key.toLowerCase().replace(/[-_]/g, "")) ||
+        /password|senha|secret|token|private.?key/i.test(key)
+      )
+        return "[REDACTED]";
+      if (typeof value === "string")
+        return value.replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, maskCpf);
       if (typeof value === "bigint") return value.toString();
       if (value instanceof Error) {
         return { name: value.name, message: value.message, stack: value.stack };
@@ -63,4 +69,29 @@ export const logger = {
   info: (message: string, context?: LogContext) => write("INFO", message, context),
   warn: (message: string, context?: LogContext) => write("WARNING", message, context),
   error: (message: string, context?: LogContext) => write("ERROR", message, context),
+  audit: (action: string, message: string, context?: LogContext) =>
+    write("INFO", message, { ...context, action, audit: true }),
 };
+
+export function maskCpf(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits.length === 11 ? `***.***.***-${digits.slice(-2)}` : "***.***.***-**";
+}
+export function maskPhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits.length >= 8 ? `(**) *****-${digits.slice(-4)}` : "(**) *****-****";
+}
+export function maskPatientName(value: string) {
+  if (!value.trim()) return "Anônimo";
+  const parts = value.trim().split(/\s+/);
+  return parts.length === 1
+    ? `${parts[0][0]}.`
+    : `${parts[0]} ${parts
+        .slice(1)
+        .map((p) => `${p[0]}.`)
+        .join(" ")}`;
+}
+export function sanitizeLogData(value: unknown): unknown {
+  const text = serialize({ value });
+  return JSON.parse(text).value;
+}

@@ -11,8 +11,6 @@ import {
   Plus,
   Sparkles,
   ClipboardCheck,
-  Search,
-  AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,15 +24,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
 
 /**
- * @fileOverview Gestão de Escala Técnica TST
- * Módulo genérico para controle de escalas 12x36h em unidades operacionais.
+ * @fileOverview Gerenciador de Equipes TST
+ * Módulo para controle de alocações e escalas em unidades operacionais.
  */
 
 export default function SafetyOperationalScale() {
-  const { toast } = useToast();
   const scale = [
     {
       week: "1",
@@ -86,7 +82,7 @@ export default function SafetyOperationalScale() {
             GESTÃO DE EQUIPE TST
           </Badge>
           <h1 className="text-3xl font-headline font-black text-primary tracking-tight uppercase leading-none">
-            Escala Técnica Operacional
+            Gerenciador Equipes Operacionais
           </h1>
           <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest mt-2 flex items-center gap-2">
             <Building2 className="size-3" /> Unidade Selecionada | Segurança Ativa de Campo
@@ -94,26 +90,12 @@ export default function SafetyOperationalScale() {
         </div>
         <div className="flex gap-2">
           <Button
-            onClick={() =>
-              toast({
-                title: "Relatório de Vistoria",
-                description: "Gerando PDF com evidências fotográficas de campo...",
-              })
-            }
             variant="outline"
             className="h-11 px-6 border-primary text-primary font-black uppercase text-[10px] gap-2"
           >
             <FileCheck className="size-4" /> Relatório de Vistoria
           </Button>
-          <Button
-            onClick={() =>
-              toast({
-                title: "Nova PET/APR",
-                description: "Iniciando formulário de Permissão de Trabalho...",
-              })
-            }
-            className="gradient-nextcon text-white h-11 px-8 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg"
-          >
+          <Button className="gradient-nextcon text-white h-11 px-8 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg">
             <Plus className="size-4" /> Abrir PET/APR
           </Button>
         </div>
@@ -183,7 +165,7 @@ export default function SafetyOperationalScale() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-xl font-black text-primary uppercase">
-                Escala Quinzenal TST
+                Escala Quinzenal de Times
               </CardTitle>
               <CardDescription className="text-[10px] font-bold uppercase tracking-widest">
                 Alternância para monitoramento ininterrupto da unidade.
@@ -245,7 +227,9 @@ export default function SafetyOperationalScale() {
             <ClipboardCheck className="size-6" />
           </div>
           <div className="space-y-2">
-            <h4 className="text-sm font-black text-primary uppercase">Nota Operacional TST</h4>
+            <h4 className="text-sm font-black text-primary uppercase">
+              Nota Operacional de Equipe
+            </h4>
             <p className="text-xs text-primary/70 leading-relaxed font-medium italic">
               "O TST escalado para o sábado deve realizar a inspeção periférica e o checklist de
               geradores para a liberação das atividades de segunda-feira."
@@ -254,7 +238,7 @@ export default function SafetyOperationalScale() {
         </div>
         <div className="p-8 bg-orange-50 rounded-[2rem] border border-orange-100 flex gap-6 items-start">
           <div className="p-4 bg-orange-600 text-white rounded-2xl shadow-xl shadow-orange-600/20">
-            <AlertTriangle className="size-6" />
+            <ShieldAlert className="size-6" />
           </div>
           <div className="space-y-2">
             <h4 className="text-sm font-black text-orange-900 uppercase">Segurança Ativa</h4>
