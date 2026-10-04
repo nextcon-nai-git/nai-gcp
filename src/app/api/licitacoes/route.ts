@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
-import { fetchWithPooling } from "@/lib/http-client";
+import { fetchJson } from "@/lib/http-client";
+
+interface PncpResponse {
+  data?: unknown[];
+  items?: unknown[];
+  totalRegistros?: number;
+}
 
 /**
  * @fileOverview API de integração com o Portal Nacional de Contratações Públicas (PNCP).
@@ -9,30 +15,29 @@ import { fetchWithPooling } from "@/lib/http-client";
 export async function GET() {
   try {
     // Palavras-chave estratégicas para filtragem técnica
-    const keywords =
-      'Segurança do Trabalho OR PCMSO OR PGR OR LTCAT OR "Medicina do Trabalho"';
+    const keywords = 'Segurança do Trabalho OR PCMSO OR PGR OR LTCAT OR "Medicina do Trabalho"';
 
     // Endpoint de busca da API pública do PNCP
     const apiUrl = `https://pncp.gov.br/api/pncp/v1/contratacoes?q=${encodeURIComponent(
       keywords
     )}&pagina=1&tamanhoPagina=15`;
 
-    // Fetch com pooling, cache de 30 minutos e 3 retries
-    const rawData = await fetchWithPooling(apiUrl, {
-      method: "GET",
+    // Cache de 30 minutos e até 3 tentativas com conexões reutilizadas pelo fetch.
+    const rawData = await fetchJson<PncpResponse | unknown[]>(apiUrl, {
       headers: {
         Accept: "application/json",
         "User-Agent": "NAI-Healthcare-Platform/1.0",
       },
-      cacheTTL: 30 * 60 * 1000, // 30 minutos
-      retries: 3,
-      retryDelay: 1000,
+      cacheTtlMs: 30 * 60 * 1000,
+      retries: 2,
+      retryDelayMs: 1000,
     });
 
     // A estrutura do PNCP pode variar
-    const opportunities =
-      rawData.data || rawData.items || (Array.isArray(rawData) ? rawData : []);
-    const total = rawData.totalRegistros || opportunities.length || 0;
+    const opportunities = Array.isArray(rawData) ? rawData : rawData.data || rawData.items || [];
+    const total = Array.isArray(rawData)
+      ? rawData.length
+      : (rawData.totalRegistros ?? opportunities.length);
 
     return NextResponse.json(
       {

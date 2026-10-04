@@ -6,10 +6,7 @@ import { CloudDownload, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Desativa SSR para evitar erros de APIs de browser no servidor
-const DynamicPDFDownloadLink = dynamic(
-  () => import("@react-pdf/renderer").then((module) => module.PDFDownloadLink),
-  { ssr: false }
-);
+const DynamicPDFDownloadLink = dynamic(() => import("./pdf-download-link"), { ssr: false });
 const AsoDocument = dynamic(() => import("./aso-document").then((module) => module.AsoDocument), {
   ssr: false,
 });

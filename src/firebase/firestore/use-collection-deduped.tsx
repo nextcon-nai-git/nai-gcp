@@ -30,9 +30,7 @@ const queryListeners = new Map<string, Set<(data: any[]) => void>>();
  */
 export function useCollectionDeduped<T = any>(
   memoizedTargetRefOrQuery:
-    | (CollectionReference<DocumentData> | Query<DocumentData>)
-    | null
-    | undefined
+    (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined
 ): UseCollectionDedupedResult<T> {
   type ResultItemType = WithId<T>;
   const [data, setData] = useState<ResultItemType[] | null>(null);
@@ -49,7 +47,9 @@ export function useCollectionDeduped<T = any>(
     }
 
     // Gera chave única para esta query
-    const queryKey = JSON.stringify((memoizedTargetRefOrQuery as any)?._query || memoizedTargetRefOrQuery);
+    const queryKey = JSON.stringify(
+      (memoizedTargetRefOrQuery as any)?._query || memoizedTargetRefOrQuery
+    );
     queryKeyRef.current = queryKey;
 
     setIsLoading(true);
