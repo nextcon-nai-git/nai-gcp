@@ -90,8 +90,8 @@ export function PlatformFeedback() {
           <span className="absolute -top-1 -right-1 size-2 bg-accent rounded-full border-2 border-white animate-pulse"></span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[450px] rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden">
-        <DialogHeader className="p-8 bg-primary text-white">
+      <DialogContent className="max-w-[94vw] sm:max-w-[450px] max-h-[90vh] overflow-y-auto rounded-3xl border-none shadow-2xl p-0">
+        <DialogHeader className="p-6 sm:p-8 bg-primary text-white">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-white/10 rounded-lg">
               <Sparkles className="size-5 text-accent" />
@@ -106,7 +106,7 @@ export function PlatformFeedback() {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="p-8 space-y-8 bg-white">
+        <div className="p-6 sm:p-8 space-y-6 sm:space-y-8 bg-white">
           <div className="flex flex-col items-center gap-4">
             <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
               Sua nota para a plataforma

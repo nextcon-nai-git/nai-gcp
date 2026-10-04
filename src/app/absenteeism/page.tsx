@@ -18,6 +18,7 @@ import {
   User,
   FileText,
   Scale,
+  X,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -60,7 +61,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase";
-import { collection, query, orderBy, collectionGroup, doc } from "firebase/firestore";
+import { useSgi } from "@/contexts/sgi-context";
+import {
+  collection,
+  query,
+  orderBy,
+  collectionGroup,
+  doc,
+  where,
+  serverTimestamp,
+} from "firebase/firestore";
 import {
   addDocumentNonBlocking,
   deleteDocumentNonBlocking,
@@ -71,23 +81,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
 import dynamic from "next/dynamic";
+import { MedicalReferralReport } from "@/components/documents/medical-referral-report";
+import { NtepContestationReport } from "@/components/documents/ntep-contestation-report";
+
+// Desativa SSR para o componente de PDF para evitar erros de resolução de módulos (canvas/fs)
 const PDFDownloadLink = dynamic(() => import("@/components/documents/pdf-download-link"), {
   ssr: false,
 });
-const MedicalReferralReport = dynamic(
-  () =>
-    import("@/components/documents/medical-referral-report").then(
-      (module) => module.MedicalReferralReport
-    ),
-  { ssr: false }
-);
-const NtepContestationReport = dynamic(
-  () =>
-    import("@/components/documents/ntep-contestation-report").then(
-      (module) => module.NtepContestationReport
-    ),
-  { ssr: false }
-);
 
 const recordFormSchema = z.object({
   employeeName: z.string().min(3, "Nome obrigatório"),
@@ -146,15 +146,27 @@ const NTEP_WORKFLOW_STEPS = [
     items: [
       { id: "p4_1", label: "Consulta Resultado: Verificar espécie do benefício no portal." },
       { id: "p4_2", label: "Ação B31 (Sucesso): Acompanhar exame de retorno." },
-      { id: "p4_3", label: "Ação B91 (Crítico): Iniciar contestação administrativa (15 dias)." },
+      { id: "p4_3", label: "Ação B91 (Crítico): Iniciar contestação administrativa FAP/NTEP." },
     ],
   },
 ];
 
-export default function LimboSentinel() {
+interface MedicalLeaveRecord {
+  id: string;
+  companyId: string;
+  employeeName: string;
+  cid?: string;
+  ntepWorkflow?: Record<string, boolean>;
+  createdAt?: string | number | Date | { seconds: number };
+  [key: string]: unknown;
+}
+
+export default function AbsenteeismPage() {
   const { toast } = useToast();
-  const { user } = useUser();
   const db = useFirestore();
+  const { user, role, companyId: userCompanyId } = useUser();
+  const { activeClientId, isGlobalStaff, authorizedCompanies } = useSgi();
+  const isGlobalAdmin = role === "SUPER_ADMIN" || role === "ADMIN";
 
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -165,56 +177,46 @@ export default function LimboSentinel() {
     setIsClient(true);
   }, []);
 
-  const profileRef = useMemoFirebase(() => {
-    if (!db || !user) return null;
-    return doc(db, "users", user.uid);
-  }, [db, user]);
-  const { data: profile } = useDoc(profileRef);
-
-  const isGlobalAdmin = React.useMemo(() => {
-    if (!profile) return false;
-    const role = (profile.role || "").toUpperCase();
-    return ["SUPER_ADMIN", "ENGINEER", "DOCTOR", "ADMIN"].includes(role);
-  }, [profile]);
-
   const form = useForm<RecordFormValues>({
     resolver: zodResolver(recordFormSchema),
     defaultValues: {
+      status: "Pendente",
       employeeName: "",
-      cpf: "",
-      admissionDate: "",
-      dut: "",
       cid: "",
       disease: "",
       companyId: "",
-      jobRole: "",
-      caseNumber: "",
-      benefitNumber: "",
-      knowledgeDate: "",
-      value: "",
-      status: "Pendente",
     },
   });
 
   const companiesQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, "companies"), orderBy("name", "asc"));
-  }, [db]);
+    if (isGlobalStaff) {
+      return query(collection(db, "companies"), orderBy("name", "asc"));
+    }
+    if (authorizedCompanies && authorizedCompanies.length > 0) {
+      return query(collection(db, "companies"), where("__name__", "in", authorizedCompanies));
+    }
+    if (userCompanyId) {
+      return query(collection(db, "companies"), where("__name__", "==", userCompanyId));
+    }
+    return null;
+  }, [db, isGlobalStaff, authorizedCompanies, userCompanyId]);
+
   const { data: companies } = useCollection(companiesQuery);
 
   const expertisesQuery = useMemoFirebase(() => {
-    if (!db || !profile) return null;
+    if (!db || !user) return null;
     if (isGlobalAdmin) {
-      return query(collectionGroup(db, "legalExpertises"), orderBy("date", "desc"));
+      return query(collectionGroup(db, "legalExpertises"), orderBy("createdAt", "desc"));
     }
-    if (profile.companyId) {
+    if (userCompanyId) {
       return query(
-        collection(db, "companies", profile.companyId, "legalExpertises"),
-        orderBy("date", "desc")
+        collection(db, "companies", userCompanyId, "legalExpertises"),
+        orderBy("createdAt", "desc")
       );
     }
     return null;
-  }, [db, profile, isGlobalAdmin]);
+  }, [db, user, isGlobalAdmin, userCompanyId]);
 
   const { data: expertises, isLoading } = useCollection(expertisesQuery);
 
@@ -224,6 +226,21 @@ export default function LimboSentinel() {
     return dangerousPrefixes.some((p) => cid.toUpperCase().startsWith(p));
   };
 
+  const formatDate = (date: unknown) => {
+    if (!date) return "---";
+    try {
+      if (typeof date === "object" && date !== null && "seconds" in date) {
+        return new Date((date as { seconds: number }).seconds * 1000).toLocaleDateString("pt-BR");
+      }
+      if (typeof date === "string" || typeof date === "number" || date instanceof Date) {
+        return new Date(date).toLocaleDateString("pt-BR");
+      }
+      return "---";
+    } catch {
+      return "---";
+    }
+  };
+
   async function handleCreateRecord(values: RecordFormValues) {
     if (!db) return;
     setIsSubmitting(true);
@@ -231,8 +248,7 @@ export default function LimboSentinel() {
       const colRef = collection(db, "companies", values.companyId, "legalExpertises");
       await addDocumentNonBlocking(colRef, {
         ...values,
-        date: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
+        createdAt: serverTimestamp(),
         type: "Afastamento Previdenciário",
         ntepWorkflow: {},
       });
@@ -246,7 +262,17 @@ export default function LimboSentinel() {
     }
   }
 
-  const toggleChecklistItem = (record: any, stepId: string) => {
+  const handleDeleteRecord = (record: MedicalLeaveRecord) => {
+    if (!db || !record.companyId) return;
+    if (window.confirm(`Deseja remover o registro de ${record.employeeName}?`)) {
+      deleteDocumentNonBlocking(
+        doc(db, "companies", record.companyId, "legalExpertises", record.id)
+      );
+      toast({ title: "Registro Removido" });
+    }
+  };
+
+  const toggleChecklistItem = (record: MedicalLeaveRecord, stepId: string) => {
     if (!db || !record.companyId) return;
     const docRef = doc(db, "companies", record.companyId, "legalExpertises", record.id);
     const currentWorkflow = record.ntepWorkflow || {};
@@ -254,10 +280,11 @@ export default function LimboSentinel() {
 
     updateDocumentNonBlocking(docRef, {
       [`ntepWorkflow.${stepId}`]: newValue,
+      updatedAt: serverTimestamp(),
     });
   };
 
-  const getWorkflowProgress = (record: any) => {
+  const getWorkflowProgress = (record: MedicalLeaveRecord) => {
     if (!record?.ntepWorkflow) return 0;
     const totalItems = NTEP_WORKFLOW_STEPS.reduce((acc, phase) => acc + phase.items.length, 0);
     const checkedItems = Object.values(record.ntepWorkflow).filter((v) => v === true).length;
@@ -267,7 +294,7 @@ export default function LimboSentinel() {
   return (
     <div className="space-y-6 animate-in fade-in duration-300 pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+        <div className="text-left">
           <h1 className="text-3xl font-headline font-black text-primary tracking-tight uppercase">
             Sentinela do Limbo (NTEP) 2026
           </h1>
@@ -291,21 +318,21 @@ export default function LimboSentinel() {
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[650px] rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden bg-white">
-              <DialogHeader className="p-8 bg-primary text-white">
-                <div className="flex items-center gap-3 mb-2">
+              <DialogHeader className="p-8 bg-primary text-white space-y-2">
+                <div className="flex items-center gap-3">
                   <div className="p-2 bg-white/10 rounded-lg">
                     <AlertTriangle className="size-5 text-accent" />
                   </div>
-                  <DialogTitle className="text-xl font-headline font-black uppercase">
+                  <DialogTitle className="text-xl font-headline font-black uppercase text-left">
                     Registrar Afastamento
                   </DialogTitle>
                 </div>
-                <DialogDescription className="text-white/70 font-medium italic">
-                  Insira os dados do colaborador para análise de nexo NTEP.
+                <DialogDescription className="text-white/70 font-medium italic text-left">
+                  Insira os dados do colaborador para análise técnica de nexo causal e NTEP.
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="p-8 max-h-[70vh] overflow-y-auto">
+              <div className="p-8 max-h-[70vh] overflow-y-auto text-left">
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(handleCreateRecord)} className="space-y-5">
                     <FormField
@@ -482,7 +509,7 @@ export default function LimboSentinel() {
                             <Select
                               onValueChange={field.onChange}
                               defaultValue={field.value}
-                              disabled={!!profile?.companyId}
+                              disabled={!isGlobalAdmin && !!userCompanyId}
                             >
                               <FormControl>
                                 <SelectTrigger className="h-12 bg-slate-50 border-none rounded-xl font-bold">
@@ -544,7 +571,7 @@ export default function LimboSentinel() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <Card className="lg:col-span-3 card-shadow border-none bg-white rounded-[2rem] overflow-hidden">
+        <Card className="lg:col-span-3 card-shadow border-none bg-white rounded-[2.5rem] overflow-hidden text-left">
           <CardHeader className="bg-slate-50 border-b py-6 px-8">
             <CardTitle className="text-lg font-black text-primary uppercase">
               Gestão de Casos Críticos
@@ -553,7 +580,7 @@ export default function LimboSentinel() {
               Acompanhamento de fluxos NTEP e contestações.
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-x-auto">
             <Table>
               <TableHeader className="bg-muted/30">
                 <TableRow>
@@ -636,16 +663,17 @@ export default function LimboSentinel() {
                                   <ClipboardList className="size-3.5" /> Gestão Nexo
                                 </Button>
                               </DialogTrigger>
-                              <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col p-0 border-none shadow-2xl rounded-[2.5rem]">
-                                <DialogHeader className="p-8 bg-primary text-white shrink-0">
+                              <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col p-0 border-none shadow-2xl rounded-[2.5rem] text-left">
+                                <DialogHeader className="p-8 bg-primary text-white shrink-0 space-y-2">
                                   <div className="flex justify-between items-start">
                                     <div className="space-y-1">
                                       <DialogTitle className="text-2xl font-headline font-black uppercase flex items-center gap-3">
                                         <ShieldCheck className="size-8 text-accent" /> Workflow de
                                         Gestão NTEP
                                       </DialogTitle>
-                                      <DialogDescription className="text-white/60 font-bold uppercase text-[10px] tracking-[0.2em]">
-                                        Colaborador: {record.employeeName} | CID: {record.cid}
+                                      <DialogDescription className="text-white/60 font-bold uppercase text-[10px] tracking-[0.2em] text-left">
+                                        Colaborador: {record.employeeName} | CID: {record.cid} |
+                                        Monitoramento do dossiê preventivo.
                                       </DialogDescription>
                                     </div>
                                     <div className="text-right">
@@ -657,7 +685,7 @@ export default function LimboSentinel() {
                                       </h2>
                                     </div>
                                   </div>
-                                  <Progress value={progress} className="h-2 mt-6 bg-white/10" />
+                                  <Progress value={progress} className="h-2 mt-2 bg-white/10" />
                                 </DialogHeader>
 
                                 <div className="flex-1 overflow-y-auto p-8 bg-[#F8FAFC]">
@@ -682,10 +710,10 @@ export default function LimboSentinel() {
                                       >
                                         <Card className="border-none shadow-sm rounded-3xl overflow-hidden">
                                           <CardHeader className="bg-white border-b py-6">
-                                            <CardTitle className="text-lg font-black text-primary uppercase">
+                                            <CardTitle className="text-lg font-black text-primary uppercase text-left">
                                               {phase.title}
                                             </CardTitle>
-                                            <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                                            <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-accent flex items-center gap-2 text-left">
                                               <User className="size-3" /> Responsável: {phase.role}
                                             </CardDescription>
                                           </CardHeader>
@@ -751,7 +779,7 @@ export default function LimboSentinel() {
                                               company={companies?.find(
                                                 (c) => c.id === record.companyId
                                               )}
-                                              doctor={profile}
+                                              doctor={user}
                                             />
                                           }
                                           fileName={`Relatorio_INSS_${record.employeeName}.pdf`}
@@ -779,7 +807,7 @@ export default function LimboSentinel() {
                                               company={companies?.find(
                                                 (c) => c.id === record.companyId
                                               )}
-                                              currentUser={profile}
+                                              currentUser={user}
                                             />
                                           }
                                           fileName={`Contestacao_NTEP_${record.employeeName}.pdf`}
@@ -808,20 +836,7 @@ export default function LimboSentinel() {
                               variant="ghost"
                               size="icon"
                               className="h-9 w-9 text-slate-300 hover:text-red-600"
-                              onClick={() => {
-                                if (window.confirm(`Remover registro?`)) {
-                                  deleteDocumentNonBlocking(
-                                    doc(
-                                      db,
-                                      "companies",
-                                      record.companyId,
-                                      "legalExpertises",
-                                      record.id
-                                    )
-                                  );
-                                  toast({ title: "Removido" });
-                                }
-                              }}
+                              onClick={() => handleDeleteRecord(record)}
                             >
                               <Trash2 className="size-4" />
                             </Button>
@@ -845,7 +860,7 @@ export default function LimboSentinel() {
           </CardContent>
         </Card>
 
-        <div className="space-y-6">
+        <div className="space-y-6 text-left">
           <Card className="card-shadow border-none bg-[#090e24] text-white rounded-[2rem] p-8 relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform duration-1000">
               <TrendingUp className="size-32 text-accent" />
@@ -871,7 +886,7 @@ export default function LimboSentinel() {
             </CardContent>
           </Card>
 
-          <Card className="card-shadow border-none bg-white rounded-[2rem] p-8 flex flex-col items-center text-center gap-4">
+          <Card className="card-shadow border-none bg-white rounded-[2.5rem] p-8 flex flex-col items-center text-center gap-4">
             <div className="size-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600 shadow-inner">
               <Gavel className="size-8" />
             </div>

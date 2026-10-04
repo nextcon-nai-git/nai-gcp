@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Botão Inteligente para protocolo de auditoria neural.
+ */
+
 "use client";
 
 import * as React from "react";
@@ -6,29 +10,26 @@ import { Loader2, Sparkles, CheckCircle2 } from "lucide-react";
 import { processarRelatorioSST, type AnaliseRiscoOutput } from "@/actions/sst-report-processor";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { TechnicalReportData } from "@/types/schema";
 
 interface BotaoSalvarRelatorioProps {
-  relatorioDados: any;
+  relatorioDados: { relatorio_visita_tecnica: TechnicalReportData };
   onSuccess?: (id: string, analise: AnaliseRiscoOutput) => void;
 }
 
-/**
- * Botão Inteligente que dispara a Server Action do Next.js 15 para auditoria neural.
- */
 export function BotaoSalvarRelatorio({ relatorioDados, onSuccess }: BotaoSalvarRelatorioProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const { toast } = useToast();
 
   const handleProcessar = async () => {
-    if (!relatorioDados) return;
+    if (!relatorioDados?.relatorio_visita_tecnica) return;
 
     setIsProcessing(true);
     setIsSuccess(false);
 
     try {
-      // Chama a Server Action rodando no Google Cloud
-      const result = await processarRelatorioSST(relatorioDados);
+      const result = await processarRelatorioSST(relatorioDados.relatorio_visita_tecnica);
 
       if (result.sucesso && result.relatorioId && result.analise) {
         setIsSuccess(true);
@@ -41,17 +42,17 @@ export function BotaoSalvarRelatorio({ relatorioDados, onSuccess }: BotaoSalvarR
           onSuccess(result.relatorioId, result.analise);
         }
 
-        // Reseta o estado de sucesso após 5 segundos
         setTimeout(() => setIsSuccess(false), 5000);
       } else {
-        throw new Error(result.erro);
+        throw new Error(result.erro || "Falha desconhecida");
       }
-    } catch (error: any) {
-      console.error("NAI Action Error:", error);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Erro na NAI";
+      console.error("NAI Action Error:", errorMessage);
       toast({
         variant: "destructive",
         title: "Erro no Processamento",
-        description: error.message || "A NAI encontrou uma instabilidade no motor de análise.",
+        description: errorMessage,
       });
     } finally {
       setIsProcessing(false);

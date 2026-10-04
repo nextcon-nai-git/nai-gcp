@@ -116,8 +116,12 @@ export default function MedicalCopilot({ pacienteId, className }: MedicalCopilot
           <Zap className="size-12 text-accent" />
         </div>
         <div className="flex items-center gap-3 relative z-10">
-          <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md border border-white/10">
-            <Bot size={20} className="text-accent" />
+          <div className="relative size-10 rounded-xl overflow-hidden border border-white/20 shadow-md bg-white/10 shrink-0">
+            <img
+              src="/images/nai_health_avatar.png"
+              alt="Avatar NAI 3D"
+              className="size-full object-cover"
+            />
           </div>
           <div>
             <h3 className="font-black uppercase text-[10px] tracking-[0.2em] leading-none mb-1">

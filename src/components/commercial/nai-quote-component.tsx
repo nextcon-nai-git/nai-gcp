@@ -19,6 +19,11 @@ import {
   Mail,
   Phone,
   LayoutGrid,
+  TrendingDown,
+  Scale,
+  Calendar,
+  ShieldCheck,
+  Briefcase,
 } from "lucide-react";
 import { gerarOrcamentoComNai } from "@/actions/nai-quote";
 import { Button } from "@/components/ui/button";
@@ -42,23 +47,31 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { cn } from "@/lib/utils";
 import jsPDF from "jspdf";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { NEXTCON_DIFFERENTIALS, SST_CATALOG } from "@/lib/services-data";
 import { NaiSalesPitch } from "./nai-sales-pitch";
 
-const NEXTCON_LOGO_URL =
-  "https://firebasestorage.googleapis.com/v0/b/studio-8439299034-125c7.firebasestorage.app/o/public%2Fnextcon-logo-horizontal.png?alt=media";
-
 type OrcamentoGerado = {
-  mensagemIntrodutoria: string;
-  servicosRecomendados: {
-    categoria: string;
-    nomeServico: string;
-    justificativaLegal: string;
-    valorEstimado: number;
+  propostaExecutiva: {
+    apresentacao: string;
+    justificativaNormativa: string;
+    analiseImpactoFinanceiro: string;
+  };
+  roiEstimado: {
+    valorEconomiaAnual: number;
+    descricaoBeneficio: string;
+  };
+  cronograma: {
+    fase: string;
+    prazo: string;
+    atividades: string[];
   }[];
-  valorTotalMensal?: number;
-  valorTotalAvulso: number;
-  dicaDaNai: string;
+  pacotes: {
+    nome: string;
+    servicosInclusos: string[];
+    valorImplementacao: number;
+    valorMensal?: number;
+    destaque: string;
+  }[];
+  dicaEstrategica: string;
 };
 
 export function NaiQuoteComponent() {
@@ -70,6 +83,7 @@ export function NaiQuoteComponent() {
   const [formData, setFormData] = React.useState({
     nomeEmpresa: "",
     nomeSolicitante: "",
+    setor: "",
     cidade: "",
     estado: "",
     email: "",
@@ -82,26 +96,12 @@ export function NaiQuoteComponent() {
   const [loading, setLoading] = React.useState(false);
   const [salvando, setSalvando] = React.useState(false);
   const [orcamento, setOrcamento] = React.useState<OrcamentoGerado | null>(null);
-  const [orcamentosEnviados, setOrcamentosEnviados] = React.useState<any[]>([]);
 
   const profileRef = useMemoFirebase(() => {
     if (!db || !user) return null;
     return doc(db, "users", user.uid);
   }, [db, user]);
   const { data: profile } = useDoc(profileRef);
-
-  React.useEffect(() => {
-    if (!db) return;
-    const q = query(collection(db, "orcamentos"), orderBy("data", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setOrcamentosEnviados(docs);
-    });
-    return () => unsubscribe();
-  }, [db]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -116,86 +116,37 @@ export function NaiQuoteComponent() {
       });
 
       if (res.sucesso && res.orcamento) {
-        setOrcamento(res.orcamento as OrcamentoGerado);
+        setOrcamento(res.orcamento as unknown as OrcamentoGerado);
 
         if (db && profile) {
           const taskData = {
-            title: `Proposta IA: ${formData.nomeEmpresa}`,
+            title: `Proposta de Elite: ${formData.nomeEmpresa}`,
             companyId: profile.companyId || "leads",
             companyName: formData.nomeEmpresa,
             type: "comercial",
             status: "to_review",
-            priority: "medium",
-            origin: "commercial_ai", // Marca a origem para o operacional
-            ai_risk_score: 10 * Number(formData.grauDeRisco),
-            dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            priority: "high",
+            origin: "commercial_ai",
             createdAt: new Date().toISOString(),
-            checklist: [
-              { id: "1", text: "Validar dados do solicitante", checked: false, mandatory: true },
-              { id: "2", text: "Ajustar precificação IA", checked: false, mandatory: true },
-              { id: "3", text: "Enviar PDF formal", checked: false, mandatory: true },
-            ],
+            totalValue:
+              (res.orcamento as unknown as OrcamentoGerado).pacotes[1]?.valorImplementacao || 0,
           };
 
           const tasksRef = collection(db, "companies", profile.companyId || "leads", "tasks");
           await addDocumentNonBlocking(tasksRef, taskData);
 
           toast({
-            title: "Proposta Criada!",
-            description: "A NAI gerou o orçamento e já criou um Card no seu Funil de Vendas.",
+            title: "Dossiê Gerado!",
+            description: "A NAI estruturou a proposta e criou o card no Funil de Vendas.",
           });
         }
       } else {
         toast({ variant: "destructive", title: "Falha na NAI", description: res.mensagem });
       }
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Erro de Conexão",
-        description: "Verifique sua internet.",
-      });
+      toast({ variant: "destructive", title: "Erro de Processamento" });
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleSalvarEGerarPDF() {
-    if (!orcamento || !db || !storage) return;
-    setSalvando(true);
-
-    try {
-      const docRef = await addDoc(collection(db, "orcamentos"), {
-        ...formData,
-        resumoNai: orcamento,
-        status: "Enviado",
-        data: serverTimestamp(),
-      });
-
-      const pdf = new jsPDF();
-
-      // PDF logic here... (Same as before)
-      pdf.setFont("helvetica", "bold");
-      pdf.text("Proposta Técnica SST", 105, 25, { align: "center" });
-      // ... more pdf code ...
-
-      const pdfBlob = pdf.output("blob");
-      const storagePath = `orcamentos/${docRef.id}.pdf`;
-      const storageRef = ref(storage, storagePath);
-      await uploadBytes(storageRef, pdfBlob);
-      const downloadURL = await getDownloadURL(storageRef);
-
-      await updateDoc(docRef, { pdfUrl: downloadURL });
-
-      toast({
-        title: "Proposta Protocolada!",
-        description: "Dossiê salvo no histórico comercial.",
-      });
-      setOrcamento(null);
-    } catch (e) {
-      console.error(e);
-      toast({ variant: "destructive", title: "Erro no Protocolo" });
-    } finally {
-      setSalvando(false);
     }
   }
 
@@ -210,10 +161,10 @@ export function NaiQuoteComponent() {
                 <div className="p-2 bg-white/10 rounded-lg">
                   <Sparkles className="size-5 text-accent" />
                 </div>
-                <h3 className="text-xl font-headline font-black uppercase">Dados da Unidade</h3>
+                <h3 className="text-xl font-headline font-black uppercase">Ficha Prospect</h3>
               </div>
               <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest leading-tight">
-                Preencha para análise de risco.
+                Configuração de Proposta Comercial.
               </p>
             </div>
             <CardContent className="p-8">
@@ -221,84 +172,26 @@ export function NaiQuoteComponent() {
                 <div className="space-y-4">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">
-                      Empresa Cliente
+                      Razão Social
                     </label>
                     <Input
                       required
                       className="h-11 bg-slate-50 border-none rounded-xl font-bold shadow-inner"
-                      placeholder="Razão Social"
                       value={formData.nomeEmpresa}
                       onChange={(e) => setFormData({ ...formData, nomeEmpresa: e.target.value })}
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center gap-1">
-                      <User className="size-3" /> Solicitante
+                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">
+                      Setor / Atividade
                     </label>
                     <Input
                       required
+                      placeholder="Ex: Construção Civil"
                       className="h-11 bg-slate-50 border-none rounded-xl font-bold shadow-inner"
-                      placeholder="Nome completo"
-                      value={formData.nomeSolicitante}
-                      onChange={(e) =>
-                        setFormData({ ...formData, nomeSolicitante: e.target.value })
-                      }
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center gap-1">
-                        <MapPin className="size-3" /> Cidade
-                      </label>
-                      <Input
-                        required
-                        className="h-11 bg-slate-50 border-none rounded-xl font-bold shadow-inner"
-                        placeholder="Ex: Curitiba"
-                        value={formData.cidade}
-                        onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">
-                        Estado
-                      </label>
-                      <Input
-                        required
-                        maxLength={2}
-                        className="h-11 bg-slate-50 border-none rounded-xl font-bold shadow-inner uppercase"
-                        placeholder="PR"
-                        value={formData.estado}
-                        onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center gap-1">
-                      <Mail className="size-3" /> E-mail
-                    </label>
-                    <Input
-                      required
-                      type="email"
-                      className="h-11 bg-slate-50 border-none rounded-xl font-bold shadow-inner"
-                      placeholder="contato@empresa.com.br"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center gap-1">
-                      <Phone className="size-3" /> Telefone
-                    </label>
-                    <Input
-                      required
-                      className="h-11 bg-slate-50 border-none rounded-xl font-bold shadow-inner"
-                      placeholder="(00) 00000-0000"
-                      value={formData.telefone}
-                      onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                      value={formData.setor}
+                      onChange={(e) => setFormData({ ...formData, setor: e.target.value })}
                     />
                   </div>
 
@@ -310,7 +203,6 @@ export function NaiQuoteComponent() {
                       <Input
                         required
                         type="number"
-                        min="1"
                         className="h-11 bg-slate-50 border-none rounded-xl font-bold shadow-inner"
                         value={formData.quantidadeFuncionarios}
                         onChange={(e) =>
@@ -320,7 +212,7 @@ export function NaiQuoteComponent() {
                     </div>
                     <div className="space-y-1">
                       <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">
-                        Risco
+                        Grau de Risco
                       </label>
                       <select
                         className="w-full h-11 bg-slate-50 border-none rounded-xl px-4 text-[11px] font-bold shadow-inner"
@@ -337,12 +229,12 @@ export function NaiQuoteComponent() {
 
                   <div className="space-y-1">
                     <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">
-                      Necessidades
+                      Necessidades / Dores
                     </label>
                     <Textarea
                       required
+                      placeholder="Ex: Auditoria eSocial pendente, renovação PGR..."
                       className="min-h-[80px] bg-slate-50 border-none rounded-xl p-3 text-xs font-medium shadow-inner"
-                      placeholder="Descreva o cenário..."
                       value={formData.necessidades}
                       onChange={(e) => setFormData({ ...formData, necessidades: e.target.value })}
                     />
@@ -359,7 +251,7 @@ export function NaiQuoteComponent() {
                   ) : (
                     <Zap className="size-5 text-accent" />
                   )}
-                  {loading ? "Calculando..." : "Analisar via IA"}
+                  Gerar Proposta de Elite
                 </Button>
               </form>
             </CardContent>
@@ -372,11 +264,11 @@ export function NaiQuoteComponent() {
               <Bot className="size-32 text-primary mb-4" />
               <div className="space-y-2 max-w-sm">
                 <p className="text-2xl font-black uppercase text-primary tracking-widest leading-tight">
-                  Pronto para blindar seu negócio?
+                  Configurador de Propostas
                 </p>
                 <p className="text-sm font-bold text-slate-400">
-                  Insira os dados da unidade para que a NAI recomende a melhor estratégia de defesa
-                  técnica e financeira.
+                  Preencha os dados à esquerda para que a NAI elabore a melhor estratégia de
+                  blindagem.
                 </p>
               </div>
             </div>
@@ -384,121 +276,200 @@ export function NaiQuoteComponent() {
 
           {loading && (
             <div className="h-full min-h-[600px] flex flex-col items-center justify-center text-center space-y-8 bg-white rounded-[3rem] shadow-inner border">
-              <div className="relative">
-                <Loader2 className="size-24 animate-spin text-primary opacity-20" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="font-black text-2xl text-primary">N</span>
-                </div>
-              </div>
+              <Loader2 className="size-24 animate-spin text-primary opacity-20" />
               <div className="space-y-2">
                 <p className="text-sm font-black uppercase tracking-[0.3em] text-primary animate-pulse">
-                  NAI Cruzando Dados Legais...
-                </p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  Auditoria em Saúde • Glosa Reversa • Firewall eSocial
+                  NAI Estruturando ROI e Cronograma...
                 </p>
               </div>
             </div>
           )}
 
           {orcamento && !loading && (
-            <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
-              <Card className="border-none shadow-xl bg-blue-50/50 rounded-[2.5rem] p-8 border-2 border-blue-100">
-                <div className="flex gap-4">
-                  <div className="p-3 bg-white rounded-2xl shadow-sm h-fit">
-                    <Sparkles className="size-6 text-accent" />
+            <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
+              {/* ROI & ECONOMIA */}
+              <Card className="border-none shadow-2xl bg-[#090e24] text-white rounded-[2.5rem] p-10 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-1000">
+                  <TrendingDown className="size-48 text-accent" />
+                </div>
+                <div className="relative z-10 space-y-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-accent rounded-2xl text-primary shadow-xl shadow-accent/20">
+                      <Scale className="size-6" />
+                    </div>
+                    <h3 className="text-xl font-black uppercase tracking-tight text-accent font-headline">
+                      Impacto e ROI Estimado
+                    </h3>
                   </div>
-                  <p className="text-sm italic text-blue-900 font-medium leading-relaxed">
-                    "{orcamento.mensagemIntrodutoria}"
-                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <div className="p-6 bg-white/5 rounded-[2rem] border border-white/10 backdrop-blur-sm">
+                      <p className="text-[10px] font-black uppercase text-white/40 mb-2">
+                        Saving Anual Projetado
+                      </p>
+                      <h2 className="text-4xl font-black text-emerald-400 font-headline">
+                        {orcamento.roiEstimado.valorEconomiaAnual.toLocaleString("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        })}
+                      </h2>
+                      <div className="flex items-center gap-2 mt-3">
+                        <ShieldCheck className="size-3 text-emerald-400" />
+                        <span className="text-[9px] font-bold uppercase text-white/60">
+                          Baseado em Redução de RAT/FAP
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-sm italic text-slate-300 leading-relaxed font-medium">
+                      "{orcamento.roiEstimado.descricaoBeneficio}"
+                    </p>
+                  </div>
                 </div>
               </Card>
 
-              <div className="grid grid-cols-1 gap-4">
-                {orcamento.servicosRecomendados.map((svc, i) => (
-                  <div
-                    key={i}
-                    className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 group hover:border-primary/20 transition-all"
-                  >
-                    <div className="flex gap-4 flex-1">
-                      <div className="p-3 bg-primary/5 rounded-2xl text-primary group-hover:bg-primary group-hover:text-white transition-colors h-fit">
-                        <CheckCircle2 className="size-5" />
-                      </div>
-                      <div>
-                        <Badge
-                          variant="outline"
-                          className="text-[8px] font-black uppercase border-primary/20 mb-1"
-                        >
-                          {svc.categoria}
-                        </Badge>
-                        <h4 className="font-black text-primary uppercase text-sm tracking-tight">
-                          {svc.nomeServico}
-                        </h4>
-                        <p className="text-[10px] text-muted-foreground font-medium italic mt-1">
-                          {svc.justificativaLegal}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="bg-slate-50 px-6 py-3 rounded-2xl border font-black text-primary shadow-inner">
-                      {svc.valorEstimado.toLocaleString("pt-BR", {
-                        style: "currency",
-                        currency: "BRL",
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white p-8 rounded-[2.5rem] shadow-lg border border-slate-100 text-center flex flex-col justify-center">
-                  <p className="text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">
-                    Total Implementação
-                  </p>
-                  <h2 className="text-4xl font-black text-primary font-headline tracking-tighter">
-                    {orcamento.valorTotalAvulso.toLocaleString("pt-BR", {
-                      style: "currency",
-                      currency: "BRL",
-                    })}
-                  </h2>
+              {/* PACOTES DE SERVIÇO */}
+              <div className="space-y-4">
+                <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-4 flex items-center gap-2">
+                  <LayoutGrid className="size-3" /> Opções de Investimento
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {orcamento.pacotes.map((pacote, i) => (
+                    <Card
+                      key={i}
+                      className={cn(
+                        "border-none shadow-sm rounded-[2rem] overflow-hidden transition-all hover:scale-[1.02]",
+                        i === 1
+                          ? "ring-2 ring-primary bg-white shadow-xl"
+                          : "bg-slate-50 opacity-90"
+                      )}
+                    >
+                      <CardHeader
+                        className={cn(
+                          "p-6 text-center",
+                          i === 1 ? "bg-primary text-white" : "bg-slate-100"
+                        )}
+                      >
+                        <CardTitle className="text-xs font-black uppercase tracking-widest">
+                          {pacote.nome}
+                        </CardTitle>
+                        <p className="text-[10px] font-bold mt-1 opacity-70">{pacote.destaque}</p>
+                      </CardHeader>
+                      <CardContent className="p-6 space-y-6">
+                        <div className="space-y-2 min-h-[120px]">
+                          {pacote.servicosInclusos.map((s, idx) => (
+                            <div
+                              key={idx}
+                              className="flex gap-2 items-start text-[10px] font-bold text-slate-600"
+                            >
+                              <CheckCircle2 className="size-3 text-emerald-500 shrink-0 mt-0.5" />
+                              <span>{s}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="pt-4 border-t border-dashed text-center">
+                          <p className="text-[8px] font-black text-slate-400 uppercase mb-1">
+                            Implementação
+                          </p>
+                          <h4 className="text-xl font-black text-primary">
+                            {pacote.valorImplementacao.toLocaleString("pt-BR", {
+                              style: "currency",
+                              currency: "BRL",
+                            })}
+                          </h4>
+                          {pacote.valorMensal && (
+                            <Badge className="bg-accent text-primary font-black text-[8px] mt-2">
+                              +{" "}
+                              {pacote.valorMensal.toLocaleString("pt-BR", {
+                                style: "currency",
+                                currency: "BRL",
+                              })}{" "}
+                              / mês
+                            </Badge>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-                {orcamento.valorTotalMensal && (
-                  <div className="bg-primary text-white p-8 rounded-[2.5rem] shadow-2xl text-center relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                      <Zap className="size-20 text-accent" />
-                    </div>
-                    <p className="text-[10px] font-black uppercase opacity-50 mb-2 tracking-widest">
-                      Gestão Mensal NAI
-                    </p>
-                    <h2 className="text-4xl font-black text-accent font-headline tracking-tighter">
-                      {orcamento.valorTotalMensal.toLocaleString("pt-BR", {
-                        style: "currency",
-                        currency: "BRL",
-                      })}
-                    </h2>
+              </div>
+
+              {/* CRONOGRAMA */}
+              <Card className="card-shadow border-none bg-white rounded-[2.5rem] overflow-hidden">
+                <CardHeader className="bg-slate-50 border-b p-8 flex flex-row items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="size-5 text-primary" />
+                    <CardTitle className="text-sm font-black uppercase text-primary">
+                      Fluxo de Implantação 2026
+                    </CardTitle>
                   </div>
-                )}
+                </CardHeader>
+                <CardContent className="p-8">
+                  <div className="space-y-6">
+                    {orcamento.cronograma.map((item, i) => (
+                      <div key={i} className="flex gap-6 group">
+                        <div className="flex flex-col items-center">
+                          <div className="size-8 rounded-full bg-primary text-white flex items-center justify-center font-black text-[10px] shadow-lg group-hover:scale-110 transition-transform">
+                            {i + 1}
+                          </div>
+                          {i < orcamento.cronograma.length - 1 && (
+                            <div className="w-0.5 flex-1 bg-slate-100 my-2" />
+                          )}
+                        </div>
+                        <div className="pb-8">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h4 className="font-black text-primary uppercase text-sm">
+                              {item.fase}
+                            </h4>
+                            <Badge
+                              variant="outline"
+                              className="text-[8px] font-black border-slate-200"
+                            >
+                              {item.prazo}
+                            </Badge>
+                          </div>
+                          <ul className="space-y-2">
+                            {(item.atividades || (item as any).atactivities || []).map(
+                              (act: string, idx: number) => (
+                                <li
+                                  key={idx}
+                                  className="text-[11px] text-slate-500 font-medium flex items-center gap-2"
+                                >
+                                  <ChevronRight className="size-3 text-accent" /> {act}
+                                </li>
+                              )
+                            )}
+                          </ul>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* INSIGHT ESTRATÉGICO */}
+              <div className="p-6 bg-accent text-primary rounded-[2rem] border-2 border-primary/5 flex gap-4 items-start shadow-xl">
+                <Sparkles className="size-6 shrink-0 mt-1" />
+                <div className="space-y-1">
+                  <h4 className="font-black uppercase text-xs tracking-widest">
+                    Dica Estratégica NAI:
+                  </h4>
+                  <p className="text-sm italic font-medium leading-relaxed">
+                    "{orcamento.dicaEstrategica}"
+                  </p>
+                </div>
               </div>
 
-              <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-100 flex items-center gap-4">
-                <LayoutGrid className="size-6 text-emerald-600" />
-                <p className="text-xs font-bold text-emerald-800">
-                  Card automático criado na etapa "Propostas a Revisar" com selo de Origem
-                  Comercial.
-                </p>
+              <div className="flex gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  className="flex-1 h-14 rounded-2xl font-black uppercase text-[10px] border-primary text-primary"
+                >
+                  Ajustar Escopo
+                </Button>
+                <Button className="flex-1 h-14 rounded-2xl bg-primary text-white font-black uppercase text-[10px] shadow-2xl gap-2">
+                  <Download className="size-4 text-accent" /> Exportar Dossiê PDF
+                </Button>
               </div>
-
-              <Button
-                onClick={handleSalvarEGerarPDF}
-                disabled={salvando}
-                className="w-full h-16 bg-accent text-primary font-black uppercase text-xs tracking-widest rounded-2xl shadow-xl shadow-accent/20 gap-3"
-              >
-                {salvando ? (
-                  <Loader2 className="size-5 animate-spin" />
-                ) : (
-                  <Save className="size-5" />
-                )}
-                {salvando ? "Protocolando..." : "Salvar e Gerar PDF Profissional"}
-              </Button>
             </div>
           )}
         </div>

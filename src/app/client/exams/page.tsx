@@ -60,6 +60,14 @@ export default function ClientExamsHistory() {
 
   const { data: asos, isLoading } = useCollection(asoQuery);
 
+  // Otimização: Filtragem memorizada da lista de ASOs
+  const filteredAsos = React.useMemo(() => {
+    if (!asos) return [];
+    if (!searchTerm.trim()) return asos;
+    const lowerSearch = searchTerm.toLowerCase();
+    return asos.filter((a) => (a.employeeName || "").toLowerCase().includes(lowerSearch));
+  }, [asos, searchTerm]);
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -130,84 +138,82 @@ export default function ClientExamsHistory() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {asos
-                  ?.filter((a) => a.employeeName.toLowerCase().includes(searchTerm.toLowerCase()))
-                  .map((aso) => (
-                    <TableRow key={aso.id} className="hover:bg-slate-50 transition-colors group">
-                      <TableCell className="pl-8 py-5">
-                        <div className="flex items-center gap-3">
-                          <div className="size-9 rounded-xl bg-primary/5 flex items-center justify-center text-primary font-black text-xs shadow-inner">
-                            {aso.employeeName?.substring(0, 2).toUpperCase()}
-                          </div>
-                          <p className="font-bold text-primary text-xs uppercase leading-tight">
-                            {aso.employeeName}
-                          </p>
+                {filteredAsos.map((aso) => (
+                  <TableRow key={aso.id} className="hover:bg-slate-50 transition-colors group">
+                    <TableCell className="pl-8 py-5">
+                      <div className="flex items-center gap-3">
+                        <div className="size-9 rounded-xl bg-primary/5 flex items-center justify-center text-primary font-black text-xs shadow-inner">
+                          {aso.employeeName?.substring(0, 2).toUpperCase()}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <p className="text-xs font-bold text-primary">
-                          {new Date(aso.data_emissao).toLocaleDateString("pt-BR")}
+                        <p className="font-bold text-primary text-xs uppercase leading-tight">
+                          {aso.employeeName}
                         </p>
-                        <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">
-                          Assinado via NAI Cloud
-                        </p>
-                      </TableCell>
-                      <TableCell className="text-center">
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <p className="text-xs font-bold text-primary">
+                        {new Date(aso.data_emissao).toLocaleDateString("pt-BR")}
+                      </p>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">
+                        Assinado via NAI Cloud
+                      </p>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge
+                        className={cn(
+                          "text-[9px] font-black uppercase border-none px-3 h-6",
+                          aso.resultado === "Apto"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-red-100 text-red-700"
+                        )}
+                      >
+                        {aso.resultado === "Apto" ? (
+                          <CheckCircle2 className="size-2.5 mr-1" />
+                        ) : (
+                          <AlertCircle className="size-2.5 mr-1" />
+                        )}
+                        {aso.resultado}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex flex-col items-center gap-1">
                         <Badge
+                          variant="outline"
                           className={cn(
-                            "text-[9px] font-black uppercase border-none px-3 h-6",
-                            aso.resultado === "Apto"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-red-100 text-red-700"
+                            "text-[8px] font-black uppercase h-5",
+                            aso.status_esocial === "Enviado"
+                              ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                              : "bg-orange-50 text-orange-600 border-orange-100"
                           )}
                         >
-                          {aso.resultado === "Apto" ? (
-                            <CheckCircle2 className="size-2.5 mr-1" />
-                          ) : (
-                            <AlertCircle className="size-2.5 mr-1" />
-                          )}
-                          {aso.resultado}
+                          {aso.status_esocial === "Enviado" ? "PROTOCOLADO" : "PROCESSANDO"}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex flex-col items-center gap-1">
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-[8px] font-black uppercase h-5",
-                              aso.status_esocial === "Enviado"
-                                ? "bg-emerald-50 text-emerald-600 border-emerald-100"
-                                : "bg-orange-50 text-orange-600 border-orange-100"
-                            )}
-                          >
-                            {aso.status_esocial === "Enviado" ? "PROTOCOLADO" : "PROCESSANDO"}
-                          </Badge>
-                          {aso.protocolo_governo && (
-                            <span className="text-[8px] font-mono text-slate-400">
-                              ID: {aso.protocolo_governo}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right pr-8">
-                        <DownloadAsoButton
-                          patientData={{
-                            patientName: aso.employeeName,
-                            companyName: profile?.companyName,
-                            status: aso.resultado,
-                            type: "Periódico",
-                          }}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                {(!asos || asos.length === 0) && (
+                        {aso.protocolo_governo && (
+                          <span className="text-[8px] font-mono text-slate-400">
+                            ID: {aso.protocolo_governo}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right pr-8">
+                      <DownloadAsoButton
+                        patientData={{
+                          patientName: aso.employeeName,
+                          companyName: profile?.companyName,
+                          status: aso.resultado,
+                          type: "Periódico",
+                        }}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {!isLoading && filteredAsos.length === 0 && (
                   <TableRow>
                     <TableCell
                       colSpan={5}
                       className="py-24 text-center opacity-30 font-black uppercase text-xs tracking-widest"
                     >
-                      Nenhum ASO disponível para esta unidade
+                      Nenhum registro localizado
                     </TableCell>
                   </TableRow>
                 )}

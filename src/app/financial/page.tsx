@@ -3,31 +3,39 @@
 import * as React from "react";
 import {
   DollarSign,
-  ArrowUpRight,
-  Database,
-  Download,
-  Plus,
-  CheckCircle2,
-  TrendingUp,
-  BarChart3,
-  Scale,
-  Sparkles,
-  Loader2,
   Briefcase,
   Layers,
   TrendingDown,
-  Brain,
-  Key,
-  FileUp,
-  RefreshCw,
-  MoreVertical,
+  Calculator,
+  UserCheck,
+  Scale,
+  Plus,
   Building2,
-  Settings2,
+  FileText,
+  FileUp,
+  TrendingUp,
+  Stethoscope,
+  Activity,
+  HeartPulse,
+  History,
+  MoreVertical,
+  Loader2,
+  Database,
+  Cpu,
+  CloudLightning,
+  RefreshCw,
+  Zap,
+  ArrowRight,
+  ShieldCheck,
+  ChevronRight,
+  CheckCircle2,
+  CreditCard,
+  Sparkles,
+  FileSpreadsheet,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -37,513 +45,604 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useToast } from "@/hooks/use-toast";
-import { analyzeFiscalScenario } from "@/ai/flows/fiscal-intelligence-flow";
-import { useFirestore, useDoc, useMemoFirebase, useCollection, useUser } from "@/firebase";
-import { doc, collectionGroup, query, orderBy, collection } from "firebase/firestore";
-import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase";
+import { collection, query, orderBy, doc, collectionGroup, where } from "firebase/firestore";
 import { cn } from "@/lib/utils";
-
-const cashFlowData = [
-  { day: "01/02", entradas: 45000, saidas: 32000, saldo: 13000 },
-  { day: "05/02", entradas: 52000, saidas: 28000, saldo: 37000 },
-  { day: "10/02", entradas: 38000, saidas: 45000, saldo: 30000 },
-  { day: "15/02", entradas: 65000, saidas: 31000, saldo: 64000 },
-  { day: "20/02", entradas: 42000, saidas: 22000, saldo: 84000 },
-  { day: "25/02", entradas: 58000, saidas: 35000, saldo: 107000 },
-];
+import {
+  CETESB_SESMT_TEAM,
+  CETESB_BILLING_MATRIX,
+  CETESB_JULY_2026_BILLING,
+} from "@/lib/real-data";
+import { FiscalIntelligenceTab } from "@/components/financial/fiscal-intelligence-tab";
+import { BankStatementConciliation } from "@/components/financial/bank-statement-conciliation";
+import { DreStatementTab } from "@/components/financial/dre-statement-tab";
+import { useSgi } from "@/contexts/sgi-context";
 
 export default function FinancialModule() {
-  const [activeTab, setActiveTab] = React.useState("contracts");
-  const { toast } = useToast();
-  const { user } = useUser();
+  const [activeTab, setActiveTab] = React.useState("dre");
+  const { user, role } = useUser();
   const db = useFirestore();
-  const [isAnalyzingFiscal, setIsAnalyzingFiscal] = React.useState(false);
-  const [fiscalAiResult, setFiscalFiscalAiResult] = React.useState<any>(null);
+  const { activeClientId, isGlobalStaff } = useSgi();
 
-  const [ibptToken, setIbptToken] = React.useState("");
-  const [isSavingToken, setIsSavingToken] = React.useState(false);
-
-  const profileRef = useMemoFirebase(() => {
-    if (!db || !user) return null;
-    return doc(db, "users", user.uid);
-  }, [db, user]);
+  const profileRef = useMemoFirebase(
+    () => (!db || !user ? null : doc(db, "users", user.uid)),
+    [db, user]
+  );
   const { data: profile } = useDoc(profileRef);
 
-  const isGlobalAdmin = React.useMemo(() => {
-    if (!profile) return false;
-    const role = (profile.role || "").toUpperCase();
-    const companyId = profile.companyId;
-    return (
-      ["SUPER_ADMIN", "ENGINEER", "DOCTOR", "ADMIN"].includes(role) &&
-      (!companyId || companyId === "")
-    );
-  }, [profile]);
+  const activeCompanyRef = useMemoFirebase(
+    () => (!db || activeClientId === "all" ? null : doc(db, "companies", activeClientId)),
+    [db, activeClientId]
+  );
+  const { data: activeCompany } = useDoc(activeCompanyRef);
 
   const contractsQuery = useMemoFirebase(() => {
-    if (!db || !profile) return null;
-    if (isGlobalAdmin) return query(collectionGroup(db, "contracts"), orderBy("value", "desc"));
-    if (profile.companyId)
+    if (!db) return null;
+    if (isGlobalStaff) return query(collectionGroup(db, "contracts"), orderBy("value", "desc"));
+    if (activeClientId !== "all")
       return query(
-        collection(db, "companies", profile.companyId, "contracts"),
+        collection(db, "companies", activeClientId, "contracts"),
         orderBy("value", "desc")
       );
     return null;
-  }, [db, profile, isGlobalAdmin]);
-
+  }, [db, activeClientId, isGlobalStaff]);
   const { data: contracts, isLoading: loadingContracts } = useCollection(contractsQuery);
 
-  const totalContractValue = React.useMemo(() => {
-    return (contracts || []).reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
-  }, [contracts]);
+  const totalContractValue = React.useMemo(
+    () => (contracts || []).reduce((acc, curr) => acc + (Number(curr.value) || 0), 0),
+    [contracts]
+  );
 
-  const handleAiFiscalAnalysis = async () => {
-    setIsAnalyzingFiscal(true);
-    try {
-      const result = await analyzeFiscalScenario({
-        companySegment: "Serviços de Engenharia e Saúde",
-        location: profile?.companyName || "Unidade Local",
-        monthlyRevenue: totalContractValue || 150000,
-      });
-      setFiscalFiscalAiResult(result);
-      toast({ title: "Análise Fiscal Concluída" });
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro na IA Fiscal" });
-    } finally {
-      setIsAnalyzingFiscal(false);
-    }
-  };
-
-  const handleSaveIbptToken = () => {
-    if (!db || !profile?.companyId || !ibptToken) return;
-    setIsSavingToken(true);
-    const compRef = doc(db, "companies", profile.companyId);
-    updateDocumentNonBlocking(compRef, {
-      "fiscal_config.ibpt_token": ibptToken,
-      "fiscal_config.last_ibpt_update": new Date().toISOString(),
-    });
-    setTimeout(() => {
-      setIsSavingToken(false);
-      toast({
-        title: "Token IBPT Ativado",
-        description: "Sincronização automática de impostos habilitada.",
-      });
-    }, 800);
-  };
-
-  const summary = [
-    {
-      title: "Gestão Ativa",
-      amount: totalContractValue.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
-      trend: "Acumulado",
-      icon: Briefcase,
-      color: "text-blue-600",
-      bg: "bg-blue-50",
-    },
-    {
-      title: "ROI Segurança",
-      amount: "+R$ 142k",
-      trend: "Previsto 2026",
-      icon: TrendingDown,
-      color: "text-accent",
-      bg: "bg-accent/5",
-    },
-    {
-      title: "A Receber",
-      amount: "R$ 142.500",
-      trend: "Parcelado",
-      icon: ArrowUpRight,
-      color: "text-blue-600",
-      bg: "bg-blue-50",
-    },
-    {
-      title: "Sincronização",
-      amount: isGlobalAdmin ? "Rede Global" : "Unidade",
-      trend: "Multiapp",
-      icon: Layers,
-      color: "text-purple-600",
-      bg: "bg-purple-50",
-    },
-  ];
+  const isCetesb = activeClientId === "CETESB_080680";
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-20">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-8 animate-in fade-in duration-700 pb-20 text-left">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
-          <h1 className="text-3xl font-headline font-black text-primary tracking-tight uppercase leading-none">
-            ERP Financeiro Nextcon
+          <Badge className="bg-primary text-accent border-none font-black text-[8px] tracking-[0.4em] mb-2 px-3 h-5">
+            FINANCIAL & ERP MODULE
+          </Badge>
+          <h1 className="text-4xl font-headline font-black text-primary tracking-tighter uppercase leading-none">
+            Controle de Faturamento
           </h1>
-          <p className="text-muted-foreground font-medium uppercase text-[9px] tracking-widest">
-            Inteligência Fiscal e Governança Bancária 2026.
+          <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-[0.3em] mt-2 flex items-center gap-2">
+            <Building2 className="size-3.5 text-accent" />{" "}
+            {activeClientId === "all"
+              ? "Consolidação Global Nextcon"
+              : activeCompany?.name || "Unidade Técnica"}
           </p>
         </div>
         <div className="flex gap-2">
           <Button
             variant="outline"
-            className="gap-2 border-primary text-primary h-11 px-6 rounded-xl font-bold uppercase text-[10px]"
-            onClick={() => setActiveTab("config")}
+            className="gap-2 border-primary text-primary h-12 px-6 rounded-2xl font-black uppercase text-[10px] btn-hover-effect shadow-sm"
+            onClick={() => setActiveTab("sesmt")}
           >
-            <Settings2 className="size-4" /> Configurar Fiscal
+            <UserCheck className="size-4" /> Gestão SESMT
           </Button>
-          <Button
-            onClick={() =>
-              toast({
-                title: "Lançamento Avulso",
-                description: "Iniciando formulário de lançamento financeiro...",
-              })
-            }
-            className="bg-accent text-primary hover:bg-accent/90 gap-2 h-11 px-6 shadow-lg font-black uppercase text-[10px] tracking-widest rounded-xl"
-          >
-            <Plus className="size-4" /> Lançar Avulso
+          <Button className="gradient-nextcon text-white hover:opacity-90 gap-3 h-12 px-8 shadow-xl font-black uppercase text-[10px] rounded-2xl btn-hover-effect">
+            <Plus className="size-5 text-accent" /> Lançar Avulso
           </Button>
         </div>
-      </div>
+      </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {summary.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Card
-              key={item.title}
-              className="border-none shadow-sm bg-white rounded-2xl overflow-hidden group hover:ring-2 ring-primary/5 transition-all"
+      {/* INTEGRAÇÃO SENIOR / OMIE STATUS */}
+      {activeClientId !== "all" && (
+        <Card className="border-none bg-blue-50/50 rounded-[2.5rem] p-8 flex flex-col md:flex-row items-center justify-between gap-8 border border-blue-100 shadow-sm transition-all hover:shadow-md">
+          <div className="flex items-center gap-6">
+            <div
+              className={cn(
+                "p-5 rounded-[1.5rem] shadow-2xl transition-all duration-500 group",
+                activeCompany?.use_senior ? "bg-blue-600 text-white" : "bg-indigo-600 text-white"
+              )}
             >
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`p-2.5 rounded-xl ${item.bg}`}>
-                    <Icon className={`h-5 w-5 ${item.color}`} />
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className="text-[8px] font-black uppercase tracking-tighter"
-                  >
-                    {item.trend}
-                  </Badge>
-                </div>
-                <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">
-                  {item.title}
-                </p>
-                <h2 className="text-xl font-black text-primary font-headline">{item.amount}</h2>
-              </CardContent>
-            </Card>
-          );
-        })}
+              {activeCompany?.use_senior ? (
+                <Cpu size={28} className="group-hover:rotate-12 transition-transform" />
+              ) : (
+                <CloudLightning size={28} className="group-hover:scale-110 transition-transform" />
+              )}
+            </div>
+            <div className="text-left space-y-1">
+              <h4 className="text-lg font-black text-primary uppercase font-headline">
+                Integração ERP {activeCompany?.use_senior ? "Senior (G7/X)" : "Omie"}
+              </h4>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.3em]">
+                Status: Sincronização em Tempo Real Ativa
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <Badge className="bg-emerald-100 text-emerald-700 border-none font-black text-[10px] px-5 h-10 flex items-center gap-2 rounded-xl">
+              <ShieldCheck className="size-4" /> API SECURE
+            </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-10 rounded-xl text-primary font-black uppercase text-[10px] gap-2 px-5 bg-white shadow-sm border border-slate-200 btn-hover-effect"
+            >
+              Configurar Webhook <RefreshCw className="size-3.5" />
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard
+          title="Receita Bruta 2026"
+          amount="R$ 1.159.556,54"
+          trend="Acumulado"
+          icon={Briefcase}
+          color="text-blue-600"
+          bg="bg-blue-50"
+        />
+        <StatCard
+          title="Resultado Líquido"
+          amount="+R$ 231.116,76"
+          trend="+19.9% Margem"
+          icon={TrendingUp}
+          color="text-emerald-600"
+          bg="bg-emerald-50"
+        />
+        <StatCard
+          title="Mês Recorde (Ago/26)"
+          amount="R$ 335.581,19"
+          trend="Lucro R$ 197k"
+          icon={Sparkles}
+          color="text-amber-600"
+          bg="bg-amber-50"
+        />
+        <StatCard
+          title="Medição Cetesb"
+          amount="R$ 46.603,75"
+          trend="Protocolado"
+          icon={Calculator}
+          color="text-purple-600"
+          bg="bg-purple-50"
+        />
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="overflow-x-auto pb-2 scrollbar-thin">
-          <TabsList className="flex w-fit bg-muted/50 p-1.5 rounded-2xl h-16">
+        <div className="overflow-x-auto pb-4 scrollbar-thin">
+          <TabsList className="flex w-fit bg-muted/50 p-1.5 rounded-[2rem] h-16 shadow-inner">
             <TabsTrigger
-              value="contracts"
-              className="rounded-xl gap-2 text-[10px] font-black uppercase tracking-widest px-6 shrink-0"
+              value="dre"
+              className="rounded-xl gap-2 text-[10px] font-black uppercase tracking-widest px-8 text-emerald-700 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
             >
-              <Briefcase className="size-4" /> Contratos
+              <FileSpreadsheet className="size-4" /> DRE Gerencial 2026 (Oficial)
             </TabsTrigger>
             <TabsTrigger
-              value="cashflow"
-              className="rounded-xl gap-2 text-[10px] font-black uppercase tracking-widest px-6 shrink-0"
+              value="bank_statement"
+              className="rounded-xl gap-2 text-[10px] font-black uppercase tracking-widest px-8 text-red-600 data-[state=active]:bg-red-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
             >
-              <TrendingUp className="size-4" /> Fluxo de Caixa
+              <CreditCard className="size-4" /> Extrato Santander (Conciliado)
+            </TabsTrigger>
+            <TabsTrigger
+              value="overview"
+              className="rounded-xl gap-2 text-[10px] font-black uppercase tracking-widest px-8 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-lg"
+            >
+              Overview
+            </TabsTrigger>
+            <TabsTrigger
+              value="contracts"
+              className="rounded-xl gap-2 text-[10px] font-black uppercase tracking-widest px-8 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-lg"
+            >
+              Contratos
             </TabsTrigger>
             <TabsTrigger
               value="fiscal"
-              className="rounded-xl gap-2 text-[10px] font-black uppercase tracking-widest px-6 shrink-0 text-accent"
+              className="rounded-xl gap-2 text-[10px] font-black uppercase tracking-widest px-8 text-accent data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-lg"
             >
-              <Scale className="size-4" /> Governança 2026
+              <Database className="size-4" /> Inteligência Fiscal
             </TabsTrigger>
             <TabsTrigger
-              value="config"
-              className="rounded-xl gap-2 text-[10px] font-black uppercase tracking-widest px-6 shrink-0"
+              value="sesmt"
+              className="rounded-xl gap-2 text-[10px] font-black uppercase tracking-widest px-8 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-lg"
             >
-              <Key className="size-4" /> Configurações
+              Time SESMT
             </TabsTrigger>
+            {(isCetesb || activeClientId === "all") && (
+              <TabsTrigger
+                value="cetesb_matrix"
+                className="rounded-xl gap-2 text-[10px] font-black uppercase tracking-widest px-8 text-emerald-600 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-lg"
+              >
+                Medição Técnica (Julho/26)
+              </TabsTrigger>
+            )}
           </TabsList>
         </div>
 
-        <TabsContent value="contracts" className="mt-8">
-          <Card className="card-shadow border-none bg-white rounded-[2.5rem] overflow-hidden">
-            <CardHeader className="bg-slate-50 border-b py-6 px-8 flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-lg font-black text-primary uppercase">
-                  Faturamento Global
-                </CardTitle>
-                <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                  Status dos contratos vigentes.
-                </CardDescription>
-              </div>
-              <Button
-                onClick={() =>
-                  toast({
-                    title: "Faturamento em Lote",
-                    description: "Processando notas fiscais da rede via integração API...",
-                  })
-                }
-                variant="outline"
-                size="sm"
-                className="h-10 text-[9px] font-black uppercase border-primary/10"
-              >
-                Faturar Lote
-              </Button>
-            </CardHeader>
-            <CardContent className="p-0">
-              {loadingContracts ? (
-                <div className="p-20 text-center flex flex-col items-center gap-4">
-                  <Loader2 className="size-10 animate-spin text-primary opacity-20" />
-                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                    Sincronizando Faturamento...
+        <TabsContent value="overview" className="mt-10 space-y-8 focus-visible:ring-0">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+            {/* Card de Faturamento Rápido se for Cetesb */}
+            {isCetesb && (
+              <Card className="lg:col-span-2 border-none bg-emerald-50 rounded-[3rem] p-12 flex flex-col md:flex-row items-center justify-between gap-10 border border-emerald-100 shadow-xl relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:scale-110 transition-transform duration-1000 group-hover:rotate-12">
+                  <TrendingUp size={240} className="text-emerald-600" />
+                </div>
+                <div className="space-y-8 flex-1 relative z-10">
+                  <Badge className="bg-emerald-600 text-white border-none font-black text-[9px] tracking-[0.4em] h-7 px-4 shadow-lg rounded-lg">
+                    MEDIÇÃO PROTOCOLADA
+                  </Badge>
+                  <h3 className="text-4xl font-black text-primary uppercase font-headline tracking-tighter">
+                    Resumo Executivo Julho/2026
+                  </h3>
+                  <p className="text-lg font-medium text-emerald-800 leading-relaxed italic max-w-xl">
+                    "O faturamento total de{" "}
+                    <strong className="text-emerald-950">R$ 46.603,75</strong> foi validado e está
+                    pronto para emissão de nota fiscal técnica."
                   </p>
                 </div>
-              ) : contracts && contracts.length > 0 ? (
+                <div className="text-center md:text-right shrink-0 relative z-10 bg-white/20 p-8 rounded-[2.5rem] backdrop-blur-md border border-white/30 shadow-2xl">
+                  <p className="text-[11px] font-black uppercase text-emerald-700 tracking-widest mb-2">
+                    Valor Total do Período
+                  </p>
+                  <h2 className="text-4xl font-black text-primary font-headline tabular-nums leading-none mb-6">
+                    R$ 46.603,75
+                  </h2>
+                  <Button
+                    onClick={() => setActiveTab("cetesb_matrix")}
+                    className="w-full bg-primary text-white h-14 px-8 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-2xl gap-3 btn-hover-effect"
+                  >
+                    Ver Detalhamento <ArrowRight size={18} className="text-accent" />
+                  </Button>
+                </div>
+              </Card>
+            )}
+
+            <Card className="lg:col-span-1 bg-[#090e24] text-white p-10 rounded-[3rem] relative overflow-hidden shadow-2xl border-2 border-white/5 flex flex-col justify-center">
+              <div className="absolute top-0 right-0 p-6 opacity-10">
+                <Zap className="size-48 text-accent animate-pulse" />
+              </div>
+              <div className="relative z-10 space-y-8 text-left">
+                <Badge className="bg-accent text-primary border-none text-[9px] font-black uppercase tracking-[0.3em] px-4 h-7 flex items-center w-fit shadow-lg">
+                  PERSISTÊNCIA ERP
+                </Badge>
+                <div className="space-y-3">
+                  <h4 className="text-2xl font-black uppercase tracking-tight font-headline">
+                    Status do Razão
+                  </h4>
+                  <p className="text-sm text-white/50 leading-relaxed font-medium">
+                    O fechamento fiscal de Fevereiro está{" "}
+                    <span className="text-accent font-black">92% concluído</span>. Aguardando
+                    sincronização final das rubricas.
+                  </p>
+                </div>
+                <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                  <div className="h-full bg-accent" style={{ width: "92%" }} />
+                </div>
+              </div>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="fiscal" className="mt-10 focus-visible:ring-0">
+          <FiscalIntelligenceTab />
+        </TabsContent>
+
+        <TabsContent value="cetesb_matrix" className="mt-10 space-y-8 focus-visible:ring-0">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+            <Card className="lg:col-span-2 card-shadow border-none bg-white rounded-[3rem] overflow-hidden border-2 border-slate-50">
+              <CardHeader className="bg-emerald-600 text-white p-10 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-8 opacity-10">
+                  <FileText size={180} />
+                </div>
+                <div className="flex justify-between items-center relative z-10">
+                  <div className="space-y-2">
+                    <CardTitle className="text-3xl font-headline font-black uppercase tracking-tight">
+                      Memória de Medição: Jul/26
+                    </CardTitle>
+                    <CardDescription className="text-emerald-100 font-bold uppercase text-[11px] tracking-[0.3em] mt-1">
+                      Consolidação de Horas e Especialidades
+                    </CardDescription>
+                  </div>
+                  <Badge className="bg-white text-emerald-700 font-black h-10 px-8 rounded-[1.25rem] shadow-xl border-none">
+                    STATUS: FINALIZADO
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
                 <Table>
-                  <TableHeader className="bg-slate-50/50 text-[10px] uppercase font-black">
-                    <TableRow>
-                      <TableHead className="pl-8">Cliente / Unidade</TableHead>
-                      <TableHead>Valor Mensal</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right pr-8">Ação</TableHead>
+                  <TableHeader className="bg-slate-50/80 text-[11px] font-black uppercase">
+                    <TableRow className="hover:bg-transparent border-none">
+                      <TableHead className="pl-10 py-6">Rubrica de Serviço Prestado</TableHead>
+                      <TableHead className="text-right pr-10">Valor Protocolado (R$)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {contracts.map((item, i) => (
-                      <TableRow key={i} className="hover:bg-slate-50 transition-colors">
-                        <TableCell className="pl-8">
-                          <p className="font-black text-xs text-primary uppercase">
-                            {item.companyName || "Cliente"}
-                          </p>
-                          <p className="text-[9px] text-slate-400 uppercase font-bold">
-                            {item.title}
-                          </p>
+                    {CETESB_JULY_2026_BILLING.services.map((svc) => (
+                      <TableRow
+                        key={svc.id}
+                        className="hover:bg-slate-50 transition-all group border-b last:border-none"
+                      >
+                        <TableCell className="pl-10 py-8">
+                          <div className="flex items-center gap-6">
+                            <div className="size-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-inner group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                              <CheckCircle2 size={24} />
+                            </div>
+                            <div className="space-y-1">
+                              <span className="font-black text-sm text-primary uppercase block tracking-tight">
+                                {svc.name}
+                              </span>
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                                Gatilho eSocial: OK
+                              </span>
+                            </div>
+                          </div>
                         </TableCell>
-                        <TableCell className="font-black text-xs text-primary">
-                          {item.value.toLocaleString("pt-BR", {
+                        <TableCell className="text-right pr-10">
+                          <span className="text-lg font-black text-primary font-headline tabular-nums">
+                            {svc.value.toLocaleString("pt-BR", {
+                              style: "currency",
+                              currency: "BRL",
+                            })}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className="bg-slate-50 shadow-inner">
+                      <TableCell className="pl-10 py-12 font-black text-primary text-xl uppercase font-headline tracking-tighter">
+                        Faturamento Total do Período
+                      </TableCell>
+                      <TableCell className="text-right pr-10 py-12 font-black text-emerald-600 text-3xl font-headline tabular-nums">
+                        {CETESB_JULY_2026_BILLING.totalValue.toLocaleString("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        })}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-8 text-left">
+              <Card className="bg-[#090e24] text-white p-10 rounded-[3rem] relative overflow-hidden shadow-2xl group border-2 border-white/5 h-fit">
+                <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:rotate-12 transition-transform duration-1000">
+                  <Zap className="size-48 text-accent" />
+                </div>
+                <div className="relative z-10 space-y-8">
+                  <Badge className="bg-accent text-primary border-none text-[9px] font-black uppercase tracking-widest px-4 h-7 flex items-center w-fit shadow-lg">
+                    CONFORMIDADE TÉCNICA
+                  </Badge>
+                  <div className="space-y-4">
+                    <h4 className="text-2xl font-black uppercase tracking-tight font-headline">
+                      Parecer da Auditoria
+                    </h4>
+                    <p className="text-base italic text-slate-300 font-medium leading-relaxed">
+                      "As rubricas médicas e de engenharia foram cruzadas com os logs de ponto
+                      digital e evidências de plantão, garantindo 100% de integridade financeira."
+                    </p>
+                  </div>
+                  <div className="pt-6 border-t border-white/10 space-y-4">
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase text-white/30">
+                      <span>Rastreabilidade</span>
+                      <span className="text-emerald-400">NAI SECURE-SYNC</span>
+                    </div>
+                    <Button className="w-full h-16 bg-accent hover:opacity-90 text-primary font-black uppercase text-[11px] tracking-widest rounded-2xl shadow-2xl gap-3 btn-hover-effect">
+                      <FileText className="size-5" /> Exportar p/ Fiscalização
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="contracts" className="mt-10 focus-visible:ring-0">
+          <Card className="card-shadow border-none bg-white rounded-[3rem] overflow-hidden border-2 border-slate-50">
+            <CardHeader className="bg-slate-50 border-b p-10 flex flex-col md:flex-row justify-between items-center gap-6">
+              <div className="text-left w-full space-y-1">
+                <CardTitle className="text-2xl font-black text-primary uppercase font-headline tracking-tighter">
+                  Repositório de Contratos Globais
+                </CardTitle>
+                <CardDescription className="text-xs font-bold uppercase tracking-[0.3em] text-slate-400">
+                  Dossiês comerciais e financeiros unificados.
+                </CardDescription>
+              </div>
+              <div className="relative w-full md:w-80">
+                <Badge className="bg-primary/5 text-primary border-none font-black text-[9px] h-8 px-5 rounded-full">
+                  {contracts?.length || 0} Ativos
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {loadingContracts ? (
+                <div className="py-24 text-center flex flex-col items-center gap-4 opacity-20">
+                  <Loader2 className="animate-spin size-12 text-primary" />
+                  <p className="text-[11px] font-black uppercase tracking-[0.4em]">
+                    Cruzando Base de Dados...
+                  </p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader className="bg-slate-50/50 text-[10px] font-black uppercase tracking-widest">
+                    <TableRow className="hover:bg-transparent border-none">
+                      <TableHead className="pl-10 py-6">Empresa / Unidade</TableHead>
+                      <TableHead>Título do Acordo</TableHead>
+                      <TableHead>Faturamento Médio</TableHead>
+                      <TableHead className="text-center">Status SGI</TableHead>
+                      <TableHead className="pr-10 text-right"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {contracts?.map((contract) => (
+                      <TableRow
+                        key={contract.id}
+                        className="hover:bg-slate-50 transition-all group border-b last:border-none cursor-pointer"
+                      >
+                        <TableCell className="pl-10 py-8">
+                          <div className="flex items-center gap-5">
+                            <div className="size-14 rounded-2xl bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-inner group-hover:shadow-2xl group-hover:rotate-6">
+                              <Building2 size={24} />
+                            </div>
+                            <p className="font-black text-sm text-primary uppercase font-headline tracking-tight">
+                              {contract.companyName}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs font-bold text-slate-500 uppercase tracking-tight">
+                          {contract.title}
+                        </TableCell>
+                        <TableCell className="text-lg font-black text-primary font-headline tabular-nums">
+                          {(Number(contract.value) || 0).toLocaleString("pt-BR", {
                             style: "currency",
                             currency: "BRL",
                           })}
                         </TableCell>
-                        <TableCell>
-                          <Badge className="bg-accent/10 text-accent text-[8px] font-black uppercase border-none px-3">
+                        <TableCell className="text-center">
+                          <Badge className="bg-emerald-100 text-emerald-700 border-none font-black text-[9px] h-7 px-4 rounded-xl uppercase shadow-sm">
                             Ativo
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right pr-8">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400">
-                            <MoreVertical className="size-4" />
+                        <TableCell className="pr-10 text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-12 rounded-2xl text-slate-300 hover:text-primary hover:bg-white hover:shadow-xl transition-all"
+                          >
+                            <ChevronRight size={24} />
                           </Button>
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-              ) : (
-                <div className="p-32 text-center opacity-20 flex flex-col items-center gap-4">
-                  <Building2 size={64} className="text-primary" />
-                  <p className="font-black uppercase text-xs tracking-widest">
-                    Nenhum contrato ativo localizado
-                  </p>
-                </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="config" className="mt-8 space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="card-shadow border-none bg-white rounded-[2rem] overflow-hidden">
-              <CardHeader className="bg-primary/5 border-b p-8">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-primary text-white rounded-2xl">
-                    <Key className="size-6 text-accent" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg font-black text-primary uppercase">
-                      Integração IBPT
-                    </CardTitle>
-                    <CardDescription className="text-[10px] font-bold uppercase tracking-widest">
-                      Lei 12.741/2012 - Transparência de Impostos
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-8 space-y-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">
-                    Token da Empresa
-                  </label>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Insira o Token IBPT..."
-                      value={ibptToken}
-                      onChange={(e) => setIbptToken(e.target.value)}
-                      className="h-12 bg-slate-50 border-none rounded-xl font-mono text-xs shadow-inner"
-                    />
-                    <Button
-                      onClick={handleSaveIbptToken}
-                      disabled={isSavingToken || !ibptToken}
-                      className="h-12 px-6 bg-primary text-white font-black uppercase text-[10px] rounded-xl shadow-lg gap-2"
-                    >
-                      {isSavingToken ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="size-4 text-accent" />
-                      )}
-                      Ativar
-                    </Button>
-                  </div>
-                </div>
-                <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-start gap-3">
-                  <CheckCircle2 className="size-4 text-emerald-600 mt-0.5" />
-                  <div className="space-y-1">
-                    <p className="text-[11px] font-bold text-emerald-800 uppercase">
-                      Status do Token: {profile?.fiscal_config?.ibpt_token ? "Ativo" : "Pendente"}
-                    </p>
-                    <p className="text-[10px] text-emerald-700 leading-tight">
-                      Última sincronização:{" "}
-                      {profile?.fiscal_config?.last_ibpt_update
-                        ? new Date(profile.fiscal_config.last_ibpt_update).toLocaleDateString(
-                            "pt-BR"
-                          )
-                        : "Nunca"}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="card-shadow border-none bg-white rounded-[2rem] overflow-hidden border-2 border-dashed border-slate-200">
-              <CardHeader className="p-8 pb-4">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-slate-100 text-primary rounded-2xl">
-                    <FileUp className="size-6" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg font-black text-primary uppercase">
-                      Importação Manual
-                    </CardTitle>
-                    <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                      Upload de CSV com alíquotas aproximadas
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-8 pt-4 flex flex-col items-center justify-center text-center space-y-4">
-                <div className="size-20 bg-slate-50 rounded-full flex items-center justify-center border-2 border-dashed border-slate-200">
-                  <FileUp className="size-8 text-slate-300" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-bold text-primary uppercase">
-                    Arraste a tabela IBPT aqui
-                  </p>
-                  <p className="text-[10px] text-slate-400">Suporta formato .CSV oficial</p>
-                </div>
-                <Button
-                  onClick={() =>
-                    toast({
-                      title: "Importação IBPT",
-                      description: "Selecione o arquivo .csv exportado do De Olho no Imposto.",
-                    })
-                  }
-                  variant="ghost"
-                  className="text-[10px] font-black uppercase text-primary border border-primary/10 h-10 px-6 rounded-xl"
-                >
-                  Selecionar Arquivo
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="fiscal" className="mt-8 space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <FiscalKpi label="Teto INSS 2026" value="R$ 8.157,41" status="Atualizado Jan/26" />
-            <FiscalKpi
-              label="Incidência Saúde Mental"
-              value="CP + FGTS"
-              status="Portaria 13/2026"
-            />
-            <FiscalKpi label="FAE (S-2240)" value="Sincronizado" status="Integridade SST" />
-          </div>
-
-          <Card className="card-shadow border-none bg-white rounded-[2.5rem] overflow-hidden">
-            <CardHeader className="bg-primary/5 border-b py-8 px-10">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                <div className="space-y-1">
-                  <CardTitle className="text-2xl font-headline font-black text-primary uppercase">
-                    Análise de Impacto Governança
-                  </CardTitle>
-                  <CardDescription className="text-xs font-bold uppercase text-slate-400">
-                    Monitoramento de rubricas e cruzamento SST x Folha.
-                  </CardDescription>
-                </div>
-                <Button
-                  onClick={handleAiFiscalAnalysis}
-                  disabled={isAnalyzingFiscal}
-                  className="bg-accent text-primary font-black uppercase text-[10px] h-12 px-8 rounded-xl shadow-xl gap-2"
-                >
-                  {isAnalyzingFiscal ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="size-4" />
-                  )}
-                  Consultar NAI Compliance
-                </Button>
-              </div>
+        <TabsContent value="sesmt" className="mt-10 focus-visible:ring-0">
+          <Card className="card-shadow border-none bg-white rounded-[3rem] overflow-hidden border-2 border-slate-50">
+            <CardHeader className="bg-slate-50 border-b p-10 text-left space-y-1">
+              <CardTitle className="text-2xl font-black text-primary uppercase font-headline tracking-tighter">
+                Contratos Especialistas (PJ)
+              </CardTitle>
+              <CardDescription className="text-xs font-bold uppercase tracking-[0.3em] text-slate-400">
+                Time SESMT Consolidado 2026 • Alocação e Custos.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="p-10">
-              {fiscalAiResult && (
-                <div className="p-8 bg-blue-50/50 rounded-[2rem] border border-blue-100 animate-in slide-in-from-bottom-4">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 bg-primary text-white rounded-lg">
-                      <Brain className="size-4" />
-                    </div>
-                    <h4 className="font-black text-primary uppercase text-sm">
-                      Parecer NAI Intelligence 2026
-                    </h4>
-                  </div>
-                  <p className="text-sm text-primary/80 leading-relaxed italic font-medium">
-                    "{fiscalAiResult.analysis}"
-                  </p>
-                  <div className="mt-6 flex flex-wrap gap-2">
-                    {fiscalAiResult.taxEfficiencyTips.map((tip: string, i: number) => (
-                      <Badge
-                        key={i}
-                        variant="outline"
-                        className="bg-white border-blue-200 text-accent text-[9px] font-bold py-1 px-3 rounded-lg"
-                      >
-                        {tip}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader className="bg-slate-50/50 text-[10px] uppercase font-black tracking-widest">
+                  <TableRow className="hover:bg-transparent border-none">
+                    <TableHead className="pl-10 py-6">Profissional / Clínica</TableHead>
+                    <TableHead>Contrato ID</TableHead>
+                    <TableHead>Carga Horária</TableHead>
+                    <TableHead className="pr-10 text-right">Ação</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {CETESB_SESMT_TEAM.map((prof) => (
+                    <TableRow
+                      key={prof.id}
+                      className="hover:bg-slate-50 transition-all border-b last:border-none group"
+                    >
+                      <TableCell className="pl-10 py-8">
+                        <div className="flex items-center gap-6 text-left">
+                          <div
+                            className={cn(
+                              "size-14 rounded-[1.25rem] flex items-center justify-center text-white shadow-2xl transition-all group-hover:scale-110",
+                              prof.role === "DOCTOR"
+                                ? "bg-blue-600"
+                                : prof.role === "ENGINEER"
+                                  ? "bg-emerald-600"
+                                  : "bg-red-600"
+                            )}
+                          >
+                            {prof.role === "DOCTOR" ? (
+                              <Stethoscope size={24} />
+                            ) : prof.role === "ENGINEER" ? (
+                              <Activity size={24} />
+                            ) : (
+                              <HeartPulse size={24} />
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-black text-sm text-primary uppercase font-headline leading-none mb-1.5">
+                              {prof.name}
+                            </p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                              {prof.specialty}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono text-sm font-black text-slate-500">
+                        {prof.contractId}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className="bg-slate-50 border-slate-200 text-slate-700 font-black h-8 px-4 rounded-xl text-[10px] shadow-sm"
+                        >
+                          {typeof prof.dailyHours === "number"
+                            ? `${prof.dailyHours}h / Dia`
+                            : prof.dailyHours}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="pr-10 text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-10 rounded-xl text-slate-300 hover:text-primary"
+                        >
+                          <MoreVertical size={20} />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+        <TabsContent value="dre" className="mt-10 focus-visible:ring-0">
+          <DreStatementTab />
+        </TabsContent>
+        <TabsContent value="bank_statement" className="mt-10 focus-visible:ring-0">
+          <BankStatementConciliation />
         </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-function FiscalKpi({ label, value, status }: any) {
+function StatCard({ title, amount, value, trend, icon: Icon, color, bg }: any) {
   return (
-    <div className="p-8 bg-white rounded-[2rem] border border-slate-100 shadow-sm flex flex-col items-center text-center gap-3 hover:border-primary/20 transition-all group">
-      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
-      <p className="text-2xl font-black text-primary group-hover:scale-110 transition-transform">
-        {value}
-      </p>
-      <Badge
-        variant="outline"
-        className="text-[8px] uppercase font-black text-slate-300 border-slate-200"
-      >
-        {status}
-      </Badge>
-    </div>
+    <Card className="border-none shadow-sm bg-white rounded-[2rem] group hover:ring-2 ring-primary/5 transition-all btn-hover-effect">
+      <CardContent className="pt-8 text-left p-8">
+        <div className="flex items-center justify-between mb-8">
+          <div
+            className={cn(
+              "p-4 rounded-[1.25rem] shadow-inner transition-transform group-hover:rotate-6",
+              bg,
+              color
+            )}
+          >
+            <Icon size={24} />
+          </div>
+          <Badge
+            variant="outline"
+            className="text-[9px] font-black uppercase tracking-tighter border-slate-100 bg-slate-50 px-3 h-6 rounded-lg"
+          >
+            {trend}
+          </Badge>
+        </div>
+        <div className="space-y-1">
+          <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest leading-none mb-2">
+            {title}
+          </p>
+          <h2
+            className={cn(
+              "text-3xl font-black font-headline tracking-tighter tabular-nums leading-none",
+              color
+            )}
+          >
+            {amount || value}
+          </h2>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

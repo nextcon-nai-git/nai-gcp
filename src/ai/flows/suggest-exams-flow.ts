@@ -6,7 +6,7 @@
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "genkit";
+import { z } from "zod";
 
 const SuggestExamsInputSchema = z.object({
   jobTitle: z.string().describe("Cargo ou função do colaborador."),

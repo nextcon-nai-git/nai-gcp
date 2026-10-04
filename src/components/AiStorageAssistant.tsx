@@ -13,23 +13,12 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useStorage } from "@/firebase";
 import { ref, uploadString } from "firebase/storage";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-
-interface StorageResult {
-  sucesso: boolean;
-  mensagem?: string;
-  dados?: {
-    caminhoStorage: string;
-    placeholderContent: string;
-    docType: string;
-    nomeEmpresa: string;
-  };
-}
 
 /**
  * @fileOverview Assistente de Pastas NAI - Versão Hierarquia de Elite
@@ -51,7 +40,7 @@ export default function AiStorageAssistant() {
     setLoading(true);
     setResultado(null);
 
-    const res: StorageResult = await executarComandoStorage(comando);
+    const res = await executarComandoStorage(comando);
 
     if (res.sucesso && res.dados) {
       try {

@@ -88,8 +88,8 @@ export function DigitalSignatureDialog({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !isSigning && onOpenChange(open)}>
       <DialogContent className="sm:max-w-[500px] rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden bg-white">
-        <div className="p-8 bg-[#001F3F] text-white">
-          <div className="flex items-center gap-3 mb-2">
+        <DialogHeader className="p-8 bg-[#001F3F] text-white space-y-2">
+          <div className="flex items-center gap-3">
             <div className="p-2 bg-white/10 rounded-lg">
               <Fingerprint className="size-5 text-accent" />
             </div>
@@ -98,9 +98,9 @@ export function DigitalSignatureDialog({
             </DialogTitle>
           </div>
           <DialogDescription className="text-white/60 font-medium italic">
-            Padrão PAdES - Validade Jurídica Inquestionável.
+            Padrão PAdES - Validade Jurídica Inquestionável para documentos ocupacionais.
           </DialogDescription>
-        </div>
+        </DialogHeader>
 
         <div className="p-8 space-y-6">
           <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3 shadow-inner">

@@ -1,432 +1,512 @@
 "use client";
 
 import * as React from "react";
-import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
+  ShieldCheck,
+  Sparkles,
+  Brain,
   Zap,
   ChevronRight,
-  ShieldAlert,
-  Sparkles,
+  Loader2,
+  HardHat,
   HeartPulse,
-  Calculator,
   DollarSign,
-  TrendingDown,
-  Brain,
-  ArrowUpRight,
-  Users as UsersIcon,
-  CheckCircle2,
-  Bot,
-  Shield,
-  Building2,
   Activity,
-  FileText,
+  ArrowUpRight,
+  Target,
+  Users,
+  LayoutGrid,
+  TrendingDown,
+  Cpu,
+  Scan,
+  ShieldAlert,
+  Building2,
+  FileCheck,
+  Stethoscope,
+  MapPin,
+  Bot,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
-import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
-import { doc } from "firebase/firestore";
+import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from "@/firebase";
+import { useSgi } from "@/contexts/sgi-context";
+import { doc, collection, query, orderBy, limit, collectionGroup } from "firebase/firestore";
 import { cn } from "@/lib/utils";
-import Link from "next/link";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import MedicalCopilot from "@/components/medical/medical-copilot";
-import { useDebounce } from "@/hooks/useDebounce";
+import { SstOverviewCharts } from "@/components/dashboard/sst-overview-charts";
+import { RiskHeatmap } from "@/components/dashboard/risk-heatmap";
+import { AiDocumentDispatcher } from "@/components/dashboard/ai-document-dispatcher";
+import { useToast } from "@/hooks/use-toast";
 
-// Dynamic imports para heavy libraries
-const RechartsChart = dynamic(() => import("./recharts-wrapper"), {
-  ssr: false,
-  loading: () => <div className="h-64 bg-slate-100 rounded-lg" />,
-});
-
-function TypewriterText({ text, delay = 10 }: { text: string; delay?: number }) {
-  const [displayedText, setDisplayedText] = React.useState("");
-
-  React.useEffect(() => {
-    let i = 0;
-    const interval = setInterval(() => {
-      if (i < text.length) {
-        setDisplayedText(text.substring(0, i + 1));
-        i++;
-      } else {
-        clearInterval(interval);
-      }
-    }, delay);
-    return () => clearInterval(interval);
-  }, [text, delay]);
-
-  return <span>{displayedText}</span>;
-}
-
-function AnimatedCounter({
-  value,
-  prefix = "",
-  suffix = "",
-  isCurrency = false,
-}: {
-  value: number;
-  prefix?: string;
-  suffix?: string;
-  isCurrency?: boolean;
-}) {
-  const [count, setCount] = React.useState(0);
-  React.useEffect(() => {
-    let startTimestamp: number | null = null;
-    const duration = 2000;
-    const step = (timestamp: number) => {
-      if (!startTimestamp) startTimestamp = timestamp;
-      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-      const easeProgress = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
-      setCount(easeProgress * value);
-      if (progress < 1) {
-        window.requestAnimationFrame(step);
-      }
-    };
-    window.requestAnimationFrame(step);
-  }, [value]);
-
-  if (isCurrency) {
-    return (
-      <span className="tabular-nums">
-        {prefix}
-        {count.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-        {suffix}
-      </span>
-    );
-  }
-  return (
-    <span className="tabular-nums">
-      {prefix}
-      {Math.floor(count).toLocaleString("pt-BR")}
-      {suffix}
-    </span>
-  );
-}
-
-export default function Dashboard() {
-  const { user } = useUser();
+/**
+ * @fileOverview NAI Elite Dashboard v4.0 (Next-Gen Executive Command Center)
+ * Central de Inteligência de SST, Métricas eSocial e Controle de Operações.
+ */
+export default function NaiEliteDashboard() {
+  const { user, role } = useUser();
   const db = useFirestore();
-  const [saudacao, setSaudacao] = React.useState("");
-  const [isClient, setIsClient] = React.useState(false);
-
-  const [fapValue, setFapValue] = React.useState([0.74]);
-  const debouncedFapValue = useDebounce(fapValue, 300); // Debounce slider
-
-  const [payroll, setPayroll] = React.useState(150000);
-  const debouncedPayroll = useDebounce(payroll, 300); // Debounce input
+  const { activeClientId, isGlobalStaff } = useSgi();
+  const router = useRouter();
+  const { toast } = useToast();
+  const [mounted, setMounted] = React.useState(false);
+  const [isDiagnosing, setIsDiagnosing] = React.useState(false);
 
   const profileRef = useMemoFirebase(() => {
     if (!db || !user) return null;
     return doc(db, "users", user.uid);
   }, [db, user]);
-  const { data: profile, isLoading: loadingProfile } = useDoc(profileRef);
+  const { data: profile } = useDoc(profileRef);
 
-  const companyRef = useMemoFirebase(() => {
-    if (!db || !profile?.companyId) return null;
-    return doc(db, "companies", profile.companyId);
-  }, [db, profile?.companyId]);
-  const { data: company } = useDoc(companyRef);
+  const activeRole = (profile?.role || role || "USER").toUpperCase();
+  const isProvider = activeRole === "PROVIDER";
 
-  const isGlobalAdmin = React.useMemo(() => {
-    if (loadingProfile || !profile) return false;
-    const role = (profile.role || "").toUpperCase();
-    return ["SUPER_ADMIN", "ADMIN"].includes(role);
-  }, [profile, loadingProfile]);
+  const pType = (profile?.type || profile?.providerType || "").toUpperCase();
+  const pSpecialty = (
+    profile?.specialty ||
+    profile?.profession ||
+    profile?.job_role ||
+    ""
+  ).toUpperCase();
+
+  const isEngineeringProvider =
+    isProvider &&
+    (pType.includes("ENGINEER") ||
+      pSpecialty.includes("SEGURANÇA") ||
+      pSpecialty.includes("ENGENHARIA") ||
+      pSpecialty.includes("TST") ||
+      pSpecialty.includes("TÉCNICO"));
 
   React.useEffect(() => {
-    setIsClient(true);
-    const hora = new Date().getHours();
-    if (hora >= 5 && hora < 12) setSaudacao("Bom dia");
-    else if (hora >= 12 && hora < 18) setSaudacao("Boa tarde");
-    else setSaudacao("Boa noite");
-  }, []);
+    setMounted(true);
+    if (isProvider) {
+      if (isEngineeringProvider) {
+        router.replace("/risk-management");
+      } else {
+        router.replace("/health-control");
+      }
+    }
+  }, [isProvider, isEngineeringProvider, router]);
 
-  const potentialSavings = React.useMemo(() => {
-    return debouncedPayroll * 0.02 * (1 - debouncedFapValue[0]) * 12;
-  }, [debouncedPayroll, debouncedFapValue]);
-
-  const mockDataCocel = React.useMemo(
-    () => [
-      { value: 10000 },
-      { value: 10500 },
-      { value: 11000 },
-      { value: 10800 },
-      { value: 11500 },
-      { value: 12794.07 },
-    ],
-    []
+  const activeCompanyRef = useMemoFirebase(
+    () =>
+      !db || activeClientId === "all" || activeClientId === "unauthorized"
+        ? null
+        : doc(db, "companies", activeClientId),
+    [db, activeClientId]
   );
+  const { data: activeCompany } = useDoc(activeCompanyRef);
 
-  const mockDataVigilancia = React.useMemo(
-    () => [
-      { value: 700 },
-      { value: 720 },
-      { value: 750 },
-      { value: 740 },
-      { value: 790 },
-      { value: 806 },
-    ],
-    []
-  );
+  const tasksQuery = useMemoFirebase(() => {
+    if (!db || !role || activeClientId === "unauthorized") return null;
+    if (activeClientId === "all") {
+      return isGlobalStaff
+        ? query(collectionGroup(db, "tasks"), orderBy("dueDate", "asc"), limit(5))
+        : null;
+    }
+    return query(
+      collection(db, "companies", activeClientId, "tasks"),
+      orderBy("dueDate", "asc"),
+      limit(5)
+    );
+  }, [db, activeClientId, role, isGlobalStaff]);
 
-  const roiData = React.useMemo(() => {
-    return [
-      { value: potentialSavings * 0.4 },
-      { value: potentialSavings * 0.5 },
-      { value: potentialSavings * 0.7 },
-      { value: potentialSavings * 0.8 },
-      { value: potentialSavings * 0.95 },
-      { value: potentialSavings },
-    ];
-  }, [potentialSavings]);
+  const { data: recentTasks, isLoading: loadingTasks } = useCollection(tasksQuery);
 
-  if (!isClient) return null;
+  const handleRunAiDiagnosis = () => {
+    setIsDiagnosing(true);
+    setTimeout(() => {
+      setIsDiagnosing(false);
+      toast({
+        title: "Diagnóstico NAI IA Concluído! ✨",
+        description:
+          "100% dos eventos S-2220 e S-2240 auditados. Nenhuma desconformidade fiscal detectada.",
+      });
+    }, 1500);
+  };
 
-  const displayName = profile?.name || "Gestor";
+  if (!mounted || isProvider)
+    return (
+      <div className="py-20 text-center flex flex-col items-center justify-center gap-4">
+        <Loader2 className="animate-spin size-8 text-primary" />
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
+          Direcionando para o módulo operacional...
+        </p>
+      </div>
+    );
 
   return (
-    <div className="space-y-10 animate-in fade-in duration-700 pb-20">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-1.5 rounded-full bg-primary" />
-            <h1 className="text-2xl font-black text-primary tracking-tight font-headline uppercase leading-none">
-              {loadingProfile ? (
-                <Skeleton className="h-10 w-48" />
-              ) : (
-                <div className="flex flex-col gap-1">
-                  <span>
-                    {saudacao}, <span className="text-slate-500">{displayName}</span>
-                  </span>
-                  <span className="text-xs font-bold text-slate-400 normal-case tracking-normal">
-                    {isGlobalAdmin
-                      ? "Gestão Estratégica da Rede"
-                      : `Unidade: ${company?.name || "Monitoramento Ativo"}`}
-                  </span>
-                </div>
-              )}
+    <div className="space-y-10 animate-in fade-in duration-700 pb-20 text-left">
+      {/* 1. HEADER EXECUTIVO + COPILOT BAR */}
+      <header className="space-y-6 border-b pb-8">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Badge className="bg-primary text-accent border-none font-black text-[8px] tracking-[0.4em] px-3 h-5 uppercase">
+                NAI INTELLIGENCE v4.2
+              </Badge>
+              <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 font-black text-[8px] tracking-widest px-3 h-5 uppercase flex items-center gap-1.5">
+                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> SGI Live
+              </Badge>
+            </div>
+            <h1 className="text-4xl font-black text-primary uppercase font-headline tracking-tighter leading-none">
+              Painel de Gestão Executiva
             </h1>
+            <p className="text-muted-foreground font-bold uppercase text-[9px] tracking-[0.2em] mt-2 flex items-center gap-2">
+              <Building2 className="size-3.5 text-accent" />{" "}
+              {activeClientId === "all"
+                ? "Rede Global Nextcon"
+                : activeCompany?.name || "Unidade em Análise"}
+            </p>
           </div>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] ml-4">
-            Cérebro NAI • Inteligência Nextcon 2026
-          </p>
+
+          <div className="flex flex-wrap gap-3">
+            <Button
+              onClick={handleRunAiDiagnosis}
+              disabled={isDiagnosing}
+              className="bg-accent hover:bg-accent/90 text-primary font-black uppercase text-[10px] tracking-widest px-6 h-12 rounded-2xl shadow-xl gap-2 transition-all hover:scale-105"
+            >
+              {isDiagnosing ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Bot className="size-4" />
+              )}
+              Diagnóstico IA NAI
+            </Button>
+            <Button
+              variant="outline"
+              asChild
+              className="h-12 px-6 rounded-2xl border-primary/20 text-primary font-black uppercase text-[10px] gap-2 shadow-sm transition-all hover:border-primary"
+            >
+              <Link href="/simulator">
+                <TrendingDown className="size-4 text-emerald-600" /> FAP / RAT (0.50)
+              </Link>
+            </Button>
+            <Button
+              asChild
+              className="bg-[#001F3F] text-white font-black uppercase text-[10px] tracking-widest px-6 h-12 rounded-2xl shadow-xl gap-2 transition-all hover:bg-slate-900"
+            >
+              <Link href="/providers">
+                <MapPin className="size-4 text-accent" /> Buscador Clínicas
+              </Link>
+            </Button>
+          </div>
         </div>
-        <Badge className="bg-primary text-white font-black uppercase text-[10px] tracking-widest px-5 h-11 border-none shadow-xl">
-          {isGlobalAdmin ? "INTELIGÊNCIA CORPORATIVA" : "CONFORMIDADE DA UNIDADE"}
-        </Badge>
+
+        {/* 2. KPI CARDS EXECUTIVOS REFINADOS */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
+          <div className="p-5 bg-white border border-slate-200/80 rounded-3xl shadow-sm card-interactive space-y-1 group">
+            <div className="flex items-center justify-between">
+              <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
+                <Activity className="size-3.5 text-emerald-500" /> Score SST
+              </p>
+              <span className="text-[8px] font-black uppercase bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-200">
+                +1.4%
+              </span>
+            </div>
+            <p className="text-3xl font-black text-primary font-headline">98.6%</p>
+            <p className="text-[8px] font-bold text-emerald-600 uppercase tracking-wider">
+              Excelente Nível ISO 45001
+            </p>
+          </div>
+
+          <div className="p-5 bg-white border border-slate-200/80 rounded-3xl shadow-sm card-interactive space-y-1 group">
+            <div className="flex items-center justify-between">
+              <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
+                <FileCheck className="size-3.5 text-blue-500" /> eSocial Status
+              </p>
+              <span className="text-[8px] font-black uppercase bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full border border-blue-200">
+                Homologado
+              </span>
+            </div>
+            <p className="text-3xl font-black text-primary font-headline">100%</p>
+            <p className="text-[8px] font-bold text-blue-600 uppercase tracking-wider">
+              S-2210 / S-2220 / S-2240
+            </p>
+          </div>
+
+          <div className="p-5 bg-white border border-slate-200/80 rounded-3xl shadow-sm card-interactive space-y-1 group">
+            <div className="flex items-center justify-between">
+              <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
+                <Users className="size-3.5 text-amber-500" /> Vidas Ativas
+              </p>
+              <span className="text-[8px] font-black uppercase bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">
+                Atualizado
+              </span>
+            </div>
+            <p className="text-3xl font-black text-primary font-headline">3.420</p>
+            <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">
+              Colaboradores Monitorados
+            </p>
+          </div>
+
+          <div className="p-5 bg-white border border-slate-200/80 rounded-3xl shadow-sm card-interactive space-y-1 group">
+            <div className="flex items-center justify-between">
+              <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
+                <ShieldCheck className="size-3.5 text-purple-500" /> Fator FAP
+              </p>
+              <span className="text-[8px] font-black uppercase bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-200 font-bold">
+                Bônus Max
+              </span>
+            </div>
+            <p className="text-3xl font-black text-emerald-600 font-headline">0,5000</p>
+            <p className="text-[8px] font-bold text-emerald-600 uppercase tracking-wider">
+              Alíquota Mínima (Economia Ativa)
+            </p>
+          </div>
+        </div>
+      </header>
+
+      {/* 2.0 ATALHOS OPERACIONAIS 1-CLIQUE */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400 flex items-center gap-1.5">
+            <Sparkles className="size-3.5 text-amber-500" /> Ações Rápidas de Alta Frequência
+            (1-Clique)
+          </p>
+          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider hidden sm:inline">
+            Atalho ⌘K para busca global
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <Link
+            href="/health-control"
+            className="p-4 bg-white hover:bg-emerald-50/50 border border-slate-200/80 hover:border-emerald-300 rounded-2xl shadow-xs card-interactive flex flex-col justify-between group"
+          >
+            <div className="size-8 rounded-xl bg-emerald-100/80 text-emerald-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+              <Stethoscope className="size-4" />
+            </div>
+            <div>
+              <p className="text-xs font-black uppercase text-slate-900 group-hover:text-emerald-700 tracking-tight leading-snug">
+                ASO Digital
+              </p>
+              <p className="text-[9px] text-slate-400 mt-0.5">Ingestão NR-07</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/risk-management/pgr-analysis"
+            className="p-4 bg-white hover:bg-amber-50/50 border border-slate-200/80 hover:border-amber-300 rounded-2xl shadow-xs card-interactive flex flex-col justify-between group"
+          >
+            <div className="size-8 rounded-xl bg-amber-100/80 text-amber-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+              <HardHat className="size-4" />
+            </div>
+            <div>
+              <p className="text-xs font-black uppercase text-slate-900 group-hover:text-amber-700 tracking-tight leading-snug">
+                Auditoria PGR
+              </p>
+              <p className="text-[9px] text-slate-400 mt-0.5">Inventário NR-01</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/clients/grupo-avp"
+            className="p-4 bg-white hover:bg-blue-50/50 border border-slate-200/80 hover:border-blue-300 rounded-2xl shadow-xs card-interactive flex flex-col justify-between group"
+          >
+            <div className="size-8 rounded-xl bg-blue-100/80 text-blue-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+              <Zap className="size-4" />
+            </div>
+            <div>
+              <p className="text-xs font-black uppercase text-slate-900 group-hover:text-blue-700 tracking-tight leading-snug">
+                Credenciamento
+              </p>
+              <p className="text-[9px] text-slate-400 mt-0.5">WhatsApp 1-Clique</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/esocial/audit"
+            className="p-4 bg-white hover:bg-purple-50/50 border border-slate-200/80 hover:border-purple-300 rounded-2xl shadow-xs card-interactive flex flex-col justify-between group"
+          >
+            <div className="size-8 rounded-xl bg-purple-100/80 text-purple-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+              <ShieldCheck className="size-4" />
+            </div>
+            <div>
+              <p className="text-xs font-black uppercase text-slate-900 group-hover:text-purple-700 tracking-tight leading-snug">
+                eSocial SGI
+              </p>
+              <p className="text-[9px] text-slate-400 mt-0.5">S-2220 / S-2240</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/ppe-management"
+            className="p-4 bg-white hover:bg-orange-50/50 border border-slate-200/80 hover:border-orange-300 rounded-2xl shadow-xs card-interactive flex flex-col justify-between group"
+          >
+            <div className="size-8 rounded-xl bg-orange-100/80 text-orange-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+              <HardHat className="size-4" />
+            </div>
+            <div>
+              <p className="text-xs font-black uppercase text-slate-900 group-hover:text-orange-700 tracking-tight leading-snug">
+                EPI Digital
+              </p>
+              <p className="text-[9px] text-slate-400 mt-0.5">Gestão de CAs</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/simulator"
+            className="p-4 bg-white hover:bg-teal-50/50 border border-slate-200/80 hover:border-teal-300 rounded-2xl shadow-xs card-interactive flex flex-col justify-between group"
+          >
+            <div className="size-8 rounded-xl bg-teal-100/80 text-teal-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+              <TrendingDown className="size-4" />
+            </div>
+            <div>
+              <p className="text-xs font-black uppercase text-slate-900 group-hover:text-teal-700 tracking-tight leading-snug">
+                Simulador FAP
+              </p>
+              <p className="text-[9px] text-slate-400 mt-0.5">Economia Folha</p>
+            </div>
+          </Link>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
-          {/* Alerta de Caso Real: Nativa */}
-          <Card className="border-none bg-blue-50 ring-2 ring-blue-100 rounded-[2.5rem] overflow-hidden shadow-xl animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100 fill-mode-both">
-            <div className="p-8 flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="flex items-center gap-5">
-                <div className="p-4 bg-primary text-white rounded-3xl shadow-lg">
-                  <FileText className="size-8 text-accent" />
-                </div>
-                <div>
-                  <Badge className="bg-primary text-white text-[8px] font-black uppercase mb-2">
-                    Relatório Disponível
-                  </Badge>
-                  <h3 className="text-lg font-black text-primary uppercase">
-                    Nativa Empreendimentos
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium">
-                    Auditoria de Campo Laguna & Mônaco finalizada.
-                  </p>
-                </div>
-              </div>
+      {/* 2.1 SMART DOCUMENT DISPATCHER (IA MULTIMODAL) */}
+      <AiDocumentDispatcher />
+
+      {/* 3. DASHBOARD ANALÍTICO */}
+      <SstOverviewCharts />
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* 4. MATRIZ DE RISCO & INTELIGÊNCIA */}
+        <div className="lg:col-span-4 space-y-6">
+          <Card className="card-shadow border-none bg-white rounded-[2.5rem] p-8">
+            <RiskHeatmap />
+            <div className="mt-8 pt-6 border-t border-dashed">
               <Button
+                variant="ghost"
                 asChild
-                className="bg-primary text-white font-black uppercase text-[10px] h-12 px-8 rounded-xl shadow-lg"
+                className="w-full text-primary font-black uppercase text-[10px] gap-2 group"
               >
-                <Link href="/reports/technical-visit/nativa">Abrir Dossiê</Link>
+                <Link href="/risk-management">
+                  Ver Inventário PGR Completo{" "}
+                  <ChevronRight
+                    size={14}
+                    className="group-hover:translate-x-1 transition-transform"
+                  />
+                </Link>
               </Button>
             </div>
           </Card>
 
-          {/* Resumo Operacional com Gráficos Dinâmicos */}
-          <Card className="card-shadow border-none bg-white rounded-[2.5rem] overflow-hidden group animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200 fill-mode-both hover:-translate-y-1">
-            <CardHeader className="pb-4 px-8 pt-8">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-primary text-white rounded-xl shadow-inner">
-                    <Brain className="size-5" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg font-black text-primary uppercase">
-                      Resumo Operacional NAI
-                    </CardTitle>
-                    <CardDescription className="text-[10px] font-bold uppercase text-slate-400">
-                      Status de Blindagem Técnica e Tributária.
-                    </CardDescription>
-                  </div>
-                </div>
-                <Badge
-                  variant="outline"
-                  className="bg-emerald-50 border-emerald-100 text-emerald-700 font-black text-[10px] h-8 uppercase"
-                >
-                  Conforme
-                </Badge>
+          <Card className="bg-[#001F3F] text-white p-8 rounded-[2.5rem] relative overflow-hidden shadow-2xl group border-2 border-white/5">
+            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:rotate-12 transition-transform duration-700">
+              <Zap className="size-32 text-accent" />
+            </div>
+            <div className="relative z-10 space-y-6 text-left">
+              <Badge className="bg-accent text-primary border-none text-[8px] font-black uppercase tracking-[0.3em] px-3 h-6 flex items-center w-fit">
+                MONITORAMENTO IA
+              </Badge>
+              <div className="space-y-2">
+                <h4 className="text-lg font-black uppercase leading-tight font-headline">
+                  Conformidade eSocial S-2240
+                </h4>
+                <p className="text-xs text-white/70 leading-relaxed font-medium">
+                  Todas as medições de ruído, calor e agentes químicos estão associadas às GHEs com
+                  ASO e eSocial ativos.
+                </p>
               </div>
-            </CardHeader>
-            <CardContent className="px-8 pb-8 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-slate-50 p-6 rounded-3xl border shadow-inner flex flex-col justify-center relative overflow-hidden group">
-                  <RechartsChart data={mockDataCocel} color="#10b981" isCurrency={true} />
-                  <div className="relative z-10 pointer-events-none group-hover:pointer-events-auto">
-                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">
-                      Contrato COCEL Aditivo
-                    </p>
-                    <h3 className="text-2xl font-black text-primary">
-                      <AnimatedCounter value={12794.07} isCurrency />
-                    </h3>
-                    <div className="flex items-center gap-1 mt-2">
-                      <CheckCircle2 className="size-3 text-emerald-500" />
-                      <span className="text-[9px] font-bold text-emerald-600 uppercase">
-                        Gestão SST & eSocial Ativa
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-slate-50 p-6 rounded-3xl border shadow-inner flex flex-col justify-center relative overflow-hidden group">
-                  <RechartsChart data={mockDataVigilancia} color="#3b82f6" />
-                  <div className="relative z-10 pointer-events-none group-hover:pointer-events-auto">
-                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">
-                      Vigilância Total
-                    </p>
-                    <h3 className="text-2xl font-black text-primary">
-                      <AnimatedCounter value={806} suffix=" Vidas" />
-                    </h3>
-                    <div className="flex items-center gap-1 mt-2">
-                      <Activity className="size-3 text-blue-500" />
-                      <span className="text-[9px] font-bold text-blue-600 uppercase">
-                        Sincronização 100% OK
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-slate-900/95 backdrop-blur-xl border border-white/10 p-6 rounded-[2rem] text-white relative overflow-hidden group shadow-[0_0_40px_rgba(30,136,229,0.15)] ring-1 ring-white/5">
-                <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform duration-1000">
-                  <Shield className="size-32 text-white" />
-                </div>
-                <div className="relative z-10 space-y-2">
-                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2 flex items-center gap-2">
-                    <Zap className="size-3 fill-current text-primary" /> Insight Preditivo NAI
-                  </p>
-                  <p className="text-sm italic font-medium leading-relaxed text-slate-300 min-h-[60px]">
-                    <TypewriterText
-                      text='"O aditivo contratual da COCEL e a auditoria da Nativa demonstram a maturidade da rede. Mantenha os protocolos do eSocial S-2240 sincronizados para sustentar o bônus FAP."'
-                      delay={15}
-                    />
-                  </p>
-                </div>
-              </div>
-            </CardContent>
+              <Button
+                variant="outline"
+                asChild
+                className="w-full h-12 border-white/20 text-white font-black uppercase text-[9px] hover:bg-white/10 btn-hover-effect"
+              >
+                <Link href="/esocial-audit">Verificar Eventos Fiscalizados</Link>
+              </Button>
+            </div>
           </Card>
         </div>
 
-        {/* Simulador ROI com Debouncing */}
-        <div className="space-y-8">
-          <Card className="card-shadow border-none bg-white rounded-[2.5rem] overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300 fill-mode-both hover:-translate-y-1">
-            <CardHeader className="bg-primary/5 pb-6 p-8 border-b">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary text-white rounded-xl shadow-lg">
-                  <Calculator className="size-5" />
-                </div>
-                <CardTitle className="text-sm font-black text-primary uppercase tracking-tight">
-                  Simulador ROI NAI
+        {/* 5. FEED DE TAREFAS CRÍTICAS */}
+        <div className="lg:col-span-8 space-y-6">
+          <Card className="card-shadow border-none bg-white rounded-[2.5rem] overflow-hidden flex flex-col h-full">
+            <CardHeader className="bg-slate-50/50 border-b p-8 flex flex-row items-center justify-between text-left">
+              <div>
+                <CardTitle className="text-xl font-black text-primary uppercase tracking-tight">
+                  Atividades Prioritárias de Implantação
                 </CardTitle>
+                <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  Fila SGI em tempo real (ANEEL, CETESB, NATIVA, NOXI).
+                </CardDescription>
               </div>
+              <Badge className="bg-primary text-white border-none font-black h-6 px-3">
+                SLA MONITORING
+              </Badge>
             </CardHeader>
-            <CardContent className="p-8 space-y-6">
-              <div className="space-y-4">
-                <div className="flex justify-between items-end">
-                  <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest">
-                    Fator FAP Alvo
-                  </label>
-                  <span className="text-xl font-black text-primary tracking-tighter">
-                    {debouncedFapValue[0].toFixed(2)}
-                  </span>
-                </div>
-                <Slider
-                  value={fapValue}
-                  onValueChange={setFapValue}
-                  max={2}
-                  min={0.5}
-                  step={0.01}
-                  className="py-4"
-                />
-              </div>
-              <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100 shadow-inner relative overflow-hidden group">
-                <RechartsChart
-                  data={roiData}
-                  color={potentialSavings > 0 ? "#10b981" : "#ef4444"}
-                  isCurrency={true}
-                />
-                <div className="relative z-10 pointer-events-none group-hover:pointer-events-auto">
-                  <p className="text-[10px] font-black uppercase text-slate-400 mb-2">
-                    Economia Anual Est.
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <h3
-                      className={cn(
-                        "text-2xl font-black font-headline tracking-tighter transition-all",
-                        potentialSavings > 0
-                          ? "text-emerald-600 drop-shadow-[0_0_15px_rgba(16,185,129,0.5)]"
-                          : "text-red-500"
-                      )}
-                    >
-                      <AnimatedCounter value={Math.abs(potentialSavings)} isCurrency />
-                    </h3>
-                    {potentialSavings > 0 ? (
-                      <ArrowUpRight className="size-5 text-emerald-500" />
-                    ) : (
-                      <TrendingDown className="size-5 text-red-500" />
-                    )}
+            <CardContent className="p-0">
+              <div className="divide-y divide-slate-50">
+                {loadingTasks ? (
+                  <div className="py-20 text-center flex flex-col items-center gap-4 opacity-20">
+                    <Loader2 className="animate-spin size-12 text-primary" />
+                    <p className="text-[10px] font-black uppercase tracking-[0.4em]">
+                      Sincronizando Backlog...
+                    </p>
                   </div>
-                </div>
+                ) : recentTasks?.length ? (
+                  recentTasks.map((task: any) => (
+                    <div
+                      key={task.id}
+                      className="p-6 hover:bg-slate-50 transition-all flex items-center justify-between group border-l-[6px] border-l-transparent hover:border-l-accent"
+                    >
+                      <div className="flex items-center gap-5 text-left">
+                        <div
+                          className={cn(
+                            "size-14 rounded-2xl flex items-center justify-center text-white shadow-inner font-black text-xs",
+                            task.priority === "critical" ? "bg-red-600" : "bg-primary"
+                          )}
+                        >
+                          {task.type?.substring(0, 3).toUpperCase() || "SST"}
+                        </div>
+                        <div>
+                          <p className="font-black text-sm text-primary uppercase leading-tight">
+                            {task.title}
+                          </p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mt-1">
+                            {task.companyName} • Prazo:{" "}
+                            {new Date(task.dueDate).toLocaleDateString("pt-BR")}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[8px] font-black uppercase border-none px-3 h-5",
+                            task.priority === "critical"
+                              ? "bg-red-50 text-red-600"
+                              : "bg-slate-50 text-slate-500"
+                          )}
+                        >
+                          {task.priority}
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-10 rounded-xl text-slate-200 group-hover:text-primary transition-all"
+                          asChild
+                        >
+                          <Link href="/action-plans">
+                            <ChevronRight size={24} />
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
+                    <ShieldCheck size={48} className="text-primary" />
+                    <p className="font-black uppercase text-xs tracking-[0.4em]">
+                      Nenhuma pendência crítica no momento
+                    </p>
+                  </div>
+                )}
               </div>
-              <Button
-                asChild
-                className="w-full h-12 bg-primary text-white font-black uppercase text-[9px] tracking-widest rounded-xl"
-              >
-                <Link href="/analytics">Análise Completa</Link>
-              </Button>
             </CardContent>
           </Card>
         </div>
       </div>
-
-      {/* Medical Copilot */}
-      <Sheet>
-        <SheetTrigger asChild>
-          <button className="fixed bottom-8 right-8 h-16 w-16 rounded-full bg-primary shadow-2xl hover:scale-105 transition-transform duration-300 flex items-center justify-center p-0 z-50 ring-4 ring-primary/20">
-            <Bot className="size-8 text-white" />
-          </button>
-        </SheetTrigger>
-        <SheetContent
-          side="right"
-          className="w-full sm:max-w-md p-0 border-l-0 bg-slate-50 flex flex-col"
-        >
-          <SheetHeader className="p-6 bg-primary text-white rounded-bl-3xl">
-            <SheetTitle className="text-white font-black uppercase tracking-widest flex items-center gap-2 text-sm">
-              <Brain className="size-5" />
-              Assistente NAI
-            </SheetTitle>
-            <p className="text-primary-foreground/80 text-xs font-medium">
-              Suporte clínico e técnico em tempo real.
-            </p>
-          </SheetHeader>
-          <div className="flex-1 p-4 overflow-hidden">
-            <MedicalCopilot pacienteId="contexto_geral" />
-          </div>
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }

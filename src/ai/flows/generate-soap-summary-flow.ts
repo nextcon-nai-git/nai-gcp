@@ -1,11 +1,11 @@
 "use server";
 /**
- * @fileOverview NAI Medical Intel - Gerador de Resumo Clínico SOAP.
- * Analisa a transcrição da teleconsulta e estrutura o prontuário automaticamente.
+ * @fileOverview NAI Medical Intel - Gerador de Resumo Clínico SOAP e Protocolos de Decisão.
+ * Analisa a transcrição da teleconsulta e estrutura o prontuário com sugestões de conduta.
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "genkit";
+import { z } from "zod";
 
 const SOAPSummaryInputSchema = z.object({
   transcript: z.string().describe("A transcrição completa da consulta médica."),
@@ -28,6 +28,16 @@ const SOAPSummaryOutputSchema = z.object({
   criticalAlerts: z
     .array(z.string())
     .describe("Alertas de interações medicamentosas ou urgências detectadas."),
+  suggestedProtocols: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string().describe("Título curto da ação ou protocolo (ex: Solicitar Hemograma)."),
+        description: z.string().describe("Justificativa médica para a sugestão."),
+        category: z.enum(["Exames", "Medicação", "Orientação", "Encaminhamento", "PGR/SST"]),
+      })
+    )
+    .describe("Protocolos sugeridos para aprovação do médico."),
 });
 
 export type SOAPSummaryOutput = z.infer<typeof SOAPSummaryOutputSchema>;
@@ -44,8 +54,8 @@ const soapPrompt = ai.definePrompt({
   name: "generateSoapSummaryPrompt",
   input: { schema: SOAPSummaryInputSchema },
   output: { schema: SOAPSummaryOutputSchema },
-  prompt: `Você é a NAI, assistente médica de elite especializada em auditoria e prontuário digital.
-Sua tarefa é ler a transcrição de uma teleconsulta e gerar o resumo no formato SOAP.
+  prompt: `Você é a NAI, assistente médica de elite da Nextcon especializada em suporte à decisão clínica.
+Sua tarefa é ler a transcrição de uma teleconsulta e gerar o resumo no formato SOAP, além de sugerir protocolos de cuidados para aprovação do médico.
 
 HISTÓRICO DO PACIENTE:
 {{{patientHistory}}}
@@ -55,7 +65,14 @@ TRANSCRIÇÃO:
 {{{transcript}}}
 """
 
-INSTRUÇÕES:
+INSTRUÇÕES DE PROTOCOLO:
+1. Analise as queixas e sugira ações práticas no campo 'suggestedProtocols'.
+2. Se o paciente relatar dor lombar, sugira protocolos de ergonomia ou fisioterapia.
+3. Se houver sinais de infecção, sugira exames laboratoriais específicos.
+4. Categorize cada sugestão corretamente.
+5. Seja conciso e técnico.
+
+REGRAS SOAP:
 1. Subjective: Foque na queixa principal e história da doença atual.
 2. Objective: Extraia qualquer dado de telemetria ou exame físico visual relatado.
 3. Assessment: Use lógica clínica para o diagnóstico.

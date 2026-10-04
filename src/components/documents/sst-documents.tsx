@@ -147,7 +147,7 @@ export const SSTDocument = ({ data, company, type }: any) => (
 
       <Text style={styles.footer}>
         Nextcon Platform • Gestão Estratégica de Segurança e Saúde do Trabalho •
-        nai.nextconsaude.com.br
+        nai--studio-8439299034-125c7.us-central1.hosted.app
       </Text>
     </Page>
   </Document>

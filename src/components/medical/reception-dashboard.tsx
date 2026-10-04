@@ -19,9 +19,15 @@ export function ReceptionDashboard() {
     };
   }, [appointments]);
 
-  const filteredAppointments = (appointments || []).filter((a) =>
-    a.colaborador_nome.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Otimização: Filtragem memorizada para o painel de recepção
+  const filteredAppointments = React.useMemo(() => {
+    if (!appointments) return [];
+    if (!searchTerm.trim()) return appointments;
+    const lowerSearch = searchTerm.toLowerCase();
+    return appointments.filter((a) =>
+      (a.colaborador_nome || "").toLowerCase().includes(lowerSearch)
+    );
+  }, [appointments, searchTerm]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {

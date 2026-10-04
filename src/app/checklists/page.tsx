@@ -30,7 +30,15 @@ import {
   useStorage,
   useDoc,
 } from "@/firebase";
-import { collection, query, orderBy, addDoc, doc } from "firebase/firestore";
+import {
+  collection,
+  query,
+  orderBy,
+  addDoc,
+  doc,
+  where,
+  serverTimestamp,
+} from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
 import { cn } from "@/lib/utils";
 import {
@@ -57,7 +65,7 @@ type ChecklistStatus = "CONFORME" | "NÃO CONFORME" | "NÃO AVALIADO" | null;
 
 export default function ChecklistsPage() {
   const { toast } = useToast();
-  const { user } = useUser();
+  const { user, role, companyId: userCompanyId } = useUser();
   const db = useFirestore();
   const storage = useStorage();
   const [selectedCompanyId, setSelectedCompanyId] = React.useState<string>("");
@@ -73,40 +81,26 @@ export default function ChecklistsPage() {
   }, [db, user]);
   const { data: profile } = useDoc(profileRef);
 
-  const isPrivileged = React.useMemo(() => {
-    if (!profile) return false;
-    const role = (profile.role || "").toUpperCase();
-    return ["SUPER_ADMIN", "ADMIN"].includes(role);
-  }, [profile]);
+  const isGlobalAdmin = React.useMemo(
+    () => ["SUPER_ADMIN", "ADMIN", "ENGINEER"].includes(role || ""),
+    [role]
+  );
 
-  // Carrega empresas respeitando o isolamento do fornecedor
   const companiesQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return query(collection(db, "companies"), orderBy("name", "asc"));
-  }, [db]);
-  const { data: allCompanies, isLoading: loadingCompanies } = useCollection(companiesQuery);
-
-  const availableCompanies = React.useMemo(() => {
-    if (!allCompanies || !profile) return [];
-    if (isPrivileged) return allCompanies;
-
-    const role = (profile.role || "").toUpperCase();
-
-    // Se for prestador, filtra apenas as empresas que ele atende
-    if (["PROVIDER", "ENGINEER", "DOCTOR"].includes(role) && profile.servedCompanies) {
-      return allCompanies.filter((c) => profile.servedCompanies.includes(c.id));
+    if (!db || !role) return null;
+    if (isGlobalAdmin) {
+      return query(collection(db, "companies"), orderBy("name", "asc"));
     }
-
-    // Se for admin de cliente, vê apenas a sua
-    if (role === "CLIENT_ADMIN" && profile.companyId) {
-      return allCompanies.filter((c) => c.id === profile.companyId);
+    if (userCompanyId) {
+      return query(collection(db, "companies"), where("__name__", "==", userCompanyId));
     }
+    return null;
+  }, [db, isGlobalAdmin, userCompanyId, role]);
 
-    return [];
-  }, [allCompanies, profile, isPrivileged]);
+  const { data: availableCompanies, isLoading: loadingCompanies } = useCollection(companiesQuery);
 
   React.useEffect(() => {
-    if (availableCompanies.length === 1) {
+    if (availableCompanies && availableCompanies.length === 1) {
       setSelectedCompanyId(availableCompanies[0].id);
     }
   }, [availableCompanies]);
@@ -137,7 +131,7 @@ export default function ChecklistsPage() {
 
     setIsFinalizing(true);
     try {
-      const company = availableCompanies.find((c) => c.id === selectedCompanyId);
+      const company = availableCompanies?.find((c) => c.id === selectedCompanyId);
       const auditData = {
         nr: activeNR.nr,
         companyId: selectedCompanyId,
@@ -157,12 +151,13 @@ export default function ChecklistsPage() {
       await uploadBytes(storageRef, blob);
 
       await addDoc(collection(db, "companies", selectedCompanyId, "reports"), {
-        reportType: activeNR.nr.toLowerCase().replace("-", ""),
         name: `Laudo Técnico - ${activeNR.nr}`,
+        reportType: activeNR.nr.toLowerCase().replace("-", ""),
         companyId: selectedCompanyId,
         companyName: company?.name,
         storagePath: storagePath,
         createdAt: new Date().toISOString(),
+        serverTimestamp: serverTimestamp(),
       });
 
       toast({ title: "Laudo Protocolado com Sucesso!" });
@@ -177,15 +172,15 @@ export default function ChecklistsPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+        <div className="text-left">
           <h1 className="text-3xl font-headline font-black text-primary tracking-tight uppercase">
-            Central de Laudos (Fornecedores)
+            Central de Laudos
           </h1>
           <p className="text-muted-foreground font-medium">
-            Gere PGR, PCMSO e LTCAT em nome da Nextcon.
+            Gere PGR, PCMSO e LTCAT em conformidade com as NRs.
           </p>
         </div>
-        <div className="w-full md:w-72">
+        <div className="w-full md:w-72 text-left">
           <label className="text-[9px] font-black uppercase text-muted-foreground mb-1 block">
             Unidade em Inspeção:
           </label>
@@ -196,7 +191,7 @@ export default function ChecklistsPage() {
               />
             </SelectTrigger>
             <SelectContent>
-              {availableCompanies.map((c) => (
+              {availableCompanies?.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
                   {c.name}
                 </SelectItem>
@@ -206,7 +201,7 @@ export default function ChecklistsPage() {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 text-left">
         {[
           {
             id: "nr01",
@@ -265,27 +260,30 @@ export default function ChecklistsPage() {
         onOpenChange={(open) => !isFinalizing && setIsChecklistOpen(open)}
       >
         <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden flex flex-col p-0 border-none shadow-2xl rounded-[2rem]">
-          <DialogHeader className="p-8 bg-primary text-white shrink-0 relative">
+          <DialogHeader className="p-8 bg-primary text-white shrink-0 relative space-y-2 text-left">
             <button
               onClick={() => setIsChecklistOpen(false)}
-              className="absolute top-6 right-6 p-2 hover:bg-white/10 rounded-full transition-colors"
+              className="absolute top-6 right-6 p-2 hover:bg-white/10 rounded-full transition-colors z-20"
             >
               <X className="size-5" />
             </button>
-            <DialogTitle className="text-2xl font-headline font-black uppercase flex items-center gap-3">
-              <PenTool className="size-8 text-accent" /> Elaborar {activeNR?.nr}
-            </DialogTitle>
+            <div className="flex items-center gap-3">
+              <PenTool className="size-8 text-accent" />
+              <DialogTitle className="text-2xl font-headline font-black uppercase">
+                Elaborar {activeNR?.nr}
+              </DialogTitle>
+            </div>
             <DialogDescription className="text-white/70 font-bold uppercase text-[10px] mt-2">
-              Fornecedor: {profile?.name || user?.email}
+              Usuário: {profile?.name || user?.email} | Preenchimento técnico de conformidade legal.
             </DialogDescription>
-            <Progress value={checklistProgress} className="h-2 mt-6 bg-white/10" />
+            <Progress value={checklistProgress} className="h-2 mt-4 bg-white/10" />
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto p-8 bg-[#F8FAFC]">
             {activeNR?.items.map((item) => (
               <div
                 key={item.id}
-                className="p-6 bg-white rounded-3xl border mb-4 shadow-sm group hover:border-primary/20 transition-all"
+                className="p-6 bg-white rounded-3xl border mb-4 shadow-sm group hover:border-primary/20 transition-all text-left"
               >
                 <div className="flex justify-between items-start mb-4 gap-4">
                   <div className="flex-1">
@@ -324,7 +322,7 @@ export default function ChecklistsPage() {
             ))}
           </div>
 
-          <DialogFooter className="p-6 bg-white border-t shrink-0 flex justify-between items-center sm:justify-between">
+          <DialogFooter className="p-6 bg-white border-t shrink-0 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="text-[10px] font-black uppercase text-slate-400 italic">
               "Este preenchimento alimenta o laudo PDF automático."
             </div>

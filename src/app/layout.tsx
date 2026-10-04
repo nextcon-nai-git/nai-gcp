@@ -1,6 +1,7 @@
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
+import { SgiProvider } from "@/contexts/sgi-context";
 import * as React from "react";
 import { AppContent } from "@/components/layout/app-content";
 
@@ -26,8 +27,10 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         <FirebaseClientProvider>
-          <AppContent>{children}</AppContent>
-          <Toaster />
+          <SgiProvider>
+            <AppContent>{children}</AppContent>
+            <Toaster />
+          </SgiProvider>
         </FirebaseClientProvider>
       </body>
     </html>

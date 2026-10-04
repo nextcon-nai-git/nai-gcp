@@ -1,15 +1,14 @@
 "use client";
 
 import * as React from "react";
+import { PDFDownloadLink } from "@react-pdf/renderer";
+import { AsoDocument } from "./aso-document";
 import dynamic from "next/dynamic";
 import { CloudDownload, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Desativa SSR para evitar erros de APIs de browser no servidor
-const DynamicPDFDownloadLink = dynamic(() => import("./pdf-download-link"), { ssr: false });
-const AsoDocument = dynamic(() => import("./aso-document").then((module) => module.AsoDocument), {
-  ssr: false,
-});
+const DynamicPDFDownloadLink = dynamic(() => Promise.resolve(PDFDownloadLink), { ssr: false });
 
 interface DownloadAsoButtonProps {
   patientData: {

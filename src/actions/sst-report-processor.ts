@@ -2,15 +2,14 @@
 
 /**
  * @fileOverview Server Action para processamento de relatórios SST via Genkit.
- * - Analisa o relatório usando Gemini 2.0 Flash.
- * - Salva os dados e a análise no Firestore.
- * - Retorna o resultado estruturado para a UI.
+ * Versão v1.0: Tipagem rigorosa e tratamento de erros defensivo.
  */
 
-import { z } from "genkit";
+import { z } from "zod";
 import { ai } from "@/ai/genkit";
 import { initializeFirebase } from "@/firebase/init";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { TechnicalReportData, ActionResult, TaskStatus } from "@/types/schema";
 
 // 1. Definição do Esquema de Saída para garantir estabilidade na UI
 const AnaliseRiscoSchema = z.object({
@@ -24,9 +23,14 @@ export type AnaliseRiscoOutput = z.infer<typeof AnaliseRiscoSchema>;
 /**
  * Action principal disparada pelo botão de processamento.
  */
-export async function processarRelatorioSST(dadosDoRelatorio: any) {
+export async function processarRelatorioSST(
+  dadosDoRelatorio: TechnicalReportData
+): Promise<ActionResult<AnaliseRiscoOutput>> {
   try {
-    console.log("NAI Engine: Iniciando processamento neural e persistência...");
+    // Validação básica de entrada
+    if (!dadosDoRelatorio?.cabecalho?.empresa_atendida) {
+      throw new Error("Dados do relatório incompletos para processamento.");
+    }
 
     // Passo A: Análise via Genkit (IA)
     const { output } = await ai.generate({
@@ -44,12 +48,14 @@ export async function processarRelatorioSST(dadosDoRelatorio: any) {
 
     // Passo B: Persistência no Firestore
     const { firestore } = initializeFirebase();
+    const statusDefault: TaskStatus = "review";
+
     const docRef = await addDoc(collection(firestore, "relatorios_sst"), {
-      dados_originais: dadosDoRelatorio.relatorio_visita_tecnica || dadosDoRelatorio,
+      dados_originais: dadosDoRelatorio,
       analise_ia: output,
-      status_resolucao: "Pendente",
+      status_resolucao: statusDefault,
       criado_em: serverTimestamp(),
-      processado_por: "NAI Server Action v1.3",
+      processado_por: "NAI Server Action v1.5",
     });
 
     // Passo C: Retorno para a UI
@@ -58,11 +64,11 @@ export async function processarRelatorioSST(dadosDoRelatorio: any) {
       relatorioId: docRef.id,
       analise: output,
     };
-  } catch (error: any) {
-    console.error("❌ Erro fatal na Server Action NAI:", error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
     return {
       sucesso: false,
-      erro: error.message || "Não foi possível processar e salvar o relatório.",
+      erro: errorMessage || "Não foi possível processar e salvar o relatório.",
     };
   }
 }

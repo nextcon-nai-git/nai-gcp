@@ -7,7 +7,7 @@
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "genkit";
+import { z } from "zod";
 
 const SafetyCopilotInputSchema = z.object({
   environmentDescription: z.string().describe("Descrição detalhada do local de trabalho."),
