@@ -52,8 +52,10 @@ export async function enriquecerDadosEmpresa(
 
     // 1. TENTATIVA 1: MinhaReceita API
     try {
-      const res1 = await fetch(`https://minhareceita.org/${cleanCnpj}`, {
+      const res1 = await fetch(`https://minhareceita.org/${encodeURIComponent(cleanCnpj)}`, {
         headers: { Accept: "application/json" },
+        redirect: "error",
+        signal: AbortSignal.timeout(5000),
         next: { revalidate: 86400 },
       });
       if (res1.ok) {
@@ -84,7 +86,10 @@ export async function enriquecerDadosEmpresa(
     // 2. TENTATIVA 2: BrasilAPI
     if (!rawData) {
       try {
-        const res2 = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
+        const res2 = await fetch(
+          `https://brasilapi.com.br/api/cnpj/v1/${encodeURIComponent(cleanCnpj)}`,
+          { redirect: "error", signal: AbortSignal.timeout(5000) }
+        );
         if (res2.ok) {
           const json2 = await res2.json();
           if (json2 && json2.razao_social) {
@@ -100,7 +105,10 @@ export async function enriquecerDadosEmpresa(
     // 3. TENTATIVA 3: ReceitaWS
     if (!rawData) {
       try {
-        const res3 = await fetch(`https://receitaws.com.br/v1/cnpj/${cleanCnpj}`);
+        const res3 = await fetch(
+          `https://receitaws.com.br/v1/cnpj/${encodeURIComponent(cleanCnpj)}`,
+          { redirect: "error", signal: AbortSignal.timeout(5000) }
+        );
         if (res3.ok) {
           const json3 = await res3.json();
           if (json3 && json3.nome) {

@@ -28,6 +28,15 @@ import { firebaseConfig } from "@/firebase/config";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { cn } from "@/lib/utils";
 
+function safeDocumentUrl(raw: string): string | undefined {
+  try {
+    const url = new URL(raw);
+    return url.protocol === "https:" && !url.username && !url.password ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export interface EmployeeDocument {
   id: string;
   name: string;
@@ -246,7 +255,7 @@ export function DocumentUploadField({
 
               <div className="flex items-center gap-2 shrink-0">
                 <a
-                  href={doc.url}
+                  href={safeDocumentUrl(doc.url)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center h-8 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-bold uppercase gap-1 transition-all"

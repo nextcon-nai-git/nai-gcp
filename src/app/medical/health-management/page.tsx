@@ -133,7 +133,7 @@ export default function HealthManagementUnified() {
             id: docRef.id,
             companyId: activeClientId,
             employeeName: patientName.toUpperCase(),
-            employeeId: `IMP_${Math.random().toString(36).substring(7).toUpperCase()}`,
+            employeeId: `IMP_${crypto.randomUUID()}`,
             complaint: row["QUEIXA"] || "Atendimento",
             nurseName: "Equipe NAI",
             status_esocial: "Pendente",

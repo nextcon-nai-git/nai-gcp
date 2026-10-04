@@ -99,21 +99,6 @@ export default function PgrAnalysisPage() {
         (analysis?.pgrCardDetalhado?.cnpj || "").replace(/\D/g, "") || `emp_${Date.now()}`;
       setDetectedCompanyId(cleanCnpj);
 
-      try {
-        if (typeof window !== "undefined") {
-          localStorage.setItem(
-            "nai_last_pgr_analysis",
-            JSON.stringify({
-              analysis,
-              fileName: file.name,
-              analyzedAt: new Date().toISOString(),
-            })
-          );
-        }
-      } catch (cacheErr) {
-        console.warn("Falha ao salvar no cache local:", cacheErr);
-      }
-
       toast({
         title: "Laudo Processado com Sucesso!",
         description: `${analysis?.pgrCardDetalhado?.razaoSocial || "Empresa"} auditado com sucesso.`,
@@ -146,23 +131,9 @@ export default function PgrAnalysisPage() {
       let storagePath = "";
 
       if (!db) {
-        // Fallback offline se Firestore estiver indisponível
-        if (typeof window !== "undefined") {
-          localStorage.setItem(
-            `nai_pgr_offline_${detectedCompanyId}`,
-            JSON.stringify({
-              pgrCardDetalhado: result.pgrCardDetalhado,
-              acoesCategorizadas: result.acoesCategorizadas,
-              savedAt: new Date().toISOString(),
-            })
-          );
-        }
-        toast({
-          title: "SGI Salvo no Cache Local!",
-          description: `PGR de ${result.pgrCardDetalhado.razaoSocial} salvo com ${result.acoesCategorizadas.length} ações no cache offline.`,
-        });
-        setActiveClientId(detectedCompanyId);
-        return;
+        throw new Error(
+          "Banco indisponível. A análise permanece nesta tela; conecte-se para salvar no cadastro autenticado."
+        );
       }
 
       // 1. Armazena no Firebase Storage

@@ -41,7 +41,7 @@ export async function askSesmtAgentAction(
       data: result,
     };
   } catch (err: any) {
-    console.error(`[SESMT Agent Action Error - ${agentRole}]`, err);
+    console.error("[SESMT Agent Action Error]", { agentRole, error: err });
     return {
       success: false,
       error: err.message || "Ocorreu um erro ao consultar o Agente de IA de Segurança do Trabalho.",

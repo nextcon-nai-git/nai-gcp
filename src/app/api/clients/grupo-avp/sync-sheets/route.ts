@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
         parts.push(chunk.value);
       }
     const text = Buffer.concat(parts).toString("utf8");
-    if (/<!doctype html|<html|accounts.google.com/i.test(text))
+    if (/<!doctype html|<html|accounts\.google\.com/i.test(text))
       return NextResponse.json(
         {
           error:

@@ -1,7 +1,7 @@
 import { logger, maskPatientName } from "@/lib/logger";
 /**
  * NextCon Intelligence (NAI) - Medical Audit Logger (CFM & LGPD Compliance)
- * Registra acessos imutáveis a prontuários e ASOs para rastreabilidade de dados médicos.
+ * Emite eventos técnicos sem persistir dados identificáveis no navegador. A trilha durável deve ser mantida pelo backend autenticado.
  */
 
 export interface MedicalAuditEntry {
@@ -18,24 +18,30 @@ export interface MedicalAuditEntry {
   ipAddress: string;
 }
 
-const AUDIT_STORAGE_KEY = "nai_medical_audit_trail";
+const sessionEvents: MedicalAuditEntry[] = [];
 
 export class MedicalAuditLogger {
   /**
    * Registra um acesso ou modificação a um Prontuário/ASO.
    */
   static logAccess(entry: Omit<MedicalAuditEntry, "id" | "timestamp">): MedicalAuditEntry {
-    const logs = this.getAuditTrail();
     const newEntry: MedicalAuditEntry = {
       ...entry,
-      id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `audit_${crypto.randomUUID()}`,
       timestamp: new Date().toISOString(),
     };
 
-    logs.unshift(newEntry);
-    if (typeof window !== "undefined") {
-      localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(logs.slice(0, 100))); // Mantém até 100 registros locais
-    }
+    sessionEvents.unshift({
+      ...newEntry,
+      userId: "",
+      userName: "",
+      userCrmCoren: "",
+      patientEmployeeId: "",
+      patientName: "",
+      companyId: "",
+      ipAddress: "",
+    });
+    sessionEvents.splice(100);
 
     logger.audit(
       "CFM_RECORD_ACCESS",
@@ -53,12 +59,6 @@ export class MedicalAuditLogger {
    * Retorna o histórico de auditoria gravado.
    */
   static getAuditTrail(): MedicalAuditEntry[] {
-    if (typeof window === "undefined") return [];
-    try {
-      const data = localStorage.getItem(AUDIT_STORAGE_KEY);
-      return data ? JSON.parse(data) : [];
-    } catch {
-      return [];
-    }
+    return sessionEvents.map((event) => ({ ...event }));
   }
 }

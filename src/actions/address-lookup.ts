@@ -37,8 +37,10 @@ export async function buscarEnderecoPorCep(cep: string): Promise<ActionResult<Ad
 
     // 1. PROVEDOR 1 (PRINCIPAL): OpenCEP
     try {
-      const res1 = await fetch(`https://opencep.com/v1/${cleanCep}.json`, {
+      const res1 = await fetch(`https://opencep.com/v1/${encodeURIComponent(cleanCep)}.json`, {
         headers: { Accept: "application/json" },
+        redirect: "error",
+        signal: AbortSignal.timeout(5000),
         next: { revalidate: 86400 },
       });
       if (res1.ok) {
@@ -63,8 +65,10 @@ export async function buscarEnderecoPorCep(cep: string): Promise<ActionResult<Ad
     // 2. PROVEDOR 2 (FALLBACK 1): ViaCEP
     if (!resultData) {
       try {
-        const res2 = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`, {
+        const res2 = await fetch(`https://viacep.com.br/ws/${encodeURIComponent(cleanCep)}/json/`, {
           next: { revalidate: 86400 },
+          redirect: "error",
+          signal: AbortSignal.timeout(5000),
         });
         if (res2.ok) {
           const json2 = await res2.json();
@@ -89,7 +93,10 @@ export async function buscarEnderecoPorCep(cep: string): Promise<ActionResult<Ad
     // 3. PROVEDOR 3 (FALLBACK 2): BrasilAPI CEP v2
     if (!resultData) {
       try {
-        const res3 = await fetch(`https://brasilapi.com.br/api/cep/v2/${cleanCep}`);
+        const res3 = await fetch(
+          `https://brasilapi.com.br/api/cep/v2/${encodeURIComponent(cleanCep)}`,
+          { redirect: "error", signal: AbortSignal.timeout(5000) }
+        );
         if (res3.ok) {
           const json3 = await res3.json();
           if (json3 && json3.cep) {
@@ -114,7 +121,10 @@ export async function buscarEnderecoPorCep(cep: string): Promise<ActionResult<Ad
     if (!resultData) {
       try {
         const formattedCep = `${cleanCep.slice(0, 5)}-${cleanCep.slice(5)}`;
-        const res4 = await fetch(`https://cdn.apicep.com/file/apicep/${formattedCep}.json`);
+        const res4 = await fetch(
+          `https://cdn.apicep.com/file/apicep/${encodeURIComponent(formattedCep)}.json`,
+          { redirect: "error", signal: AbortSignal.timeout(5000) }
+        );
         if (res4.ok) {
           const json4 = await res4.json();
           if (json4 && json4.code) {

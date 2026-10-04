@@ -130,7 +130,7 @@ export async function consultarFeriadosNacionais(
   ano: number
 ): Promise<ActionResult<HolidayCalendarData>> {
   try {
-    if (!ano || isNaN(ano) || ano < 1900 || ano > 2199) {
+    if (!Number.isInteger(ano) || ano < 1900 || ano > 2199) {
       return {
         sucesso: false,
         mensagem: "O parâmetro 'ano' deve ser um número inteiro válido entre 1900 e 2199.",
@@ -142,9 +142,14 @@ export async function consultarFeriadosNacionais(
 
     // 1. Tenta consultar na BrasilAPI
     try {
-      const res = await fetch(`https://brasilapi.com.br/api/feriados/v1/${ano}`, {
-        next: { revalidate: 86400 },
-      });
+      const res = await fetch(
+        `https://brasilapi.com.br/api/feriados/v1/${encodeURIComponent(String(ano))}`,
+        {
+          next: { revalidate: 86400 },
+          redirect: "error",
+          signal: AbortSignal.timeout(5000),
+        }
+      );
       if (res.ok) {
         const json = await res.json();
         if (Array.isArray(json) && json.length > 0) {
