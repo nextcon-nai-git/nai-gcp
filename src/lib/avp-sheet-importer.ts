@@ -72,10 +72,10 @@ const HEADER_MAPPINGS: Record<string, (keyof GrupoAvpAso)[]> = {
   oquefazer: ["oQueFazer"],
   afazer: ["oQueFazer"],
   acao: ["oQueFazer"],
-  observacao: ["oQueFazer"],
-  observacoes: ["oQueFazer"],
+  observacao: ["observacoes"],
+  observacoes: ["observacoes"],
   observacoesoquefazer: ["oQueFazer"],
-  obs: ["oQueFazer"],
+  obs: ["observacoes"],
   status: ["status"],
   situacao: ["status"],
   fase: ["status"],
@@ -124,6 +124,12 @@ export function normalizeAsoStatus(rawStatus: string): AsoStatus {
 
   if (/NAO (?:AGENDADO|REALIZADO|CONCLUIDO)|EXAME NAO (?:FEITO|REALIZADO)/.test(s))
     return "NÃO INICIADO";
+  if (s.includes("ESPERANDO CNPJ") || s.includes("AGUARDANDO CNPJ"))
+    return "ESPERANDO CNPJ E VALOR";
+  if (s.includes("RESGATAR")) return "RESGATAR ASO";
+  if (s.includes("RETORNO") && s.includes("GESTOR")) return "AG. RETORNO DO GESTOR";
+  if (s.includes("RETORNO") && (s.includes("COLABORADOR") || s.includes("CANDIDATO")))
+    return "AG. RETORNO DO COLABORADOR";
   if (s.includes("AGENDADO")) return "AGENDADO";
   if (s.includes("NAO INICIADO") || s.includes("PENDENTE")) return "NÃO INICIADO";
   if (s.includes("EXAME FEITO") || s.includes("CONCLUIDO") || s.includes("REALIZADO"))
@@ -136,7 +142,7 @@ export function normalizeAsoStatus(rawStatus: string): AsoStatus {
   if (s.includes("CANCEL")) return "GESTOR CANCELOU";
   if (s.includes("DESIST")) return "DESISTIU DA VAGA";
 
-  return "NÃO INICIADO";
+  return "STATUS NÃO RECONHECIDO";
 }
 
 // Extrai UF de strings de cidade como "Fortaleza / CE" ou "Acaraú -CE"
@@ -144,11 +150,46 @@ export function extractCityAndUf(rawCity: string): { cidade: string; uf: string 
   if (!rawCity) return { cidade: "Desconhecida", uf: "BR" };
   const str = rawCity.trim();
 
-  const regexUf = /(?:[\s\/\-\,]+)([A-Z]{2})$/i;
+  const regexUf = /(?:[\s\/\-\,]+)([A-ZÀ-Ý]{2})$/i;
   const match = str.match(regexUf);
 
   if (match) {
-    const uf = match[1].toUpperCase();
+    const uf = match[1]
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase();
+    if (
+      ![
+        "AC",
+        "AL",
+        "AM",
+        "AP",
+        "BA",
+        "CE",
+        "DF",
+        "ES",
+        "GO",
+        "MA",
+        "MG",
+        "MS",
+        "MT",
+        "PA",
+        "PB",
+        "PE",
+        "PI",
+        "PR",
+        "RJ",
+        "RN",
+        "RO",
+        "RR",
+        "RS",
+        "SC",
+        "SE",
+        "SP",
+        "TO",
+      ].includes(uf)
+    )
+      return { cidade: str, uf: "BR" };
     const cidade = str.replace(regexUf, "").trim();
     return { cidade: cidade || str, uf };
   }
@@ -207,7 +248,11 @@ export function mapRowToAso(rowObj: Record<string, any>, _index: number): Partia
       } else if (targetProp === "status") {
         aso.status = normalizeAsoStatus(strVal);
       } else if (targetProp === "urgencia") {
-        aso.urgencia = strVal.toUpperCase().includes("URGENT") ? "URGENTE" : "NORMAL";
+        aso.urgencia = strVal.toUpperCase().includes("URGENT")
+          ? "URGENTE"
+          : /E.?MAIL/i.test(strVal)
+            ? "E-MAIL"
+            : "NORMAL";
       } else if (targetProp === "cidade") {
         const { cidade, uf } = extractCityAndUf(strVal);
         aso.cidade = cidade;
@@ -251,7 +296,9 @@ export async function parseExcelBuffer(buffer: ArrayBuffer): Promise<Record<stri
     const { Workbook } = await import("exceljs");
     const workbook = new Workbook();
     await workbook.xlsx.load(buffer);
-    const sheet = workbook.worksheets[0];
+    const sheet =
+      workbook.getWorksheet("Fila de Agendamentos") ||
+      workbook.worksheets.find((item) => item.state === "visible");
     if (!sheet) return [];
     const headers = (sheet.getRow(1).values as unknown[])
       .slice(1)
@@ -378,6 +425,7 @@ export function mergeSpreadsheetData(
           "chavePix",
           "enderecoClinica",
           "oQueFazer",
+          "observacoes",
           "colaborador",
           "cidade",
           "uf",
@@ -450,6 +498,7 @@ export function mergeSpreadsheetData(
           tipoExame: parsed.tipoExame || "Admissional",
           telefoneGestor: parsed.telefoneGestor || "",
           oQueFazer: parsed.oQueFazer || "",
+          observacoes: parsed.observacoes || "",
           status: (parsed.status as AsoStatus) || "NÃO INICIADO",
           responsavel: parsed.responsavel || "NÃO ATRIBUÍDO",
           dataAgendada: parsed.dataAgendada || "",

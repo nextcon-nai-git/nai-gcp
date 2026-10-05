@@ -22,6 +22,7 @@ export function AppContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [mounted, setMounted] = React.useState(false);
 
+  const isInfoPage = pathname === "/privacy" || pathname === "/terms";
   const isLoginPage = React.useMemo(() => pathname === "/login", [pathname]);
 
   React.useEffect(() => {
@@ -30,10 +31,12 @@ export function AppContent({ children }: { children: React.ReactNode }) {
 
   // Lógica de Redirecionamento Estrito
   React.useEffect(() => {
-    if (mounted && !isUserLoading && !user && !isLoginPage) {
+    if (mounted && !isUserLoading && !user && !isLoginPage && !isInfoPage) {
       router.replace("/login");
     }
-  }, [user, isUserLoading, isLoginPage, pathname, router, mounted]);
+  }, [user, isUserLoading, isLoginPage, pathname, router, mounted, isInfoPage]);
+
+  if (isInfoPage) return <main className="min-h-screen bg-white p-6 md:p-12">{children}</main>;
 
   // 1. Splash Screen durante a verificação de sessão ou montagem
   if (!mounted || (isUserLoading && !isLoginPage)) {

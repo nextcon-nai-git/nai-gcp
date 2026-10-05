@@ -270,7 +270,15 @@ export function AppSidebar() {
   const handleLogout = async () => {
     if (isMobile) setOpenMobile(false);
     await signOut(auth);
-    router.push("/login");
+    if (user?.uid) {
+      try {
+        localStorage.removeItem("nai_grupo_avp_asos_cache:" + user.uid);
+      } catch {
+        /* Sessão encerrada. */
+      }
+    }
+    router.replace("/login");
+    router.refresh();
   };
 
   const role = (profile?.role || "USER").toUpperCase();

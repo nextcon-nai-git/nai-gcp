@@ -76,7 +76,7 @@ export const syncUserClaims = onDocumentWritten("users/{userId}", async (event) 
 
 /**
  * Função que analisa o PGR em segundo plano com streaming e retry logic.
- * Processa o PDF via Gemini 1.5 Pro e salva o resultado estruturado.
+ * Processa o PDF via modelo configurado e salva o resultado estruturado.
  */
 export const analisarPgrEmSegundoPlano = onDocumentCreated(
   {
@@ -98,7 +98,7 @@ export const analisarPgrEmSegundoPlano = onDocumentCreated(
     }
 
     const MAX_RETRIES = 3;
-    let lastError: Error | null = null;
+    let lastError = null;
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
@@ -119,7 +119,7 @@ export const analisarPgrEmSegundoPlano = onDocumentCreated(
         }
 
         // Download com retry automático do Storage
-        let buffer: Buffer;
+        let buffer;
         try {
           [buffer] = await file.download({ timeout: 60000 });
         } catch (downloadError) {
@@ -139,7 +139,7 @@ export const analisarPgrEmSegundoPlano = onDocumentCreated(
         // Chamada neural via Genkit 1.x com timeout
         const response = await Promise.race([
           ai.generate({
-            model: "googleai/gemini-1.5-pro",
+            model: `googleai/${process.env.GEMINI_MODEL || "gemini-3.8-flash"}`,
             prompt: [
               {
                 text: `Você é um especialista em Segurança no Trabalho da Nextcon Saúde. 
@@ -187,7 +187,7 @@ export const analisarPgrEmSegundoPlano = onDocumentCreated(
         );
         return; // Sucesso, sai do loop
       } catch (erro) {
-        lastError = erro as Error;
+        lastError = erro;
         console.warn(
           `Erro na tentativa ${attempt + 1}/${MAX_RETRIES} (PGR ${docId}):`,
           erro

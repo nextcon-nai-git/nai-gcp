@@ -49,6 +49,7 @@ import {
 import { useAuth, useUser } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { AVP_SOURCE } from "@/lib/avp-source-config";
 import { GrupoAvpAso } from "@/lib/grupo-avp-asos-data";
 import {
   formatGoogleSheetsCsvUrl,
@@ -63,13 +64,15 @@ interface GrupoAvpSheetSyncModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentAsos: GrupoAvpAso[];
-  onApplyUpdate: (newAsos: GrupoAvpAso[], diffSummary?: string) => void;
+  onApplyUpdate: (newAsos: GrupoAvpAso[], diffSummary?: string) => void | boolean;
+  managedSync?: { status: string; checkedAt: string | null; error: string | null };
+  onManagedRefresh?: () => Promise<void>;
   onResetOriginal?: () => void;
   onSyncActivityChange?: (enabled: boolean) => void;
 }
 
 const STORAGE_SYNC_KEY = "nai_grupo_avp_sheet_sync_config";
-export const DEFAULT_AVP_SHEET_URL = "";
+export const DEFAULT_AVP_SHEET_URL = AVP_SOURCE.url;
 
 export function GrupoAvpSheetSyncModal({
   open,
@@ -78,6 +81,8 @@ export function GrupoAvpSheetSyncModal({
   onApplyUpdate,
   onResetOriginal,
   onSyncActivityChange,
+  managedSync,
+  onManagedRefresh,
 }: GrupoAvpSheetSyncModalProps) {
   const { toast } = useToast();
   const auth = useAuth();
@@ -90,7 +95,7 @@ export function GrupoAvpSheetSyncModal({
   // Estados de Sincronização Google Sheets
   const [sheetUrl, setSheetUrl] = useState<string>(DEFAULT_AVP_SHEET_URL);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState<boolean>(false);
-  const [pollInterval, setPollInterval] = useState<number>(300); // segundos
+  const [pollInterval, setPollInterval] = useState<number>(600); // segundos
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [syncStatus, setSyncStatus] = useState<"IDLE" | "CONNECTED" | "ERROR">("IDLE");
@@ -148,7 +153,7 @@ export function GrupoAvpSheetSyncModal({
   useEffect(() => {
     setSheetUrl(DEFAULT_AVP_SHEET_URL);
     setAutoSyncEnabled(false);
-    setPollInterval(300);
+    setPollInterval(600);
     setImportResult(null);
     setPastedText("");
     setIsProcessingFile(false);
@@ -324,7 +329,14 @@ export function GrupoAvpSheetSyncModal({
 
   // O intervalo não reinicia quando a fila muda; ao voltar à aba, consulta a versão atual.
   useEffect(() => {
-    if (!user?.uid || configOwner !== storageKey || !autoSyncEnabled || !sheetUrl.trim()) return;
+    if (
+      onManagedRefresh ||
+      !user?.uid ||
+      configOwner !== storageKey ||
+      !autoSyncEnabled ||
+      !sheetUrl.trim()
+    )
+      return;
     const syncVisible = () => {
       if (document.visibilityState !== "hidden") void fetchRef.current(false);
     };
@@ -335,7 +347,15 @@ export function GrupoAvpSheetSyncModal({
       clearInterval(timer);
       document.removeEventListener("visibilitychange", syncVisible);
     };
-  }, [user?.uid, configOwner, storageKey, autoSyncEnabled, sheetUrl, pollInterval]);
+  }, [
+    user?.uid,
+    configOwner,
+    storageKey,
+    autoSyncEnabled,
+    sheetUrl,
+    pollInterval,
+    onManagedRefresh,
+  ]);
 
   // Upload Manual de Arquivo (.xlsx, .csv, .tsv)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -468,14 +488,23 @@ export function GrupoAvpSheetSyncModal({
       });
       return;
     }
-    onApplyUpdate(
+    const accepted = onApplyUpdate(
       latestResult.mergedAsos,
       `Importação Manual: ${latestResult.updatedCount} atualizado(s), ${latestResult.addedCount} adicionado(s)`
     );
+    if (accepted === false) {
+      toast({
+        variant: "destructive",
+        title: "Alteração não aplicada",
+        description:
+          "Confira a faixa de sincronização. Para adicionar solicitações, edite a planilha original.",
+      });
+      return;
+    }
     importRowsRef.current = null;
 
     toast({
-      title: "Fila do Grupo AVP Atualizada!",
+      title: "Atualização encaminhada",
       description:
         "As alterações da planilha foram aplicadas com sucesso no sistema e no mapa interativo.",
       className: "bg-emerald-950 border-emerald-500 text-white",
@@ -529,198 +558,233 @@ export function GrupoAvpSheetSyncModal({
 
           {/* ABA 1: SINCRONIZAÇÃO EM TEMPO REAL COM GOOGLE DRIVE */}
           <TabsContent value="online-drive" className="space-y-6 focus-visible:outline-none">
-            <div className="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 shrink-0">
-                  <Sparkles size={20} />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="text-sm font-black uppercase text-white tracking-tight">
-                    Monitoramento Contínuo da Planilha no Google Drive
-                  </h4>
-                  <p className="text-xs text-slate-400">
-                    Ao ativar a sincronização contínua, o sistema consulta a planilha do Google
-                    Drive periodicamente. Assim que qualquer pessoa alterar um status, remarcar um
-                    ASO ou adicionar um novo colaborador, o sistema e o mapa atualizam
-                    automaticamente sem necessidade de recarregar a página!
-                  </p>
-                </div>
-              </div>
-
-              {/* CAMPO DE URL DO GOOGLE SHEETS */}
-              <div className="space-y-2 pt-2">
-                <Label
-                  htmlFor="avp-sheet-url"
-                  className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5"
-                >
-                  <LinkIcon size={13} className="text-blue-400" /> Link Compartilhável da Planilha
-                  Google (Drive / Sheets):
-                </Label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XR.../edit"
-                    id="avp-sheet-url"
-                    value={sheetUrl}
-                    onChange={(e) => {
-                      setLastSyncTime(null);
-                      setLiveDiffLogs([]);
-                      setSheetUrl(e.target.value);
-                      saveConfig(e.target.value, autoSyncEnabled, pollInterval, null);
-                    }}
-                    className="bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-600 rounded-xl text-xs font-mono h-11"
-                  />
-                  <Button
-                    onClick={() => handleFetchGoogleSheet(true)}
-                    disabled={isSyncing || !sheetUrl.trim()}
-                    className="h-11 px-5 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-wider rounded-xl gap-2 shadow-lg shadow-blue-500/20 shrink-0"
-                  >
-                    <RefreshCw size={14} className={cn(isSyncing && "animate-spin")} />
-                    {isSyncing ? "Consultando..." : "Sincronizar Agora"}
+            {managedSync && onManagedRefresh ? (
+              <div className="space-y-3 rounded-xl border border-slate-700 p-4 text-sm">
+                <h4 className="font-semibold">Planilha de pendencias Grupo AVP</h4>
+                <p>
+                  A fila e o mapa consultam a fonte a cada 10 minutos. Edite solicitações na
+                  planilha Google para manter a base oficial atualizada.
+                </p>
+                <p>
+                  {managedSync.status === "CONNECTED"
+                    ? "Última leitura confirmada"
+                    : "Conexão pendente"}
+                  {managedSync.checkedAt
+                    ? `: ${new Date(managedSync.checkedAt).toLocaleString("pt-BR")}`
+                    : ""}
+                </p>
+                {managedSync.error && <p className="text-amber-400">{managedSync.error}</p>}
+                <div className="flex gap-3">
+                  <Button variant="secondary" onClick={() => void onManagedRefresh()}>
+                    Atualizar agora
+                  </Button>
+                  <Button asChild variant="secondary">
+                    <a href={AVP_SOURCE.url} target="_blank" rel="noopener noreferrer">
+                      Abrir planilha original
+                    </a>
                   </Button>
                 </div>
-                <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
-                  <Info size={12} className="text-slate-400" /> Use um link CSV que já permita
-                  leitura pelo servidor. Para planilhas restritas, importe XLSX/CSV pelas permissões
-                  existentes.
+                <p className="text-xs text-slate-400">
+                  As edições feitas no NAI ficam na fila compartilhada. Se a mesma informação mudar
+                  na fonte, o sistema sinaliza o conflito.
                 </p>
               </div>
-
-              {/* CONTROLES DE AUTO-SYNC */}
-              <div className="pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <Switch
-                    checked={autoSyncEnabled}
-                    onCheckedChange={(checked) => {
-                      setAutoSyncEnabled(checked);
-                      saveConfig(sheetUrl, checked, pollInterval);
-                      toast({
-                        title: checked ? "Auto-Sync Ativado!" : "Auto-Sync Desativado",
-                        description: checked
-                          ? `O sistema irá consultar a planilha a cada ${pollInterval} segundos em segundo plano.`
-                          : "A consulta automática em segundo plano foi pausada.",
-                      });
-                    }}
-                    className="data-[state=checked]:bg-emerald-500"
-                  />
-                  <div>
-                    <div className="text-xs font-black uppercase text-white flex items-center gap-1.5">
-                      Consulta Automática em Segundo Plano (Auto-Sync)
+            ) : (
+              <>
+                <div className="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 shrink-0">
+                      <Sparkles size={20} />
                     </div>
-                    <div className="text-[11px] text-slate-400">
-                      Consulta enquanto esta página estiver aberta; o padrão é a cada 5 minutos
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-black uppercase text-white tracking-tight">
+                        Monitoramento Contínuo da Planilha no Google Drive
+                      </h4>
+                      <p className="text-xs text-slate-400">
+                        Ao ativar a sincronização contínua, o sistema consulta a planilha do Google
+                        Drive periodicamente. Assim que qualquer pessoa alterar um status, remarcar
+                        um ASO ou adicionar um novo colaborador, o sistema e o mapa atualizam
+                        automaticamente sem necessidade de recarregar a página!
+                      </p>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs text-slate-400 font-bold uppercase whitespace-nowrap">
-                    Intervalo:
-                  </Label>
-                  <Select
-                    value={String(pollInterval)}
-                    onValueChange={(val) => {
-                      const num = Number(val);
-                      setPollInterval(num);
-                      saveConfig(sheetUrl, autoSyncEnabled, num);
-                    }}
-                  >
-                    <SelectTrigger className="w-36 h-9 bg-slate-950 border-slate-800 text-xs rounded-xl text-slate-200">
-                      <SelectValue placeholder="Intervalo" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-900 border-slate-800 text-slate-200">
-                      <SelectItem value="60">A cada 1 min</SelectItem>
-                      <SelectItem value="120">A cada 2 min</SelectItem>
-                      <SelectItem value="300">A cada 5 min (Padrão)</SelectItem>
-                      <SelectItem value="600">A cada 10 min</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* PAINEL DE STATUS DA CONEXÃO */}
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="flex items-center gap-2.5">
-                  <span
-                    className={cn(
-                      "size-2.5 rounded-full",
-                      syncStatus === "CONNECTED" &&
-                        autoSyncEnabled &&
-                        "bg-emerald-400 animate-pulse",
-                      syncStatus === "CONNECTED" && !autoSyncEnabled && "bg-blue-400",
-                      syncStatus === "ERROR" && "bg-rose-500",
-                      syncStatus === "IDLE" && "bg-slate-500"
-                    )}
-                  />
-                  <span className="font-bold text-slate-300">
-                    {syncStatus === "CONNECTED"
-                      ? autoSyncEnabled
-                        ? "Conectado e Monitorando Ativamente"
-                        : "Conectado (Consulta Manual)"
-                      : syncStatus === "ERROR"
-                        ? "Erro na Conexão com a Planilha"
-                        : "Aguardando Configuração de Link"}
-                  </span>
-                </div>
-
-                <div className="text-[11px] text-slate-400 font-mono flex items-center gap-2">
-                  <Clock size={12} className="text-slate-500" />
-                  Última sincronização:{" "}
-                  <strong className="text-slate-200">
-                    {lastSyncTime ? lastSyncTime.toLocaleTimeString("pt-BR") : "Nunca"}
-                  </strong>
-                </div>
-              </div>
-
-              {/* MENSAGEM DE ERRO SE HOUVER */}
-              {syncErrorMessage && (
-                <div className="p-3 rounded-xl bg-rose-950/50 border border-rose-800 text-rose-300 text-xs flex items-start gap-2">
-                  <AlertTriangle size={15} className="text-rose-400 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold">Aviso:</span> {syncErrorMessage}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* AUDITORIA DE ALTERAÇÕES EM TEMPO REAL DETECTADAS */}
-            {liveDiffLogs.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Layers size={13} className="text-emerald-400" /> Registro de Alterações
-                  Detectadas na Planilha Online:
-                </h4>
-                <div className="max-h-48 overflow-y-auto space-y-1.5 rounded-xl border border-slate-800 bg-slate-900/50 p-2 text-xs">
-                  {liveDiffLogs.slice(0, 15).map((log, idx) => (
-                    <div
-                      key={idx}
-                      className="p-2 rounded-lg bg-slate-950/60 border border-slate-850 flex items-center justify-between gap-2"
+                  {/* CAMPO DE URL DO GOOGLE SHEETS */}
+                  <div className="space-y-2 pt-2">
+                    <Label
+                      htmlFor="avp-sheet-url"
+                      className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5"
                     >
-                      <div className="flex items-center gap-2 truncate">
-                        <span className="font-mono font-bold text-slate-400 text-[10px]">
-                          #{log.numero}
-                        </span>
-                        <span className="font-bold text-white truncate max-w-[180px]">
-                          {log.colaborador}
-                        </span>
-                        <span className="text-[10px] text-slate-400">({log.cidade})</span>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0 text-[11px]">
-                        <span className="text-slate-400">{log.campo}:</span>
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] line-through text-slate-500 border-slate-700"
-                        >
-                          {log.valorAnterior}
-                        </Badge>
-                        <ArrowRight size={10} className="text-emerald-400" />
-                        <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
-                          {log.valorNovo}
-                        </Badge>
+                      <LinkIcon size={13} className="text-blue-400" /> Link Compartilhável da
+                      Planilha Google (Drive / Sheets):
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XR.../edit"
+                        id="avp-sheet-url"
+                        value={sheetUrl}
+                        onChange={(e) => {
+                          setLastSyncTime(null);
+                          setLiveDiffLogs([]);
+                          setSheetUrl(e.target.value);
+                          saveConfig(e.target.value, autoSyncEnabled, pollInterval, null);
+                        }}
+                        className="bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-600 rounded-xl text-xs font-mono h-11"
+                      />
+                      <Button
+                        onClick={() => handleFetchGoogleSheet(true)}
+                        disabled={isSyncing || !sheetUrl.trim()}
+                        className="h-11 px-5 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-wider rounded-xl gap-2 shadow-lg shadow-blue-500/20 shrink-0"
+                      >
+                        <RefreshCw size={14} className={cn(isSyncing && "animate-spin")} />
+                        {isSyncing ? "Consultando..." : "Sincronizar Agora"}
+                      </Button>
+                    </div>
+                    <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                      <Info size={12} className="text-slate-400" /> Use um link CSV que já permita
+                      leitura pelo servidor. Para planilhas restritas, importe XLSX/CSV pelas
+                      permissões existentes.
+                    </p>
+                  </div>
+
+                  {/* CONTROLES DE AUTO-SYNC */}
+                  <div className="pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        checked={autoSyncEnabled}
+                        onCheckedChange={(checked) => {
+                          setAutoSyncEnabled(checked);
+                          saveConfig(sheetUrl, checked, pollInterval);
+                          toast({
+                            title: checked ? "Auto-Sync Ativado!" : "Auto-Sync Desativado",
+                            description: checked
+                              ? `O sistema irá consultar a planilha a cada ${pollInterval} segundos em segundo plano.`
+                              : "A consulta automática em segundo plano foi pausada.",
+                          });
+                        }}
+                        className="data-[state=checked]:bg-emerald-500"
+                      />
+                      <div>
+                        <div className="text-xs font-black uppercase text-white flex items-center gap-1.5">
+                          Consulta Automática em Segundo Plano (Auto-Sync)
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          Consulta enquanto esta página estiver aberta; o padrão é a cada 10 minutos
+                        </div>
                       </div>
                     </div>
-                  ))}
+
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs text-slate-400 font-bold uppercase whitespace-nowrap">
+                        Intervalo:
+                      </Label>
+                      <Select
+                        value={String(pollInterval)}
+                        onValueChange={(val) => {
+                          const num = Number(val);
+                          setPollInterval(num);
+                          saveConfig(sheetUrl, autoSyncEnabled, num);
+                        }}
+                      >
+                        <SelectTrigger className="w-36 h-9 bg-slate-950 border-slate-800 text-xs rounded-xl text-slate-200">
+                          <SelectValue placeholder="Intervalo" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-900 border-slate-800 text-slate-200">
+                          <SelectItem value="60">A cada 1 min</SelectItem>
+                          <SelectItem value="120">A cada 2 min</SelectItem>
+                          <SelectItem value="300">A cada 5 min</SelectItem>
+                          <SelectItem value="600">A cada 10 min (Padrão)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* PAINEL DE STATUS DA CONEXÃO */}
+                  <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className={cn(
+                          "size-2.5 rounded-full",
+                          syncStatus === "CONNECTED" &&
+                            autoSyncEnabled &&
+                            "bg-emerald-400 animate-pulse",
+                          syncStatus === "CONNECTED" && !autoSyncEnabled && "bg-blue-400",
+                          syncStatus === "ERROR" && "bg-rose-500",
+                          syncStatus === "IDLE" && "bg-slate-500"
+                        )}
+                      />
+                      <span className="font-bold text-slate-300">
+                        {syncStatus === "CONNECTED"
+                          ? autoSyncEnabled
+                            ? "Conectado e Monitorando Ativamente"
+                            : "Conectado (Consulta Manual)"
+                          : syncStatus === "ERROR"
+                            ? "Erro na Conexão com a Planilha"
+                            : "Aguardando Configuração de Link"}
+                      </span>
+                    </div>
+
+                    <div className="text-[11px] text-slate-400 font-mono flex items-center gap-2">
+                      <Clock size={12} className="text-slate-500" />
+                      Última sincronização:{" "}
+                      <strong className="text-slate-200">
+                        {lastSyncTime ? lastSyncTime.toLocaleTimeString("pt-BR") : "Nunca"}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* MENSAGEM DE ERRO SE HOUVER */}
+                  {syncErrorMessage && (
+                    <div className="p-3 rounded-xl bg-rose-950/50 border border-rose-800 text-rose-300 text-xs flex items-start gap-2">
+                      <AlertTriangle size={15} className="text-rose-400 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold">Aviso:</span> {syncErrorMessage}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
+
+                {/* AUDITORIA DE ALTERAÇÕES EM TEMPO REAL DETECTADAS */}
+                {liveDiffLogs.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                      <Layers size={13} className="text-emerald-400" /> Registro de Alterações
+                      Detectadas na Planilha Online:
+                    </h4>
+                    <div className="max-h-48 overflow-y-auto space-y-1.5 rounded-xl border border-slate-800 bg-slate-900/50 p-2 text-xs">
+                      {liveDiffLogs.slice(0, 15).map((log, idx) => (
+                        <div
+                          key={idx}
+                          className="p-2 rounded-lg bg-slate-950/60 border border-slate-850 flex items-center justify-between gap-2"
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="font-mono font-bold text-slate-400 text-[10px]">
+                              #{log.numero}
+                            </span>
+                            <span className="font-bold text-white truncate max-w-[180px]">
+                              {log.colaborador}
+                            </span>
+                            <span className="text-[10px] text-slate-400">({log.cidade})</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0 text-[11px]">
+                            <span className="text-slate-400">{log.campo}:</span>
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] line-through text-slate-500 border-slate-700"
+                            >
+                              {log.valorAnterior}
+                            </Badge>
+                            <ArrowRight size={10} className="text-emerald-400" />
+                            <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
+                              {log.valorNovo}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </TabsContent>
 

@@ -65,7 +65,7 @@ describe("Preservação da fila AVP", () => {
       enderecoClinica: "Endereço corrigido",
       chavePix: "pix-teste",
       cnpjClinica: "cnpj-teste",
-      oQueFazer: "Confirmar custo",
+      observacoes: "Confirmar custo",
     });
     expect(result.diffLog.map((entry) => entry.campo)).toEqual(
       expect.arrayContaining(["chavePix", "cnpjClinica", "enderecoClinica"])
@@ -160,10 +160,10 @@ describe("Exportação AVP para Excel", () => {
     const csv = buildAvpQueueCsv([item]);
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     const [row] = Papa.parse<Record<string, string>>(csv, { header: true, delimiter: ";" }).data;
-    expect(row.Colaborador).toBe(item.colaborador);
-    expect(row["Observações / O Que Fazer"]).toBe(item.oQueFazer);
-    expect(row["E-mail Clínica"]).toBe(item.emailClinica);
-    expect(row["Valor ASO"]).toBe("39,90");
+    expect(row.COLABORADOR).toBe(item.colaborador);
+    expect(row["O QUE FAZER"]).toBe(item.oQueFazer);
+    expect(row.EMAIL).toBe(item.emailClinica);
+    expect(row["VALOR ASO"]).toBe("39,90");
     const imported = mergeSpreadsheetData([], [row]).mergedAsos[0];
     expect(imported.oQueFazer).toBe(item.oQueFazer);
     expect(imported.uf).toBe(item.uf);
@@ -174,7 +174,7 @@ describe("Exportação AVP para Excel", () => {
     (value) => {
       const csv = buildAvpQueueCsv([{ ...AVP_TEST_ASOS[0], oQueFazer: value }]);
       const [row] = Papa.parse<Record<string, string>>(csv, { header: true, delimiter: ";" }).data;
-      expect(row["Observações / O Que Fazer"]).toBe("'" + value);
+      expect(row["O QUE FAZER"]).toBe("'" + value);
     }
   );
 });

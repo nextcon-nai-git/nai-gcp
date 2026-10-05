@@ -378,6 +378,7 @@ export default function HealthControl() {
       agendamento_id: appt.id,
       medico_id: user.uid,
       employeeName: appt.colaborador_nome,
+      employeeId: appt.colaborador_id,
       companyId: appt.companyId,
       data_emissao: new Date().toISOString(),
       resultado: asoPayload.evtMonit.aso.resAso === 1 ? "Apto" : "Inapto",

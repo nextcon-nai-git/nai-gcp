@@ -52,12 +52,20 @@ import {
 import { useUser } from "@/firebase";
 import { useAvpQueue } from "@/hooks/use-avp-queue";
 import { buildAvpQueueCsv } from "@/lib/avp-queue-export";
+import { avpCostSummary, parseBrlCents, formatBrlCents } from "@/lib/avp-costs";
 import { normalizeNavigationSearch } from "@/lib/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { GRUPO_AVP_ASO_LIST, GrupoAvpAso, AsoStatus, AsoUrgency } from "@/lib/grupo-avp-asos-data";
+import {
+  GRUPO_AVP_ASO_LIST,
+  GrupoAvpAso,
+  AsoStatus,
+  AsoUrgency,
+  AVP_STATUSES,
+} from "@/lib/grupo-avp-asos-data";
 import { GrupoAvpQueueMap } from "@/components/clients/grupo-avp-queue-map";
 import { GrupoAvpSheetSyncModal } from "@/components/clients/grupo-avp-sheet-sync-modal";
+import { AvpClinicAlternatives } from "@/components/clients/avp-clinic-alternatives";
 import { GrupoAvpRedundancyModal } from "@/components/clients/grupo-avp-redundancy-modal";
 import {
   parseClinicAndPhoneCells,
@@ -76,7 +84,9 @@ export function GrupoAvpAsoManager({
 } = {}) {
   const { toast } = useToast();
   const { user } = useUser();
-  const { asosList, updateAsos } = useAvpQueue(user?.uid ?? null);
+  const { asosList, updateAsos, syncState, refresh, source } = useAvpQueue(user?.uid ?? null);
+  const [costFilter, setCostFilter] = React.useState("ALL");
+  const costSummary = React.useMemo(() => avpCostSummary(asosList), [asosList]);
 
   // Modal de Sincronização Google Sheets / Importação
   const [isSyncModalOpen, setIsSyncModalOpen] = React.useState<boolean>(false);
@@ -88,12 +98,14 @@ export function GrupoAvpAsoManager({
     toast({
       title: "Alteração disponível nesta aba",
       description:
-        "O navegador não permitiu salvar a fila localmente. Exporte a planilha antes de fechar a página.",
+        "A alteração não foi concluída. Confira o aviso de sincronização e revise a fonte antes de tentar novamente.",
       variant: "destructive",
     });
 
   const handleApplyBatchUpdate = (newAsos: GrupoAvpAso[]) => {
-    if (!updateAsos(newAsos)) reportStorageFailure();
+    const accepted = updateAsos(newAsos);
+    if (!accepted) reportStorageFailure();
+    return accepted;
   };
 
   const handleResetOriginal = () => {
@@ -103,13 +115,15 @@ export function GrupoAvpAsoManager({
 
   const handleUpdateSingleAso = (updated: GrupoAvpAso) => {
     const saved = updateAsos((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+    if (!saved) {
+      reportStorageFailure();
+      return;
+    }
     setSelectedAso(updated);
-    if (!saved) reportStorageFailure();
-    else
-      toast({
-        title: "ASO atualizado",
-        description: "A alteração foi salva na fila deste navegador.",
-      });
+    toast({
+      title: "ASO atualizado",
+      description: "Acompanhe a confirmação de gravação na faixa de sincronização.",
+    });
   };
 
   // Estados de Filtro
@@ -125,6 +139,12 @@ export function GrupoAvpAsoManager({
 
   // Modal de Detalhes
   const [selectedAso, setSelectedAso] = React.useState<GrupoAvpAso | null>(null);
+
+  React.useEffect(() => {
+    setSelectedAso((selected) =>
+      selected ? asosList.find((item) => item.id === selected.id) || null : null
+    );
+  }, [asosList]);
 
   React.useEffect(() => {
     setSelectedAso(null);
@@ -197,6 +217,9 @@ export function GrupoAvpAsoManager({
   // Filtragem
   const filteredList = React.useMemo(() => {
     return asosList.filter((item) => {
+      const cost = parseBrlCents(item.valorAso);
+      if (costFilter === "ABOVE_40" && (cost === null || cost <= 4000)) return false;
+      if (costFilter === "MISSING" && cost !== null) return false;
       // Busca textual
       if (searchTerm.trim()) {
         const query = normalizeNavigationSearch(searchTerm);
@@ -240,7 +263,15 @@ export function GrupoAvpAsoManager({
 
       return true;
     });
-  }, [asosList, searchTerm, statusFilter, responsibleFilter, urgencyFilter, ufFilter]);
+  }, [asosList, searchTerm, statusFilter, responsibleFilter, urgencyFilter, ufFilter, costFilter]);
+
+  React.useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const city = query.get("city");
+    const uf = query.get("uf");
+    if (city) setSearchTerm(city);
+    if (uf && /^[A-Z]{2}$/.test(uf)) setUfFilter(uf);
+  }, []);
 
   // Itens da Página Atual
   const totalPages = Math.ceil(filteredList.length / pageSize) || 1;
@@ -256,7 +287,7 @@ export function GrupoAvpAsoManager({
   // Resetar página ao mudar filtros
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, responsibleFilter, urgencyFilter, ufFilter, pageSize]);
+  }, [searchTerm, statusFilter, responsibleFilter, urgencyFilter, ufFilter, pageSize, costFilter]);
 
   // Copiar Informações para WhatsApp
   const handleCopyAsoDetails = (item: GrupoAvpAso) => {
@@ -389,6 +420,65 @@ export function GrupoAvpAsoManager({
 
   return (
     <div className="space-y-6">
+      <div
+        className="rounded-xl border bg-white p-3 flex flex-wrap items-center gap-3 text-xs"
+        role="status"
+      >
+        <a
+          href={source.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold text-primary underline"
+        >
+          Planilha original AVP
+        </a>
+        <span>
+          {syncState.saving
+            ? "Salvando na fila compartilhada..."
+            : syncState.status === "CONNECTED"
+              ? "Fonte conectada · atualização a cada 10 min"
+              : "Conexão da fonte pendente"}
+        </span>
+        {syncState.checkedAt && (
+          <span>
+            Última leitura:{" "}
+            {new Date(syncState.checkedAt).toLocaleString("pt-BR", {
+              timeZone: "America/Sao_Paulo",
+            })}
+          </span>
+        )}
+        <Button size="sm" variant="outline" onClick={() => void refresh(true)}>
+          Atualizar agora
+        </Button>
+        {syncState.error && <span className="text-red-700 basis-full">{syncState.error}</span>}
+        {syncState.conflicts > 0 && (
+          <span className="text-amber-800 basis-full">
+            {syncState.conflicts} campo(s) mudaram na fonte e na fila. A fonte foi preservada;
+            revise a edição antes de salvar novamente.
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-3 text-xs">
+        <Button
+          variant={costFilter === "ABOVE_40" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setCostFilter(costFilter === "ABOVE_40" ? "ALL" : "ABOVE_40")}
+        >
+          Acima de R$40: {costSummary.aboveTarget}
+        </Button>
+        <Button
+          variant={costFilter === "MISSING" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setCostFilter(costFilter === "MISSING" ? "ALL" : "MISSING")}
+        >
+          Sem preço único: {costSummary.missing}
+        </Button>
+        <span>
+          Simulação de margem bruta dos pedidos cotados:{" "}
+          {formatBrlCents(costSummary.grossMarginCents)} · referência de receita R$40/ASO clínico,
+          sem taxas.
+        </span>
+      </div>
       {/* KPI METRIC CARDS */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card
@@ -405,7 +495,9 @@ export function GrupoAvpAsoManager({
             <FileSpreadsheet size={16} />
           </div>
           <div className="text-2xl font-black font-headline text-slate-900">{metrics.total}</div>
-          <span className="text-[10px] text-slate-500 font-medium">102 Municípios</span>
+          <span className="text-[10px] text-slate-500 font-medium">
+            {new Set(asosList.map((a) => a.cidade + "|" + a.uf)).size} municípios
+          </span>
         </Card>
 
         <Card
@@ -541,7 +633,7 @@ export function GrupoAvpAsoManager({
               <Cloud size={16} /> Importar / Google Drive
             </Button>
 
-            {isAutoSyncActive && (
+            {(isAutoSyncActive || syncState.status === "CONNECTED") && (
               <Badge
                 onClick={() => setIsSyncModalOpen(true)}
                 className="bg-emerald-500/15 text-emerald-700 border border-emerald-500/30 text-[10px] font-black uppercase tracking-widest px-3 h-11 rounded-2xl cursor-pointer hover:bg-emerald-500/25 flex items-center gap-1.5 transition-all"
@@ -594,6 +686,19 @@ export function GrupoAvpAsoManager({
                 <SelectItem value="AG. RETORNO CLINICA">Ag. Retorno Clínica</SelectItem>
                 <SelectItem value="ENVIAR COMPROV. PAG">Enviar Comprov. Pag</SelectItem>
                 <SelectItem value="GESTOR CANCELOU">Gestor Cancelou</SelectItem>
+                {AVP_STATUSES.filter((status) =>
+                  [
+                    "ESPERANDO CNPJ E VALOR",
+                    "RESGATAR ASO",
+                    "AG. RETORNO DO GESTOR",
+                    "AG. RETORNO DO COLABORADOR",
+                    "STATUS NÃO RECONHECIDO",
+                  ].includes(status)
+                ).map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {status}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -962,12 +1067,13 @@ export function GrupoAvpAsoManager({
                     <Sparkles size={13} /> Atualizar Status Deste ASO:
                   </span>
                   <span className="text-[10px] text-slate-500 font-medium">
-                    Altera imediatamente no sistema, mapa e cache local
+                    Salva na fila compartilhada; alterações na fonte Google são conciliadas
                   </span>
                 </div>
                 <div className="w-full sm:w-56">
                   <Select
                     value={selectedAso.status}
+                    disabled={syncState.saving}
                     onValueChange={(newStatus: AsoStatus) => {
                       handleUpdateSingleAso({ ...selectedAso, status: newStatus });
                     }}
@@ -985,6 +1091,19 @@ export function GrupoAvpAsoManager({
                       <SelectItem value="AG. RETORNO CLINICA">Ag. Retorno Clínica</SelectItem>
                       <SelectItem value="ENVIAR COMPROV. PAG">Enviar Comprov. Pag</SelectItem>
                       <SelectItem value="GESTOR CANCELOU">Gestor Cancelou</SelectItem>
+                      {AVP_STATUSES.filter((status) =>
+                        [
+                          "ESPERANDO CNPJ E VALOR",
+                          "RESGATAR ASO",
+                          "AG. RETORNO DO GESTOR",
+                          "AG. RETORNO DO COLABORADOR",
+                          "STATUS NÃO RECONHECIDO",
+                        ].includes(status)
+                      ).map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {status}
+                        </SelectItem>
+                      ))}
                       <SelectItem value="DESISTIU DA VAGA">Desistiu da Vaga</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1062,6 +1181,19 @@ export function GrupoAvpAsoManager({
                 )}
               </div>
 
+              {selectedAso.observacoes && (
+                <div className="rounded-xl border p-3">
+                  <strong>Observações da planilha</strong>
+                  <p className="mt-1 whitespace-pre-wrap">{selectedAso.observacoes}</p>
+                </div>
+              )}
+              {selectedAso.status === "STATUS NÃO RECONHECIDO" && (
+                <p className="text-amber-800">Status na fonte: {selectedAso.statusRaw}</p>
+              )}
+              {parseBrlCents(selectedAso.valorAso) !== null &&
+                parseBrlCents(selectedAso.valorAso)! > 4000 && (
+                  <AvpClinicAlternatives cidade={selectedAso.cidade} uf={selectedAso.uf} />
+                )}
               {/* BLOCO 2: CLÍNICA CREDENCIADA & FINANCEIRO */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
                 <h4 className="font-black text-primary uppercase text-[11px] flex items-center gap-1.5">
@@ -1260,6 +1392,8 @@ export function GrupoAvpAsoManager({
         onApplyUpdate={handleApplyBatchUpdate}
         onResetOriginal={handleResetOriginal}
         onSyncActivityChange={setIsAutoSyncActive}
+        managedSync={syncState}
+        onManagedRefresh={() => refresh(true)}
       />
 
       {/* MODAL DO RADAR DE CONTINGÊNCIA (2+ CLÍNICAS POR POLO) */}

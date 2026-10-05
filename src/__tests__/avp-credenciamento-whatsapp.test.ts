@@ -1,140 +1,75 @@
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect } from "vitest";
 import {
-  DEFAULT_BRAZIL_NATIONAL_CLINICS,
+  DEFAULT_BRAZIL_NATIONAL_CLINICS as clinics,
   generateCredenciamentoProposalText,
   generateOneClickCredenciamentoUrl,
   getNationalClinicsStats,
   searchNationalClinics,
-  updateClinicOutreachStatus,
+  getStoredNationalClinics,
+  NATIONAL_CLINICS_STORAGE_KEY,
   formatBrazilianPhoneDisplay,
-  NationalOccupationalClinic,
 } from "@/lib/avp-national-clinics-directory";
+import { AVP_CREDENCIAMENTO_MESSAGE } from "@/lib/avp-source-config";
 
-describe("NAI National Clinics Directory & 1-Click WhatsApp Credenciamento", () => {
-  it("deve conter no mínimo 115 clínicas pré-indexadas cobrindo o território nacional", () => {
-    expect(DEFAULT_BRAZIL_NATIONAL_CLINICS.length).toBeGreaterThanOrEqual(115);
+beforeEach(() => localStorage.clear());
+describe("Credenciamento com contatos conferidos", () => {
+  it("exige fonte e data de conferência dos contatos publicados", () => {
+    expect(clinics).toHaveLength(3);
+    for (const clinic of clinics) {
+      expect(clinic.sourceUrl).toMatch(/^https:\/\//);
+      expect(clinic.verifiedAt).toBeTruthy();
+      expect(clinic.cidade).toBe("Imperatriz");
+      expect(clinic.uf).toBe("MA");
+      if (clinic.whatsapp) expect(clinic.whatsapp).toMatch(/^55\d{10,11}$/);
+    }
   });
-
-  it("deve cobrir todos os 27 estados (UFs) da federação brasileira", () => {
-    const allUfs = new Set(DEFAULT_BRAZIL_NATIONAL_CLINICS.map((c) => c.uf.toUpperCase()));
-    const expectedUfs = [
-      "AC",
-      "AL",
-      "AP",
-      "AM",
-      "BA",
-      "CE",
-      "DF",
-      "ES",
-      "GO",
-      "MA",
-      "MT",
-      "MS",
-      "MG",
-      "PA",
-      "PB",
-      "PR",
-      "PE",
-      "PI",
-      "RJ",
-      "RN",
-      "RS",
-      "RO",
-      "RR",
-      "SC",
-      "SP",
-      "SE",
-      "TO",
-    ];
-
-    expectedUfs.forEach((uf) => {
-      expect(allUfs.has(uf), `Estado ${uf} deve ter ao menos 1 clínica indexada`).toBe(true);
+  it("usa a mensagem exata de CNPJ, PIX e negociação a R$40", () => {
+    expect(generateCredenciamentoProposalText(clinics[0])).toBe(AVP_CREDENCIAMENTO_MESSAGE);
+    const result = generateOneClickCredenciamentoUrl(clinics[0]);
+    expect(new URL(result.waUrl).searchParams.get("text")).toBe(AVP_CREDENCIAMENTO_MESSAGE);
+  });
+  it("não inventa WhatsApp quando só há telefone publicado", () => {
+    const result = generateOneClickCredenciamentoUrl(clinics[2]);
+    expect(result.waUrl).toBe("");
+  });
+  it("preserva mensagem personalizada", () => {
+    expect(
+      generateOneClickCredenciamentoUrl(clinics[0], { customMessage: "Mensagem de teste" })
+        .messageText
+    ).toBe("Mensagem de teste");
+  });
+  it("não recupera do cache os contatos artificiais antigos", () => {
+    localStorage.setItem(
+      NATIONAL_CLINICS_STORAGE_KEY,
+      JSON.stringify([
+        { ...clinics[0], id: "nat_clin_imperatriz_ma_001", whatsapp: "5599910009999" },
+      ])
+    );
+    expect(getStoredNationalClinics().map((c) => c.id)).not.toContain("nat_clin_imperatriz_ma_001");
+  });
+  it("não permite ao cache adulterar um contato conferido", () => {
+    localStorage.setItem(
+      NATIONAL_CLINICS_STORAGE_KEY,
+      JSON.stringify([
+        { ...clinics[0], whatsapp: "5599910009999", statusCredenciamento: "EM_NEGOCIACAO" },
+      ])
+    );
+    expect(getStoredNationalClinics()[0].whatsapp).toBe(clinics[0].whatsapp);
+    expect(getStoredNationalClinics()[0].statusCredenciamento).toBe("EM_NEGOCIACAO");
+  });
+  it("filtra sem criar cobertura fictícia", () => {
+    expect(searchNationalClinics(clinics, { uf: "PE" })).toHaveLength(0);
+    expect(searchNationalClinics(clinics, { query: "imperatriz", uf: "MA" })).toHaveLength(3);
+    expect(searchNationalClinics(clinics, { onlyUrgent: true })).toHaveLength(0);
+    expect(getNationalClinicsStats(clinics)).toMatchObject({
+      totalClinicas: 3,
+      totalComWhatsapp: 2,
+      totalCidadesAtendidas: 1,
+      totalMensagensEnviadas: 0,
     });
   });
-
-  it("deve garantir que todos os registros possuem ID, nome, cidade, UF e WhatsApp válido", () => {
-    DEFAULT_BRAZIL_NATIONAL_CLINICS.forEach((clinic) => {
-      expect(clinic.id).toBeTruthy();
-      expect(clinic.nome).toBeTruthy();
-      expect(clinic.cidade).toBeTruthy();
-      expect(clinic.uf.length).toBe(2);
-      expect(clinic.whatsapp).toMatch(/^55\d{10,11}$/);
-      expect(clinic.especialidades.length).toBeGreaterThan(0);
-    });
-  });
-
-  it("deve gerar mensagem oficial de credenciamento B2B com menção ao Grupo AVP e cidade", () => {
-    const clinic = DEFAULT_BRAZIL_NATIONAL_CLINICS[0];
-    const message = generateCredenciamentoProposalText(clinic);
-
-    expect(message).toContain(clinic.nome);
-    expect(message).toContain(clinic.cidade);
-    expect(message).toContain(clinic.uf);
-    expect(message).toContain("Grupo AVP");
-    expect(message).toContain("5.000 colaboradores");
-    expect(message).toContain("tabela de valores");
-    expect(message).toContain("liberação do ASO");
-  });
-
-  it("deve gerar link oficial wa.me formatado com DDI 55 e mensagem URI-encoded", () => {
-    const clinic =
-      DEFAULT_BRAZIL_NATIONAL_CLINICS.find((c) => c.cidade === "Fortaleza") ||
-      DEFAULT_BRAZIL_NATIONAL_CLINICS[0];
-    const { waUrl, messageText } = generateOneClickCredenciamentoUrl(clinic);
-
-    expect(waUrl).toMatch(/^https:\/\/wa\.me\/55\d+\?text=/);
-    expect(waUrl).toContain(encodeURIComponent(clinic.nome));
-    expect(messageText).toContain(clinic.cidade);
-  });
-
-  it("deve permitir customizar a mensagem enviada no WhatsApp 1-clique", () => {
-    const clinic = DEFAULT_BRAZIL_NATIONAL_CLINICS[0];
-    const custom = "Mensagem B2B personalizada com proposta especial de tabela corporativa.";
-    const { waUrl, messageText } = generateOneClickCredenciamentoUrl(clinic, {
-      customMessage: custom,
-    });
-
-    expect(messageText).toBe(custom);
-    expect(waUrl).toContain(encodeURIComponent(custom));
-  });
-
-  it("deve filtrar clínicas por cidade e por UF com sucesso", () => {
-    const fortalezaClinics = searchNationalClinics(DEFAULT_BRAZIL_NATIONAL_CLINICS, {
-      query: "Fortaleza",
-      uf: "CE",
-    });
-    expect(fortalezaClinics.length).toBeGreaterThanOrEqual(1);
-    expect(fortalezaClinics[0].cidade).toBe("Fortaleza");
-    expect(fortalezaClinics[0].uf).toBe("CE");
-
-    const peClinics = searchNationalClinics(DEFAULT_BRAZIL_NATIONAL_CLINICS, {
-      uf: "PE",
-    });
-    expect(peClinics.length).toBeGreaterThanOrEqual(1);
-    expect(peClinics.every((c) => c.uf === "PE")).toBe(true);
-  });
-
-  it("deve filtrar polos com volume crítico de ASOs (>= 3)", () => {
-    const urgentPolos = searchNationalClinics(DEFAULT_BRAZIL_NATIONAL_CLINICS, {
-      onlyUrgent: true,
-    });
-    expect(urgentPolos.length).toBeGreaterThan(0);
-    urgentPolos.forEach((c) => {
-      expect(c.totalAsosPolo).toBeGreaterThanOrEqual(3);
-    });
-  });
-
-  it("deve calcular estatísticas consolidadas corretamente", () => {
-    const stats = getNationalClinicsStats(DEFAULT_BRAZIL_NATIONAL_CLINICS);
-    expect(stats.totalClinicas).toBe(DEFAULT_BRAZIL_NATIONAL_CLINICS.length);
-    expect(stats.totalComWhatsapp).toBeGreaterThanOrEqual(115);
-    expect(stats.totalPolosAvp).toBeGreaterThanOrEqual(90);
-    expect(stats.totalCidadesAtendidas).toBeGreaterThanOrEqual(100);
-  });
-
-  it("deve formatar número de telefone brasileiro no padrão visual legível", () => {
+  it("formata telefone sem alterar seus dígitos", () => {
     expect(formatBrazilianPhoneDisplay("5511999887766")).toBe("(11) 99988-7766");
-    expect(formatBrazilianPhoneDisplay("558532441122")).toBe("(85) 3244-1122");
     expect(formatBrazilianPhoneDisplay("")).toBe("");
   });
 });

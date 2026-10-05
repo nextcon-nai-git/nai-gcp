@@ -36,14 +36,31 @@ service firebase.storage {
         && request.resource.contentType.matches('application/pdf|image/.*');
     }
 
-    match /clientes/{companyId}/{allPaths=**} {
-      allow read: if isSignedIn() && (isNextconOfficial() || belongsToCompany(companyId) || isHealthProfessionalForCompany(companyId));
-      allow write: if isSignedIn() && (isNextconOfficial() || isCompanyAdmin(companyId) || isHealthProfessionalForCompany(companyId)) && isSafeFile();
+    function hasClinicalAccess(companyId) {
+      let user = getUserData();
+      return isSignedIn() && user != null && (
+        user.role in ['SUPER_ADMIN', 'ADMIN'] ||
+        (user.role in ['DOCTOR', 'NURSE', 'HEALTH_PROFESSIONAL', 'PROVIDER'] &&
+          (user.companyId == companyId || ('servedCompanies' in user && user.servedCompanies is list && companyId in user.servedCompanies)))
+      );
+    }
+
+    match /clientes/{companyId}/{category}/{allPaths=**} {
+      allow read: if category == 'colaboradores' || category == 'prontuarios'
+        ? hasClinicalAccess(companyId)
+        : isSignedIn() && (isNextconOfficial() || belongsToCompany(companyId));
+      allow create, update: if (category == 'colaboradores' || category == 'prontuarios'
+        ? hasClinicalAccess(companyId)
+        : isSignedIn() && (isNextconOfficial() || isCompanyAdmin(companyId) || isHealthProfessionalForCompany(companyId))) && isSafeFile();
+      allow delete: if category == 'colaboradores' || category == 'prontuarios'
+        ? isSignedIn() && getUserData().role == 'SUPER_ADMIN'
+        : isSignedIn() && (isNextconOfficial() || isCompanyAdmin(companyId));
     }
 
     match /internos_nextcon/{allPaths=**} {
       allow read: if isNextconOfficial();
-      allow write: if isNextconOfficial() && isSafeFile();
+      allow create, update: if isNextconOfficial() && isSafeFile();
+      allow delete: if isNextconOfficial();
     }
 
     match /public/{allPaths=**} {

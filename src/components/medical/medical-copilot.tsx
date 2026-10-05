@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useUser } from "@/firebase";
+import { useSgi } from "@/contexts/sgi-context";
 
 type Message = {
   id: string;
@@ -19,6 +21,8 @@ interface MedicalCopilotProps {
 }
 
 export default function MedicalCopilot({ pacienteId, className }: MedicalCopilotProps) {
+  const { user } = useUser();
+  const { activeClientId } = useSgi();
   const [messages, setMessages] = React.useState<Message[]>([
     {
       id: "1",
@@ -39,7 +43,7 @@ export default function MedicalCopilot({ pacienteId, className }: MedicalCopilot
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isTyping) return;
+    if (!input.trim() || isTyping || !user || !activeClientId || activeClientId === "all") return;
 
     const userContent = input;
     const userMessageId = Date.now().toString();
@@ -59,10 +63,14 @@ export default function MedicalCopilot({ pacienteId, className }: MedicalCopilot
     try {
       const response = await fetch("/api/medical-assistant", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${await user.getIdToken()}`,
+        },
         body: JSON.stringify({
           mensagemMedico: userContent,
           pacienteId: pacienteId,
+          companyId: activeClientId,
         }),
       });
 

@@ -7,8 +7,9 @@
 
 import { ai } from "@/ai/genkit";
 import { z } from "zod";
-import { initializeFirebase } from "@/firebase/init";
-import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
+import { NextRequest } from "next/server";
+import { requireAuth } from "@/lib/auth/require-auth";
+import { getAuthorizedMedicalHistory } from "@/services/medical-history";
 
 // --- FERRAMENTAS DO AGENTE ---
 
@@ -41,54 +42,6 @@ export const consultarCIDTool = ai.defineTool(
   }
 );
 
-/**
- * Ferramenta para buscar o histórico real do paciente no Firestore.
- */
-export const buscarHistoricoPacienteTool = ai.defineTool(
-  {
-    name: "buscarHistoricoPaciente",
-    description:
-      "Busca o último Atestado de Saúde Ocupacional (ASO) e as restrições do paciente no banco de dados.",
-    inputSchema: z.object({
-      pacienteId: z.string().describe("O ID único do paciente no sistema."),
-    }),
-    outputSchema: z.object({
-      encontrado: z.boolean(),
-      ultimoAsoData: z.string().optional(),
-      statusUltimoAso: z.string().optional(),
-      restricoes: z.array(z.string()).optional(),
-    }),
-  },
-  async ({ pacienteId }) => {
-    const { firestore } = initializeFirebase();
-    const asoRef = collection(firestore, "atendimentos_aso");
-    const q = query(
-      asoRef,
-      where("employeeId", "==", pacienteId),
-      orderBy("data_emissao", "desc"),
-      limit(1)
-    );
-
-    try {
-      const snap = await getDocs(q);
-      if (snap.empty) {
-        return { encontrado: false };
-      }
-
-      const data = snap.docs[0].data();
-      return {
-        encontrado: true,
-        ultimoAsoData: data.data_emissao || "---",
-        statusUltimoAso: data.resultado || "APTO",
-        restricoes: data.restricoes || [],
-      };
-    } catch (error) {
-      console.error("Erro ao buscar no Firestore:", error);
-      return { encontrado: false };
-    }
-  }
-);
-
 // --- FLUXO DO AGENTE ---
 
 const medicalAssistantFlow = ai.defineFlow(
@@ -97,6 +50,8 @@ const medicalAssistantFlow = ai.defineFlow(
     inputSchema: z.object({
       mensagemMedico: z.string(),
       pacienteId: z.string(),
+      companyId: z.string(),
+      history: z.string(),
     }),
     outputSchema: z.string(),
   },
@@ -105,17 +60,19 @@ const medicalAssistantFlow = ai.defineFlow(
       prompt: `Você é a NAI, assistente técnica de elite para médicos do trabalho da Nextcon.
       
       CONTEXTO DO PACIENTE:
+      Empresa autorizada: ${input.companyId}
       ID: ${input.pacienteId}
+      Histórico consultado pelo servidor: ${input.history}
       
       SOLICITAÇÃO MÉDICA:
       "${input.mensagemMedico}"
       
       DIRETRIZES:
       1. Se o médico mencionar sintomas, use 'consultarCID' para sugerir o código.
-      2. Antes de dar um parecer, use 'buscarHistoricoPaciente' para verificar se há inaptidões ou restrições prévias.
+      2. Use apenas o histórico fornecido; consulta indisponível ou sem registros não confirma aptidão nem ausência de restrições.
       3. Seja extremamente profissional, clínico e objetivo.
       4. Sempre mencione que seu parecer deve ser validado pelo médico examinador.`,
-      tools: [consultarCIDTool, buscarHistoricoPacienteTool],
+      tools: [consultarCIDTool],
     });
 
     return text;
@@ -125,6 +82,21 @@ const medicalAssistantFlow = ai.defineFlow(
 export async function medicalAssistant(input: {
   mensagemMedico: string;
   pacienteId: string;
+  companyId: string;
+  idToken?: string;
 }): Promise<string> {
-  return medicalAssistantFlow(input);
+  const user = await requireAuth(
+    new NextRequest("https://nai.local/action", {
+      headers: { authorization: `Bearer ${input.idToken || ""}` },
+    })
+  );
+  if (!input.mensagemMedico?.trim() || input.mensagemMedico.length > 5000)
+    throw new Error("Mensagem inválida ou acima do limite.");
+  const history = await getAuthorizedMedicalHistory(user, input.companyId, input.pacienteId);
+  return medicalAssistantFlow({
+    mensagemMedico: input.mensagemMedico,
+    pacienteId: input.pacienteId,
+    companyId: input.companyId,
+    history: JSON.stringify(history),
+  });
 }

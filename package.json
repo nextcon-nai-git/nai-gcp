@@ -24,7 +24,7 @@
     "infra:indexes": "firebase deploy --only firestore:indexes",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:rules": "npx --yes firebase-tools@14.22.0 emulators:exec --project demo-nai-security --only firestore --config firebase.test.json \"vitest run --config vitest.rules.config.ts\""
+    "test:rules": "npx --yes firebase-tools@14.22.0 emulators:exec --project demo-nai-security --only firestore,storage --config firebase.test.json \"vitest run --config vitest.rules.config.ts\""
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",

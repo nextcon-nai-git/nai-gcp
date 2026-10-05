@@ -5,6 +5,18 @@ export interface ResultadoLinha {
   conduta: string;
 }
 
+const incomplete = (): ResultadoLinha => ({
+  escore: "Não avaliado",
+  conduta:
+    "Dados ausentes ou inválidos. Preencha informações reais e encaminhe para avaliação do profissional habilitado.",
+});
+const numeric = (value: unknown, min = 0, max = Infinity): value is number =>
+  typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
+const answers = (value: unknown, size: number) =>
+  Array.isArray(value) &&
+  value.length === size &&
+  value.every((item) => Number.isInteger(item) && numeric(item, 0, 3));
+
 export abstract class LinhaDeCuidado {
   nome: string;
   constructor(nome: string) {
@@ -18,8 +30,9 @@ export class SaudeMental extends LinhaDeCuidado {
     super("Saúde Mental (PHQ-9 e GAD-7)");
   }
   avaliar(dados: DadosPaciente) {
-    const phq9 = (dados.phq9 || Array(9).fill(0)).reduce((a: number, b: number) => a + b, 0);
-    const gad7 = (dados.gad7 || Array(7).fill(0)).reduce((a: number, b: number) => a + b, 0);
+    if (!answers(dados.phq9, 9) || !answers(dados.gad7, 7)) return incomplete();
+    const phq9 = dados.phq9.reduce((a: number, b: number) => a + b, 0);
+    const gad7 = dados.gad7.reduce((a: number, b: number) => a + b, 0);
 
     const conduta = [];
     if (phq9 >= 10)
@@ -38,8 +51,10 @@ export class Diabetes extends LinhaDeCuidado {
     super("Diabetes Mellitus");
   }
   avaliar(dados: DadosPaciente) {
-    const glicemia = dados.glicemia_jejum || 90;
-    const hba1c = dados.hba1c || 5.0;
+    if (!numeric(dados.glicemia_jejum, Number.MIN_VALUE) || !numeric(dados.hba1c, Number.MIN_VALUE))
+      return incomplete();
+    const glicemia = dados.glicemia_jejum;
+    const hba1c = dados.hba1c;
     let conduta = "";
 
     if (glicemia >= 126 || hba1c >= 6.5)
@@ -57,8 +72,10 @@ export class Hipertensao extends LinhaDeCuidado {
     super("Hipertensão Arterial Sistêmica");
   }
   avaliar(dados: DadosPaciente) {
-    const pas = dados.pas || 120;
-    const pad = dados.pad || 80;
+    if (!numeric(dados.pas, Number.MIN_VALUE) || !numeric(dados.pad, Number.MIN_VALUE))
+      return incomplete();
+    const pas = dados.pas;
+    const pad = dados.pad;
     let conduta = "";
 
     if (pas >= 140 || pad >= 90)
@@ -75,7 +92,9 @@ export class Obesidade extends LinhaDeCuidado {
     super("Obesidade");
   }
   avaliar(dados: DadosPaciente) {
-    let imc = (dados.peso || 70) / Math.pow(dados.altura || 1.75, 2);
+    if (!numeric(dados.peso, Number.MIN_VALUE) || !numeric(dados.altura, Number.MIN_VALUE))
+      return incomplete();
+    let imc = dados.peso / Math.pow(dados.altura, 2);
     imc = Math.round(imc * 10) / 10;
     let conduta = "";
 
@@ -93,8 +112,14 @@ export class Neoplasias extends LinhaDeCuidado {
     super("Rastreamento Oncológico");
   }
   avaliar(dados: DadosPaciente) {
-    const idade = dados.idade || 30;
-    const sexo = dados.sexo || "F";
+    if (
+      !Number.isInteger(dados.idade) ||
+      !numeric(dados.idade, 0, 130) ||
+      !["F", "M"].includes(dados.sexo)
+    )
+      return incomplete();
+    const idade = dados.idade;
+    const sexo = dados.sexo;
     const conduta = [];
 
     if (sexo === "F" && idade >= 50 && idade <= 69)
@@ -117,7 +142,9 @@ export class EnvelhecimentoAtivo extends LinhaDeCuidado {
     super("Saúde do Idoso");
   }
   avaliar(dados: DadosPaciente) {
-    const katz = dados.katz_score !== undefined ? dados.katz_score : 6;
+    if (!numeric(dados.katz_score, 0, 6) || !Number.isInteger(dados.katz_score))
+      return incomplete();
+    const katz = dados.katz_score;
     let conduta = "";
 
     if (katz === 6) conduta = "Independente. Promover atividade física e socialização.";
@@ -133,7 +160,14 @@ export class GestacaoAltoRisco extends LinhaDeCuidado {
     super("Gestação de Alto Risco");
   }
   avaliar(dados: DadosPaciente) {
-    const fatores = dados.fatores_risco_gestacional || [];
+    if (
+      !Array.isArray(dados.fatores_risco_gestacional) ||
+      !dados.fatores_risco_gestacional.every(
+        (value: unknown) => typeof value === "string" && value.trim()
+      )
+    )
+      return incomplete();
+    const fatores = dados.fatores_risco_gestacional;
     if (fatores.length > 0)
       return {
         escore: "Alto Risco",
@@ -148,7 +182,8 @@ export class Gestacao extends LinhaDeCuidado {
     super("Pré-Natal Básico");
   }
   avaliar(dados: DadosPaciente) {
-    const ig = dados.idade_gestacional_semanas || 0;
+    if (!numeric(dados.idade_gestacional_semanas, Number.MIN_VALUE, 45)) return incomplete();
+    const ig = dados.idade_gestacional_semanas;
     let conduta = "";
 
     if (ig < 14)
@@ -169,7 +204,8 @@ export class Reumatologia extends LinhaDeCuidado {
     super("Reumatologia (Ex: Artrite Reumatoide)");
   }
   avaliar(dados: DadosPaciente) {
-    const das28 = dados.das28_score || 2.0;
+    if (!numeric(dados.das28_score)) return incomplete();
+    const das28 = dados.das28_score;
     let conduta = "";
     if (das28 > 5.1)
       conduta = "Atividade de doença ALTA. Ajustar DMARDs ou iniciar imunobiológico.";
@@ -185,7 +221,8 @@ export class PrePosOperatorio extends LinhaDeCuidado {
     super("Risco Cirúrgico (ASA)");
   }
   avaliar(dados: DadosPaciente) {
-    const asa = dados.asa_score || 1;
+    if (!Number.isInteger(dados.asa_score) || !numeric(dados.asa_score, 1, 6)) return incomplete();
+    const asa = dados.asa_score;
     const protocolos: Record<number, string> = {
       1: "ASA I: Paciente saudável. Risco cirúrgico normal.",
       2: "ASA II: Doença sistêmica leve (ex: HAS controlada). Proceder com cirurgia.",
@@ -201,6 +238,8 @@ export class PrEP_PEP extends LinhaDeCuidado {
     super("Profilaxia HIV (PrEP/PEP)");
   }
   avaliar(dados: DadosPaciente) {
+    if (typeof dados.exposicao_72h !== "boolean" || typeof dados.risco_continuo !== "boolean")
+      return incomplete();
     if (dados.exposicao_72h)
       return {
         escore: "Emergência PEP",
@@ -218,7 +257,9 @@ export class Puerperio extends LinhaDeCuidado {
     super("Puerpério");
   }
   avaliar(dados: DadosPaciente) {
-    const epds = dados.epds_score || 0;
+    if (!numeric(dados.epds_score, 0, 30) || !Number.isInteger(dados.epds_score))
+      return incomplete();
+    const epds = dados.epds_score;
     if (epds >= 12)
       return {
         escore: `EPDS: ${epds}`,
@@ -238,7 +279,8 @@ export class Puericultura extends LinhaDeCuidado {
     super("Puericultura");
   }
   avaliar(dados: DadosPaciente) {
-    const percentil = dados.percentil_peso || 50;
+    if (!numeric(dados.percentil_peso, 0, 100)) return incomplete();
+    const percentil = dados.percentil_peso;
     if (percentil < 3)
       return {
         escore: `Percentil: ${percentil}`,
@@ -262,7 +304,9 @@ export class Climaterio extends LinhaDeCuidado {
     super("Climatério / Menopausa");
   }
   avaliar(dados: DadosPaciente) {
-    const mrs = dados.mrs_escore || 0;
+    if (!numeric(dados.mrs_escore, 0, 44) || !Number.isInteger(dados.mrs_escore))
+      return incomplete();
+    const mrs = dados.mrs_escore;
     let conduta = "";
     if (mrs >= 17)
       conduta =

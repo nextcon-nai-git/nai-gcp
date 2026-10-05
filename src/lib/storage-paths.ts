@@ -4,6 +4,10 @@
  */
 
 export const STORAGE_PATHS = {
+  CLIENT_BRANDING: (clientId: string, filename: string) =>
+    `clientes/${clientId}/branding/${filename}`,
+  CLIENT_PPE: (clientId: string, employeeId: string, filename: string) =>
+    `clientes/${clientId}/epi_recibos/${employeeId}/${filename}`,
   // 1. ÁREA PÚBLICA (Logos, Templates)
   PUBLIC_ASSET: (filename: string) => `public/assets/${filename}`,
   PUBLIC_TEMPLATE: (filename: string) => `public/modelos_documentos/${filename}`,

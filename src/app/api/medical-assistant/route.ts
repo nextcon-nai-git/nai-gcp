@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ai } from "@/ai/genkit";
-import { consultarCIDTool, buscarHistoricoPacienteTool } from "@/ai/flows/medical-assistant-flow";
+import { consultarCIDTool } from "@/ai/flows/medical-assistant-flow";
+
+import { requireAuth } from "@/lib/auth/require-auth";
+import { AuthError, handleAuthError } from "@/lib/auth/errors";
+import { getAuthorizedMedicalHistory } from "@/services/medical-history";
 
 /**
  * @fileOverview API de Streaming para o Assistente Médico NAI.
@@ -9,31 +13,45 @@ import { consultarCIDTool, buscarHistoricoPacienteTool } from "@/ai/flows/medica
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const user = await requireAuth(request);
+    const text = await request.text();
+    if (Buffer.byteLength(text) > 16000)
+      return NextResponse.json({ error: "Mensagem acima do limite." }, { status: 413 });
+    const body = JSON.parse(text);
 
-    if (!body.mensagemMedico || !body.pacienteId) {
+    if (
+      typeof body.mensagemMedico !== "string" ||
+      !body.mensagemMedico.trim() ||
+      body.mensagemMedico.length > 5000 ||
+      typeof body.pacienteId !== "string" ||
+      typeof body.companyId !== "string"
+    ) {
       return NextResponse.json(
         { sucesso: false, mensagem: "Mensagem e ID do Paciente são obrigatórios." },
         { status: 400 }
       );
     }
 
+    const history = await getAuthorizedMedicalHistory(user, body.companyId, body.pacienteId);
+
     // Inicia geração em stream via Genkit 1.x
     const { stream } = ai.generateStream({
       prompt: `Você é a NAI, assistente técnica de elite para médicos do trabalho da Nextcon.
       
       CONTEXTO DO PACIENTE:
+      Empresa autorizada: ${body.companyId}
       ID: ${body.pacienteId}
+      Histórico consultado pelo servidor: ${JSON.stringify(history)}
       
       SOLICITAÇÃO MÉDICA:
       "${body.mensagemMedico}"
       
       DIRETRIZES:
       1. Se o médico mencionar sintomas, use 'consultarCID' para sugerir o código.
-      2. Antes de dar um parecer, use 'buscarHistoricoPaciente' para verificar se há inaptidões ou restrições prévias.
+      2. Use apenas o histórico fornecido. Se estiver indisponível ou sem registros, informe a limitação e não conclua aptidão, normalidade ou ausência de restrições.
       3. Seja extremamente profissional, clínico e objetivo.
       4. Sempre mencione que seu parecer deve ser validado pelo médico examinador.`,
-      tools: [consultarCIDTool, buscarHistoricoPacienteTool],
+      tools: [consultarCIDTool],
     });
 
     // Converte para ReadableStream do navegador
@@ -53,25 +71,11 @@ export async function POST(request: NextRequest) {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-cache, no-transform",
         "Transfer-Encoding": "chunked",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (error instanceof AuthError) return handleAuthError(error);
     console.error("Erro no Agente Médico NAI (Stream):", error);
     return new Response("Erro interno no processamento do agente neural.", { status: 500 });
   }
-}
-
-// Handler para pre-flight requests do CORS
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    },
-  });
 }

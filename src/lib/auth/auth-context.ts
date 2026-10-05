@@ -9,6 +9,8 @@ export type UserRole =
   | "COMPLIANCE"
   | "HEALTH_PROFESSIONAL"
   | "HR"
+  | "RH"
+  | "OPERATIONS"
   | "SAFETY_TECH"
   | "GUEST";
 

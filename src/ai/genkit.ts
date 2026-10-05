@@ -15,5 +15,5 @@ if (shouldEnableFirebaseTelemetry(process.env)) {
 
 export const ai = genkit({
   plugins: [googleAI()],
-  model: "googleai/gemini-2.0-flash",
+  model: `googleai/${process.env.GEMINI_MODEL || "gemini-3.8-flash"}`,
 });
