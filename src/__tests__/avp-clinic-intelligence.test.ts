@@ -65,10 +65,10 @@ describe("NAI Clinic Intelligence 3.8", () => {
 
   it("deve gerar mensagem oficial de pré-credenciamento B2B para expansão", () => {
     const msg = generateWhatsAppCredenciamentoMessage("Sobral", "CE", "Clínica Vida Saúde");
-    expect(msg).toContain("Clínica Vida Saúde");
-    expect(msg).toContain("Sobral/CE");
-    expect(msg).toContain("Grupo AVP");
-    expect(msg).toContain("tabela de valores para ASO");
+    expect(msg).toContain("44.337.647/0001-89");
+    expect(msg).toContain("CNPJ e a chave PIX");
+    expect(msg).toContain("R$40 por exame");
+    expect(msg).not.toContain("5.000");
   });
 
   it("deve auditar a redundância de rede e identificar polos que necessitam de contingência", () => {

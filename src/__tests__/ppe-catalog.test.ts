@@ -1,5 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { PpeCatalogService, INITIAL_PPE_CATALOG } from "@/services/ppe/ppe-catalog-service";
+
+afterEach(() => vi.useRealTimers());
 
 describe("PpeCatalogService - Conformidade NR-06 & Gestão de C.A.", () => {
   it("deve avaliar corretamente o status do C.A. do MTE", () => {
@@ -87,6 +89,8 @@ describe("PpeCatalogService - Conformidade NR-06 & Gestão de C.A.", () => {
   });
 
   it("deve computar sumário de alertas de C.A. do catálogo", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-04T12:00:00Z"));
     const stats = PpeCatalogService.calculatePpeAlerts(INITIAL_PPE_CATALOG);
     expect(stats.total).toBe(INITIAL_PPE_CATALOG.length);
     expect(stats.valid).toBeGreaterThan(0);

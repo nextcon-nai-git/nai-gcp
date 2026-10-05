@@ -27,7 +27,7 @@ export async function POST(req: import("next/server").NextRequest) {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
         // Utiliza o modelo Gemini 3.8 Flash multimodal otimizado para leitura de laudos, PDFs e Imagens
-        const modelName = process.env.GEMINI_FLASH_MODEL || "gemini-2.0-flash";
+        const modelName = process.env.GEMINI_FLASH_MODEL || "gemini-3.8-flash";
         const model = genAI.getGenerativeModel({ model: modelName });
 
         const promptText = `

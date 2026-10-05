@@ -36,38 +36,23 @@ export interface DriveSyncInput {
 export async function getGoogleDriveBackupStatus(): Promise<GoogleDriveBackupStatus> {
   return {
     targetEmail: "nextcon@nextconsaude.com.br",
-    driveFolderName: "NAI_BACKUP_SST",
-    driveProjectId: "1y3FsJNIJd4D8yOSPePZchANKcdmH5DII",
-    driveProjectUrl: "https://drive.google.com/drive/project/1y3FsJNIJd4D8yOSPePZchANKcdmH5DII",
-    sourceCodeZipUrl: "/NAI_FULL_SOURCE_CODE_2026.zip",
-    totalSyncedFiles: 143,
-    lastSyncAt: new Date().toISOString(),
-    isConnected: true,
-    driveStorageUsedFormatted: "3.1 GB / Ilimitado (Google Workspace)",
+    driveFolderName: "",
+    driveProjectId: "",
+    driveProjectUrl: "",
+    sourceCodeZipUrl: "",
+    totalSyncedFiles: 0,
+    lastSyncAt: "",
+    isConnected: false,
+    driveStorageUsedFormatted: "Não verificado",
   };
 }
 
 export async function syncDocumentToGoogleDrive(
-  input: DriveSyncInput
+  _input: DriveSyncInput
 ): Promise<ActionResult<{ fileId: string; driveLink: string }>> {
-  try {
-    const timestamp = new Date().toISOString().split("T")[0];
-    const mockFileId = `drive_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const driveLink = `https://drive.google.com/file/d/${mockFileId}/view?usp=sharing`;
-
-    return {
-      sucesso: true,
-      dados: {
-        fileId: mockFileId,
-        driveLink,
-      },
-      mensagem: `Documento "${input.fileName}" espelhado com sucesso no Google Drive (nextcon@nextconsaude.com.br) na pasta "${input.companyName} / ${input.fileCategory}".`,
-    };
-  } catch (error: any) {
-    console.error("Erro na sincronização com Google Drive:", error);
-    return {
-      sucesso: false,
-      mensagem: `Falha ao espelhar arquivo no Google Drive: ${error.message}`,
-    };
-  }
+  return {
+    sucesso: false,
+    mensagem:
+      "Backup Google Drive pendente: configure o destino e a autenticação e confirme o envio do arquivo.",
+  };
 }

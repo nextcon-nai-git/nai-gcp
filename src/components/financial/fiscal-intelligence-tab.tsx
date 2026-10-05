@@ -92,125 +92,17 @@ export function FiscalIntelligenceTab() {
 
   const { data: documents, isLoading } = useCollection<FiscalDocument>(fiscalQuery);
 
-  const handleOmieToggle = async () => {
-    if (!db || !company) return;
-    const nextValue = !company.use_omie;
-    await setDoc(
-      doc(db, "companies", company.id),
-      { use_omie: nextValue, use_senior: false },
-      { merge: true }
-    );
+  const integrationPending = (service: string) => {
     toast({
-      title: nextValue ? "Integração Omie Ativada" : "Integração Omie Desativada",
-      description: nextValue
-        ? "A escrituração será automática para esta unidade."
-        : "Retornando ao modo de captura manual/portal.",
+      title: `${service}: configuração pendente`,
+      description:
+        "Configure e valide a integração real antes de capturar documentos ou transmitir obrigações. Nenhum envio foi realizado.",
     });
   };
-
-  const handleSeniorToggle = async () => {
-    if (!db || !company) return;
-    const nextValue = !company.use_senior;
-    await setDoc(
-      doc(db, "companies", company.id),
-      { use_senior: nextValue, use_omie: false },
-      { merge: true }
-    );
-    toast({
-      title: nextValue ? "Conexão Senior ERP Ativada" : "Conexão Senior ERP Desativada",
-      description: nextValue
-        ? "Sincronização de folha e eSocial via API G7/X."
-        : "Retornando ao modo manual.",
-    });
-  };
-
-  const handlePortalCapture = async () => {
-    if (!db || activeClientId === "all") return;
-    setIsCapturing(true);
-
-    try {
-      // Simulação de busca direta em 1000+ Prefeituras ou ERP
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
-      const mockCaptures = [
-        {
-          serviceDescription: "Manutenção Preventiva de Ar Condicionado - Unidade Central",
-          value: 1250.0,
-          regime: "SIMPLES_NACIONAL" as const,
-          location: "São Paulo - SP",
-          origin: "OMIE_ERP" as const,
-        },
-        {
-          serviceDescription: "Consultoria em Gestão de Riscos (PGR) - Trimestral",
-          value: 3800.0,
-          regime: "LUCRO_PRESUMIDO" as const,
-          location: "Joinville - SC",
-          origin: "PORTAL_NACIONAL" as const,
-        },
-      ];
-
-      for (const item of mockCaptures) {
-        const analysis = await processFiscalDocument(item);
-        await addDoc(collection(db, "companies", activeClientId, "fiscal_documents"), {
-          number: `NF-${Math.floor(Math.random() * 9000) + 1000}`,
-          type: "NFS-E",
-          origin: item.origin,
-          value: item.value,
-          taxes: analysis.taxBreakdown,
-          accountingNote: analysis.accountingNote,
-          netValue: analysis.netValue,
-          status: "ESCRITURADO",
-          competencia: "02/2026",
-          createdAt: new Date().toISOString(),
-          serverTimestamp: serverTimestamp(),
-        });
-      }
-
-      toast({
-        title: "Captura Finalizada",
-        description: `${mockCaptures.length} novos documentos registrados via NAI-Link ERP/Portais.`,
-      });
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Erro na Captura",
-        description: "Falha ao conectar com o ERP ou portais governamentais.",
-      });
-    } finally {
-      setIsCapturing(false);
-    }
-  };
-
-  const handleFiscalClosing = async () => {
-    if (!db || !company) return;
-    setIsClosing(true);
-
-    try {
-      // 1. Inicia Fechamento
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // 2. Transmissão REINF e DCTF Web (Cascata Automática)
-      await setDoc(
-        doc(db, "companies", company.id),
-        {
-          fiscal_closing_status: "closed",
-          reinf_status: "delivered",
-          dctf_web_status: "delivered",
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      toast({
-        title: "Período Fiscal Encerrado",
-        description: "REINF enviada e DCTF Web protocolada com sucesso. Guias enviadas ao portal.",
-      });
-    } catch (e) {
-      toast({ variant: "destructive", title: "Falha no Fechamento" });
-    } finally {
-      setIsClosing(false);
-    }
-  };
+  const handleOmieToggle = async () => integrationPending("Omie");
+  const handleSeniorToggle = async () => integrationPending("Senior");
+  const handlePortalCapture = async () => integrationPending("Captura fiscal");
+  const handleFiscalClosing = async () => integrationPending("REINF e DCTF Web");
 
   const totalAccrued = React.useMemo(() => {
     if (!documents) return 0;

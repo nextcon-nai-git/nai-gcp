@@ -32,6 +32,7 @@ import {
 import { jsPDF } from "jspdf";
 import { useStorage, useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { ref, uploadString } from "firebase/storage";
+import { STORAGE_PATHS } from "@/lib/storage-paths";
 import { collection, query, orderBy, addDoc, serverTimestamp } from "firebase/firestore";
 import { useSgi } from "@/contexts/sgi-context";
 import { cn } from "@/lib/utils";
@@ -54,10 +55,8 @@ export default function PpeKiosk() {
 
   const [selectedCompanyId, setSelectedCompanyId] = React.useState<string>("");
   const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string>("");
-  const [epiDescription, setEpiDescription] = React.useState(
-    "Capacete de Segurança com Jugular (C.A. 12345)"
-  );
-  const [caNumber, setCaNumber] = React.useState("12345");
+  const [epiDescription, setEpiDescription] = React.useState("");
+  const [caNumber, setCaNumber] = React.useState("");
 
   const [hasCameraPermission, setHasCameraPermission] = React.useState<boolean | null>(null);
   const [isCapturing, setIsCapturing] = React.useState(false);
@@ -143,78 +142,78 @@ export default function PpeKiosk() {
   }, [step, toast]);
 
   const handleCapture = async () => {
-    if (!selectedCompanyId || !selectedEmployeeId) {
+    if (
+      !selectedCompanyId ||
+      !selectedEmployeeId ||
+      !user ||
+      !db ||
+      !storage ||
+      !epiDescription.trim() ||
+      !caNumber.trim()
+    ) {
       toast({
         variant: "destructive",
-        title: "Seleção Incompleta",
-        description: "Selecione o Cliente e o Colaborador antes de assinar.",
+        title: "Registro incompleto",
+        description:
+          "Selecione empresa e colaborador, informe o EPI e o CA e confirme sua conexão.",
       });
       return;
     }
-
     setIsCapturing(true);
-    let imgData = "";
-
-    if (videoRef.current && canvasRef.current) {
+    try {
       const video = videoRef.current;
       const canvas = canvasRef.current;
+      if (!video || !canvas || !video.videoWidth || !video.videoHeight || !hasCameraPermission)
+        throw new Error("A câmera precisa estar ativa para registrar a evidência.");
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const context = canvas.getContext("2d");
-      if (context) {
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        imgData = canvas.toDataURL("image/png");
-        setCapturedImage(imgData);
-        const token = Math.random().toString(36).substring(2, 15).toUpperCase();
-        setBiometricToken(token);
-
-        const deliveryId = `deliv_${Date.now()}`;
-
-        // 1. Upload da Evidência para a pasta correta do Cliente e Colaborador
-        if (storage) {
-          try {
-            const photoPath = `companies/${selectedCompanyId}/employees/${selectedEmployeeId}/ppe_deliveries/${deliveryId}.png`;
-            const photoRef = ref(storage, photoPath);
-            await uploadString(photoRef, imgData, "data_url");
-          } catch (e) {
-            console.error("Erro ao salvar evidência no storage:", e);
-          }
-        }
-
-        // 2. Registro no Firestore na subcoleção correta da empresa (companies/{companyId}/ppe_deliveries)
-        if (db) {
-          try {
-            await addDoc(collection(db, "companies", selectedCompanyId, "ppe_deliveries"), {
-              id: deliveryId,
-              companyId: selectedCompanyId,
-              companyName: currentCompany?.name || "Empresa",
-              employeeId: selectedEmployeeId,
-              employeeName: currentEmployee?.name || "Colaborador",
-              employeeCpf: currentEmployee?.cpf || "",
-              epiNome: epiDescription,
-              numeroCA: caNumber,
-              biometricToken: token,
-              gpsLocation: location || "Não informado",
-              deliveredAt: new Date().toISOString(),
-              createdAt: serverTimestamp(),
-              status: "ENTREGUE",
-              caStatus: "VALID",
-            });
-          } catch (e) {
-            console.error("Erro ao registrar no Firestore:", e);
-          }
-        }
-      }
-    }
-
-    setTimeout(() => {
-      setIsCapturing(false);
+      if (!context) throw new Error("Não foi possível capturar a imagem.");
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imgData = canvas.toDataURL("image/png");
+      const deliveryId = crypto.randomUUID();
+      const evidencePath = STORAGE_PATHS.CLIENT_PPE(
+        selectedCompanyId,
+        selectedEmployeeId,
+        `${deliveryId}.png`
+      );
+      await uploadString(ref(storage, evidencePath), imgData, "data_url");
+      await addDoc(collection(db, "companies", selectedCompanyId, "ppe_deliveries"), {
+        id: deliveryId,
+        companyId: selectedCompanyId,
+        companyName: currentCompany?.name || "",
+        employeeId: selectedEmployeeId,
+        employeeName: currentEmployee?.name || "",
+        employeeCpf: currentEmployee?.cpf || "",
+        epiNome: epiDescription,
+        numeroCA: caNumber,
+        evidenceId: deliveryId,
+        evidencePath,
+        evidenceType: "PHOTO",
+        gpsLocation: location || "Não informado",
+        deliveredAt: new Date().toISOString(),
+        createdAt: serverTimestamp(),
+        createdBy: user.uid,
+        status: "ENTREGUE",
+        caStatus: "PENDENTE_VERIFICACAO",
+      });
+      setCapturedImage(imgData);
+      setBiometricToken(deliveryId);
       setStep(3);
       toast({
-        title: "EPI Registrado na Pasta Correta!",
-        description: `Armazenado em ${currentCompany?.name} > ${currentEmployee?.name}`,
+        title: "Entrega de EPI registrada",
+        description:
+          "Registro e evidência fotográfica salvos. A validade do CA precisa ser verificada.",
       });
-    }, 1500);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "A entrega não foi confirmada",
+        description: error instanceof Error ? error.message : "Revise a conexão e tente novamente.",
+      });
+    } finally {
+      setIsCapturing(false);
+    }
   };
 
   const generateReceiptPDF = () => {
@@ -238,7 +237,7 @@ export default function PpeKiosk() {
     doc.text(`Certificado de Aprovação (C.A.): ${caNumber}`, 20, 115);
     doc.text(`Data/Hora: ${timestamp}`, 20, 125);
     doc.text(`GPS: ${location || "Capturado via Quiosque"}`, 20, 135);
-    doc.text(`Token de Biometria Facial: ${biometricToken}`, 20, 145);
+    doc.text(`ID da evidência fotográfica: ${biometricToken}`, 20, 145);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
@@ -252,7 +251,7 @@ export default function PpeKiosk() {
     if (capturedImage) {
       doc.addImage(capturedImage, "PNG", 75, 185, 60, 45);
       doc.setFontSize(8);
-      doc.text("EVIDÊNCIA FOTOGRÁFICA (IDENTIFICAÇÃO FACIAL REGISTRADA)", 105, 235, {
+      doc.text("EVIDÊNCIA FOTOGRÁFICA (REGISTRO DA ENTREGA)", 105, 235, {
         align: "center",
       });
     }
@@ -400,7 +399,7 @@ export default function PpeKiosk() {
               disabled={!selectedCompanyId || !selectedEmployeeId}
               onClick={() => setStep(2)}
             >
-              Prosseguir para Assinatura Biometrica
+              Prosseguir para Registro Fotográfico
             </Button>
           </div>
         )}
@@ -457,7 +456,7 @@ export default function PpeKiosk() {
               </Button>
               <p className="text-[10px] text-center text-muted-foreground uppercase font-bold tracking-widest">
                 Ao clicar, você confirma o recebimento do EPI {epiDescription} e autoriza a
-                biometria facial para conformidade NR-06.
+                evidência fotográfica da entrega.
               </p>
             </div>
           </div>

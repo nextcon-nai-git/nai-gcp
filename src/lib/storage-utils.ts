@@ -1,5 +1,6 @@
 import { ref, uploadBytes, getDownloadURL, FirebaseStorage } from "firebase/storage";
 import { doc, updateDoc, Firestore } from "firebase/firestore";
+import { STORAGE_PATHS } from "./storage-paths";
 
 /**
  * Faz upload da Logo e atualiza o cadastro da empresa no Firestore.
@@ -14,7 +15,7 @@ export async function uploadCompanyLogo(
 ) {
   try {
     const fileExtension = file.name.split(".").pop();
-    const storagePath = `companies/${companyId}/branding/logo.${fileExtension}`;
+    const storagePath = STORAGE_PATHS.CLIENT_BRANDING(companyId, `logo.${fileExtension}`);
 
     const storageRef = ref(storage, storagePath);
     const snapshot = await uploadBytes(storageRef, file);

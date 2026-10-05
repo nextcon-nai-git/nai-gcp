@@ -196,18 +196,20 @@ export default function PgrAnalysisPage() {
         }
       }
 
-      // 5. Espelhamento no Google Drive corporativo
+      let backupMessage = "Backup Google Drive pendente.";
       if (uploadedFile) {
-        await syncDocumentToGoogleDrive({
+        const backup = await syncDocumentToGoogleDrive({
           fileName: uploadedFile.name,
           fileCategory: "LAUDO_SST",
           companyName: result.pgrCardDetalhado.razaoSocial,
         });
+        backupMessage = backup.sucesso
+          ? "Backup Google Drive confirmado."
+          : backup.mensagem || "Backup Google Drive pendente.";
       }
-
       toast({
-        title: "SGI Sincronizado e Backup Realizado!",
-        description: `PGR arquivado. ${result.acoesCategorizadas.length} ações técnicas injetadas no Kanban e espelhadas no Google Drive.`,
+        title: "PGR e ações salvos no SGI",
+        description: `${result.acoesCategorizadas.length} ações registradas no Kanban. ${backupMessage}`,
       });
 
       setActiveClientId(detectedCompanyId);

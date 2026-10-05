@@ -25,7 +25,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Image from "next/image";
-import { useUser, useMemoFirebase, useFirestore, useCollection, useDoc } from "@/firebase";
+import { useUser, useAuth, useMemoFirebase, useFirestore, useCollection, useDoc } from "@/firebase";
+import { signOut } from "firebase/auth";
+import { useToast } from "@/hooks/use-toast";
 import { collection, query, orderBy, where, doc, limit } from "firebase/firestore";
 import {
   DropdownMenu,
@@ -56,6 +58,30 @@ import { GlobalCommandPalette } from "@/components/layout/global-command-palette
  */
 export function TopNav() {
   const { user, role, companyId: userCompanyId } = useUser();
+  const auth = useAuth();
+  const { toast } = useToast();
+  const handleSignOut = async () => {
+    if (!auth) return;
+    try {
+      const uid = user?.uid;
+      await signOut(auth);
+      if (uid) {
+        try {
+          localStorage.removeItem("nai_grupo_avp_asos_cache:" + uid);
+        } catch {
+          /* Session is already closed. */
+        }
+      }
+      router.replace("/login");
+      router.refresh();
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Não foi possível encerrar a sessão",
+        description: "Tente novamente.",
+      });
+    }
+  };
   const db = useFirestore();
   const pathname = usePathname();
   const router = useRouter();
@@ -444,7 +470,7 @@ export function TopNav() {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-red-600 font-black uppercase text-[10px] py-2.5 cursor-pointer rounded-xl"
-                onClick={() => (window.location.href = "/login")}
+                onClick={handleSignOut}
               >
                 Encerrar Sessão
               </DropdownMenuItem>

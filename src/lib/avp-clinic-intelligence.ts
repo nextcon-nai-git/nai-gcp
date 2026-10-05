@@ -8,6 +8,7 @@
 
 import { GrupoAvpAso } from "./grupo-avp-asos-data";
 import { GlobalClinic } from "./avp-clinics-data";
+import { AVP_CREDENCIAMENTO_MESSAGE } from "./avp-source-config";
 
 export interface ParsedClinicContact {
   nome: string;
@@ -174,17 +175,7 @@ export function generateWhatsAppCredenciamentoMessage(
   uf: string,
   clinicName: string = "Clínica Parceira"
 ): string {
-  return (
-    `Olá, equipe da *${clinicName}* em ${cidade}/${uf}! Tudo bem?\n\n` +
-    `Meu nome é do time de Credenciamento da *NextCon Inteligência em SST* (nextconsaude.com.br).\n\n` +
-    `Gerenciamos a saúde e segurança ocupacional de grandes contas corporativas nacionais, incluindo o *Grupo AVP* (com mais de 5.000 colaboradores em todo o país).\n\n` +
-    `Estamos expandindo nossa rede de clínicas credenciadas em *${cidade} - ${uf}* para envio recorrente de colaboradores para exames admissionais, periódicos, demissionais e complementares (ASO).\n\n` +
-    `Gostaríamos de credenciar sua clínica como nosso *polo oficial de atendimento* no município:\n` +
-    `1. Vocês realizam atendimento e agendamento corporativo por este canal de WhatsApp?\n` +
-    `2. Poderiam nos enviar sua tabela de valores para ASO clínico e exames complementares básicos?\n` +
-    `3. Qual é o tempo médio para liberação do ASO assinado?\n\n` +
-    `Ficamos no aguardo para formalizarmos essa parceria e direcionarmos nossos colaboradores!`
-  );
+  return AVP_CREDENCIAMENTO_MESSAGE;
 }
 
 /**

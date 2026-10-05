@@ -1,5 +1,7 @@
-// Coordenadas Geográficas e Metadados Cartográficos dos 101 Municípios da Fila Grupo AVP
+// Referências municipais para visualização de cobertura. Não são endereços de clínicas.
+import { normalizeAvpCity } from "./avp-verified-clinics";
 import { GrupoAvpAso, AsoStatus } from "./grupo-avp-asos-data";
+import municipalReferences from "./br-municipal-coordinates.json";
 
 export interface CityGeoCoordinate {
   cidade: string;
@@ -25,7 +27,7 @@ export function projectLatLng(lat: number, lng: number): { x: number; y: number 
   return { x, y };
 }
 
-// Mapeamento dos 101 Municípios Únicos do Grupo AVP (223 ASOs)
+// Referências adicionais dos polos já presentes no sistema.
 export const AVP_CITY_COORDINATES: Record<string, CityGeoCoordinate> = {
   "Abaetetuba-PA": {
     cidade: "Abaetetuba",
@@ -925,6 +927,16 @@ export const AVP_CITY_COORDINATES: Record<string, CityGeoCoordinate> = {
   },
 };
 
+// Fonte municipal: https://imperatriz.ma.gov.br/portal/imperatriz/localizacao-distancias.html
+AVP_CITY_COORDINATES["Imperatriz-MA"] = {
+  cidade: "Imperatriz",
+  uf: "MA",
+  lat: -(5 + 31 / 60 + 32 / 3600),
+  lng: -(47 + 26 / 60 + 35 / 3600),
+  ...projectLatLng(-(5 + 31 / 60 + 32 / 3600), -(47 + 26 / 60 + 35 / 3600)),
+  region: "Nordeste",
+};
+
 export interface StatusConfig {
   label: string;
   color: string;
@@ -1025,7 +1037,25 @@ export const ASO_STATUS_CONFIG: Record<string, StatusConfig> = {
   },
 };
 
+for (const status of [
+  "ESPERANDO CNPJ E VALOR",
+  "RESGATAR ASO",
+  "AG. RETORNO DO GESTOR",
+  "AG. RETORNO DO COLABORADOR",
+  "STATUS NÃO RECONHECIDO",
+]) {
+  ASO_STATUS_CONFIG[status] = {
+    label: status,
+    color: "#64748b",
+    bgLight: "rgba(100,116,139,.15)",
+    borderColor: "#475569",
+    textColor: "#334155",
+    badgeClass: "bg-slate-500 text-white",
+  };
+}
+
 export interface AvpLocalityAggregate {
+  geoKnown: boolean;
   key: string;
   cidade: string;
   uf: string;
@@ -1046,36 +1076,79 @@ export interface AvpLocalityAggregate {
 /**
  * Agrega a lista de ASOs por município e calcula contagens e status dominante.
  */
+const ufRegion = (uf: string): CityGeoCoordinate["region"] => {
+  if (["AC", "AM", "AP", "PA", "RO", "RR", "TO"].includes(uf)) return "Norte";
+  if (["AL", "BA", "CE", "MA", "PB", "PE", "PI", "RN", "SE"].includes(uf)) return "Nordeste";
+  if (["DF", "GO", "MS", "MT"].includes(uf)) return "Centro-Oeste";
+  if (["ES", "MG", "RJ", "SP"].includes(uf)) return "Sudeste";
+  return "Sul";
+};
+// Base pública MIT: kelvins/municipios-brasileiros, revisão 503e2f70bbf1b4b7ec0b1f68b09086ccc38fe861.
+// https://github.com/kelvins/municipios-brasileiros/blob/503e2f70bbf1b4b7ec0b1f68b09086ccc38fe861/csv/municipios.csv
+// Coordenadas aproximadas de sede municipal; licença acompanha o arquivo JSON.
+const coordinates = new Map<string, CityGeoCoordinate>(
+  municipalReferences.map(([city, state, latitude, longitude]) => {
+    const cidade = String(city),
+      uf = String(state),
+      lat = Number(latitude),
+      lng = Number(longitude);
+    return [
+      `${normalizeAvpCity(cidade)}-${uf}`,
+      { cidade, uf, lat, lng, ...projectLatLng(lat, lng), region: ufRegion(uf) },
+    ];
+  })
+);
+for (const coord of Object.values(AVP_CITY_COORDINATES))
+  coordinates.set(`${normalizeAvpCity(coord.cidade)}-${coord.uf}`, coord);
+
+// Referências de equipamentos públicos nas regiões administrativas do DF.
+// Fonte: CBMDF, Edital PE 43/2016, anexo de endereços, p. 19.
+// https://www.cbm.df.gov.br/downloads/edocman/10-%20Edital%20PE%2043-2016%20%20Abertura%2014-09-2016.pdf
+for (const [cidade, lat, lng] of [
+  ["Gama", -(16 + 27.3 / 3600), -(48 + 3 / 60 + 37.4 / 3600)],
+  ["Taguatinga", -(15 + 49 / 60 + 58.2 / 3600), -(48 + 3 / 60 + 36.3 / 3600)],
+] as const)
+  coordinates.set(`${normalizeAvpCity(cidade)}-DF`, {
+    cidade,
+    uf: "DF",
+    lat,
+    lng,
+    ...projectLatLng(lat, lng),
+    region: "Centro-Oeste",
+  });
+const cachoeiro = coordinates.get("CACHOEIRO DE ITAPEMIRIM-ES");
+if (cachoeiro) coordinates.set("CACHOEIRO DO ITAPEMIRIM-ES", cachoeiro);
+
 export function aggregateAvpLocalities(asos: GrupoAvpAso[]): AvpLocalityAggregate[] {
-  const map = new Map<string, { coord: CityGeoCoordinate; items: GrupoAvpAso[] }>();
+  const map = new Map<
+    string,
+    { coord: CityGeoCoordinate; geoKnown: boolean; items: GrupoAvpAso[] }
+  >();
 
   asos.forEach((item) => {
-    const key = `${item.cidade.trim()}-${item.uf.trim()}`;
-    const directCoord = AVP_CITY_COORDINATES[key];
+    const key = `${normalizeAvpCity(item.cidade)}-${item.uf.trim().toUpperCase()}`;
+    const directCoord = coordinates.get(key);
 
     // Fallback caso pequena variação de acentuação
-    const coord = directCoord ||
-      Object.values(AVP_CITY_COORDINATES).find(
-        (c) => c.cidade.toLowerCase() === item.cidade.toLowerCase() && c.uf === item.uf
-      ) || {
-        cidade: item.cidade,
-        uf: item.uf,
-        lat: -15.7938,
-        lng: -47.8827,
-        x: 400,
-        y: 400,
-        region: "Centro-Oeste",
-      };
+    const coord = directCoord || {
+      cidade: item.cidade,
+      uf: item.uf,
+      lat: Number.NaN,
+      lng: Number.NaN,
+      x: Number.NaN,
+      y: Number.NaN,
+      region: "Centro-Oeste",
+    };
 
     if (!map.has(key)) {
-      map.set(key, { coord, items: [] });
+      map.set(key, { coord, geoKnown: !!directCoord, items: [] });
     }
     map.get(key)!.items.push(item);
   });
 
   const aggregates: AvpLocalityAggregate[] = [];
 
-  map.forEach(({ coord, items }, key) => {
+  map.forEach(({ coord, geoKnown, items }, key) => {
     const statusCounts: Record<string, number> = {};
     let urgentCount = 0;
 
@@ -1112,11 +1185,12 @@ export function aggregateAvpLocalities(asos: GrupoAvpAso[]): AvpLocalityAggregat
       }
     }
 
-    const primaryColor = ASO_STATUS_CONFIG[primaryStatus]?.color || "#10b981";
+    const primaryColor = ASO_STATUS_CONFIG[primaryStatus]?.color || "#64748b";
 
     aggregates.push({
       key,
-      cidade: coord.cidade,
+      geoKnown,
+      cidade: items[0].cidade,
       uf: coord.uf,
       lat: coord.lat,
       lng: coord.lng,

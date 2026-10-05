@@ -41,20 +41,47 @@ function isIpInCidr(ip: string, cidrNet: string, maskBits: number): boolean {
  * Verifica se um IP (v4 ou v6) é privado, loopback, link-local ou reservado
  */
 export function isPrivateOrReservedIp(ip: string): boolean {
-  // IPv6 checks
-  if (ip.includes(":")) {
-    const lower = ip.toLowerCase();
-    if (
-      lower === "::1" ||
-      lower === "::" ||
-      lower.startsWith("fe80:") ||
-      lower.startsWith("fc00:") ||
-      lower.startsWith("fd00:")
-    ) {
-      return true; // Loopback, link-local, unique local
+  const normalized = ip.replace(/^\[|\]$/g, "").toLowerCase();
+  const version = net.isIP(normalized);
+  if (!version) return true;
+  if (version === 6) {
+    let text = normalized;
+    if (text.includes(".")) {
+      const index = text.lastIndexOf(":");
+      const v4 = text
+        .slice(index + 1)
+        .split(".")
+        .map(Number);
+      text =
+        text.slice(0, index + 1) +
+        ((v4[0] << 8) + v4[1]).toString(16) +
+        ":" +
+        ((v4[2] << 8) + v4[3]).toString(16);
     }
-    return false;
+    const [left, right] = text.split("::");
+    const a = left ? left.split(":") : [];
+    const b = right ? right.split(":") : [];
+    const groups =
+      right !== undefined ? [...a, ...Array(8 - a.length - b.length).fill("0"), ...b] : a;
+    const value = groups.reduce(
+      (acc, part) => (acc << BigInt(16)) + BigInt(parseInt(part, 16)),
+      BigInt(0)
+    );
+    if (value >> BigInt(32) === BigInt(0xffff)) {
+      const v4 = Number(value & BigInt(0xffffffff));
+      return isPrivateOrReservedIp(
+        [v4 >>> 24, (v4 >>> 16) & 255, (v4 >>> 8) & 255, v4 & 255].join(".")
+      );
+    }
+    // Apenas unicast global; também bloqueia documentação, Teredo e 6to4.
+    return (
+      value >> BigInt(125) !== BigInt(1) ||
+      value >> BigInt(96) === BigInt(0x20010db8) ||
+      value >> BigInt(96) === BigInt(0x20010000) ||
+      value >> BigInt(112) === BigInt(0x2002)
+    );
   }
+  ip = normalized;
 
   // IPv4 checks
   // 1. Loopback (127.0.0.0/8)
@@ -77,6 +104,16 @@ export function isPrivateOrReservedIp(ip: string): boolean {
   // 6. Multicast (224.0.0.0/4)
   if (isIpInCidr(ip, "224.0.0.0", 4)) return true;
 
+  for (const [network, bits] of [
+    ["192.0.0.0", 24],
+    ["192.0.2.0", 24],
+    ["192.88.99.0", 24],
+    ["198.18.0.0", 15],
+    ["198.51.100.0", 24],
+    ["203.0.113.0", 24],
+    ["240.0.0.0", 4],
+  ] as const)
+    if (isIpInCidr(ip, network, bits)) return true;
   return false;
 }
 
@@ -124,7 +161,7 @@ export async function validateWebhookTargetUrl(
     };
   }
 
-  const hostname = parsed.hostname.toLowerCase();
+  const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "");
 
   // 3. Bloqueio de Hostnames Proibidos
   if (

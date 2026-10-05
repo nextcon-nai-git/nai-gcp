@@ -28,15 +28,22 @@ import {
   type ValidatorOutput,
 } from "@/ai/flows/medical-certificate-validator-flow";
 import { cn } from "@/lib/utils";
+import { useUser } from "@/firebase";
 
 export default function MedicalCertificatesPage() {
   const { toast } = useToast();
+  const { user } = useUser();
   const [isAnalyzing, setIsAnalyzing] = React.useState(false);
   const [result, setResult] = React.useState<ValidatorOutput | null>(null);
   const [dragActive, setDragActive] = React.useState(false);
 
   const handleFile = async (file: File) => {
     if (!file) return;
+    if (!user) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ variant: "destructive", title: "Arquivo acima de 10 MB" });
+      return;
+    }
 
     if (!file.type.includes("pdf") && !file.type.includes("image")) {
       toast({
@@ -61,6 +68,7 @@ export default function MedicalCertificatesPage() {
       const analysis = await validateMedicalCertificate({
         fileDataUri: base64,
         fileName: file.name,
+        idToken: await user.getIdToken(),
       });
       setResult(analysis);
 
@@ -72,8 +80,9 @@ export default function MedicalCertificatesPage() {
         });
       } else {
         toast({
-          title: "Análise Concluída",
-          description: "O documento foi periciado com sucesso pela NAI.",
+          title:
+            analysis.authenticity === "inconclusive" ? "Análise inconclusiva" : "Triagem concluída",
+          description: "O resultado exige revisão humana antes de qualquer decisão.",
         });
       }
     } catch (error: any) {
@@ -226,7 +235,9 @@ export default function MedicalCertificatesPage() {
                     ? "bg-emerald-50"
                     : result.authenticity === "suspicious"
                       ? "bg-amber-50"
-                      : "bg-red-50"
+                      : result.authenticity === "forged"
+                        ? "bg-red-50"
+                        : "bg-slate-50"
                 )}
               >
                 <CardHeader className="pb-4">
@@ -249,7 +260,9 @@ export default function MedicalCertificatesPage() {
                           ? "Legítimo"
                           : result.authenticity === "suspicious"
                             ? "Suspeito"
-                            : "Falsificado"}
+                            : result.authenticity === "forged"
+                              ? "Sinais de adulteração"
+                              : "Inconclusivo"}
                       </h2>
                     </div>
                     <Badge
@@ -259,7 +272,9 @@ export default function MedicalCertificatesPage() {
                           ? "bg-emerald-600"
                           : result.authenticity === "suspicious"
                             ? "bg-amber-600"
-                            : "bg-red-600"
+                            : result.authenticity === "forged"
+                              ? "bg-red-600"
+                              : "bg-slate-600"
                       )}
                     >
                       {result.confidence}% Confiança
@@ -276,7 +291,11 @@ export default function MedicalCertificatesPage() {
                     <DataField
                       icon={Stethoscope}
                       label="Médico / CRM"
-                      value={`${result.extractedData.doctorName} (${result.extractedData.crm})`}
+                      value={
+                        [result.extractedData.doctorName, result.extractedData.crm]
+                          .filter(Boolean)
+                          .join(" · ") || "Não identificado"
+                      }
                     />
                     <DataField icon={Calendar} label="Data" value={result.extractedData.date} />
                     <DataField

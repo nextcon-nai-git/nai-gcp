@@ -2,6 +2,9 @@
 
 import { ai } from "@/ai/genkit";
 import { z } from "zod";
+import { NextRequest } from "next/server";
+import { requireAuth } from "@/lib/auth/require-auth";
+import { forbidden } from "@/lib/auth/errors";
 
 const ValidatorInputSchema = z.object({
   fileDataUri: z.string().describe("O arquivo (PDF ou Imagem) codificado em Base64."),
@@ -11,9 +14,9 @@ export type ValidatorInput = z.infer<typeof ValidatorInputSchema>;
 
 const ValidatorOutputSchema = z.object({
   authenticity: z
-    .enum(["legitimate", "suspicious", "forged"])
+    .enum(["legitimate", "suspicious", "forged", "inconclusive"])
     .describe("Classificação de autenticidade."),
-  confidence: z.number().describe("Nível de confiança (0-100)."),
+  confidence: z.number().min(0).max(100).describe("Nível de confiança (0-100)."),
   extractedData: z.object({
     patientName: z.string().optional(),
     doctorName: z.string().optional(),
@@ -29,8 +32,27 @@ const ValidatorOutputSchema = z.object({
 });
 export type ValidatorOutput = z.infer<typeof ValidatorOutputSchema>;
 
-export async function validateMedicalCertificate(input: ValidatorInput): Promise<ValidatorOutput> {
-  return validatorFlow(input);
+export async function validateMedicalCertificate(
+  input: ValidatorInput & { idToken?: string }
+): Promise<ValidatorOutput> {
+  const user = await requireAuth(
+    new NextRequest("https://nai.local/action", {
+      headers: { authorization: `Bearer ${input.idToken || ""}` },
+    })
+  );
+  if (
+    !["SUPER_ADMIN", "ADMIN", "DOCTOR", "NURSE", "HEALTH_PROFESSIONAL", "PROVIDER"].includes(
+      user.role
+    )
+  )
+    throw forbidden("Seu perfil não pode analisar documentos clínicos.");
+  const payload = ValidatorInputSchema.parse(input);
+  if (
+    payload.fileDataUri.length > 14_000_000 ||
+    !/^data:(application\/pdf|image\/(png|jpeg|webp));base64,/.test(payload.fileDataUri)
+  )
+    throw new Error("Envie PDF ou imagem de até 10 MB.");
+  return validatorFlow(payload);
 }
 
 const prompt = ai.definePrompt({
@@ -49,7 +71,9 @@ ANALISE OS SEGUINTES PONTOS CRÍTICOS:
 REGRAS DE CLASSIFICAÇÃO:
 - Legitimate: Sem sinais óbvios de adulteração.
 - Suspicious: Pequenas inconsistências ou dados que não cruzam 100%.
-- Forged: Sinais claros de fraude (fontes diferentes, montagem visual óbvia, CRM inexistente).
+- Forged: Sinais visuais de adulteração que exigem confirmação humana.
+- Inconclusive: Documento ilegível, análise incompleta ou evidência insuficiente.
+Não invente nomes, CRM, datas, CID ou clínicas. Não afirme ter consultado registros externos. Uma análise visual não confirma autenticidade nem substitui a revisão humana.
 
 IMPORTANTE:
 - Retorne SEMPRE o objeto JSON completo.
@@ -60,48 +84,14 @@ IMPORTANTE:
 Documento: {{media url=fileDataUri}}`,
 });
 
-function parseCertificateValidatorWithHeuristics(input: ValidatorInput): ValidatorOutput {
-  const text = input.fileDataUri || "";
-
-  let patientName = "COLABORADOR AUDITADO NAI";
-  let doctorName = "Dr. André M. Carvalho";
-  let crm = "CRM/SP 189.420";
-  const clinicName = "Centro Clínico Integrado";
-  let cid10 = "M54.5";
-  let daysOff = 2;
-  const issueDate = new Date().toISOString().split("T")[0];
-
-  const pMatch = text.match(
-    /(?:PACIENTE|NOME|ATESTO QUE O SR|ATESTO QUE A SRA)[:\s]+([A-ZÀ-Ú\s]{4,50})/i
-  );
-  if (pMatch && pMatch[1]) patientName = pMatch[1].trim().toUpperCase();
-
-  const dMatch = text.match(/(?:DR|DRA|M[ÉE]DICO)[:\s\.]*([A-ZÀ-Ú\s]{4,50})/i);
-  if (dMatch && dMatch[1]) doctorName = `Dr. ${dMatch[1].trim()}`;
-
-  const crmMatch = text.match(/CRM(?:\/[A-Z]{2})?[:\s]*([0-9\.\-\/]+)/i);
-  if (crmMatch && crmMatch[1]) crm = `CRM ${crmMatch[1].trim()}`;
-
-  const cidMatch = text.match(/\b([A-Z]\d{2}(?:\.\d{1,2})?)\b/i);
-  if (cidMatch) cid10 = cidMatch[1].toUpperCase();
-
-  const diasMatch = text.match(/(\d{1,3})\s*(?:dias|dia)\b/i);
-  if (diasMatch && diasMatch[1]) daysOff = parseInt(diasMatch[1], 10);
-
+function inconclusiveCertificate(): ValidatorOutput {
   return {
-    authenticity: "legitimate",
-    confidence: 92,
+    authenticity: "inconclusive",
+    confidence: 0,
+    extractedData: {},
     redFlags: [],
     reasoning:
-      "Auditoria pericial documental NAI: Documento estruturado em conformidade com as resoluções do CFM. Assinatura médica e CRM compatíveis, sem indícios de adulteração digital.",
-    extractedData: {
-      patientName,
-      doctorName,
-      crm,
-      clinicName,
-      date: issueDate,
-      cid: cid10,
-    },
+      "A análise automática não pôde ser concluída. Encaminhe o documento para revisão humana; a autenticidade e os dados médicos não foram confirmados.",
   };
 }
 
@@ -112,36 +102,36 @@ const validatorFlow = ai.defineFlow(
     outputSchema: ValidatorOutputSchema,
   },
   async (input) => {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
       const promptPromise = prompt(input);
-      const timeoutPromise = new Promise<{ output: null }>((resolve) =>
-        setTimeout(() => resolve({ output: null }), 2600)
-      );
+      const timeoutPromise = new Promise<{ output: null }>((resolve) => {
+        timeout = setTimeout(() => resolve({ output: null }), 30_000);
+      });
 
       const { output } = await Promise.race([promptPromise, timeoutPromise]);
-      if (output && output.extractedData) {
+      const parsed = ValidatorOutputSchema.safeParse(output);
+      if (parsed.success) {
+        const output = parsed.data;
         return {
           ...output,
-          redFlags: output.redFlags || [],
-          reasoning: output.reasoning || "Análise pericial concluída sem observações adicionais.",
           extractedData: {
             ...output.extractedData,
-            patientName:
-              output.extractedData?.patientName?.replace(/\n+/g, " ").trim() || "Não identificado",
-            doctorName:
-              output.extractedData?.doctorName?.replace(/\n+/g, " ").trim() || "Não identificado",
-            clinicName:
-              output.extractedData?.clinicName?.replace(/\n+/g, " ").trim() || "Não identificado",
+            patientName: output.extractedData.patientName?.replace(/\n+/g, " ").trim(),
+            doctorName: output.extractedData.doctorName?.replace(/\n+/g, " ").trim(),
+            clinicName: output.extractedData.clinicName?.replace(/\n+/g, " ").trim(),
           },
-        } as ValidatorOutput;
+        };
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn(
-        "⚠️ [NAI Medical Certificate Validator] API restrita ou timeout. Ativando contingência pericial:",
-        err?.message || err
+        "[NAI Medical Certificate Validator] Análise indisponível; revisão humana necessária.",
+        { kind: err instanceof Error ? err.name : "ProviderError" }
       );
+    } finally {
+      if (timeout) clearTimeout(timeout);
     }
 
-    return parseCertificateValidatorWithHeuristics(input);
+    return inconclusiveCertificate();
   }
 );

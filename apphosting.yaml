@@ -5,3 +5,21 @@ runConfig:
   # Memória das instâncias de execução do app (1 GiB).
   memoryMiB: 1024
   maxInstances: 1
+
+env:
+  - variable: AVP_SYNC_INVOKER_EMAIL
+    value: firebase-app-hosting-compute@studio-8439299034-125c7.iam.gserviceaccount.com
+    availability:
+      - RUNTIME
+  - variable: AVP_SYNC_AUDIENCE
+    value: https://nai--studio-8439299034-125c7.us-central1.hosted.app/api/internal/avp-sheet-sync
+    availability:
+      - RUNTIME
+  - variable: AVP_CLINIC_SEARCH_ENABLED
+    value: "true"
+    availability:
+      - RUNTIME
+  - variable: GEMINI_MODEL
+    value: gemini-3.8-flash
+    availability:
+      - RUNTIME

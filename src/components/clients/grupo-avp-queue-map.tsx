@@ -51,6 +51,9 @@ import {
   getCityViewBox,
   StateViewBoxData,
 } from "@/lib/brazil-states-paths";
+import { avpCostSummary, formatBrlCents } from "@/lib/avp-costs";
+import { AvpClinicAlternatives } from "./avp-clinic-alternatives";
+import { buildAvpKml } from "@/lib/avp-kml-export";
 import { GLOBAL_CLINICS_CATALOG } from "@/lib/avp-clinics-data";
 import {
   parseClinicAndPhoneCells,
@@ -109,7 +112,7 @@ export function GrupoAvpQueueMap({
   // Modos de visualização do mapa:
   // "STATUS" = Cores por status da fila (Urgente, Não Iniciado, Agendado, etc.)
   // "REDUNDANCY" = Radar de contingência de clínicas (0 = Crítico, 1 = Vulnerável, 2+ = Resiliente)
-  const [mapMode, setMapMode] = useState<"STATUS" | "REDUNDANCY">("STATUS");
+  const [mapMode, setMapMode] = useState<"STATUS" | "REDUNDANCY" | "COST">("COST");
   const [showNetworkArcs, setShowNetworkArcs] = useState<boolean>(true);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [selectedRegion, setSelectedRegion] = useState<string>("TODOS");
@@ -138,7 +141,19 @@ export function GrupoAvpQueueMap({
   } | null>(null);
 
   // Agrega todas as localidades
-  const allAggregates = useMemo(() => aggregateAvpLocalities(asos), [asos]);
+  const aggregates = useMemo(() => aggregateAvpLocalities(asos), [asos]);
+  const allAggregates = useMemo(() => aggregates.filter((loc) => loc.geoKnown), [aggregates]);
+  const unmapped = useMemo(() => aggregates.filter((loc) => !loc.geoKnown), [aggregates]);
+  const downloadKml = () => {
+    const url = URL.createObjectURL(
+      new Blob([buildAvpKml(asos)], { type: "application/vnd.google-earth.kml+xml" })
+    );
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "AVP_Custos_e_Clinicas.kml";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 
   // Contagem de ASOs e polos por UF para Heatmap nos Estados
   const ufStats = useMemo(() => {
@@ -543,7 +558,7 @@ export function GrupoAvpQueueMap({
             </CardTitle>
             <CardDescription className="text-xs text-slate-400 font-medium max-w-3xl">
               Navegue com scroll wheel, arraste com o mouse ou use os seletores para aproximar a
-              nível de cada um dos 27 estados ou das 101 cidades do Grupo AVP em alta definição.
+              nível de cada estado ou cidade da fila AVP.
             </CardDescription>
           </div>
 
@@ -575,6 +590,17 @@ export function GrupoAvpQueueMap({
               </button>
             </div>
 
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setMapMode("COST")}
+              className="text-slate-900"
+            >
+              Cores por custo
+            </Button>
+            <Button size="sm" variant="outline" onClick={downloadKml} className="text-slate-900">
+              Baixar KML
+            </Button>
             {/* TOGGLE DOS ARCOS DE CONEXÃO TÁTICA */}
             <Button
               size="sm"
@@ -728,7 +754,14 @@ export function GrupoAvpQueueMap({
         </div>
 
         {/* BARRA DE LEGENDA INTERATIVA DE CORES DE STATUS */}
-        {mapMode === "STATUS" ? (
+        {mapMode === "COST" ? (
+          <div className="flex flex-wrap gap-4 pt-4 text-xs text-white">
+            <span>🟢 Até R$40</span>
+            <span>🔴 Algum custo acima de R$40</span>
+            <span>⚪ Sem preço único confirmado</span>
+            <span>🔷 Opções para credenciamento</span>
+          </div>
+        ) : mapMode === "STATUS" ? (
           <div className="pt-4 mt-2 border-t border-slate-800/60 flex flex-wrap items-center gap-2">
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mr-2 flex items-center gap-1.5">
               <Layers size={13} className="text-primary" /> Cores por Status da Fila:
@@ -803,6 +836,13 @@ export function GrupoAvpQueueMap({
       </CardHeader>
 
       <CardContent className="p-4 md:p-8 space-y-6">
+        {unmapped.length > 0 && (
+          <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+            {unmapped.length} cidades aguardam confirmação geográfica:{" "}
+            {unmapped.map((loc) => `${loc.cidade}/${loc.uf}`).join(", ")}. As solicitações continuam
+            na fila.
+          </div>
+        )}
         {/* BUSCA RÁPIDA E CONTROLES DE MACRO-REGIÃO */}
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
           <div className="relative flex-1 max-w-md">
@@ -1316,6 +1356,13 @@ export function GrupoAvpQueueMap({
                       pinColor = clinicData?.color || "#ef4444";
                     }
 
+                    const costs = avpCostSummary(loc.asos);
+                    if (mapMode === "COST")
+                      pinColor = costs.aboveTarget
+                        ? "#ef4444"
+                        : costs.missing
+                          ? "#64748b"
+                          : "#10b981";
                     // Raio proporcional adaptado dinamicamente ao zoom
                     const rawRadius =
                       loc.totalAsos >= 15
@@ -1381,6 +1428,31 @@ export function GrupoAvpQueueMap({
                           )}
                         />
 
+                        {costs.aboveTarget > 0 && (
+                          <g
+                            role="button"
+                            aria-label={`Opções de clínicas em ${loc.cidade}`}
+                            tabIndex={0}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                handleZoomToCity(loc);
+                              }
+                            }}
+                          >
+                            <rect
+                              x={baseRadius + 5 * pinScale}
+                              y={-4 * pinScale}
+                              width={8 * pinScale}
+                              height={8 * pinScale}
+                              fill="#2563eb"
+                              stroke="#fff"
+                              strokeWidth={Math.max(0.7, pinScale)}
+                              transform={`rotate(45 ${baseRadius + 9 * pinScale} 0)`}
+                            />
+                            <title>Buscar até 3 clínicas e negociar o valor do ASO</title>
+                          </g>
+                        )}
                         {/* NÚMERO DE ASOs OU SÍMBOLO DENTRO DO PIN */}
                         {loc.totalAsos > 1 ? (
                           <text
@@ -1627,6 +1699,25 @@ export function GrupoAvpQueueMap({
                   </div>
                 </div>
 
+                <div className="rounded-xl border border-slate-700 p-3 text-sm">
+                  <strong>Custos por ASO</strong>
+                  <p>
+                    {avpCostSummary(activeLocality.asos).aboveTarget} acima de R$40 ·{" "}
+                    {avpCostSummary(activeLocality.asos).missing} sem cotação única
+                  </p>
+                  <p>
+                    Maior custo:{" "}
+                    {avpCostSummary(activeLocality.asos).maximumCostCents === null
+                      ? "Não informado"
+                      : formatBrlCents(avpCostSummary(activeLocality.asos).maximumCostCents!)}
+                  </p>
+                </div>
+                {avpCostSummary(activeLocality.asos).aboveTarget > 0 && (
+                  <AvpClinicAlternatives
+                    cidade={activeLocality.asos[0].cidade}
+                    uf={activeLocality.uf}
+                  />
+                )}
                 {/* DISTRIBUIÇÃO DE STATUS NA LOCALIDADE */}
                 <div className="space-y-2">
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5">

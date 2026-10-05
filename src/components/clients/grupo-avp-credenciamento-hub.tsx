@@ -173,9 +173,7 @@ export function GrupoAvpCredenciamentoHub() {
       navigator.clipboard.writeText(messageText).catch(() => {});
     }
 
-    // Atualiza status para MENSAGEM_ENVIADA
-    const updated = updateClinicOutreachStatus(clinic.id, "MENSAGEM_ENVIADA");
-    setClinics(updated);
+    // Abrir uma conversa não confirma que uma mensagem foi enviada.
 
     toast({
       title: "WhatsApp Aberto em 1-Clique! 📲",
