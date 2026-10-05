@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
+import { usePgrCollection, usePgrCompanies } from "@/hooks/use-pgr-workspace";
 import {
   Plus,
   Search,
@@ -47,12 +49,29 @@ import { Badge } from "@/components/ui/badge";
 import { OPERATIONAL_COLUMNS } from "@/types/kanban";
 
 export default function EnterpriseOpsHub() {
+  return (
+    <React.Suspense fallback={<div className="p-6">Carregando cards…</div>}>
+      <EnterpriseOpsContent />
+    </React.Suspense>
+  );
+}
+function EnterpriseOpsContent() {
+  const params = useSearchParams();
+  const pgrSource = params.get("source") === "pgr";
   const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
 
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
-  const [selectedCompanyId, setSelectedCompanyId] = React.useState<string>("all");
+  const [selectedCompanyId, setSelectedCompanyId] = React.useState<string>(
+    params.get("company") || "all"
+  );
+  const pgrTasks = usePgrCollection<OpsTask>(
+    "tasks",
+    selectedCompanyId === "all" ? null : selectedCompanyId,
+    pgrSource
+  );
+  const pgrCompanies = usePgrCompanies(pgrSource);
 
   const [taskForm, setTaskForm] = React.useState<Partial<OpsTask>>({
     title: "",
@@ -87,7 +106,7 @@ export default function EnterpriseOpsHub() {
   }, [profile]);
 
   const companiesQuery = useMemoFirebase(() => {
-    if (!db || !profile) return null;
+    if (!db || !profile || pgrSource) return null;
     if (isGlobalAdmin) {
       return query(collection(db, "companies"), orderBy("name", "asc"));
     }
@@ -101,11 +120,14 @@ export default function EnterpriseOpsHub() {
       return query(collection(db, "companies"), where("__name__", "==", profile.companyId));
     }
     return null;
-  }, [db, profile, isGlobalAdmin, isProvider]);
-  const { data: companies, isLoading: loadingCompanies } = useCollection(companiesQuery);
+  }, [db, profile, isGlobalAdmin, isProvider, pgrSource]);
+  const { data: legacyCompanies, isLoading: legacyLoadingCompanies } =
+    useCollection(companiesQuery);
+  const companies = pgrSource ? pgrCompanies.data : legacyCompanies;
+  const loadingCompanies = pgrSource ? pgrCompanies.loading : legacyLoadingCompanies;
 
   const tasksQuery = useMemoFirebase(() => {
-    if (!db || !profile) return null;
+    if (!db || !profile || pgrSource) return null;
 
     if (selectedCompanyId === "all" && isGlobalAdmin) {
       return query(collectionGroup(db, "tasks"), orderBy("dueDate", "asc"));
@@ -134,9 +156,11 @@ export default function EnterpriseOpsHub() {
     }
 
     return null;
-  }, [db, profile, selectedCompanyId, isGlobalAdmin, isProvider]);
+  }, [db, profile, selectedCompanyId, isGlobalAdmin, isProvider, pgrSource]);
 
-  const { data: tasks, isLoading: loadingTasks } = useCollection<OpsTask>(tasksQuery);
+  const { data: legacyTasks, isLoading: legacyLoadingTasks } = useCollection<OpsTask>(tasksQuery);
+  const tasks = pgrSource ? pgrTasks.data : legacyTasks;
+  const loadingTasks = pgrSource ? pgrTasks.loading : legacyLoadingTasks;
 
   const operationalTasks = React.useMemo(() => {
     if (!tasks) return [];
@@ -196,7 +220,7 @@ export default function EnterpriseOpsHub() {
                 <SelectValue placeholder={loadingCompanies ? "Carregando..." : "Filtrar Unidade"} />
               </SelectTrigger>
               <SelectContent>
-                {(isGlobalAdmin || isProvider) && (
+                {!pgrSource && (isGlobalAdmin || isProvider) && (
                   <SelectItem value="all">Todas as Minhas Unidades</SelectItem>
                 )}
                 {companies?.map((c) => (
@@ -207,7 +231,7 @@ export default function EnterpriseOpsHub() {
               </SelectContent>
             </Select>
           </div>
-          {isGlobalAdmin && (
+          {isGlobalAdmin && !pgrSource && (
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
               <DialogTrigger asChild>
                 <Button className="gradient-nextcon text-white gap-2 h-14 px-8 font-black uppercase text-[10px] tracking-widest shadow-2xl rounded-2xl">
@@ -268,6 +292,14 @@ export default function EnterpriseOpsHub() {
         </div>
       </header>
 
+      {pgrSource && pgrTasks.error && (
+        <p
+          role="alert"
+          className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+        >
+          {pgrTasks.error}
+        </p>
+      )}
       <div className="min-h-[600px] glass-panel rounded-[3rem] p-8 relative flex flex-col items-center justify-center">
         {loadingTasks ? (
           <div className="flex flex-col items-center justify-center gap-6 py-20">

@@ -49,7 +49,8 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { useFirestore, useCollection, useMemoFirebase, useStorage } from "@/firebase";
+import { useFirestore, useCollection, useMemoFirebase, useStorage, useUser } from "@/firebase";
+import { updatePgrTask } from "@/hooks/use-pgr-workspace";
 import { doc, collection, query, orderBy, where } from "firebase/firestore";
 import { useSgi } from "@/contexts/sgi-context";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -59,6 +60,7 @@ import {
 } from "@/firebase/non-blocking-updates";
 import { cn } from "@/lib/utils";
 import { STORAGE_PATHS } from "@/lib/storage-paths";
+import { PgrAgentReview } from "@/components/pgr-agent-review";
 
 interface TaskEditDialogProps {
   isOpen: boolean;
@@ -67,6 +69,7 @@ interface TaskEditDialogProps {
 }
 
 export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogProps) {
+  const { user } = useUser();
   const { toast } = useToast();
   const db = useFirestore();
   const storage = useStorage();
@@ -84,7 +87,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
   const { isGlobalStaff, authorizedCompanies } = useSgi();
 
   const companiesQuery = useMemoFirebase(() => {
-    if (!db) return null;
+    if (!db || task.sourceType === "pgr") return null;
     if (isGlobalStaff) {
       return query(collection(db, "companies"), orderBy("name", "asc"));
     }
@@ -92,13 +95,13 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
       return query(collection(db, "companies"), where("__name__", "in", authorizedCompanies));
     }
     return null;
-  }, [db, isGlobalStaff, authorizedCompanies]);
+  }, [db, isGlobalStaff, authorizedCompanies, task.sourceType]);
   const { data: companies } = useCollection(companiesQuery);
 
   const providersQuery = useMemoFirebase(() => {
-    if (!db) return null;
+    if (!db || task.sourceType === "pgr") return null;
     return query(collection(db, "providers"), orderBy("name", "asc"));
-  }, [db]);
+  }, [db, task.sourceType]);
   const { data: providers } = useCollection(providersQuery);
 
   const handleUpdateField = (field: keyof OpsTask, value: any) => {
@@ -214,11 +217,29 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
         agentEnabled: editedTask.agentEnabled || false,
       };
 
-      updateDocumentNonBlocking(taskRef, updateData);
+      if (task.sourceType === "pgr") {
+        if (!user) throw new Error("Entre novamente para salvar este card.");
+        if (editedTask.companyId !== task.companyId)
+          throw new Error("O cliente do card é definido pelo PGR e não pode ser trocado aqui.");
+        await updatePgrTask(user, task.companyId, task.id, {
+          title: updateData.title,
+          status: updateData.status,
+          priority: updateData.priority,
+          responsibleId: updateData.responsibleId,
+          responsibleName: updateData.responsibleName,
+          dueDate: updateData.dueDate,
+          checklist: updateData.checklist,
+          lastComment: updateData.lastComment,
+        });
+      } else updateDocumentNonBlocking(taskRef, updateData);
       toast({ title: "Task Atualizada", description: "Alterações protocoladas no SGI." });
       onOpenChange(false);
     } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao Salvar" });
+      toast({
+        variant: "destructive",
+        title: "Erro ao Salvar",
+        description: e instanceof Error ? e.message : "A alteração não foi confirmada.",
+      });
     } finally {
       setIsSaving(false);
     }
@@ -255,6 +276,13 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
         </SheetHeader>
 
         <ScrollArea className="flex-1 p-8 scrollbar-thin">
+          {task.sourceType === "pgr" && task.pgrCardId && task.agentRole && (
+            <PgrAgentReview
+              companyId={task.companyId}
+              cardId={task.pgrCardId}
+              role={task.agentRole}
+            />
+          )}
           <div className="space-y-8 pb-20 text-left">
             {/* AGENTE AUTÔNOMO NAI */}
             <Card className="border-none bg-accent/5 rounded-[2rem] p-6 flex items-center justify-between shadow-sm">
@@ -301,12 +329,16 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                   </label>
                   <Select
                     value={editedTask.companyId}
+                    disabled={task.sourceType === "pgr"}
                     onValueChange={(v) => handleUpdateField("companyId", v)}
                   >
                     <SelectTrigger className="h-12 bg-slate-50 border-none rounded-xl font-bold shadow-inner">
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
+                      {task.sourceType === "pgr" && (
+                        <SelectItem value={task.companyId || ""}>{task.companyName}</SelectItem>
+                      )}
                       {companies?.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.name}
@@ -321,6 +353,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                   </label>
                   <Select
                     value={editedTask.type}
+                    disabled={task.sourceType === "pgr"}
                     onValueChange={(v) => handleUpdateField("type", v)}
                   >
                     <SelectTrigger className="h-12 bg-slate-50 border-none rounded-xl font-bold shadow-inner">
@@ -343,131 +376,142 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                 <label className="text-[10px] font-black uppercase text-slate-400 ml-1">
                   Responsável (Prestador)
                 </label>
-                <Select
-                  value={editedTask.responsibleId}
-                  onValueChange={(v) => handleUpdateField("responsibleId", v)}
-                >
-                  <SelectTrigger className="h-12 bg-slate-50 border-none rounded-xl font-bold shadow-inner">
-                    <div className="flex items-center gap-2">
-                      <UserCheck className="size-3.5 text-primary/40" />
-                      <SelectValue placeholder="Delegar para prestador..." />
+                {task.sourceType === "pgr" ? (
+                  <Input
+                    value={editedTask.responsibleName || ""}
+                    maxLength={180}
+                    placeholder="Defina o responsável da equipe"
+                    onChange={(e) => handleUpdateField("responsibleName", e.target.value)}
+                  />
+                ) : (
+                  <Select
+                    value={editedTask.responsibleId}
+                    onValueChange={(v) => handleUpdateField("responsibleId", v)}
+                  >
+                    <SelectTrigger className="h-12 bg-slate-50 border-none rounded-xl font-bold shadow-inner">
+                      <div className="flex items-center gap-2">
+                        <UserCheck className="size-3.5 text-primary/40" />
+                        <SelectValue placeholder="Delegar para prestador..." />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {providers?.map((p) => (
+                        <SelectItem key={p.id} value={p.id} className="text-xs font-bold uppercase">
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            </div>
+
+            {task.sourceType !== "pgr" && (
+              <div className="p-6 bg-slate-900 text-white rounded-[2rem] space-y-4 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-5">
+                  <Paperclip className="size-16" />
+                </div>
+                <p className="text-[10px] font-black uppercase text-accent tracking-widest flex items-center gap-2 relative z-10">
+                  <ShieldCheck className="size-3" /> Dossiê Documental
+                </p>
+
+                <div className="grid grid-cols-1 gap-4 relative z-10">
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-bold text-white/40 uppercase ml-1">
+                      PGR Histórico (Antigo)
+                    </label>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "flex-1 h-11 rounded-xl border-2 border-dashed bg-white/5 gap-2 text-[10px] font-black uppercase",
+                          editedTask.oldPgrUrl
+                            ? "border-emerald-500 text-emerald-400"
+                            : "border-white/10 text-white/40"
+                        )}
+                        disabled={isUploadingOld}
+                        onClick={() => document.getElementById("pgr-old-up")?.click()}
+                      >
+                        {isUploadingOld ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : (
+                          <History className="size-3" />
+                        )}
+                        {editedTask.oldPgrUrl ? "Substituir Antigo" : "Subir PGR Antigo"}
+                      </Button>
+                      {editedTask.oldPgrUrl && (
+                        <Button
+                          asChild
+                          size="icon"
+                          variant="ghost"
+                          className="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/20"
+                        >
+                          <a href={editedTask.oldPgrUrl} target="_blank">
+                            <ExternalLink className="size-4" />
+                          </a>
+                        </Button>
+                      )}
                     </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {providers?.map((p) => (
-                      <SelectItem key={p.id} value={p.id} className="text-xs font-bold uppercase">
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="p-6 bg-slate-900 text-white rounded-[2rem] space-y-4 shadow-xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-4 opacity-5">
-                <Paperclip className="size-16" />
-              </div>
-              <p className="text-[10px] font-black uppercase text-accent tracking-widest flex items-center gap-2 relative z-10">
-                <ShieldCheck className="size-3" /> Dossiê Documental
-              </p>
-
-              <div className="grid grid-cols-1 gap-4 relative z-10">
-                <div className="space-y-2">
-                  <label className="text-[9px] font-bold text-white/40 uppercase ml-1">
-                    PGR Histórico (Antigo)
-                  </label>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "flex-1 h-11 rounded-xl border-2 border-dashed bg-white/5 gap-2 text-[10px] font-black uppercase",
-                        editedTask.oldPgrUrl
-                          ? "border-emerald-500 text-emerald-400"
-                          : "border-white/10 text-white/40"
-                      )}
-                      disabled={isUploadingOld}
-                      onClick={() => document.getElementById("pgr-old-up")?.click()}
-                    >
-                      {isUploadingOld ? (
-                        <Loader2 className="size-3 animate-spin" />
-                      ) : (
-                        <History className="size-3" />
-                      )}
-                      {editedTask.oldPgrUrl ? "Substituir Antigo" : "Subir PGR Antigo"}
-                    </Button>
-                    {editedTask.oldPgrUrl && (
-                      <Button
-                        asChild
-                        size="icon"
-                        variant="ghost"
-                        className="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/20"
-                      >
-                        <a href={editedTask.oldPgrUrl} target="_blank">
-                          <ExternalLink className="size-4" />
-                        </a>
-                      </Button>
-                    )}
+                    <input
+                      id="pgr-old-up"
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,image/*"
+                      onChange={(e) =>
+                        e.target.files?.[0] && handleFileUpload("old", e.target.files[0])
+                      }
+                    />
                   </div>
-                  <input
-                    id="pgr-old-up"
-                    type="file"
-                    className="hidden"
-                    accept=".pdf,image/*"
-                    onChange={(e) =>
-                      e.target.files?.[0] && handleFileUpload("old", e.target.files[0])
-                    }
-                  />
-                </div>
 
-                <div className="space-y-2">
-                  <label className="text-[9px] font-bold text-white/40 uppercase ml-1">
-                    Novo PGR (Entrega 2026)
-                  </label>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "flex-1 h-11 rounded-xl border-2 border-dashed bg-white/5 gap-2 text-[10px] font-black uppercase",
-                        editedTask.newPgrUrl
-                          ? "border-accent text-accent"
-                          : "border-white/10 text-white/40"
-                      )}
-                      disabled={isUploadingNew}
-                      onClick={() => document.getElementById("pgr-new-up")?.click()}
-                    >
-                      {isUploadingNew ? (
-                        <Loader2 className="size-3 animate-spin" />
-                      ) : (
-                        <FileUp className="size-3" />
-                      )}
-                      {editedTask.newPgrUrl ? "Substituir Novo" : "Subir PGR Novo"}
-                    </Button>
-                    {editedTask.newPgrUrl && (
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-bold text-white/40 uppercase ml-1">
+                      Novo PGR (Entrega 2026)
+                    </label>
+                    <div className="flex gap-2">
                       <Button
-                        asChild
-                        size="icon"
-                        variant="ghost"
-                        className="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/20"
+                        variant="outline"
+                        className={cn(
+                          "flex-1 h-11 rounded-xl border-2 border-dashed bg-white/5 gap-2 text-[10px] font-black uppercase",
+                          editedTask.newPgrUrl
+                            ? "border-accent text-accent"
+                            : "border-white/10 text-white/40"
+                        )}
+                        disabled={isUploadingNew}
+                        onClick={() => document.getElementById("pgr-new-up")?.click()}
                       >
-                        <a href={editedTask.newPgrUrl} target="_blank">
-                          <ExternalLink className="size-4" />
-                        </a>
+                        {isUploadingNew ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : (
+                          <FileUp className="size-3" />
+                        )}
+                        {editedTask.newPgrUrl ? "Substituir Novo" : "Subir PGR Novo"}
                       </Button>
-                    )}
+                      {editedTask.newPgrUrl && (
+                        <Button
+                          asChild
+                          size="icon"
+                          variant="ghost"
+                          className="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/20"
+                        >
+                          <a href={editedTask.newPgrUrl} target="_blank">
+                            <ExternalLink className="size-4" />
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                    <input
+                      id="pgr-new-up"
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,image/*"
+                      onChange={(e) =>
+                        e.target.files?.[0] && handleFileUpload("new", e.target.files[0])
+                      }
+                    />
                   </div>
-                  <input
-                    id="pgr-new-up"
-                    type="file"
-                    className="hidden"
-                    accept=".pdf,image/*"
-                    onChange={(e) =>
-                      e.target.files?.[0] && handleFileUpload("new", e.target.files[0])
-                    }
-                  />
                 </div>
               </div>
-            </div>
+            )}
 
             <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-4 shadow-inner">
               <p className="text-[9px] font-black uppercase text-primary/40 tracking-widest flex items-center gap-2">
@@ -480,6 +524,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                   </label>
                   <Input
                     value={editedTask.cnae || ""}
+                    disabled={task.sourceType === "pgr"}
                     onChange={(e) => handleUpdateField("cnae", e.target.value)}
                     placeholder="00.00-0/00"
                     className="h-10 bg-white border-none rounded-lg text-xs font-bold"
@@ -492,6 +537,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                   <Input
                     type="number"
                     value={editedTask.riskDegree || ""}
+                    disabled={task.sourceType === "pgr"}
                     onChange={(e) => handleUpdateField("riskDegree", e.target.value)}
                     className="h-10 bg-white border-none rounded-lg text-xs font-bold text-center"
                   />
@@ -502,6 +548,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                   </label>
                   <Input
                     value={editedTask.location || ""}
+                    disabled={task.sourceType === "pgr"}
                     onChange={(e) => handleUpdateField("location", e.target.value)}
                     placeholder="Ex: Galpão de Pintura"
                     className="h-10 bg-white border-none rounded-lg text-xs font-bold"
@@ -540,7 +587,10 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                     type="date"
                     value={editedTask.dueDate?.split("T")[0]}
                     onChange={(e) =>
-                      handleUpdateField("dueDate", new Date(e.target.value).toISOString())
+                      handleUpdateField(
+                        "dueDate",
+                        e.target.value ? new Date(e.target.value).toISOString() : ""
+                      )
                     }
                     className="h-12 bg-slate-50 border-none rounded-xl font-bold pl-12 shadow-inner"
                   />
@@ -614,6 +664,12 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
             <Button
               variant="outline"
               onClick={handleDelete}
+              disabled={task.sourceType === "pgr"}
+              title={
+                task.sourceType === "pgr"
+                  ? "Arquive o card no quadro para preservar as evidências do PGR."
+                  : undefined
+              }
               className="flex-1 h-14 rounded-2xl font-black uppercase text-[10px] border-red-200 text-red-500 hover:bg-red-50 gap-2"
             >
               <Trash2 size={16} /> Excluir Registro

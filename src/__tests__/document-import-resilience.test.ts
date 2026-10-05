@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { analyzePgrPdf } from "@/ai/flows/pgr-analysis-flow";
+import { describe, it, expect, vi } from "vitest";
+import { analyzePgrDocument as analyzePgrPdf } from "@/services/pgr-document-analysis";
+vi.mock("server-only", () => ({}));
 import { analyzePcmsoPdf } from "@/ai/flows/pcmso-analysis-flow";
 import { analyzeLtcatPdf } from "@/ai/flows/ltcat-analysis-flow";
 import { extractDocumentAutofillData } from "@/ai/flows/document-ocr-autofill-flow";
@@ -23,7 +24,8 @@ describe("Suíte de Resiliência: Importação de PGR e Documentos Regulatórios
     expect(result.pgrCardDetalhado.grauDeRisco).toBe(3);
     expect(result.pgrCardDetalhado.ghesIdentificados.length).toBeGreaterThanOrEqual(1);
     expect(result.acoesCategorizadas.length).toBeGreaterThanOrEqual(1);
-    expect(result.actionPlanTriggers.length).toBeGreaterThanOrEqual(1);
+    expect(result.riscosIdentificados.length).toBeGreaterThanOrEqual(1);
+    expect(result.riscosIdentificados[0].evidencia.trecho).toContain("ruído");
     expect(result.parecerTecnicoIA).toBeDefined();
   });
 

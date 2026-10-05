@@ -1,6 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
+import { useSgi } from "@/contexts/sgi-context";
+import { usePgrCollection } from "@/hooks/use-pgr-workspace";
 import {
   Activity,
   AlertTriangle,
@@ -48,6 +51,7 @@ import { useCollection, useDoc, useFirestore, useMemoFirebase, useUser } from "@
 import { useToast } from "@/hooks/use-toast";
 import {
   calculateRiskScore,
+  getDocumentedRiskScore,
   getRiskLevel,
   getRiskLevelColor,
   getRiskLevelLabel,
@@ -71,6 +75,16 @@ const INITIAL_FORM = {
 };
 
 export default function RiskInventoryPGR() {
+  return (
+    <React.Suspense fallback={<div className="p-6">Carregando inventário…</div>}>
+      <RiskInventoryContent />
+    </React.Suspense>
+  );
+}
+function RiskInventoryContent() {
+  const params = useSearchParams();
+  const { activeClientId } = useSgi();
+  const pgrSource = params.get("source") === "pgr";
   const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
@@ -83,24 +97,34 @@ export default function RiskInventoryPGR() {
     return doc(db, "users", user.uid);
   }, [db, user]);
   const { data: profile, isLoading: isLoadingProfile } = useDoc(profileRef);
+  const companyId =
+    params.get("company") ||
+    (activeClientId !== "all" && activeClientId !== "unauthorized"
+      ? activeClientId
+      : profile?.companyId) ||
+    null;
+  const importedRisks = usePgrCollection<OccupationalRisk>("risks", companyId, pgrSource);
 
   const risksRef = useMemoFirebase(() => {
-    if (!db || !profile?.companyId) return null;
-    return collection(db, "companies", profile.companyId, "risks");
-  }, [db, profile?.companyId]);
+    if (!db || !companyId || pgrSource) return null;
+    return collection(db, "companies", companyId, "risks");
+  }, [db, companyId, pgrSource]);
   const {
-    data: risks,
-    isLoading: isLoadingRisks,
-    error,
+    data: legacyRisks,
+    isLoading: legacyLoadingRisks,
+    error: legacyError,
   } = useCollection<OccupationalRisk>(risksRef);
+  const risks = pgrSource ? importedRisks.data : legacyRisks;
+  const isLoadingRisks = pgrSource ? importedRisks.loading : legacyLoadingRisks;
+  const error = pgrSource ? importedRisks.error : legacyError;
 
   const role = String(profile?.role ?? "").toUpperCase();
   const canManage = ["SUPER_ADMIN", "ADMIN", "CLIENT_ADMIN"].includes(role);
   const sortedRisks = React.useMemo(
     () =>
       [...(risks ?? [])].sort((a, b) => {
-        const scoreA = calculateRiskScore(a.probability, a.severity);
-        const scoreB = calculateRiskScore(b.probability, b.severity);
+        const scoreA = getDocumentedRiskScore(a) ?? -1;
+        const scoreB = getDocumentedRiskScore(b) ?? -1;
         return scoreB - scoreA;
       }),
     [risks]
@@ -108,16 +132,17 @@ export default function RiskInventoryPGR() {
 
   const summary = React.useMemo(() => {
     const open = sortedRisks.filter((risk) => risk.status !== "controlled").length;
-    const critical = sortedRisks.filter(
-      (risk) => getRiskLevel(calculateRiskScore(risk.probability, risk.severity)) === "critico"
-    ).length;
+    const critical = sortedRisks.filter((risk) => {
+      const score = getDocumentedRiskScore(risk);
+      return score !== null && getRiskLevel(score) === "critico";
+    }).length;
     const exposed = sortedRisks.reduce((total, risk) => total + Number(risk.exposedPeople || 0), 0);
     return { open, critical, exposed };
   }, [sortedRisks]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!risksRef || !user || !profile?.companyId) return;
+    if (!risksRef || !user || !companyId) return;
 
     if (
       !form.hazard.trim() ||
@@ -138,7 +163,7 @@ export default function RiskInventoryPGR() {
     try {
       await addDoc(risksRef, {
         ...form,
-        companyId: profile.companyId,
+        companyId,
         status: "identified",
         createdAt: serverTimestamp(),
         createdBy: user.uid,
@@ -161,9 +186,9 @@ export default function RiskInventoryPGR() {
   }
 
   async function handleDelete(risk: OccupationalRisk) {
-    if (!db || !profile?.companyId || !canManage) return;
+    if (!db || !companyId || !canManage) return;
     try {
-      await deleteDoc(doc(db, "companies", profile.companyId, "risks", risk.id));
+      await deleteDoc(doc(db, "companies", companyId, "risks", risk.id));
       toast({ title: "Risco removido", description: `${risk.hazard} foi retirado do inventário.` });
     } catch {
       toast({ title: "Não foi possível remover", variant: "destructive" });
@@ -189,7 +214,7 @@ export default function RiskInventoryPGR() {
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
             <Button
-              disabled={!canManage || !profile?.companyId}
+              disabled={!canManage || !companyId || pgrSource}
               className="h-11 gap-2 px-6 font-bold"
             >
               <Plus className="size-4" /> Registrar risco
@@ -366,7 +391,7 @@ export default function RiskInventoryPGR() {
               title="Inventário indisponível"
               description="Não foi possível consultar os riscos desta empresa. Verifique sua permissão."
             />
-          ) : !profile?.companyId ? (
+          ) : !companyId ? (
             <EmptyState
               title="Empresa não configurada"
               description="Associe seu perfil a uma empresa para usar o inventário."
@@ -390,8 +415,8 @@ export default function RiskInventoryPGR() {
               </TableHeader>
               <TableBody>
                 {sortedRisks.map((risk) => {
-                  const score = calculateRiskScore(risk.probability, risk.severity);
-                  const level = getRiskLevel(score);
+                  const score = getDocumentedRiskScore(risk);
+                  const level = score === null ? null : getRiskLevel(score);
                   return (
                     <TableRow key={risk.id}>
                       <TableCell className="pl-6">
@@ -403,15 +428,30 @@ export default function RiskInventoryPGR() {
                         <p className="max-w-40 truncate text-xs text-muted-foreground">
                           {risk.source}
                         </p>
+                        {risk.sourceEvidence && (
+                          <details className="mt-2 max-w-xs text-xs text-muted-foreground">
+                            <summary className="cursor-pointer">
+                              Fonte: página {risk.sourceEvidence.pagina}
+                            </summary>
+                            <p className="mt-1">{risk.sourceEvidence.trecho}</p>
+                          </details>
+                        )}
                       </TableCell>
                       <TableCell>
                         <span className="font-black">
-                          {risk.probability} × {risk.severity} = {score}
+                          {score === null
+                            ? "Pendente de avaliação"
+                            : String(risk.probability) + " × " + risk.severity + " = " + score}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <Badge className={cn("border-0", getRiskLevelColor(level))}>
-                          {getRiskLevelLabel(level)}
+                        <Badge
+                          className={cn(
+                            "border-0",
+                            level ? getRiskLevelColor(level) : "bg-slate-100 text-slate-700"
+                          )}
+                        >
+                          {level ? getRiskLevelLabel(level) : "A revisar"}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -425,7 +465,7 @@ export default function RiskInventoryPGR() {
                       <TableCell className="pr-6 text-right">
                         <Button
                           aria-label={`Excluir ${risk.hazard}`}
-                          disabled={!canManage}
+                          disabled={!canManage || risk.sourceType === "pgr"}
                           variant="ghost"
                           size="icon"
                           onClick={() => handleDelete(risk)}

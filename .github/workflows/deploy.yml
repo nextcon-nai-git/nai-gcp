@@ -63,6 +63,7 @@ jobs:
       - name: Build app
         run: npm run build
         env:
+          NODE_OPTIONS: --max-old-space-size=6144
           NEXT_PUBLIC_FIREBASE_PROJECT_ID: studio-8439299034-125c7
           NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
