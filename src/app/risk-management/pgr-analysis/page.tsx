@@ -220,6 +220,7 @@ export default function PgrAnalysisPage() {
       if (!r.ok) throw new Error(d.error || "Não foi possível integrar.");
       if (run !== serial.current) return;
       setSaved({ companyId: d.companyId, cardId: d.cardId });
+      setDraft((current) => (current ? { ...current, analysis: d.analysis } : current));
       setActiveClientId(d.companyId);
       toast({
         title: d.alreadySaved ? "Este PGR já está integrado" : "PGR integrado ao cliente",

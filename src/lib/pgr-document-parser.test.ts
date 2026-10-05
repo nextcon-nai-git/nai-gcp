@@ -120,6 +120,7 @@ describe("PGR: identidade e evidências", () => {
     ).toBe(true);
     expect(first.risks[0].probability).toBeNull();
     expect(first.risks[0].severity).toBeNull();
+    expect(first.tasks.flatMap((task) => task.riskIds)).toContain(first.risks[0].id);
     expect(getDocumentedRiskScore(first.risks[0])).toBeNull();
   });
   it("não interpreta índice e conceitos como cronograma executável", () => {

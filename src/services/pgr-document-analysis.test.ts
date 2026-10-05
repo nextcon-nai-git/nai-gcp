@@ -36,7 +36,7 @@ describe("IA PGR com limites", () => {
     ];
     mocks.generate.mockResolvedValue({ output });
     const a = await analyzePgrDocument({ pdfDataUri: text });
-    expect(a.riscosIdentificados.some((r) => r.id === "fake")).toBe(false);
+    expect(a.riscosIdentificados.some((r) => r.agente === "Benzeno")).toBe(false);
   });
   it("falha da IA preserva cliente e marca somente extração documental", async () => {
     mocks.generate.mockRejectedValue(new Error("Unavailable"));

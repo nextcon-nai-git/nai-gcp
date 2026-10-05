@@ -116,6 +116,9 @@ describe("PGR: persistência real, vínculo e repetição", () => {
     });
     const repeat = await savePgrDraft(user, params, bytes);
     expect(repeat.alreadySaved).toBe(true);
+    expect(repeat.analysis).toEqual(
+      (await company().collection("pgr_cards").doc(hash).get()).data()?.analysis
+    );
     expect((await company().collection("tasks").get()).size).toBe(tasks.size);
     expect((await first.ref.get()).data()?.status).toBe("doing");
     expect((await first.ref.get()).data()?.checklist[0].checked).toBe(true);

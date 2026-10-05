@@ -206,6 +206,7 @@ export async function savePgrDraft(
         taskCount: existing.data()?.taskCount || 0,
         riskCount: existing.data()?.riskCount || 0,
         alreadySaved: true,
+        analysis: PgrAnalysisOutputSchema.parse(existing.data()?.analysis),
       };
     if (!freshCompany.exists)
       tx.create(companyRef, {
@@ -259,6 +260,7 @@ export async function savePgrDraft(
       taskCount: plan.tasks.length,
       riskCount: plan.risks.length,
       alreadySaved: false,
+      analysis,
     };
   });
 }
