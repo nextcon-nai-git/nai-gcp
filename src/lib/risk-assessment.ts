@@ -17,9 +17,11 @@ export interface OccupationalRisk {
   category: RiskCategory;
   source: string;
   ghe: string;
-  exposedPeople: number;
-  probability: number;
-  severity: number;
+  exposedPeople: number | null;
+  probability: number | null;
+  severity: number | null;
+  sourceEvidence?: { pagina: number; trecho: string };
+  sourceType?: "pgr";
   controls: string;
   owner: string;
   dueDate: string;
@@ -30,6 +32,18 @@ export interface OccupationalRisk {
 
 export function calculateRiskScore(probability: number, severity: number) {
   return Math.min(25, Math.max(1, probability) * Math.max(1, severity));
+}
+export function getDocumentedRiskScore(risk: Pick<OccupationalRisk, "probability" | "severity">) {
+  return typeof risk.probability === "number" &&
+    typeof risk.severity === "number" &&
+    Number.isInteger(risk.probability) &&
+    Number.isInteger(risk.severity) &&
+    risk.probability >= 1 &&
+    risk.probability <= 5 &&
+    risk.severity >= 1 &&
+    risk.severity <= 5
+    ? calculateRiskScore(risk.probability, risk.severity)
+    : null;
 }
 
 export function getRiskLevel(score: number): RiskLevel {

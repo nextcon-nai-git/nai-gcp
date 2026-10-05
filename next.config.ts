@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["pdfjs-dist"],
+  outputFileTracingIncludes: { "/api/pgr/*": ["./node_modules/pdfjs-dist/legacy/build/*.mjs"] },
   typescript: {
     // REMOVIDO: ignoreBuildErrors: true
     // TypeScript errors devem ser corrigidos, não ignorados

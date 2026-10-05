@@ -139,6 +139,14 @@ export interface Company extends MasterEntity {
 }
 
 export interface OpsTask extends MasterEntity {
+  sourceType?: "pgr";
+  pgrCardId?: string;
+  agentRole?:
+    | "engenheiro_seguranca"
+    | "tecnico_seguranca"
+    | "medico_trabalho"
+    | "enfermeiro_trabalho"
+    | "ergonomista";
   assigneeId?: string;
   title: string;
   type: TaskType;

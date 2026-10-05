@@ -7,6 +7,11 @@ runConfig:
   maxInstances: 1
 
 env:
+  # Compilation/type-checking needs a larger heap; runtime memory is unchanged.
+  - variable: NODE_OPTIONS
+    value: --max-old-space-size=6144
+    availability:
+      - BUILD
   - variable: AVP_SYNC_INVOKER_EMAIL
     value: firebase-app-hosting-compute@studio-8439299034-125c7.iam.gserviceaccount.com
     availability:

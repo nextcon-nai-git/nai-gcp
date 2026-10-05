@@ -26,6 +26,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Trash2, Archive, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { updatePgrTask } from "@/hooks/use-pgr-workspace";
 
 interface KanbanBoardProps {
   tasks: OpsTask[];
@@ -89,7 +90,7 @@ export function KanbanBoard({
     if (task) setActiveTask(task);
   }
 
-  function handleDragEnd(event: DragEndEvent) {
+  async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     setActiveTask(null);
 
@@ -99,7 +100,40 @@ export function KanbanBoard({
     const dropTargetId = over.id as string;
 
     const currentTask = tasks.find((t) => t.id === taskId);
-    if (!currentTask || !db || !currentTask.companyId) return;
+    if (!currentTask || !currentTask.companyId) return;
+    if (currentTask.sourceType === "pgr") {
+      if (!user) return;
+      if (dropTargetId === "trash") {
+        toast({
+          title: "Arquive o card do PGR",
+          description: "O arquivamento preserva o vínculo e o histórico do documento.",
+        });
+        return;
+      }
+      const nextStatus = dropTargetId === "archive" ? "archived" : dropTargetId;
+      if (nextStatus === currentTask.status) return;
+      try {
+        await updatePgrTask(user, currentTask.companyId, currentTask.id, { status: nextStatus });
+        setTasks((prev) =>
+          nextStatus === "archived"
+            ? prev.filter((t) => t.id !== taskId)
+            : prev.map((t) => (t.id === taskId ? { ...t, status: nextStatus as TaskStatus } : t))
+        );
+        toast({
+          title: "Card do PGR atualizado",
+          description:
+            "Alteração confirmada no cliente. Nenhum documento ou obrigação foi transmitido.",
+        });
+      } catch (e) {
+        toast({
+          variant: "destructive",
+          title: "O card não foi atualizado",
+          description: e instanceof Error ? e.message : "Tente novamente.",
+        });
+      }
+      return;
+    }
+    if (!db) return;
 
     const taskRef = doc(db, "companies", currentTask.companyId, "tasks", taskId);
 

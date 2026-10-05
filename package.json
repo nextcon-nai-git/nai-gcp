@@ -73,6 +73,7 @@
     "next": "15.5.26",
     "papaparse": "^5.7.0",
     "patch-package": "^8.0.0",
+    "pdfjs-dist": "6.4.299",
     "react": "^19.2.1",
     "react-day-picker": "^10.0.2",
     "react-dom": "^19.2.1",
