@@ -69,6 +69,13 @@ service cloud.firestore {
       allow write: if isCompanyAdmin(companyId);
     }
 
+    // The dashboard aggregates operational tasks across companies. Collection
+    // group queries need an explicit recursive match; tenant queries keep their
+    // existing company-scoped rules. This grants no additional write access.
+    match /{path=**}/tasks/{taskId} {
+      allow list: if isNextconOfficial();
+    }
+
     match /companies/{companyId}/{subcollection}/{document=**} {
       allow read: if isClinicalCollection(subcollection)
         ? hasClinicalAccess(companyId)

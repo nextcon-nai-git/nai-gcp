@@ -2,87 +2,87 @@
   "indexes": [
     {
       "collectionGroup": "tasks",
-      "queryScope": "Collection",
+      "queryScope": "COLLECTION",
       "fields": [
         {
           "fieldPath": "companyId",
-          "order": "Ascending"
+          "order": "ASCENDING"
         },
         {
           "fieldPath": "status",
-          "order": "Ascending"
+          "order": "ASCENDING"
         },
         {
           "fieldPath": "createdAt",
-          "order": "Descending"
+          "order": "DESCENDING"
         }
       ]
     },
     {
       "collectionGroup": "employees",
-      "queryScope": "Collection",
+      "queryScope": "COLLECTION",
       "fields": [
         {
           "fieldPath": "companyId",
-          "order": "Ascending"
+          "order": "ASCENDING"
         },
         {
           "fieldPath": "status",
-          "order": "Ascending"
+          "order": "ASCENDING"
         },
         {
           "fieldPath": "createdAt",
-          "order": "Descending"
+          "order": "DESCENDING"
         }
       ]
     },
     {
       "collectionGroup": "agendamentos",
-      "queryScope": "Collection",
+      "queryScope": "COLLECTION",
       "fields": [
         {
           "fieldPath": "data_hora",
-          "order": "Ascending"
+          "order": "ASCENDING"
         },
         {
           "fieldPath": "status",
-          "order": "Ascending"
+          "order": "ASCENDING"
         },
         {
           "fieldPath": "companyId",
-          "order": "Ascending"
+          "order": "ASCENDING"
         }
       ]
     },
     {
       "collectionGroup": "legalExpertises",
-      "queryScope": "Collection",
+      "queryScope": "COLLECTION",
       "fields": [
         {
           "fieldPath": "companyId",
-          "order": "Ascending"
+          "order": "ASCENDING"
         },
         {
           "fieldPath": "date",
-          "order": "Descending"
+          "order": "DESCENDING"
         }
       ]
     },
     {
       "collectionGroup": "contracts",
-      "queryScope": "Collection",
+      "queryScope": "COLLECTION",
       "fields": [
         {
           "fieldPath": "companyId",
-          "order": "Ascending"
+          "order": "ASCENDING"
         },
         {
           "fieldPath": "status",
-          "order": "Ascending"
+          "order": "ASCENDING"
         },
         {
           "fieldPath": "createdAt",
-          "order": "Descending"
+          "order": "DESCENDING"
         }
       ]
     },
@@ -103,12 +103,24 @@
   ],
   "fieldOverrides": [
     {
-      "collectionGroup": "__default__",
-      "fieldPath": "createdAt",
+      "collectionGroup": "tasks",
+      "fieldPath": "dueDate",
       "indexes": [
         {
-          "order": "Descending",
-          "queryScope": "Collection"
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "arrayConfig": "CONTAINS",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
         }
       ]
     }
