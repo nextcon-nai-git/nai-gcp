@@ -49,5 +49,5 @@ Aplicar a aplicação e `firestore.rules` em conjunto. A proteção contra escri
 - Prettier da base: aprovado.
 - ESLint da base: zero erros, 1.749 avisos. O lint inicial tinha 1.752 avisos; não foi feita limpeza ampla.
 - Cobertura medida: 20,81% de statements, 21,12% de linhas, 17,07% de branches e 15,62% de funções. A suíte não demonstra cobertura funcional de 100%.
-- Build inicial: encerrado por OOM do ambiente (cgroup de 8 GiB). Segunda tentativa com heap de 2 GiB: JavaScript heap OOM na verificação de tipos. Terceira tentativa com heap de 4 GiB em execução; não considerar o build aprovado até seu encerramento.
+- Build inicial: encerrado por OOM do ambiente (cgroup de 8 GiB). Segunda tentativa com heap de 2 GiB: JavaScript heap OOM na verificação de tipos. Terceira tentativa com heap de 4 GiB, `--no-lint --experimental-debug-memory-usage`: aprovada (exit 0), 126 páginas geradas. O lint foi validado separadamente. A compilação emite avisos de dependências opcionais OpenTelemetry/Genkit, mas conclui.
 - Nenhuma publicação em produção nesta revisão; aplicação e regras devem passar pelo CI e ser implantadas em conjunto.
