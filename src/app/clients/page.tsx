@@ -113,6 +113,7 @@ export default function ClientsManagement() {
   );
 
   const [searchTerm, setSearchTerm] = React.useState("");
+  const [showInactive, setShowInactive] = React.useState(false);
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
   const [editingCompany, setEditingCompany] = React.useState<any>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -182,23 +183,26 @@ export default function ClientsManagement() {
       }
     }
 
-    return Array.from(map.values()).sort((a, b) => {
-      const nameA = (a.displayName || a.name || a.companyName || a.id || "").toUpperCase();
-      const nameB = (b.displayName || b.name || b.companyName || b.id || "").toUpperCase();
-      return nameA.localeCompare(nameB);
-    });
+    return Array.from(map.values())
+      .filter((c) => c.isDeleted !== true)
+      .sort((a, b) => {
+        const nameA = (a.displayName || a.name || a.companyName || a.id || "").toUpperCase();
+        const nameB = (b.displayName || b.name || b.companyName || b.id || "").toUpperCase();
+        return nameA.localeCompare(nameB);
+      });
   }, [companies, localCustomCompanies]);
 
   const filteredCompanies = React.useMemo(() => {
     const term = searchTerm.toLowerCase();
     return activeCompaniesList.filter(
       (c: ClientCompanyItem) =>
-        (c.name || c.companyName || "").toLowerCase().includes(term) ||
-        (c.cnpj || "").includes(term) ||
-        (c.segment || "").toLowerCase().includes(term) ||
-        (c.city || "").toLowerCase().includes(term)
+        (showInactive || c.active === true) &&
+        ((c.name || c.companyName || "").toLowerCase().includes(term) ||
+          (c.cnpj || "").includes(term) ||
+          (c.segment || "").toLowerCase().includes(term) ||
+          (c.city || "").toLowerCase().includes(term))
     );
-  }, [activeCompaniesList, searchTerm]);
+  }, [activeCompaniesList, searchTerm, showInactive]);
 
   const form = useForm<CompanyFormValues>({
     resolver: zodResolver(companySchema),
@@ -557,6 +561,15 @@ export default function ClientsManagement() {
           </Button>
         </div>
       </header>
+
+      <label className="flex items-center gap-3 rounded-xl border bg-white p-4">
+        <input
+          type="checkbox"
+          checked={showInactive}
+          onChange={(event) => setShowInactive(event.target.checked)}
+        />{" "}
+        Mostrar também cadastros inativos
+      </label>
 
       {/* DICA DE GESTOS SWIPE */}
       <div className="p-4 bg-slate-100/80 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] font-bold text-slate-600">

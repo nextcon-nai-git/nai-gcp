@@ -23,13 +23,21 @@ export async function getExecutiveDashboard(
   const issues: string[] = [];
   const companyQuery = adminDb.collection("companies");
   const documents = global
-    ? (await companyQuery.select("name", "city", "state", "active", "isDeleted").get()).docs
+    ? (
+        await companyQuery
+          .select("name", "city", "state", "active", "isDeleted", "portfolioClientId")
+          .get()
+      ).docs
     : [await companyQuery.doc(scope!).get()];
   const clientsTruncated = false;
   const choices = documents
-    .filter((d) => d.exists && d.data()?.isDeleted !== true)
+    .filter((d) => d.exists && d.data()?.isDeleted !== true && d.data()?.active === true)
     .map((d) => ({
       id: d.id,
+      portfolioClientId:
+        typeof d.data()?.portfolioClientId === "string"
+          ? (d.data()!.portfolioClientId as string)
+          : null,
       name: String(d.data()?.name || "Cliente sem nome"),
       location: [d.data()?.city, d.data()?.state].filter(Boolean).join(" / "),
       active: typeof d.data()?.active === "boolean" ? (d.data()!.active as boolean) : null,
@@ -39,10 +47,16 @@ export async function getExecutiveDashboard(
   let selected = scope ? choices.filter((c) => c.id === scope) : choices;
   if (scope && !selected.length && global) {
     const document = await companyQuery.doc(scope).get();
-    if (document.exists && document.data()?.isDeleted !== true) {
+    if (
+      document.exists &&
+      document.data()?.isDeleted !== true &&
+      document.data()?.active === true
+    ) {
       const data = document.data()!;
       const client = {
         id: scope,
+        portfolioClientId:
+          typeof data.portfolioClientId === "string" ? data.portfolioClientId : null,
         name: String(data.name || "Cliente sem nome"),
         location: [data.city, data.state].filter(Boolean).join(" / "),
         active: typeof data.active === "boolean" ? data.active : null,

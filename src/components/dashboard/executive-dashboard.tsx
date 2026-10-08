@@ -1,4 +1,5 @@
 "use client";
+import { activeClientCount } from "@/lib/client-portfolio";
 
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
@@ -350,9 +351,9 @@ export function ExecutiveDashboardView() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Metric
-            label="Clientes na visão"
-            value={data ? clients.length : null}
-            detail="Cadastros salvos no NAI"
+            label="Clientes ativos"
+            value={data ? activeClientCount(clients) : null}
+            detail={`${clients.length} registros e unidades vinculados`}
             icon={<Building2 className="size-4" />}
           />
           <Metric

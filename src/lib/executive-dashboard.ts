@@ -25,6 +25,7 @@ export type TaskSummary = {
   truncated: boolean;
 };
 export type DashboardClient = {
+  portfolioClientId?: string | null;
   id: string;
   name: string;
   location: string;
