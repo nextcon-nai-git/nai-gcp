@@ -80,6 +80,7 @@ interface NavItem {
   href: string;
   badge?: string;
   badgeColor?: string;
+  parentHref?: string;
 }
 
 interface NavModule {
@@ -172,6 +173,13 @@ const NAV_MODULES: NavModule[] = [
     icon: Database,
     items: [
       { title: "Financeiro", icon: BarChart3, href: "/financial" },
+      {
+        title: "Livro Diário",
+        icon: FileSpreadsheet,
+        href: "/financial/livro-diario",
+        parentHref: "/financial",
+        badge: "Contábil",
+      },
       {
         title: "Unidades & Clientes",
         icon: Globe,
@@ -418,6 +426,7 @@ export function AppSidebar() {
                           isActive={isActive}
                           className={cn(
                             "rounded-xl px-3 h-10 transition-all duration-200 group",
+                            item.parentHref && "ml-4 w-[calc(100%-1rem)] border-l border-white/10",
                             isActive
                               ? "bg-gradient-to-r from-amber-400/20 to-transparent text-white font-black border-l-4 border-amber-400 shadow-md"
                               : "hover:bg-white/5 text-slate-300 hover:text-white opacity-85 hover:opacity-100"
