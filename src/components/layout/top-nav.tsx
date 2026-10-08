@@ -198,7 +198,7 @@ export function TopNav() {
       }
     }
 
-    let allList = Array.from(map.values());
+    let allList = Array.from(map.values()).filter((c) => c.active === true && c.isDeleted !== true);
 
     // Se o usuário tiver restrição de tenant (ex: prestador restrito)
     if (!isGlobalStaff && authorizedCompanies && authorizedCompanies.length > 0) {

@@ -176,7 +176,6 @@ const NAV_MODULES: NavModule[] = [
         title: "Unidades & Clientes",
         icon: Globe,
         href: "/clients",
-        badge: "25",
         badgeColor: "bg-white/10 text-slate-300 border-white/10",
       },
       { title: "Quadro de Vidas", icon: Users, href: "/employees" },
