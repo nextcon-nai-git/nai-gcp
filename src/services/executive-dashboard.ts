@@ -23,12 +23,10 @@ export async function getExecutiveDashboard(
   const issues: string[] = [];
   const companyQuery = adminDb.collection("companies");
   const documents = global
-    ? (await companyQuery.select("name", "city", "state", "active", "isDeleted").limit(101).get())
-        .docs
+    ? (await companyQuery.select("name", "city", "state", "active", "isDeleted").get()).docs
     : [await companyQuery.doc(scope!).get()];
-  const clientsTruncated = documents.length > 100;
+  const clientsTruncated = false;
   const choices = documents
-    .slice(0, 100)
     .filter((d) => d.exists && d.data()?.isDeleted !== true)
     .map((d) => ({
       id: d.id,
@@ -127,7 +125,6 @@ export async function getExecutiveDashboard(
       }
     }
   }
-  if (clientsTruncated) issues.push("Carteira parcial: limite de 100 clientes nesta consulta.");
   if (clients.some((c) => c.tasks?.truncated))
     issues.push("Ações parciais: limite de 500 registros por cliente nesta consulta.");
   return {

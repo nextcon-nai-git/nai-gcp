@@ -55,7 +55,7 @@ beforeEach(() => {
   });
   mock.collection.mockImplementation(() => ({
     select: () => ({
-      limit: () => ({ get: async () => ({ docs: [company("a"), company("b")] }) }),
+      get: async () => ({ docs: [company("a"), company("b")] }),
     }),
     doc: (id: string) => ({ get: async () => company(id), collection: subcollection }),
   }));
