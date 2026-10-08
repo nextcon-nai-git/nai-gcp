@@ -5,6 +5,7 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
   type RulesTestEnvironment,
+  type RulesTestContext,
 } from "@firebase/rules-unit-testing";
 import {
   collection,
@@ -15,7 +16,6 @@ import {
   orderBy,
   query,
   setDoc,
-  type Firestore,
 } from "firebase/firestore";
 
 let env: RulesTestEnvironment;
@@ -55,16 +55,14 @@ afterAll(async () => {
   await env?.cleanup();
 });
 
-const dashboardQuery = (db: Firestore) =>
-  query(collectionGroup(db, "tasks"), orderBy("dueDate", "asc"), limit(5));
+const dashboardQuery = (context: RulesTestContext) =>
+  query(collectionGroup(context.firestore(), "tasks"), orderBy("dueDate", "asc"), limit(5));
 
 describe("Dashboard task collection group", () => {
   it.each(["SUPER_ADMIN", "ADMIN", "OPERATIONS"])(
     "allows existing global reader %s",
     async (role) => {
-      const result = await assertSucceeds(
-        getDocs(dashboardQuery(env.authenticatedContext(role).firestore()))
-      );
+      const result = await assertSucceeds(getDocs(dashboardQuery(env.authenticatedContext(role))));
       expect(result.docs.map((item) => item.ref.path).sort()).toEqual([
         "companies/avp/tasks/priority",
         "companies/other/tasks/priority",
@@ -75,12 +73,12 @@ describe("Dashboard task collection group", () => {
   it.each(["CLIENT_ADMIN", "HR", "PROVIDER", "USER", "unprovisioned"])(
     "denies global tasks to %s",
     async (role) => {
-      await assertFails(getDocs(dashboardQuery(env.authenticatedContext(role).firestore())));
+      await assertFails(getDocs(dashboardQuery(env.authenticatedContext(role))));
     }
   );
 
   it("denies unauthenticated global reads", async () => {
-    await assertFails(getDocs(dashboardQuery(env.unauthenticatedContext().firestore())));
+    await assertFails(getDocs(dashboardQuery(env.unauthenticatedContext())));
   });
 
   it("preserves company-scoped reads and rejects foreign reads and writes", async () => {
