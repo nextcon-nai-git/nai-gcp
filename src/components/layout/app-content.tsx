@@ -122,11 +122,21 @@ export function AppContent({ children }: { children: React.ReactNode }) {
   // 3. Renderiza a Shell da aplicação para usuários autenticados
   return (
     <SidebarProvider>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[10000] focus:rounded-lg focus:bg-white focus:px-4 focus:py-3 focus:text-slate-900 focus:shadow-lg"
+      >
+        Ir para o conteúdo principal
+      </a>
       <div className="flex h-screen w-full bg-background overflow-hidden relative">
         <AppSidebar />
         <SidebarInset className="flex flex-col h-full overflow-hidden">
           <TopNav />
-          <main className="flex-1 overflow-y-auto p-6 md:p-10 scrollbar-thin">
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className="flex-1 overflow-y-auto p-6 md:p-10 scrollbar-thin"
+          >
             <div className="max-w-7xl mx-auto animate-in fade-in duration-500">
               <ErrorBoundary key={pathname}>{children}</ErrorBoundary>
             </div>

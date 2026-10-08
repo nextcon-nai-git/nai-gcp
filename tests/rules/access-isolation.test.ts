@@ -120,3 +120,19 @@ describe("Evidências no Storage", () => {
     );
   });
 });
+
+describe("Chaves de integração protegidas pelo servidor", () => {
+  it("nega leitura e criação direta de chaves até para administradores", async () => {
+    for (const uid of ["client", "global", "super"]) {
+      await assertFails(getDoc(doc(db(uid), "api_keys/private-key")));
+      await assertFails(
+        setDoc(doc(db(uid), "api_keys/forged-key"), {
+          clientId: "GLOBAL",
+          active: true,
+          scopes: ["*"],
+          keyHash: "forged",
+        })
+      );
+    }
+  });
+});

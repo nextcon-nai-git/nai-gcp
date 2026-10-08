@@ -28,8 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, where, orderBy } from "firebase/firestore";
+import { useUser } from "@/firebase";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -52,7 +51,6 @@ import { Input } from "@/components/ui/input";
 export default function DeveloperHubPanel() {
   const { toast } = useToast();
   const { user, companyId } = useUser();
-  const db = useFirestore();
 
   const [activeTab, setActiveTab] = React.useState("keys");
   const [showNewKeyModal, setShowNewKeyModal] = React.useState(false);
@@ -61,35 +59,90 @@ export default function DeveloperHubPanel() {
   const [copied, setCopied] = React.useState(false);
   const [isCreating, setIsCreating] = React.useState(false);
 
-  const keysQuery = useMemoFirebase(() => {
-    if (!db || !companyId) return null;
-    return query(
-      collection(db, "api_keys"),
-      where("clientId", "==", companyId),
-      orderBy("createdAt", "desc")
-    );
-  }, [db, companyId]);
-  const { data: keys, isLoading: loadingKeys } = useCollection(keysQuery);
+  const [keys, setKeys] = React.useState<
+    { id: string; name: string; keyPrefix: string; createdAt: string; active: boolean }[]
+  >([]);
+  const [loadingKeys, setLoadingKeys] = React.useState(true);
+  const [keyError, setKeyError] = React.useState("");
+  const [refresh, setRefresh] = React.useState(0);
+  React.useEffect(() => {
+    let current = true;
+    setKeys([]);
+    setKeyError("");
+    setGeneratedKey(null);
+    if (!user) {
+      setLoadingKeys(false);
+      return;
+    }
+    setLoadingKeys(true);
+    void (async () => {
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch(
+          `/api/v1/developer/keys${companyId ? `?clientId=${encodeURIComponent(companyId)}` : ""}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: "no-store",
+          }
+        );
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Não foi possível carregar as chaves.");
+        if (current)
+          setKeys(
+            data.keys.map(
+              (key: { id: string; name: string; keyPrefix: string; createdAt: string }) => ({
+                ...key,
+                active: true,
+              })
+            )
+          );
+      } catch (error) {
+        if (current)
+          setKeyError(error instanceof Error ? error.message : "Falha ao carregar chaves.");
+      } finally {
+        if (current) setLoadingKeys(false);
+      }
+    })();
+    return () => {
+      current = false;
+    };
+  }, [user, companyId, refresh]);
 
   const handleCreateKey = async () => {
-    if (!keyName || !companyId) return;
+    if (!keyName.trim() || !companyId || !user) return;
     setIsCreating(true);
     try {
+      const token = await user.getIdToken();
       const response = await fetch("/api/v1/developer/keys", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ clientId: companyId, name: keyName }),
       });
       const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Não foi possível gerar a chave.");
       if (data.rawKey) {
         setGeneratedKey(data.rawKey);
+        setKeys((current) => [
+          {
+            id: data.id,
+            name: data.name,
+            keyPrefix: data.keyPrefix,
+            createdAt: data.createdAt,
+            active: true,
+          },
+          ...current,
+        ]);
         toast({
           title: "Chave Gerada!",
           description: "Salve-a agora, ela não será exibida novamente.",
         });
       }
     } catch (e) {
-      toast({ variant: "destructive", title: "Erro na Geração" });
+      toast({
+        variant: "destructive",
+        title: "Erro na geração",
+        description: e instanceof Error ? e.message : "Tente novamente.",
+      });
     } finally {
       setIsCreating(false);
     }
@@ -183,6 +236,18 @@ export default function DeveloperHubPanel() {
         </div>
 
         <TabsContent value="keys" className="mt-8 focus-visible:ring-0">
+          {keyError && (
+            <div role="alert" className="mb-4 rounded-xl border p-4 text-sm">
+              {keyError}
+              <Button
+                variant="outline"
+                className="ml-3"
+                onClick={() => setRefresh((value) => value + 1)}
+              >
+                Tentar novamente
+              </Button>
+            </div>
+          )}
           <Card className="card-shadow border-none bg-white rounded-[3rem] overflow-hidden">
             <div className="overflow-x-auto">
               <Table>
@@ -249,6 +314,40 @@ export default function DeveloperHubPanel() {
                               variant="ghost"
                               size="icon"
                               className="text-slate-300 hover:text-red-600 transition-all"
+                              aria-label={`Revogar chave ${k.name}`}
+                              onClick={async () => {
+                                if (
+                                  !user ||
+                                  !window.confirm(
+                                    `Revogar a chave ${k.name}? As integrações que a utilizam deixarão de autenticar.`
+                                  )
+                                )
+                                  return;
+                                try {
+                                  const token = await user.getIdToken();
+                                  const response = await fetch(
+                                    `/api/v1/developer/keys?id=${encodeURIComponent(k.id)}`,
+                                    {
+                                      method: "DELETE",
+                                      headers: { Authorization: `Bearer ${token}` },
+                                    }
+                                  );
+                                  const result = await response.json();
+                                  if (!response.ok)
+                                    throw new Error(
+                                      result.error || "Não foi possível revogar a chave."
+                                    );
+                                  setRefresh((value) => value + 1);
+                                  toast({ title: "Chave revogada" });
+                                } catch (error) {
+                                  toast({
+                                    variant: "destructive",
+                                    title: "Falha na revogação",
+                                    description:
+                                      error instanceof Error ? error.message : "Tente novamente.",
+                                  });
+                                }
+                              }}
                             >
                               <Trash2 size={16} />
                             </Button>
