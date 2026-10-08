@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   DollarSign,
   Briefcase,
@@ -57,6 +58,7 @@ import { FiscalIntelligenceTab } from "@/components/financial/fiscal-intelligenc
 import { BankStatementConciliation } from "@/components/financial/bank-statement-conciliation";
 import { DreStatementTab } from "@/components/financial/dre-statement-tab";
 import { useSgi } from "@/contexts/sgi-context";
+import { useFinancialContracts } from "@/hooks/use-financial-contracts";
 
 export default function FinancialModule() {
   const [activeTab, setActiveTab] = React.useState("dre");
@@ -76,17 +78,12 @@ export default function FinancialModule() {
   );
   const { data: activeCompany } = useDoc(activeCompanyRef);
 
-  const contractsQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    if (isGlobalStaff) return query(collectionGroup(db, "contracts"), orderBy("value", "desc"));
-    if (activeClientId !== "all")
-      return query(
-        collection(db, "companies", activeClientId, "contracts"),
-        orderBy("value", "desc")
-      );
-    return null;
-  }, [db, activeClientId, isGlobalStaff]);
-  const { data: contracts, isLoading: loadingContracts } = useCollection(contractsQuery);
+  const {
+    data: contracts,
+    isLoading: loadingContracts,
+    error: contractsError,
+    refresh: refreshContracts,
+  } = useFinancialContracts(activeClientId);
 
   const totalContractValue = React.useMemo(
     () => (contracts || []).reduce((acc, curr) => acc + (Number(curr.value) || 0), 0),
@@ -126,6 +123,23 @@ export default function FinancialModule() {
         </div>
       </header>
 
+      <Link
+        href="/financial/livro-diario"
+        className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-teal-200 bg-teal-50 p-5 transition-colors hover:bg-teal-100/70"
+      >
+        <div className="flex items-center gap-4">
+          <FileSpreadsheet className="size-8 text-teal-700" />
+          <div>
+            <h2 className="font-semibold text-slate-900">Livro Diário</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Explore lançamentos, contas e indicadores com rastreabilidade ao PDF original.
+            </p>
+          </div>
+        </div>
+        <span className="flex items-center gap-2 text-sm font-semibold text-teal-800">
+          Abrir acervo <ArrowRight size={16} />
+        </span>
+      </Link>
       {/* INTEGRAÇÃO SENIOR / OMIE STATUS */}
       {activeClientId !== "all" && (
         <Card className="border-none bg-blue-50/50 rounded-[2.5rem] p-8 flex flex-col md:flex-row items-center justify-between gap-8 border border-blue-100 shadow-sm transition-all hover:shadow-md">
@@ -446,7 +460,14 @@ export default function FinancialModule() {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              {loadingContracts ? (
+              {contractsError ? (
+                <div role="alert" className="p-8 text-sm text-amber-800">
+                  <p>{contractsError}</p>
+                  <Button variant="outline" className="mt-3" onClick={refreshContracts}>
+                    Tentar novamente
+                  </Button>
+                </div>
+              ) : loadingContracts ? (
                 <div className="py-24 text-center flex flex-col items-center gap-4 opacity-20">
                   <Loader2 className="animate-spin size-12 text-primary" />
                   <p className="text-[11px] font-black uppercase tracking-[0.4em]">
