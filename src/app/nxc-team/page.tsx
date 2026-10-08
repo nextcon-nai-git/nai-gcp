@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   Users,
   UserPlus,
@@ -245,6 +246,12 @@ export default function NcxTeamPage() {
 
   return (
     <div className="p-6 md:p-10 space-y-8 max-w-[1600px] mx-auto pb-24 text-left">
+      <Link
+        href="/nxc-team/activities"
+        className="inline-flex rounded-xl bg-teal-700 px-5 py-3 font-medium text-white"
+      >
+        Registro diário de atividades
+      </Link>
       {/* HEADER BANNER */}
       <div className="bg-gradient-to-r from-[#001F3F] via-[#002B4E] to-[#0A192F] p-8 rounded-3xl text-white shadow-2xl relative overflow-hidden border border-accent/20">
         <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-96 h-96 bg-accent/10 rounded-full blur-3xl pointer-events-none" />
