@@ -211,3 +211,122 @@ export function ledgerCsv(rows: LedgerRow[]) {
       .join("\r\n")
   );
 }
+
+export type CashMovement = {
+  key: string;
+  entry: string;
+  date: string;
+  amountCents: number;
+  participant: string;
+  history: string;
+  category: string;
+  page: number;
+  identificationPending: boolean;
+};
+const isCash = (r: LedgerRow) => r.account.startsWith("1.1.01.");
+const isClient = (r: LedgerRow) =>
+  r.account.startsWith("1.1.02.") && /cliente|duplicata|receber/.test(fold(r.accountName));
+function participant(history: string) {
+  const name = history
+    .replace(
+      /^(PIX (RECEBIDO|ENVIADO)|PAGAMENTO DE BOLETO OUTROS BANCOS|PAGAMENTO DE BOLETO|TED RECEBIDA|TED ENVIADA)\s*/i,
+      ""
+    )
+    .trim();
+  const pending =
+    !name ||
+    /^\d[\d.\/-]*$/.test(name) ||
+    /PAGFOR|LIQUIDACAO|LIQ COBRANCA|CR COB|DIFEREN TIT/i.test(name);
+  return { participant: name || "Identificação não informada", identificationPending: pending };
+}
+/** Rebuild full entries before ranking. Bank D/C is cash movement; revenue provisions are not. */
+export function rankCashMovements(book: LedgerBook, visibleKeys?: Set<string>) {
+  const receipts: CashMovement[] = [],
+    outflows: CashMovement[] = [];
+  const review: Array<{ key: string; entry: string; reason: string }> = [];
+  let internalTransfers = 0,
+    otherReceipts = 0;
+  const ownCnpj = book.cnpj.replace(/\D/g, "");
+  for (const e of summarizeLedger(book.rows).entries) {
+    if (visibleKeys && !visibleKeys.has(e.key)) continue;
+    const bankRows = e.rows.filter(isCash);
+    if (!bankRows.length) continue;
+    if (e.debit !== e.credit) {
+      review.push({
+        key: e.key,
+        entry: e.entry,
+        reason: "Lançamento com débitos e créditos divergentes",
+      });
+      continue;
+    }
+    const delta = bankRows.reduce(
+      (n, r) => n + (r.side === "D" ? r.amountCents : -r.amountCents),
+      0
+    );
+    if (!delta) {
+      internalTransfers++;
+      continue;
+    }
+    const direction = delta > 0 ? "D" : "C";
+    const movementRows = bankRows.filter((r) => r.side === direction);
+    const history = [...new Set(movementRows.map((r) => r.history))].join(" · ");
+    if (delta > 0) {
+      const externalCredits = e.rows.filter((r) => !isCash(r) && r.side === "C");
+      if (!externalCredits.some(isClient)) {
+        otherReceipts++;
+        continue;
+      }
+      if (externalCredits.some((r) => !isClient(r))) {
+        review.push({
+          key: e.key,
+          entry: e.entry,
+          reason:
+            "Recebimento mistura clientes e outras contrapartidas; valor não atribuído automaticamente",
+        });
+        continue;
+      }
+      if (history.replace(/\D/g, "").includes(ownCnpj)) {
+        review.push({
+          key: e.key,
+          entry: e.entry,
+          reason: "Classificado em Clientes, mas o histórico informa o CNPJ da própria empresa",
+        });
+        continue;
+      }
+    }
+    const counterparts = e.rows.filter((r) => !isCash(r) && r.side === (delta > 0 ? "C" : "D"));
+    const supplier =
+      counterparts.length > 0 &&
+      counterparts.every((r) =>
+        /fornecedor|servicos profissionais|honorarios|assessoria|consultoria|manutencao de sistemas/.test(
+          fold(r.accountName)
+        )
+      );
+    const category =
+      delta > 0
+        ? "Recebimento de clientes"
+        : supplier
+          ? "Fornecedores / prestadores"
+          : [...new Set(counterparts.map((r) => r.accountName))].join(" · ") || "Outras saídas";
+    const item: CashMovement = {
+      key: e.key,
+      entry: e.entry,
+      date: e.date,
+      amountCents: Math.abs(delta),
+      ...participant(history),
+      history,
+      category,
+      page: Math.min(...movementRows.map((r) => r.page)),
+    };
+    (delta > 0 ? receipts : outflows).push(item);
+  }
+  const order = (a: CashMovement, b: CashMovement) =>
+    b.amountCents - a.amountCents || b.date.localeCompare(a.date) || a.entry.localeCompare(b.entry);
+  return {
+    receipts: receipts.sort(order),
+    outflows: outflows.sort(order),
+    review,
+    internalTransfers,
+    otherReceipts,
+  };
+}

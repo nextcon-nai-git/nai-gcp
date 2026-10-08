@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   LedgerSchema,
+  rankCashMovements,
   emptyFilters,
   filterLedger,
   ledgerCsv,
@@ -115,5 +116,76 @@ describe("corporate ledger authorization", () => {
       expect(() =>
         requireFinancialAccess({ ...u, permissions: ["*"], servedCompanies: ["all"] })
       ).toThrow();
+  });
+});
+
+describe("cash rankings from full accounting entries", () => {
+  const sample = (records: LedgerRow[]) => LedgerSchema.parse({ ...book, rows: records });
+  const bank = (id: string, side: "D" | "C", amountCents: number, extra: Partial<LedgerRow> = {}) =>
+    row(id, side, amountCents, { account: "1.1.01.002.1", accountName: "Banco", ...extra });
+  const client = (
+    id: string,
+    side: "D" | "C",
+    amountCents: number,
+    extra: Partial<LedgerRow> = {}
+  ) =>
+    row(id, side, amountCents, {
+      account: "1.1.02.001.1",
+      accountName: "Clientes Diversos",
+      ...extra,
+    });
+  it("ranks cash collected, excludes provisions, loans, self-CNPJ receipts and internal transfers", () => {
+    const records = [
+      bank("a", "D", 900, { entry: "1", history: "PIX RECEBIDO CLIENTE TESTE" }),
+      client("b", "C", 900),
+      client("c", "D", 5000, { entry: "2" }),
+      row("d", "C", 5000, { entry: "2", account: "3.1.01", accountName: "Receita" }),
+      bank("e", "D", 8000, { entry: "3" }),
+      row("f", "C", 8000, { entry: "3", accountName: "Empréstimos" }),
+      bank("g", "D", 10000, { entry: "4" }),
+      bank("h", "C", 10000, { entry: "4", account: "1.1.01.003.2" }),
+      bank("i", "D", 12000, { entry: "5", history: "PIX RECEBIDO 00000000000100" }),
+      client("j", "C", 12000, { entry: "5" }),
+    ];
+    const r = rankCashMovements(sample(records));
+    expect(r.receipts).toHaveLength(1);
+    expect(r.receipts[0].amountCents).toBe(900);
+    expect(r.internalTransfers).toBe(1);
+    expect(r.otherReceipts).toBe(1);
+    expect(r.review).toHaveLength(1);
+  });
+  it("uses net bank receipts when customer settlement includes withheld taxes", () => {
+    const r = rankCashMovements(
+      sample([
+        bank("a", "D", 900),
+        row("b", "D", 100, { account: "1.1.04.1", accountName: "Tributos" }),
+        client("c", "C", 1000),
+      ])
+    );
+    expect(r.receipts[0].amountCents).toBe(900);
+  });
+  it("keeps other outgoing categories distinct from provider payments and respects visible entry keys", () => {
+    const b = sample([
+      bank("a", "C", 1000, { entry: "1", history: "PIX ENVIADO PRESTADOR TESTE" }),
+      row("b", "D", 1000, { account: "2.1.03.1", accountName: "Fornecedores Diversos" }),
+      bank("c", "C", 2000, { entry: "2" }),
+      row("d", "D", 2000, { entry: "2", accountName: "Empréstimos a terceiros" }),
+    ]);
+    const r = rankCashMovements(b);
+    expect(r.outflows.map((x) => x.amountCents)).toEqual([2000, 1000]);
+    expect(r.outflows[0].category).toBe("Empréstimos a terceiros");
+    expect(r.outflows[1].category).toBe("Fornecedores / prestadores");
+    expect(rankCashMovements(b, new Set(["2025-01-02|1"])).outflows).toHaveLength(1);
+  });
+  it("does not allocate a mixed incoming journal to clients automatically", () => {
+    const r = rankCashMovements(
+      sample([
+        bank("a", "D", 1000),
+        client("b", "C", 800),
+        row("c", "C", 200, { accountName: "Empréstimos" }),
+      ])
+    );
+    expect(r.receipts).toHaveLength(0);
+    expect(r.review).toHaveLength(1);
   });
 });
