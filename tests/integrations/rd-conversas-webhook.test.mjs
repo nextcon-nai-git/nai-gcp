@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { receiveRdWebhook, normalizeRdPhone, rdPayloadShape } from "../../src/lib/integrations/rd-conversas-webhook.ts";
+import {
+  receiveRdWebhook,
+  normalizeRdPhone,
+  rdPayloadShape,
+} from "../../src/lib/integrations/rd-conversas-webhook.ts";
 
 const secret = "s".repeat(64);
 const phone = "5511999990000"; // synthetic test data
