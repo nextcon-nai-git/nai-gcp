@@ -59,6 +59,7 @@ export default function AsoSchedulerPage() {
   >("kanban");
   const [requests, setRequests] = useState<AsoRequest[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [selectedRequest, setSelectedRequest] = useState<AsoRequest | null>(null);
   const [copiedKit, setCopiedKit] = useState(false);
 
@@ -81,21 +82,38 @@ export default function AsoSchedulerPage() {
   );
   const [analyzingAi, setAnalyzingAi] = useState(false);
 
-  const loadRequests = async () => {
-    setLoading(true);
-    const res = await getAsoRequestsAction(await user!.getIdToken());
-    if (res.success && res.data) {
-      setRequests(res.data);
-      if (!selectedRequest && res.data.length > 0) {
-        setSelectedRequest(res.data[0]);
-      }
-    }
-    setLoading(false);
-  };
-
   useEffect(() => {
-    if (user) void loadRequests();
-  }, []);
+    if (!user) return;
+    let disposed = false;
+    let inFlight = false;
+    const refresh = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const res = await getAsoRequestsAction(await user.getIdToken());
+        if (!disposed && res.success) {
+          setRequests(res.data);
+          setLoadError("");
+          setSelectedRequest((current) =>
+            current ? res.data.find((item) => item.id === current.id) || null : res.data[0] || null
+          );
+        }
+      } catch {
+        if (!disposed)
+          setLoadError("Não foi possível atualizar as solicitações. Tentaremos novamente.");
+      } finally {
+        inFlight = false;
+      }
+    };
+    void refresh();
+    const timer = setInterval(() => {
+      void refresh();
+    }, 15000);
+    return () => {
+      disposed = true;
+      clearInterval(timer);
+    };
+  }, [user]);
 
   const handleRunAiTriage = async () => {
     setAnalyzingAi(true);
@@ -260,6 +278,11 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
           </div>
         </div>
 
+        {loadError && (
+          <p role="alert" className="text-sm text-amber-300">
+            {loadError}
+          </p>
+        )}
         {/* Top KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800/80 space-y-1">
@@ -425,6 +448,11 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                                   {req.roleTitle}
                                 </p>
                                 <p className="text-[10px] text-slate-500">{req.companyName}</p>
+                                {req.source === "rd-conversas" && (
+                                  <p className="text-[10px] text-cyan-300">
+                                    RD Conversas · {req.requestedCity}
+                                  </p>
+                                )}
                               </div>
 
                               {req.clinicName && (
@@ -552,7 +580,10 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                   <select
                     value={formData.examType}
                     onChange={(e) =>
-                      setFormData({ ...formData, examType: e.target.value as ExamType })
+                      setFormData({
+                        ...formData,
+                        examType: e.target.value as ExamType,
+                      })
                     }
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-cyan-500"
                   >
@@ -571,7 +602,12 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                   <input
                     type="text"
                     value={formData.declaredRisks}
-                    onChange={(e) => setFormData({ ...formData, declaredRisks: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        declaredRisks: e.target.value,
+                      })
+                    }
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-cyan-500"
                     placeholder="Separe por vírgulas: Ruído, Poeira, Altura, etc."
                   />
@@ -665,7 +701,8 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                     </span>
                     <p className="text-white font-bold">
                       {aiAnalysisResult.agendamento_matching.clinica_recomendada_nome} (Score:{" "}
-                      {aiAnalysisResult.agendamento_matching.score_compatibilidade}%)
+                      {aiAnalysisResult.agendamento_matching.score_compatibilidade}
+                      %)
                     </p>
                     <p className="text-slate-400">
                       {aiAnalysisResult.agendamento_matching.motivo_escolha}

@@ -3,15 +3,25 @@ on:
   pull_request:
     paths:
       - "src/lib/integrations/rd-conversas-webhook.ts"
+      - "src/lib/integrations/rd-aso-request.ts"
+      - "src/types/aso-scheduler-types.ts"
+      - "src/actions/aso-scheduler-actions.ts"
+      - "src/app/aso-scheduler/page.tsx"
       - "src/app/api/integrations/rd-conversas/**"
       - "tests/integrations/rd-conversas-webhook.test.mjs"
+      - "tests/integrations/rd-aso-request.test.mjs"
       - ".github/workflows/rd-conversas.yml"
   push:
     branches: [main]
     paths:
       - "src/lib/integrations/rd-conversas-webhook.ts"
+      - "src/lib/integrations/rd-aso-request.ts"
+      - "src/types/aso-scheduler-types.ts"
+      - "src/actions/aso-scheduler-actions.ts"
+      - "src/app/aso-scheduler/page.tsx"
       - "src/app/api/integrations/rd-conversas/**"
       - "tests/integrations/rd-conversas-webhook.test.mjs"
+      - "tests/integrations/rd-aso-request.test.mjs"
 permissions:
   contents: read
 jobs:
@@ -22,4 +32,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - run: node --experimental-strip-types --test tests/integrations/rd-conversas-webhook.test.mjs
+      - run: node --experimental-strip-types --test tests/integrations/rd-conversas-webhook.test.mjs tests/integrations/rd-aso-request.test.mjs

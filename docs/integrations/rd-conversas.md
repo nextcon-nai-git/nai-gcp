@@ -3,8 +3,9 @@
 Endpoint: POST /api/integrations/rd-conversas/webhook.
 
 Esta implementação recebe texto e registra no Firestore em
-integrations/rd-conversas-avp/messages. Não envia respostas, não altera agendamentos
-e não consulta histórico Advanced. Não usa o JWT do RD para receber webhooks.
+integrations/rd-conversas-avp/messages. Solicitações completas criam também um card
+em integrations/rd-conversas-avp/asoRequests, na etapa solicitado. Não envia respostas
+nem consulta histórico Advanced. Não usa o JWT do RD para receber webhooks.
 
 ## Configuração necessária antes de ativar
 
@@ -52,3 +53,65 @@ node --experimental-strip-types --test tests/integrations/rd-conversas-webhook.t
 Teste final de produção: mensagem individual de contato autorizado aparece uma vez;
 repetir o mesmo evento não duplica; contato externo não é armazenado.
 Não registrar texto, telefone, cabeçalhos nem credenciais nos logs.
+
+## Solicitação de ASO concluída no coletor do RD
+
+Na última etapa do formulário/chatbot, configurar uma ação HTTP POST para o mesmo
+endpoint, com o cabeçalho X-NAI-Webhook-Secret já existente. O contrato abaixo é
+definido pelo NAI para essa ação; não é uma afirmação sobre o webhook nativo do RD.
+Mapear as variáveis coletadas no RD e enviar apenas após o cliente/coordenador
+confirmar o preenchimento. Reutilizar o mesmo request_id nas tentativas da mesma
+solicitação. Uma nova solicitação deve receber outro ID.
+
+Exemplo com dados sintéticos:
+
+```json
+{
+  "event": "aso.request.completed",
+  "request_id": "identificador-estavel-da-solicitacao",
+  "phone": "5511999990000",
+  "aso_request": {
+    "companyName": "Empresa de Teste",
+    "cnpj": "12.345.678/0001-95",
+    "employeeName": "Pessoa de Teste",
+    "cpf": "529.982.247-25",
+    "roleTitle": "Assistente",
+    "department": "Administrativo",
+    "examType": "admissional",
+    "requestedCity": "Campinas/SP"
+  }
+}
+```
+
+Todos os campos são obrigatórios; CPF e CNPJ numéricos têm dígitos verificadores
+validados. Tipos: admissional, periodico, demissional, retorno_trabalho,
+mudanca_funcao. O telefone deve ser o contato autorizado que preencheu a
+solicitação, nunca um número inferido do CPF. Formulário incompleto ou ID ausente
+retorna 422; 503 permite repetir com o mesmo ID. A mensagem e o card são criados
+na mesma transação. Reentrega preserva o card e sua etapa atual.
+
+Também é possível receber uma mensagem de entrada completa com as linhas
+SOLICITAÇÃO DE ASO, Empresa:, CNPJ:, Colaborador:, CPF:, Cargo:, Setor:,
+Tipo de ASO: e Cidade/UF:. Mensagens comuns/incompletas continuam apenas no
+histórico e não geram cards. Mensagens de saída/bot comuns continuam ignoradas;
+a ação HTTP de conclusão é um evento explícito separado.
+
+A equipe SUPER_ADMIN, ADMIN e OPERATIONS vê e avança os cards compartilhados.
+Clientes e demais perfis não recebem acesso à fila compartilhada. Os pedidos
+pessoais existentes são preservados. A tela aguarda autenticação e atualiza a
+cada 15 segundos, com indicação da origem RD Conversas e cidade.
+
+Os cards entram em solicitado, sem escolher clínica, definir exames ou gerar
+kit com dados presumidos. A equipe confere cadastro, PGR e PCMSO nas próximas etapas.
+
+Validação automatizada:
+
+```sh
+node --experimental-strip-types --test tests/integrations/rd-conversas-webhook.test.mjs tests/integrations/rd-aso-request.test.mjs
+```
+
+Pendências de ativação: publicar a revisão, autenticar no painel
+https://app.tallos.com.br/app/integrations/api e mapear a ação de conclusão do
+coletor para esse contrato. Confirmar um evento real e verificar no Kanban;
+repetir o mesmo evento deve manter um único card. O recebimento nativo de mensagens
+mantém os contratos provisórios descritos acima até validação do evento real.
