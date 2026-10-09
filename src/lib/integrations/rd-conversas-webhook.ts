@@ -11,6 +11,7 @@ export type RdWebhookConfig = {
   secret?: string;
   allowedPhones: string[];
   diagnose?: (shape: string[]) => void;
+  parseCompletedAso?: (value: unknown) => string | null;
   save: (key: string, message: RdIncomingMessage) => Promise<boolean>;
 };
 
@@ -107,18 +108,36 @@ export async function receiveRdWebhook(req: Request, config: RdWebhookConfig): P
   const data = Object.keys(record(body.data)).length ? record(body.data) : body;
   const message = record(data.message);
   const customer = record(data.customer);
+  const completedAso = data.event === "aso.request.completed";
+  const completedText = completedAso ? config.parseCompletedAso?.(data.aso_request) : null;
+  if (completedAso && !completedText)
+    return response(422, {
+      error: "Solicitação de ASO incompleta ou inválida.",
+    });
   // Explicit outgoing signals are ignored. Do not infer incoming from absence.
   const direction = data.direction ?? message.direction;
   const sentBy = data.sent_by ?? message.sent_by;
-  if (direction === "outbound" || sentBy === "operator" || sentBy === "bot")
+  if (!completedAso && (direction === "outbound" || sentBy === "operator" || sentBy === "bot"))
     return response(200, { accepted: false, reason: "outgoing" });
-  if (direction !== "inbound" && sentBy !== "customer")
+  if (!completedAso && direction !== "inbound" && sentBy !== "customer")
     return response(422, { error: "Direção da mensagem não reconhecida." });
   const phone = normalizeRdPhone(customer.cel_phone ?? data.phone);
   if (!phone) return response(422, { error: "Telefone inválido." });
   if (!allowed.has(phone)) return response(200, { accepted: false, reason: "outside_avp" });
-  const id = message.id ?? message._id ?? data.message_id;
-  const text = typeof data.message === "string" ? data.message : (message.text ?? message.content);
+  const requestId = data.request_id;
+  if (
+    completedAso &&
+    (typeof requestId !== "string" || !requestId.trim() || requestId.length > 400)
+  )
+    return response(422, { error: "Identificador da solicitação inválido." });
+  const id = completedAso
+    ? "aso-request:" + requestId
+    : (message.id ?? message._id ?? data.message_id);
+  const text = completedAso
+    ? completedText
+    : typeof data.message === "string"
+      ? data.message
+      : (message.text ?? message.content);
   if (
     typeof id !== "string" ||
     !id.trim() ||

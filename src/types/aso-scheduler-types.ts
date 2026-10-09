@@ -101,6 +101,9 @@ export interface AsoAgentAlert {
 }
 
 export interface AsoRequest {
+  source?: "rd-conversas";
+  sourceMessageId?: string;
+  requestedCity?: string;
   id: string;
   companyName: string;
   cnpj: string;

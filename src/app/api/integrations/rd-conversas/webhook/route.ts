@@ -1,3 +1,4 @@
+import { completedRdAsoText, rdAsoRequestFromText } from "@/lib/integrations/rd-aso-request";
 import { adminDb } from "@/lib/firebase-admin";
 import { receiveRdWebhook } from "@/lib/integrations/rd-conversas-webhook";
 
@@ -9,6 +10,7 @@ let lastDiagnosticMs = 0;
 export async function POST(req: Request) {
   return receiveRdWebhook(req, {
     secret: process.env.RD_CONVERSAS_WEBHOOK_SECRET,
+    parseCompletedAso: completedRdAsoText,
     diagnose: (fields) => {
       const now = Date.now();
       const until = Date.parse(process.env.RD_CONVERSAS_DIAGNOSTICS_UNTIL || "");
@@ -24,9 +26,23 @@ export async function POST(req: Request) {
         .doc("rd-conversas-avp")
         .collection("messages")
         .doc(key);
+      const aso = rdAsoRequestFromText(message.text, key, message.messageId, message.receivedAt);
+      const asoRef = aso
+        ? adminDb
+            .collection("integrations")
+            .doc("rd-conversas-avp")
+            .collection("asoRequests")
+            .doc(aso.id)
+        : null;
       return adminDb.runTransaction(async (tx) => {
         if ((await tx.get(ref)).exists) return false;
-        tx.create(ref, { ...message, status: "RECEIVED", clientGroup: "AVP" });
+        tx.create(ref, {
+          ...message,
+          status: aso ? "ASO_REQUEST_CREATED" : "RECEIVED",
+          clientGroup: "AVP",
+          ...(aso ? { asoRequestId: aso.id } : {}),
+        });
+        if (aso && asoRef) tx.create(asoRef, aso);
         return true;
       });
     },

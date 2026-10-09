@@ -10,22 +10,42 @@ import { INITIAL_PARTNER_CLINICS } from "@/lib/aso-scheduler-data";
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { adminDb } from "@/lib/firebase-admin";
+import { canManageRdAso } from "@/lib/integrations/rd-aso-request";
 import { forbidden } from "@/lib/auth/errors";
 
-async function requestStore(token: string) {
+async function schedulerUser(token: string) {
   const user = await requireAuth(
-    new NextRequest("https://nai.local", { headers: { authorization: `Bearer ${token}` } })
+    new NextRequest("https://nai.local", {
+      headers: { authorization: `Bearer ${token}` },
+    })
   );
   if (user.role === "GUEST") throw forbidden();
+  return user;
+}
+
+async function requestStore(token: string) {
+  const user = await schedulerUser(token);
   return adminDb.collection("users").doc(user.uid).collection("asoRequests");
+}
+
+function rdRequestStore() {
+  return adminDb.collection("integrations").doc("rd-conversas-avp").collection("asoRequests");
 }
 
 export async function getAsoRequestsAction(
   token = ""
 ): Promise<{ success: boolean; data: AsoRequest[] }> {
-  const store = await requestStore(token);
-  const snapshot = await store.orderBy("createdAt", "desc").limit(500).get();
-  return { success: true, data: snapshot.docs.map((doc) => doc.data() as AsoRequest) };
+  const user = await schedulerUser(token);
+  const ownStore = adminDb.collection("users").doc(user.uid).collection("asoRequests");
+  const [own, rd] = await Promise.all([
+    ownStore.orderBy("createdAt", "desc").limit(500).get(),
+    canManageRdAso(user.role)
+      ? rdRequestStore().orderBy("createdAt", "desc").limit(500).get()
+      : null,
+  ]);
+  const data = [...own.docs, ...(rd?.docs || [])].map((doc) => doc.data() as AsoRequest);
+  data.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return { success: true, data };
 }
 
 export async function createAsoRequestAction(
@@ -153,7 +173,10 @@ export async function createAsoRequestAction(
     return { success: true, data: newRequest };
   } catch (err: any) {
     console.error("[Create ASO Request Action Error]", err);
-    return { success: false, error: err.message || "Erro ao criar solicitação de ASO." };
+    return {
+      success: false,
+      error: err.message || "Erro ao criar solicitação de ASO.",
+    };
   }
 }
 
@@ -163,7 +186,11 @@ export async function advancePipelineStepAction(
   token = ""
 ): Promise<{ success: boolean; data?: AsoRequest; error?: string }> {
   try {
-    const store = await requestStore(token);
+    const user = await schedulerUser(token);
+    if (requestId.startsWith("rd-") && !canManageRdAso(user.role)) throw forbidden();
+    const store = requestId.startsWith("rd-")
+      ? rdRequestStore()
+      : adminDb.collection("users").doc(user.uid).collection("asoRequests");
     if (!requestId || requestId.includes("/"))
       return { success: false, error: "Solicitação inválida." };
     const snapshot = await store.doc(requestId).get();
@@ -192,7 +219,10 @@ export async function advancePipelineStepAction(
     return { success: true, data: updated };
   } catch (err: any) {
     console.error("[Advance Pipeline Action Error]", err);
-    return { success: false, error: err.message || "Erro ao atualizar etapa do pipeline." };
+    return {
+      success: false,
+      error: err.message || "Erro ao atualizar etapa do pipeline.",
+    };
   }
 }
 
@@ -203,7 +233,11 @@ export async function runAsoOrchestratorAnalysisAction(
   roleTitle?: string,
   examType?: ExamType,
   token = ""
-): Promise<{ success: boolean; data?: AsoSystemOrchestratorOutput; error?: string }> {
+): Promise<{
+  success: boolean;
+  data?: AsoSystemOrchestratorOutput;
+  error?: string;
+}> {
   try {
     await requestStore(token);
     const result = await processAsoSystemOrchestration({
@@ -217,6 +251,9 @@ export async function runAsoOrchestratorAnalysisAction(
     return { success: true, data: result };
   } catch (err: any) {
     console.error("[Run ASO Orchestrator Action Error]", err);
-    return { success: false, error: err.message || "Erro na análise dos 7 agentes de IA." };
+    return {
+      success: false,
+      error: err.message || "Erro na análise dos 7 agentes de IA.",
+    };
   }
 }
