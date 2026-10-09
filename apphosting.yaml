@@ -28,3 +28,11 @@ env:
     value: gemini-3.8-flash
     availability:
       - RUNTIME
+  - variable: RD_CONVERSAS_WEBHOOK_SECRET
+    secret: RD_CONVERSAS_WEBHOOK_SECRET
+    availability:
+      - RUNTIME
+  - variable: RD_CONVERSAS_AVP_PHONES
+    secret: RD_CONVERSAS_AVP_PHONES
+    availability:
+      - RUNTIME
