@@ -651,6 +651,12 @@ export default function ClientsManagement() {
         </Card>
       </Link>
 
+      <Link
+        href="/financial/monthly-billing"
+        className="inline-flex rounded-xl border bg-white px-4 py-3 text-sm font-semibold text-primary"
+      >
+        Importar CNPJs e faturamento mensal por grupo
+      </Link>
       <div className="relative group">
         <Search className="absolute left-4 top-3.5 size-5 text-slate-300 group-focus-within:text-primary transition-all" />
         <Input

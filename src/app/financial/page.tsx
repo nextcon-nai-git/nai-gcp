@@ -109,7 +109,10 @@ export default function FinancialModule() {
               : activeCompany?.name || "Unidade Técnica"}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" className="rounded-2xl h-12">
+            <Link href="/financial/monthly-billing">Faturamento mensal por grupo</Link>
+          </Button>
           <Button
             variant="outline"
             className="gap-2 border-primary text-primary h-12 px-6 rounded-2xl font-black uppercase text-[10px] btn-hover-effect shadow-sm"

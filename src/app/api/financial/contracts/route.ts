@@ -13,18 +13,22 @@ export async function GET(request: NextRequest) {
     const query = scope
       ? adminDb.collection("companies").doc(scope).collection("contracts")
       : adminDb.collectionGroup("contracts");
-    const result = await query.orderBy("value", "desc").limit(1001).get();
+    // A collection-group orderBy requires an additional index. Fetch a bounded
+    // result, reject incomplete portfolios, then sort in memory.
+    const result = await query.limit(1001).get();
     if (result.size > 1000)
       throw new AuthError("Selecione uma empresa para consultar mais de 1.000 contratos.", 422);
-    const contracts = result.docs.map((doc) => {
-      const row = doc.data();
-      return {
-        id: doc.ref.path,
-        companyName: String(row.companyName || ""),
-        title: String(row.title || ""),
-        value: Number(row.value) || 0,
-      };
-    });
+    const contracts = result.docs
+      .map((doc) => {
+        const row = doc.data();
+        return {
+          id: doc.ref.path,
+          companyName: String(row.companyName || ""),
+          title: String(row.title || ""),
+          value: Number(row.value) || 0,
+        };
+      })
+      .sort((a, b) => b.value - a.value);
     return NextResponse.json({ contracts }, { headers });
   } catch (e) {
     return NextResponse.json(

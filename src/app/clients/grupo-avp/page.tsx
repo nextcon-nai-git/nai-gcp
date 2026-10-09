@@ -165,6 +165,12 @@ export default function GrupoAvpClientHubPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/financial/monthly-billing?group=GRUPO_AVP"
+              className="rounded-xl bg-white px-4 py-3 text-sm font-semibold text-slate-950"
+            >
+              CNPJs e faturamento mensal
+            </Link>
             <Badge className="bg-emerald-500 text-slate-950 font-black text-[10px] px-3.5 h-8 uppercase tracking-wider">
               Operação Ativa (01/09/2026)
             </Badge>
