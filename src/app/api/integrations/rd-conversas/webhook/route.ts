@@ -9,8 +9,11 @@ export async function POST(req: Request) {
     secret: process.env.RD_CONVERSAS_WEBHOOK_SECRET,
     allowedPhones: (process.env.RD_CONVERSAS_AVP_PHONES || "").split(","),
     save: async (key, message) => {
-      const ref = adminDb.collection("integrations").doc("rd-conversas-avp")
-        .collection("messages").doc(key);
+      const ref = adminDb
+        .collection("integrations")
+        .doc("rd-conversas-avp")
+        .collection("messages")
+        .doc(key);
       return adminDb.runTransaction(async (tx) => {
         if ((await tx.get(ref)).exists) return false;
         tx.create(ref, { ...message, status: "RECEIVED", clientGroup: "AVP" });

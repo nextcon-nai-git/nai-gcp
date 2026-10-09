@@ -20,7 +20,8 @@ export function normalizeRdPhone(value: unknown): string {
 }
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown> : {};
+    ? (value as Record<string, unknown>)
+    : {};
 }
 function authenticated(value: string | null, secret: string) {
   if (!value || value.length > 1024) return false;
@@ -66,8 +67,11 @@ export async function receiveRdWebhook(req: Request, config: RdWebhookConfig): P
     reader.releaseLock();
   }
   let body: Record<string, unknown>;
-  try { body = record(JSON.parse(Buffer.concat(chunks).toString("utf8"))); }
-  catch { return response(400, { error: "JSON inválido." }); }
+  try {
+    body = record(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+  } catch {
+    return response(400, { error: "JSON inválido." });
+  }
   const data = Object.keys(record(body.data)).length ? record(body.data) : body;
   const message = record(data.message);
   const customer = record(data.customer);
@@ -82,15 +86,26 @@ export async function receiveRdWebhook(req: Request, config: RdWebhookConfig): P
   if (!phone) return response(422, { error: "Telefone inválido." });
   if (!allowed.has(phone)) return response(200, { accepted: false, reason: "outside_avp" });
   const id = message.id ?? message._id ?? data.message_id;
-  const text = typeof data.message === "string" ? data.message : message.text ?? message.content;
-  if (typeof id !== "string" || !id.trim() || id.length > 512 ||
-      typeof text !== "string" || !text.trim() || text.length > 16000)
+  const text = typeof data.message === "string" ? data.message : (message.text ?? message.content);
+  if (
+    typeof id !== "string" ||
+    !id.trim() ||
+    id.length > 512 ||
+    typeof text !== "string" ||
+    !text.trim() ||
+    text.length > 16000
+  )
     return response(422, { error: "Identificador ou texto da mensagem inválido." });
   const incoming: RdIncomingMessage = {
-    provider: "rd-conversas", messageId: id, phone, text,
+    provider: "rd-conversas",
+    messageId: id,
+    phone,
+    text,
     receivedAt: new Date().toISOString(),
   };
-  const key = createHash("sha256").update("rd-conversas\0" + id).digest("hex");
+  const key = createHash("sha256")
+    .update("rd-conversas\0" + id)
+    .digest("hex");
   try {
     const created = await config.save(key, incoming);
     return response(200, { accepted: true, duplicate: !created });
