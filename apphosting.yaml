@@ -37,6 +37,6 @@ env:
     availability:
       - RUNTIME
   - variable: RD_CONVERSAS_DIAGNOSTICS_UNTIL
-    value: "2026-10-09T05:00:00Z"
+    value: "2026-10-09T11:05:00Z"
     availability:
       - RUNTIME
