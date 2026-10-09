@@ -1,92 +1,56 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeApp, getApps, getApp } from "firebase/app";
-import {
-  getFirestore,
-  collection,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  limit,
-} from "firebase/firestore";
-import { firebaseConfig } from "@/firebase/config";
+import { z } from "zod";
+import { adminDb } from "@/lib/firebase-admin";
 import {
   requireApiKey,
   requireScope,
   requireClient,
   handleApiGuardError,
+  ApiGuardError,
 } from "@/lib/developer-api-guard";
 import { replayWebhookDelivery } from "@/services/webhooks/webhook-dispatcher";
-
-/**
- * GET /api/v1/developer/webhooks/deliveries
- * Consulta o histórico de entregas e Dead-Letter Queue (DLQ)
- */
+export const dynamic = "force-dynamic";
+const headers = { "Cache-Control": "private, no-store" };
+const id = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .refine((value) => !value.includes("/"));
+const statusSchema = z.enum(["PENDING", "DELIVERED", "FAILED", "RETRYING", "DEAD_LETTER"]);
 export async function GET(req: NextRequest) {
   try {
-    const authKey = await requireApiKey(req);
-    requireScope(authKey, "webhooks:manage");
-
-    const { searchParams } = new URL(req.url);
-    const clientId = searchParams.get("clientId") || authKey.clientId;
-    const status = searchParams.get("status"); // PENDING | DELIVERED | FAILED | RETRYING | DEAD_LETTER
-    const webhookId = searchParams.get("webhookId");
-
-    requireClient(authKey, clientId);
-
-    const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    let q = query(
-      collection(db, "webhook_deliveries"),
-      where("clientId", "==", clientId),
-      orderBy("createdAt", "desc"),
-      limit(50)
-    );
-
+    const key = await requireApiKey(req);
+    requireScope(key, "webhooks:manage");
+    const clientId = req.nextUrl.searchParams.get("clientId") || key.clientId;
+    requireClient(key, clientId);
+    let query = adminDb.collection("webhook_deliveries").where("clientId", "==", clientId);
+    const status = req.nextUrl.searchParams.get("status");
     if (status) {
-      q = query(
-        collection(db, "webhook_deliveries"),
-        where("clientId", "==", clientId),
-        where("status", "==", status),
-        orderBy("createdAt", "desc"),
-        limit(50)
-      );
+      if (!statusSchema.safeParse(status).success) throw new ApiGuardError("Status inválido.", 400);
+      query = query.where("status", "==", status);
     }
-
-    const snapshot = await getDocs(q);
-    const deliveries = snapshot.docs.map((d) => ({
-      id: d.id,
-      ...d.data(),
-    }));
-
-    return NextResponse.json({ deliveries });
+    const webhookId = req.nextUrl.searchParams.get("webhookId");
+    if (webhookId) {
+      if (!id.safeParse(webhookId).success) throw new ApiGuardError("ID do webhook inválido.", 400);
+      query = query.where("webhookId", "==", webhookId);
+    }
+    const snapshot = await query.orderBy("createdAt", "desc").limit(50).get();
+    return NextResponse.json(
+      { deliveries: snapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id })) },
+      { headers }
+    );
   } catch (error) {
     return handleApiGuardError(error);
   }
 }
-
-/**
- * POST /api/v1/developer/webhooks/deliveries
- * Replay manual de uma entrega em Dead-Letter Queue (DLQ Replay)
- */
 export async function POST(req: NextRequest) {
   try {
-    const authKey = await requireApiKey(req);
-    requireScope(authKey, "webhooks:manage");
-
-    const body = await req.json();
-    const { deliveryId } = body;
-
-    if (!deliveryId) {
-      return NextResponse.json(
-        { error: "deliveryId é obrigatório para execução do replay." },
-        { status: 400 }
-      );
-    }
-
-    const result = await replayWebhookDelivery(deliveryId);
-    return NextResponse.json(result);
+    const key = await requireApiKey(req);
+    requireScope(key, "webhooks:manage");
+    const parsed = z.object({ deliveryId: id }).safeParse(await req.json().catch(() => null));
+    if (!parsed.success) throw new ApiGuardError("ID da entrega inválido.", 400);
+    return NextResponse.json(await replayWebhookDelivery(parsed.data.deliveryId, key), { headers });
   } catch (error) {
     return handleApiGuardError(error);
   }

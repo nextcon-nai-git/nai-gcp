@@ -136,3 +136,14 @@ describe("Chaves de integração protegidas pelo servidor", () => {
     }
   });
 });
+
+describe("Webhooks geridos pelo servidor", () => {
+  it("impede leitura de segredo e escrita direta por perfis de navegador", async () => {
+    for (const uid of ["client", "global", "super"]) {
+      for (const collection of ["webhooks", "webhook_deliveries"]) {
+        await assertFails(getDoc(doc(db(uid), collection, "private")));
+        await assertFails(setDoc(doc(db(uid), collection, "forged"), { clientId: "GLOBAL" }));
+      }
+    }
+  });
+});

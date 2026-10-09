@@ -1,23 +1,11 @@
 import { createHmac, randomUUID } from "crypto";
-import { initializeApp, getApps, getApp } from "firebase/app";
-import {
-  Firestore,
-  DocumentReference,
-  getFirestore,
-  collection,
-  doc,
-  addDoc,
-  getDoc,
-  getDocs,
-  updateDoc,
-  query,
-  where,
-  serverTimestamp,
-  orderBy,
-  limit,
-} from "firebase/firestore";
-import { firebaseConfig } from "@/firebase/config";
+import "server-only";
+import { FieldValue, type DocumentReference } from "firebase-admin/firestore";
+import { adminDb } from "@/lib/firebase-admin";
+import { ApiGuardError, requireClient } from "@/lib/developer-api-guard";
+import type { ApiKeyRecord } from "@/types/developer";
 import { WebhookRecord, WebhookEvent } from "@/types/developer";
+import { postWebhook } from "./post-webhook";
 import { validateWebhookTargetUrl } from "@/lib/webhook-security-guard";
 
 export type WebhookDeliveryStatus = "PENDING" | "DELIVERED" | "FAILED" | "RETRYING" | "DEAD_LETTER";
@@ -61,14 +49,14 @@ export async function emitWebhookEvent(
   eventData: Record<string, unknown>
 ): Promise<{ eventId: string; deliveriesCount: number }> {
   const eventId = `evt_${randomUUID()}`;
-  const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-  const db = getFirestore(app);
+  const db = adminDb;
 
   // 1. Localiza os endpoints de Webhook ativos para este tenant que escutam este evento
-  const webhooksRef = collection(db, "webhooks");
-  const q = query(webhooksRef, where("clientId", "==", clientId), where("active", "==", true));
-
-  const snapshot = await getDocs(q);
+  const snapshot = await db
+    .collection("webhooks")
+    .where("clientId", "==", clientId)
+    .where("active", "==", true)
+    .get();
   if (snapshot.empty) {
     return { eventId, deliveriesCount: 0 };
   }
@@ -112,10 +100,10 @@ export async function emitWebhookEvent(
       deliveredAt: null,
       payload: rawPayload,
       signature: `sha256=${signature}`,
-      serverTimestamp: serverTimestamp(),
+      serverTimestamp: FieldValue.serverTimestamp(),
     };
 
-    const deliveryDoc = await addDoc(collection(db, "webhook_deliveries"), deliveryData);
+    const deliveryDoc = await db.collection("webhook_deliveries").add(deliveryData);
 
     // Inicia entrega imediata em background
     executeWebhookDelivery(deliveryDoc.id, wh.secret, deliveryData).catch((err) => {
@@ -143,15 +131,14 @@ export async function executeWebhookDelivery(
   httpStatus?: number;
   error?: string;
 }> {
-  const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-  const db = getFirestore(app);
+  const db = adminDb;
 
-  const deliveryRef = doc(db, "webhook_deliveries", deliveryId);
+  const deliveryRef = db.collection("webhook_deliveries").doc(deliveryId);
   let delivery = initialData;
 
   if (!delivery) {
-    const snap = await getDoc(deliveryRef);
-    if (!snap.exists()) {
+    const snap = await deliveryRef.get();
+    if (!snap.exists) {
       throw new Error(`Entrega ${deliveryId} não encontrada.`);
     }
     delivery = snap.data();
@@ -160,7 +147,7 @@ export async function executeWebhookDelivery(
   const currentAttempt = (delivery.attempt || 0) + 1;
   const maxAttempts = delivery.maxAttempts || DEFAULT_MAX_ATTEMPTS;
   const payloadString = JSON.stringify(delivery.payload);
-  const signature = delivery.signature || `sha256=${signWebhookPayload(payloadString, secret)}`;
+  const signature = `sha256=${signWebhookPayload(payloadString, secret)}`;
 
   // Validação Estrita contra SSRF e DNS Rebinding antes do disparo
   const urlCheck = await validateWebhookTargetUrl(delivery.targetUrl);
@@ -177,13 +164,11 @@ export async function executeWebhookDelivery(
     );
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
   try {
-    const response = await fetch(delivery.targetUrl, {
-      method: "POST",
-      headers: {
+    const response = await postWebhook(
+      urlCheck.normalizedUrl!,
+      urlCheck.resolvedIps!,
+      {
         "Content-Type": "application/json",
         "User-Agent": "NAI-Webhook-Dispatcher/2.0",
         "X-NAI-Event": delivery.eventType,
@@ -192,29 +177,26 @@ export async function executeWebhookDelivery(
         "X-NAI-Signature": signature,
         "X-NAI-Attempt": String(currentAttempt),
       },
-      body: payloadString,
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
+      payloadString,
+      REQUEST_TIMEOUT_MS
+    );
 
     if (response.ok) {
       // Sucesso na Entrega
       const deliveredAt = new Date().toISOString();
-      await updateDoc(deliveryRef, {
+      await deliveryRef.update({
         attempt: currentAttempt,
         status: "DELIVERED",
         httpStatus: response.status,
         deliveredAt,
         lastError: null,
         nextRetryAt: null,
-        updatedAt: serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
 
       return { success: true, status: "DELIVERED", httpStatus: response.status };
     } else {
-      const responseText = await response.text().catch(() => "");
-      const errMsg = `HTTP ${response.status}: ${responseText.slice(0, 200) || response.statusText}`;
+      const errMsg = `HTTP ${response.status}`;
       return await handleDeliveryFailure(
         db,
         deliveryRef,
@@ -226,7 +208,6 @@ export async function executeWebhookDelivery(
       );
     }
   } catch (error: any) {
-    clearTimeout(timeoutId);
     const isTimeout = error.name === "AbortError";
     const errMsg = isTimeout
       ? `Timeout excedido (${REQUEST_TIMEOUT_MS / 1000}s)`
@@ -247,8 +228,8 @@ export async function executeWebhookDelivery(
  * Trata falha de envio calculando backoff exponencial ou encaminhando para Dead-Letter
  */
 async function handleDeliveryFailure(
-  db: any,
-  deliveryRef: any,
+  db: typeof adminDb,
+  deliveryRef: DocumentReference,
   delivery: any,
   currentAttempt: number,
   maxAttempts: number,
@@ -262,13 +243,13 @@ async function handleDeliveryFailure(
 }> {
   if (currentAttempt >= maxAttempts) {
     // Excedeu o limite de tentativas -> Encaminha para Dead-Letter Queue (DLQ)
-    await updateDoc(deliveryRef, {
+    await deliveryRef.update({
       attempt: currentAttempt,
       status: "DEAD_LETTER",
       httpStatus,
       lastError: errorMessage,
       nextRetryAt: null,
-      updatedAt: serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
 
     return {
@@ -283,13 +264,13 @@ async function handleDeliveryFailure(
   const backoffSeconds = Math.pow(2, currentAttempt) * 30;
   const nextRetryDate = new Date(Date.now() + backoffSeconds * 1000);
 
-  await updateDoc(deliveryRef, {
+  await deliveryRef.update({
     attempt: currentAttempt,
     status: "RETRYING",
     httpStatus,
     lastError: errorMessage,
     nextRetryAt: nextRetryDate.toISOString(),
-    updatedAt: serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   });
 
   return {
@@ -304,26 +285,34 @@ async function handleDeliveryFailure(
  * Re-executa uma entrega em Dead-Letter manualmente (Replay DLQ)
  */
 export async function replayWebhookDelivery(
-  deliveryId: string
+  deliveryId: string,
+  authKey: ApiKeyRecord
 ): Promise<{ success: boolean; message: string }> {
-  const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-  const db = getFirestore(app);
+  const db = adminDb;
 
-  const deliveryRef = doc(db, "webhook_deliveries", deliveryId);
-  const snap = await getDoc(deliveryRef);
-  if (!snap.exists()) {
-    throw new Error("Entrega não encontrada.");
+  const deliveryRef = db.collection("webhook_deliveries").doc(deliveryId);
+  const snap = await deliveryRef.get();
+  if (!snap.exists) {
+    throw new ApiGuardError("Entrega não encontrada.", 404);
   }
 
-  const delivery = snap.data();
-  const webhookSnap = await getDoc(doc(db, "webhooks", delivery.webhookId));
-  const secret = webhookSnap.exists() ? webhookSnap.data().secret : "";
+  const delivery = snap.data()!;
+  if (typeof delivery.clientId !== "string" || !delivery.clientId)
+    throw new ApiGuardError("Entrega sem empresa válida.", 409);
+  requireClient(authKey, delivery.clientId);
+  const webhookSnap = await db.collection("webhooks").doc(delivery.webhookId).get();
+  const webhook = webhookSnap.data();
+  if (!webhook || !webhook.active || webhook.clientId !== delivery.clientId || !webhook.secret)
+    throw new ApiGuardError("Webhook inexistente, inativo ou incompatível com a entrega.", 409);
+  if (webhook.url !== delivery.targetUrl)
+    throw new ApiGuardError("O destino mudou. O replay da entrega antiga foi bloqueado.", 409);
+  const secret = webhook.secret;
 
-  await updateDoc(deliveryRef, {
+  await deliveryRef.update({
     status: "PENDING",
     lastError: null,
     nextRetryAt: null,
-    updatedAt: serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   });
 
   // Executa imediatamente

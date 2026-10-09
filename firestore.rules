@@ -145,8 +145,8 @@ service cloud.firestore {
     }
 
     match /{rootCollection}/{document=**} {
-      allow read: if isSignedIn() && isNextconOfficial() && !(rootCollection in ['companies', 'api_keys']);
-      allow write: if isNextconOfficial() && !(rootCollection in ['users', 'companies', 'integrations', 'api_keys']);
+      allow read: if isSignedIn() && isNextconOfficial() && !(rootCollection in ['companies', 'api_keys', 'webhooks', 'webhook_deliveries']);
+      allow write: if isNextconOfficial() && !(rootCollection in ['users', 'companies', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries']);
     }
   }
 }
