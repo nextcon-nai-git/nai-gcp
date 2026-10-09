@@ -10,6 +10,7 @@ export type RdIncomingMessage = {
 export type RdWebhookConfig = {
   secret?: string;
   allowedPhones: string[];
+  diagnose?: (shape: string[]) => void;
   save: (key: string, message: RdIncomingMessage) => Promise<boolean>;
 };
 
@@ -23,6 +24,33 @@ function record(value: unknown): Record<string, unknown> {
     ? (value as Record<string, unknown>)
     : {};
 }
+
+/** Bounded field/type inventory; primitive values and credential subtrees are omitted. */
+export function rdPayloadShape(value: unknown): string[] {
+  const fields: string[] = [];
+  const visit = (item: unknown, path: string, depth: number) => {
+    if (fields.length >= 100 || depth > 5) return;
+    if (Array.isArray(item)) {
+      fields.push(path + ":array");
+      if (item.length) visit(item[0], path + "[]", depth + 1);
+    } else if (item && typeof item === "object") {
+      fields.push(path + ":object");
+      for (const [key, child] of Object.entries(item)) {
+        if (fields.length >= 100) break;
+        const safe = /^[a-zA-Z_]{1,40}$/.test(key) ? key : "[other]";
+        const next = path + "." + safe;
+        if (
+          /token|secret|authorization|password|credential|api.?key/i.test(key)
+        ) {
+          fields.push(next + ":redacted");
+        } else visit(child, next, depth + 1);
+      }
+    } else fields.push(path + ":" + (item === null ? "null" : typeof item));
+  };
+  visit(value, "$", 0);
+  return fields;
+}
+
 function authenticated(value: string | null, secret: string) {
   if (!value || value.length > 1024) return false;
   const left = createHash("sha256").update(value).digest();
@@ -36,14 +64,25 @@ const response = (status: number, body: Record<string, unknown>) =>
  * Accepted adapter contracts are documented and provisional until verified
  * against an actual RD webhook. Unknown payloads fail without storing raw data.
  */
-export async function receiveRdWebhook(req: Request, config: RdWebhookConfig): Promise<Response> {
+export async function receiveRdWebhook(
+  req: Request,
+  config: RdWebhookConfig,
+): Promise<Response> {
   if (!config.secret || config.secret.length < 32)
     return response(503, { error: "Webhook não configurado." });
   if (!authenticated(req.headers.get("x-nai-webhook-secret"), config.secret))
     return response(401, { error: "Webhook não autorizado." });
-  const allowed = new Set(config.allowedPhones.map(normalizeRdPhone).filter(Boolean));
-  if (!allowed.size) return response(503, { error: "Contatos AVP não configurados." });
-  if (!req.headers.get("content-type")?.toLowerCase().startsWith("application/json"))
+  const allowed = new Set(
+    config.allowedPhones.map(normalizeRdPhone).filter(Boolean),
+  );
+  if (!allowed.size)
+    return response(503, { error: "Contatos AVP não configurados." });
+  if (
+    !req.headers
+      .get("content-type")
+      ?.toLowerCase()
+      .startsWith("application/json")
+  )
     return response(415, { error: "Envie JSON." });
   const maxBytes = 65536;
   const reader = req.body?.getReader();
@@ -72,6 +111,12 @@ export async function receiveRdWebhook(req: Request, config: RdWebhookConfig): P
   } catch {
     return response(400, { error: "JSON inválido." });
   }
+  const shape = rdPayloadShape(body);
+  try {
+    config.diagnose?.(shape);
+  } catch {
+    /* Diagnostics must not block receipt. */
+  }
   const data = Object.keys(record(body.data)).length ? record(body.data) : body;
   const message = record(data.message);
   const customer = record(data.customer);
@@ -84,9 +129,13 @@ export async function receiveRdWebhook(req: Request, config: RdWebhookConfig): P
     return response(422, { error: "Direção da mensagem não reconhecida." });
   const phone = normalizeRdPhone(customer.cel_phone ?? data.phone);
   if (!phone) return response(422, { error: "Telefone inválido." });
-  if (!allowed.has(phone)) return response(200, { accepted: false, reason: "outside_avp" });
+  if (!allowed.has(phone))
+    return response(200, { accepted: false, reason: "outside_avp" });
   const id = message.id ?? message._id ?? data.message_id;
-  const text = typeof data.message === "string" ? data.message : (message.text ?? message.content);
+  const text =
+    typeof data.message === "string"
+      ? data.message
+      : (message.text ?? message.content);
   if (
     typeof id !== "string" ||
     !id.trim() ||
@@ -95,7 +144,9 @@ export async function receiveRdWebhook(req: Request, config: RdWebhookConfig): P
     !text.trim() ||
     text.length > 16000
   )
-    return response(422, { error: "Identificador ou texto da mensagem inválido." });
+    return response(422, {
+      error: "Identificador ou texto da mensagem inválido.",
+    });
   const incoming: RdIncomingMessage = {
     provider: "rd-conversas",
     messageId: id,
@@ -110,6 +161,8 @@ export async function receiveRdWebhook(req: Request, config: RdWebhookConfig): P
     const created = await config.save(key, incoming);
     return response(200, { accepted: true, duplicate: !created });
   } catch {
-    return response(503, { error: "Recebimento indisponível. Tente novamente." });
+    return response(503, {
+      error: "Recebimento indisponível. Tente novamente.",
+    });
   }
 }
