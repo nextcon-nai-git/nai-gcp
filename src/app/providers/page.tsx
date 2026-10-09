@@ -49,6 +49,10 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  ProviderAssessment,
+  type ProviderAssessmentValues,
+} from "@/components/providers/provider-assessment";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -100,6 +104,7 @@ import {
   doc,
   serverTimestamp,
   setDoc,
+  updateDoc,
   writeBatch,
   where,
 } from "firebase/firestore";
@@ -219,7 +224,11 @@ function RatingStars({
   readonly?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-0.5">
+    <div
+      className="flex items-center gap-0.5"
+      role="img"
+      aria-label={rating >= 1 && rating <= 5 ? `${rating} de 5 estrelas` : "Sem avaliação"}
+    >
       {[1, 2, 3, 4, 5].map((star) => (
         <Star
           key={star}
@@ -862,9 +871,16 @@ export default function ProvidersManagement() {
                           )}
                         </div>
                         <div className="text-left">
-                          <p className="font-black text-sm text-primary uppercase leading-tight truncate max-w-[300px]">
+                          <button
+                            type="button"
+                            className="font-black text-sm text-primary uppercase leading-tight truncate max-w-[300px] text-left hover:underline"
+                            onClick={() => {
+                              setEditingProvider(provider);
+                              setIsCreateOpen(true);
+                            }}
+                          >
                             {provider.name}
-                          </p>
+                          </button>
                           <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">
                             Vínculo: {provider.id}
                           </p>
@@ -953,7 +969,7 @@ export default function ProvidersManagement() {
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="inline-flex flex-col items-center gap-1">
-                        <RatingStars rating={provider.rating || 5} readonly />
+                        <RatingStars rating={provider.rating ?? 0} readonly />
                         <span className="text-[8px] font-black text-slate-300 uppercase">
                           Qualidade
                         </span>
@@ -968,7 +984,7 @@ export default function ProvidersManagement() {
                             : "bg-red-100 text-red-700"
                         )}
                       >
-                        {provider.active ? "Ativo" : "Bloqueado"}
+                        {provider.active ? "Ativo" : "Inativo"}
                       </Badge>
                     </TableCell>
                     <TableCell className="pr-10 text-right">
@@ -1550,6 +1566,28 @@ export default function ProvidersManagement() {
                       </div>
                     </Card>
                   </div>
+
+                  {editingProvider && (
+                    <ProviderAssessment
+                      key={editingProvider.id}
+                      initialValues={{
+                        active: editingProvider.active ?? true,
+                        rating: editingProvider.rating ?? 0,
+                        ratingNote: editingProvider.ratingNote ?? "",
+                      }}
+                      onSave={async (assessment: ProviderAssessmentValues) => {
+                        if (!db || !user || !isGlobalAdmin) throw new Error("Sessão indisponível");
+                        await updateDoc(doc(db, "providers", editingProvider.id), {
+                          ...assessment,
+                          updatedAt: serverTimestamp(),
+                          ratingUpdatedAt: serverTimestamp(),
+                          ratingUpdatedBy: user.uid,
+                        });
+                        form.setValue("active", assessment.active);
+                        form.setValue("rating", assessment.rating);
+                      }}
+                    />
+                  )}
 
                   <div className="pt-8 border-t border-dashed flex flex-col items-center gap-6">
                     <Button
