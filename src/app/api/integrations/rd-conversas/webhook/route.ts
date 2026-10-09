@@ -11,14 +11,8 @@ export async function POST(req: Request) {
     secret: process.env.RD_CONVERSAS_WEBHOOK_SECRET,
     diagnose: (fields) => {
       const now = Date.now();
-      const until = Date.parse(
-        process.env.RD_CONVERSAS_DIAGNOSTICS_UNTIL || "",
-      );
-      if (
-        until > now &&
-        until - now <= 86400000 &&
-        now - lastDiagnosticMs >= 60000
-      ) {
+      const until = Date.parse(process.env.RD_CONVERSAS_DIAGNOSTICS_UNTIL || "");
+      if (until > now && until - now <= 86400000 && now - lastDiagnosticMs >= 60000) {
         lastDiagnosticMs = now;
         console.info("NAI_RD_WEBHOOK_SCHEMA", JSON.stringify({ fields }));
       }
