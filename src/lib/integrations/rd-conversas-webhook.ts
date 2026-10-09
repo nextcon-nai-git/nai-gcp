@@ -39,9 +39,7 @@ export function rdPayloadShape(value: unknown): string[] {
         if (fields.length >= 100) break;
         const safe = /^[a-zA-Z_]{1,40}$/.test(key) ? key : "[other]";
         const next = path + "." + safe;
-        if (
-          /token|secret|authorization|password|credential|api.?key/i.test(key)
-        ) {
+        if (/token|secret|authorization|password|credential|api.?key/i.test(key)) {
           fields.push(next + ":redacted");
         } else visit(child, next, depth + 1);
       }
@@ -64,25 +62,14 @@ const response = (status: number, body: Record<string, unknown>) =>
  * Accepted adapter contracts are documented and provisional until verified
  * against an actual RD webhook. Unknown payloads fail without storing raw data.
  */
-export async function receiveRdWebhook(
-  req: Request,
-  config: RdWebhookConfig,
-): Promise<Response> {
+export async function receiveRdWebhook(req: Request, config: RdWebhookConfig): Promise<Response> {
   if (!config.secret || config.secret.length < 32)
     return response(503, { error: "Webhook não configurado." });
   if (!authenticated(req.headers.get("x-nai-webhook-secret"), config.secret))
     return response(401, { error: "Webhook não autorizado." });
-  const allowed = new Set(
-    config.allowedPhones.map(normalizeRdPhone).filter(Boolean),
-  );
-  if (!allowed.size)
-    return response(503, { error: "Contatos AVP não configurados." });
-  if (
-    !req.headers
-      .get("content-type")
-      ?.toLowerCase()
-      .startsWith("application/json")
-  )
+  const allowed = new Set(config.allowedPhones.map(normalizeRdPhone).filter(Boolean));
+  if (!allowed.size) return response(503, { error: "Contatos AVP não configurados." });
+  if (!req.headers.get("content-type")?.toLowerCase().startsWith("application/json"))
     return response(415, { error: "Envie JSON." });
   const maxBytes = 65536;
   const reader = req.body?.getReader();
@@ -129,13 +116,9 @@ export async function receiveRdWebhook(
     return response(422, { error: "Direção da mensagem não reconhecida." });
   const phone = normalizeRdPhone(customer.cel_phone ?? data.phone);
   if (!phone) return response(422, { error: "Telefone inválido." });
-  if (!allowed.has(phone))
-    return response(200, { accepted: false, reason: "outside_avp" });
+  if (!allowed.has(phone)) return response(200, { accepted: false, reason: "outside_avp" });
   const id = message.id ?? message._id ?? data.message_id;
-  const text =
-    typeof data.message === "string"
-      ? data.message
-      : (message.text ?? message.content);
+  const text = typeof data.message === "string" ? data.message : (message.text ?? message.content);
   if (
     typeof id !== "string" ||
     !id.trim() ||
