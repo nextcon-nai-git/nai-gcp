@@ -10,6 +10,7 @@ export type RdIncomingMessage = {
 export type RdWebhookConfig = {
   secret?: string;
   allowedPhones: string[];
+  diagnose?: (shape: string[]) => void;
   save: (key: string, message: RdIncomingMessage) => Promise<boolean>;
 };
 
@@ -23,6 +24,31 @@ function record(value: unknown): Record<string, unknown> {
     ? (value as Record<string, unknown>)
     : {};
 }
+
+/** Bounded field/type inventory; primitive values and credential subtrees are omitted. */
+export function rdPayloadShape(value: unknown): string[] {
+  const fields: string[] = [];
+  const visit = (item: unknown, path: string, depth: number) => {
+    if (fields.length >= 100 || depth > 5) return;
+    if (Array.isArray(item)) {
+      fields.push(path + ":array");
+      if (item.length) visit(item[0], path + "[]", depth + 1);
+    } else if (item && typeof item === "object") {
+      fields.push(path + ":object");
+      for (const [key, child] of Object.entries(item)) {
+        if (fields.length >= 100) break;
+        const safe = /^[a-zA-Z_]{1,40}$/.test(key) ? key : "[other]";
+        const next = path + "." + safe;
+        if (/token|secret|authorization|password|credential|api.?key/i.test(key)) {
+          fields.push(next + ":redacted");
+        } else visit(child, next, depth + 1);
+      }
+    } else fields.push(path + ":" + (item === null ? "null" : typeof item));
+  };
+  visit(value, "$", 0);
+  return fields;
+}
+
 function authenticated(value: string | null, secret: string) {
   if (!value || value.length > 1024) return false;
   const left = createHash("sha256").update(value).digest();
@@ -72,6 +98,12 @@ export async function receiveRdWebhook(req: Request, config: RdWebhookConfig): P
   } catch {
     return response(400, { error: "JSON inválido." });
   }
+  const shape = rdPayloadShape(body);
+  try {
+    config.diagnose?.(shape);
+  } catch {
+    /* Diagnostics must not block receipt. */
+  }
   const data = Object.keys(record(body.data)).length ? record(body.data) : body;
   const message = record(data.message);
   const customer = record(data.customer);
@@ -95,7 +127,9 @@ export async function receiveRdWebhook(req: Request, config: RdWebhookConfig): P
     !text.trim() ||
     text.length > 16000
   )
-    return response(422, { error: "Identificador ou texto da mensagem inválido." });
+    return response(422, {
+      error: "Identificador ou texto da mensagem inválido.",
+    });
   const incoming: RdIncomingMessage = {
     provider: "rd-conversas",
     messageId: id,
@@ -110,6 +144,8 @@ export async function receiveRdWebhook(req: Request, config: RdWebhookConfig): P
     const created = await config.save(key, incoming);
     return response(200, { accepted: true, duplicate: !created });
   } catch {
-    return response(503, { error: "Recebimento indisponível. Tente novamente." });
+    return response(503, {
+      error: "Recebimento indisponível. Tente novamente.",
+    });
   }
 }

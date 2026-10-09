@@ -36,3 +36,7 @@ env:
     secret: RD_CONVERSAS_AVP_PHONES
     availability:
       - RUNTIME
+  - variable: RD_CONVERSAS_DIAGNOSTICS_UNTIL
+    value: "2026-10-09T05:00:00Z"
+    availability:
+      - RUNTIME
