@@ -146,6 +146,10 @@ export async function validateWebhookTargetUrl(
     return { valid: false, error: "Formato de URL inválido." };
   }
 
+  if (parsed.username || parsed.password || parsed.hash) {
+    return { valid: false, error: "URLs de webhook não podem conter credenciais ou fragmentos." };
+  }
+
   // 1. Validação HTTPS Obrigatória
   if (parsed.protocol !== "https:") {
     return { valid: false, error: "Apenas endpoints com protocolo seguro HTTPS são permitidos." };

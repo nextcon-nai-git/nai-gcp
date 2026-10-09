@@ -26,7 +26,7 @@ async function cacheSuccessfulResponse(
     const entry = responseCache.get(cacheKey);
     if (entry?.promise === promise) entry.expiresAt = Date.now() + ttl;
   } catch {
-    responseCache.delete(cacheKey);
+    if (responseCache.get(cacheKey)?.promise === promise) responseCache.delete(cacheKey);
   }
 }
 
@@ -66,7 +66,36 @@ async function requestJson<T>(url: string, options: HttpJsonOptions): Promise<T>
         throw new Error("External response exceeds the configured size limit");
       }
 
-      const body = await response.arrayBuffer();
+      // Enforce the limit while reading, including responses without Content-Length.
+      let body: ArrayBuffer;
+      if (response.body) {
+        const reader = response.body.getReader();
+        const chunks: Uint8Array[] = [];
+        let size = 0;
+        try {
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            size += value.byteLength;
+            if (size > maxResponseBytes) {
+              await reader.cancel();
+              throw new Error("External response exceeds the configured size limit");
+            }
+            chunks.push(value);
+          }
+        } finally {
+          reader.releaseLock();
+        }
+        const bytes = new Uint8Array(size);
+        let offset = 0;
+        for (const chunk of chunks) {
+          bytes.set(chunk, offset);
+          offset += chunk.byteLength;
+        }
+        body = bytes.buffer;
+      } else {
+        body = await response.arrayBuffer();
+      }
       if (body.byteLength > maxResponseBytes) {
         throw new Error("External response exceeds the configured size limit");
       }
@@ -90,12 +119,19 @@ async function requestJson<T>(url: string, options: HttpJsonOptions): Promise<T>
 export function fetchJson<T>(url: string, options: HttpJsonOptions = {}): Promise<T> {
   const ttl = options.cacheTtlMs ?? 0;
   const headers = new Headers(options.headers);
-  if (ttl <= 0 || headers.has("authorization")) return requestJson<T>(url, options);
+  if (
+    ttl <= 0 ||
+    ["authorization", "cookie", "x-api-key", "x-nai-api-key"].some((name) => headers.has(name))
+  )
+    return requestJson<T>(url, options);
 
   const now = Date.now();
   const cacheKey = JSON.stringify({
     url,
     headers: [...headers.entries()].sort(([a], [b]) => a.localeCompare(b)),
+    maxResponseBytes: options.maxResponseBytes,
+    retryDelayMs: options.retryDelayMs,
+    cacheTtlMs: ttl,
     timeoutMs: options.timeoutMs,
     retries: options.retries,
     revalidate: options.revalidate,

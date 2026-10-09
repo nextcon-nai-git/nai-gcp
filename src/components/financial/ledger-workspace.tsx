@@ -121,6 +121,7 @@ export function LedgerWorkspace() {
   const [pdf, setPdf] = useState<{ url: string; page: number } | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const generation = useRef(0);
+  const pdfGeneration = useRef(0);
   const authFetch = useCallback(
     async (url: string, options: RequestInit = {}) => {
       if (!user) throw new Error("Entre no NAI para consultar o livro.");
@@ -183,7 +184,12 @@ export function LedgerWorkspace() {
     if (pdf) return () => URL.revokeObjectURL(pdf.url);
   }, [pdf]);
   useEffect(() => {
+    pdfGeneration.current++;
     setPdf(null);
+    setPdfLoading(false);
+    return () => {
+      pdfGeneration.current++;
+    };
   }, [user, book?.id]);
   const whole = useMemo(() => summarizeLedger(book?.rows || []), [book]);
   const rows = useMemo(() => filterLedger(book?.rows || [], filters), [book, filters]);
@@ -245,14 +251,17 @@ export function LedgerWorkspace() {
   }
   async function openPdf(sourcePage: number) {
     if (!book) return;
+    const current = ++pdfGeneration.current;
     setPdfLoading(true);
     try {
       const blob = await (await authFetch(`/api/financial/ledger/${book.id}?source=1`)).blob();
+      if (current !== pdfGeneration.current) return;
       setPdf({ url: URL.createObjectURL(blob), page: sourcePage });
     } catch (e) {
-      setNotice(e instanceof Error ? e.message : "Não foi possível abrir o PDF.");
+      if (current === pdfGeneration.current)
+        setNotice(e instanceof Error ? e.message : "Não foi possível abrir o PDF.");
     } finally {
-      setPdfLoading(false);
+      if (current === pdfGeneration.current) setPdfLoading(false);
     }
   }
   return (

@@ -1,146 +1,100 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeApp, getApps, getApp } from "firebase/app";
-import {
-  getFirestore,
-  collection,
-  addDoc,
-  serverTimestamp,
-  doc,
-  updateDoc,
-  getDoc,
-  getDocs,
-  query,
-  where,
-} from "firebase/firestore";
-import { firebaseConfig } from "@/firebase/config";
-import { generateApiKey, VALID_DEVELOPER_SCOPES, DeveloperScope } from "@/lib/developer-api-guard";
+import { FieldValue } from "firebase-admin/firestore";
+import { z } from "zod";
+import { adminDb } from "@/lib/firebase-admin";
+import { requireAuth } from "@/lib/auth/require-auth";
+import type { AuthContext } from "@/lib/auth/auth-context";
+import { AuthError, forbidden, badRequest } from "@/lib/auth/errors";
+import { generateApiKey, VALID_DEVELOPER_SCOPES } from "@/lib/developer-api-guard";
 
-/**
- * PIPELINE: Geração de Chaves de API M2M
- *
- * POST /api/v1/developer/keys
- *         ↓
- * Firebase ID Token
- *         ↓
- * requireRole("SUPER_ADMIN", "ADMIN")
- *         ↓
- * requireTenantAccess()
- *         ↓
- * validateScopes()
- *         ↓
- * createKey()
- */
+export const dynamic = "force-dynamic";
+const headers = { "Cache-Control": "private, no-store" };
+const id = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .refine((value) => !value.includes("/"));
+const input = z.object({
+  clientId: id,
+  name: z.string().trim().min(1).max(120),
+  scopes: z
+    .array(z.enum(VALID_DEVELOPER_SCOPES))
+    .min(1)
+    .max(VALID_DEVELOPER_SCOPES.length)
+    .default(["access_control:read"]),
+});
+function requireKeyAdmin(user: AuthContext, clientId?: string) {
+  if (user.role === "SUPER_ADMIN") return;
+  if (user.role !== "ADMIN") throw forbidden("A gestão de chaves exige perfil administrador.");
+  if (user.tenantId && clientId !== user.tenantId)
+    throw forbidden("Esta chave pertence a outra empresa.");
+}
+function failure(error: unknown) {
+  return NextResponse.json(
+    { error: error instanceof AuthError ? error.message : "Não foi possível gerenciar as chaves." },
+    { status: error instanceof AuthError ? error.status : 503, headers }
+  );
+}
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.replace("Bearer ", "").trim() : "";
-
-    const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    // 1. Extração do Payload da Requisição
-    const body = await req.json();
-    const { clientId, name, scopes } = body;
-
-    if (!clientId || !name) {
-      return NextResponse.json(
-        {
-          error: "Campos obrigatórios ausentes: clientId e name são requeridos.",
-        },
-        { status: 400 }
-      );
-    }
-
-    // 2. Validação de Escopos (validateScopes)
-    const requestedScopes: string[] =
-      Array.isArray(scopes) && scopes.length > 0 ? scopes : ["access_control:read"];
-    for (const s of requestedScopes) {
-      if (!VALID_DEVELOPER_SCOPES.includes(s as DeveloperScope)) {
-        return NextResponse.json(
-          {
-            error: `Escopo inválido: '${s}'. Escopos aceitos: [${VALID_DEVELOPER_SCOPES.join(", ")}]`,
-          },
-          { status: 400 }
-        );
-      }
-    }
-
-    // 3. Validação do Tenant no Firestore (requireTenantAccess)
-    const companyRef = doc(db, "companies", clientId);
-    const companySnap = await getDoc(companyRef);
-    if (!companySnap.exists() && clientId !== "ALL_TENANTS" && clientId !== "GLOBAL") {
-      return NextResponse.json(
-        {
-          error: `Tenant '${clientId}' não encontrado no banco de dados corporativo.`,
-        },
-        { status: 404 }
-      );
-    }
-
-    // 4. Criação Criptográfica da Chave (createKey)
+    const user = await requireAuth(req);
+    requireKeyAdmin(user, user.tenantId || undefined);
+    const parsed = input.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) throw badRequest("Informe empresa, nome e escopos válidos.");
+    const { clientId, name, scopes } = parsed.data;
+    requireKeyAdmin(user, clientId);
+    if (
+      !["GLOBAL", "ALL_TENANTS"].includes(clientId) &&
+      !(await adminDb.collection("companies").doc(clientId).get()).exists
+    )
+      throw new AuthError("Empresa não encontrada.", 404);
     const { rawKey, keyHash, keyPrefix } = generateApiKey();
-
+    const createdAt = new Date().toISOString();
     const record = {
       clientId,
-      name: name.trim(),
-      keyPrefix,
+      name,
       keyHash,
-      scopes: requestedScopes,
+      keyPrefix,
+      scopes: [...new Set(scopes)],
       active: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: serverTimestamp(),
-      serverTimestamp: serverTimestamp(),
+      createdAt,
+      createdBy: user.uid,
+      updatedAt: FieldValue.serverTimestamp(),
     };
-
-    const docRef = await addDoc(collection(db, "api_keys"), record);
-
+    const saved = await adminDb.collection("api_keys").add(record);
     return NextResponse.json(
       {
         success: true,
-        id: docRef.id,
-        name: record.name,
-        clientId: record.clientId,
-        keyPrefix: record.keyPrefix,
+        id: saved.id,
+        name,
+        clientId,
+        keyPrefix,
         scopes: record.scopes,
-        rawKey, // O cliente deve salvar esta chave neste momento (armazenamento único)
-        createdAt: record.createdAt,
-        message: "Chave de API M2M gerada com sucesso. Guarde a chave em local seguro.",
+        rawKey,
+        createdAt,
+        message: "Chave gerada. Guarde-a em local seguro; ela só será exibida agora.",
       },
-      { status: 201 }
+      { status: 201, headers }
     );
-  } catch (error: any) {
-    console.error("[Developer Keys API Error]", error);
-    return NextResponse.json(
-      {
-        error: error.message || "Falha ao processar pipeline de emissão de chave de API.",
-      },
-      { status: 500 }
-    );
+  } catch (error) {
+    return failure(error);
   }
 }
-
-/**
- * GET /api/v1/developer/keys?clientId=...
- * Lista chaves ativas do tenant (sem expor hash nem chave crua)
- */
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const clientId = searchParams.get("clientId");
-
-    const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    const keysRef = collection(db, "api_keys");
-    const q = clientId
-      ? query(keysRef, where("clientId", "==", clientId), where("active", "==", true))
-      : query(keysRef, where("active", "==", true));
-
-    const snap = await getDocs(q);
-    const keys = snap.docs.map((d) => {
-      const data = d.data();
+    const user = await requireAuth(req);
+    const clientId = req.nextUrl.searchParams.get("clientId") || user.tenantId || undefined;
+    requireKeyAdmin(user, clientId);
+    if (clientId && !id.safeParse(clientId).success) throw badRequest("Empresa inválida.");
+    let query = adminDb.collection("api_keys").where("active", "==", true);
+    if (clientId) query = query.where("clientId", "==", clientId);
+    const snapshot = await query.limit(501).get();
+    if (snapshot.size > 500) throw new AuthError("Restrinja a consulta por empresa.", 422);
+    const keys = snapshot.docs.map((doc) => {
+      const data = doc.data();
       return {
-        id: d.id,
+        id: doc.id,
         name: data.name,
         clientId: data.clientId,
         keyPrefix: data.keyPrefix,
@@ -149,37 +103,29 @@ export async function GET(req: NextRequest) {
         lastUsedAt: data.lastUsedAt || null,
       };
     });
-
-    return NextResponse.json({ keys });
-  } catch (error: any) {
-    return NextResponse.json({ error: "Falha ao listar chaves." }, { status: 500 });
+    return NextResponse.json({ keys }, { headers });
+  } catch (error) {
+    return failure(error);
   }
 }
-
-/**
- * DELETE /api/v1/developer/keys?id=...
- * Revogação instantânea de chave de API
- */
 export async function DELETE(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const keyId = searchParams.get("id");
-
-    if (!keyId) {
-      return NextResponse.json({ error: "ID da chave é obrigatório." }, { status: 400 });
-    }
-
-    const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    await updateDoc(doc(db, "api_keys", keyId), {
+    const user = await requireAuth(req);
+    requireKeyAdmin(user, user.tenantId || undefined);
+    const keyId = id.safeParse(req.nextUrl.searchParams.get("id"));
+    if (!keyId.success) throw badRequest("ID da chave inválido.");
+    const ref = adminDb.collection("api_keys").doc(keyId.data);
+    const snapshot = await ref.get();
+    if (!snapshot.exists) throw new AuthError("Chave não encontrada.", 404);
+    requireKeyAdmin(user, snapshot.data()?.clientId);
+    await ref.update({
       active: false,
       revokedAt: new Date().toISOString(),
-      updatedAt: serverTimestamp(),
+      revokedBy: user.uid,
+      updatedAt: FieldValue.serverTimestamp(),
     });
-
-    return NextResponse.json({ success: true, message: "Chave de API revogada com sucesso." });
-  } catch (error: any) {
-    return NextResponse.json({ error: "Falha ao revogar chave." }, { status: 500 });
+    return NextResponse.json({ success: true, message: "Chave revogada." }, { headers });
+  } catch (error) {
+    return failure(error);
   }
 }

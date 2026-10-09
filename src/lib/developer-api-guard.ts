@@ -1,19 +1,7 @@
 import { createHash, randomBytes } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { initializeApp, getApps, getApp } from "firebase/app";
-import {
-  getFirestore,
-  collection,
-  query,
-  where,
-  getDocs,
-  limit,
-  doc,
-  updateDoc,
-  addDoc,
-  serverTimestamp,
-} from "firebase/firestore";
-import { firebaseConfig } from "@/firebase/config";
+import { adminDb } from "@/lib/firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
 import { ApiKeyRecord } from "@/types/developer";
 
 export const VALID_DEVELOPER_SCOPES = [
@@ -88,8 +76,7 @@ export function handleApiGuardError(error: unknown): NextResponse {
   if (error instanceof ApiGuardError) {
     return NextResponse.json({ error: error.message }, { status: error.status });
   }
-  const msg = error instanceof Error ? error.message : "Erro interno de autorização.";
-  return NextResponse.json({ error: msg }, { status: 500 });
+  return NextResponse.json({ error: "Erro interno de autorização." }, { status: 500 });
 }
 
 /**
@@ -128,13 +115,12 @@ export async function requireApiKey(req: NextRequest): Promise<ApiKeyRecord> {
 
   const keyHash = createHash("sha256").update(rawKey).digest("hex");
 
-  const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-
-  const keysRef = collection(db, "api_keys");
-  const q = query(keysRef, where("keyHash", "==", keyHash), where("active", "==", true), limit(1));
-
-  const snap = await getDocs(q);
+  const snap = await adminDb
+    .collection("api_keys")
+    .where("keyHash", "==", keyHash)
+    .where("active", "==", true)
+    .limit(1)
+    .get();
   if (snap.empty) {
     throw new ApiGuardError("Chave de API inexistente, inativa ou revogada.", 401);
   }
@@ -142,8 +128,17 @@ export async function requireApiKey(req: NextRequest): Promise<ApiKeyRecord> {
   const docSnap = snap.docs[0];
   const keyRecord = { id: docSnap.id, ...docSnap.data() } as ApiKeyRecord;
 
+  if (
+    typeof keyRecord.clientId !== "string" ||
+    !keyRecord.clientId.trim() ||
+    !Array.isArray(keyRecord.scopes) ||
+    keyRecord.scopes.some((scope) => typeof scope !== "string")
+  ) {
+    throw new ApiGuardError("Credencial de API sem vínculo ou escopos válidos.", 401);
+  }
+
   // Rate Limiting
-  const rateLimit = checkRateLimit(keyRecord.keyPrefix);
+  const rateLimit = checkRateLimit(keyRecord.id);
   if (!rateLimit.allowed) {
     throw new ApiGuardError(
       `Limite de taxa excedido (120 req/min). Tente novamente em ${Math.ceil(rateLimit.resetMs / 1000)}s.`,
@@ -152,19 +147,26 @@ export async function requireApiKey(req: NextRequest): Promise<ApiKeyRecord> {
   }
 
   // Auditoria M2M Assíncrona
-  updateDoc(doc(db, "api_keys", docSnap.id), {
-    lastUsedAt: new Date().toISOString(),
-  }).catch(() => {});
+  adminDb
+    .collection("api_keys")
+    .doc(docSnap.id)
+    .update({
+      lastUsedAt: new Date().toISOString(),
+    })
+    .catch(() => {});
 
-  addDoc(collection(db, "developer_api_logs"), {
-    keyId: keyRecord.id,
-    keyPrefix: keyRecord.keyPrefix,
-    clientId: keyRecord.clientId,
-    endpoint: req.nextUrl.pathname,
-    method: req.method,
-    ip: req.headers.get("x-forwarded-for") || "127.0.0.1",
-    timestamp: serverTimestamp(),
-  }).catch(() => {});
+  adminDb
+    .collection("developer_api_logs")
+    .add({
+      keyId: keyRecord.id,
+      keyPrefix: keyRecord.keyPrefix,
+      clientId: keyRecord.clientId,
+      endpoint: req.nextUrl.pathname,
+      method: req.method,
+      ip: req.headers.get("x-forwarded-for") || "127.0.0.1",
+      timestamp: FieldValue.serverTimestamp(),
+    })
+    .catch(() => {});
 
   return keyRecord;
 }
@@ -239,7 +241,7 @@ export async function authenticateApiKeyRequest(
     return {
       success: false,
       status: 500,
-      error: (err as Error)?.message || "Falha de autenticação.",
+      error: "Falha de autenticação.",
     };
   }
 }

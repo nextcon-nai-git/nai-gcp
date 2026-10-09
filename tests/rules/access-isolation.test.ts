@@ -120,3 +120,30 @@ describe("Evidências no Storage", () => {
     );
   });
 });
+
+describe("Chaves de integração protegidas pelo servidor", () => {
+  it("nega leitura e criação direta de chaves até para administradores", async () => {
+    for (const uid of ["client", "global", "super"]) {
+      await assertFails(getDoc(doc(db(uid), "api_keys/private-key")));
+      await assertFails(
+        setDoc(doc(db(uid), "api_keys/forged-key"), {
+          clientId: "GLOBAL",
+          active: true,
+          scopes: ["*"],
+          keyHash: "forged",
+        })
+      );
+    }
+  });
+});
+
+describe("Webhooks geridos pelo servidor", () => {
+  it("impede leitura de segredo e escrita direta por perfis de navegador", async () => {
+    for (const uid of ["client", "global", "super"]) {
+      for (const collection of ["webhooks", "webhook_deliveries"]) {
+        await assertFails(getDoc(doc(db(uid), collection, "private")));
+        await assertFails(setDoc(doc(db(uid), collection, "forged"), { clientId: "GLOBAL" }));
+      }
+    }
+  });
+});

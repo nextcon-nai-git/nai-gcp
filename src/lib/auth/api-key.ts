@@ -1,8 +1,6 @@
 import { NextRequest } from "next/server";
 import { createHash } from "crypto";
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, collection, query, where, getDocs, limit } from "firebase/firestore";
-import { firebaseConfig } from "@/firebase/config";
+import { adminDb } from "@/lib/firebase-admin";
 import { unauthorized, forbidden } from "./errors";
 
 export interface ApiKeyContext {
@@ -25,25 +23,28 @@ export async function requireApiKey(request: NextRequest): Promise<ApiKeyContext
 
   const keyHash = createHash("sha256").update(apiKey.trim()).digest("hex");
 
-  const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-
-  const q = query(
-    collection(db, "api_keys"),
-    where("keyHash", "==", keyHash),
-    where("active", "==", true),
-    limit(1)
-  );
-
-  const snapshot = await getDocs(q);
+  const snapshot = await adminDb
+    .collection("api_keys")
+    .where("keyHash", "==", keyHash)
+    .where("active", "==", true)
+    .limit(1)
+    .get();
   if (snapshot.empty) {
     throw unauthorized("Chave de API inválida ou revogada.");
   }
 
   const docData = snapshot.docs[0].data();
+  if (
+    typeof docData.clientId !== "string" ||
+    !docData.clientId.trim() ||
+    !Array.isArray(docData.scopes) ||
+    docData.scopes.some((scope: unknown) => typeof scope !== "string")
+  ) {
+    throw unauthorized("Credencial de API sem vínculo ou escopos válidos.");
+  }
   return {
     id: snapshot.docs[0].id,
-    clientId: docData.clientId || "GLOBAL",
+    clientId: docData.clientId,
     scopes: Array.isArray(docData.scopes) ? docData.scopes : [],
     name: docData.name || "API Client",
     rateLimit: docData.rateLimit || 100,

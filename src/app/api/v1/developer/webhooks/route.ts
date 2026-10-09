@@ -1,159 +1,130 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
-import { initializeApp, getApps, getApp } from "firebase/app";
-import {
-  getFirestore,
-  collection,
-  addDoc,
-  serverTimestamp,
-  doc,
-  deleteDoc,
-  getDocs,
-  query,
-  where,
-} from "firebase/firestore";
-import { firebaseConfig } from "@/firebase/config";
+import { FieldValue } from "firebase-admin/firestore";
+import { z } from "zod";
+import { adminDb } from "@/lib/firebase-admin";
 import {
   requireApiKey,
   requireScope,
   requireClient,
   handleApiGuardError,
+  ApiGuardError,
 } from "@/lib/developer-api-guard";
 import { validateWebhookTargetUrl } from "@/lib/webhook-security-guard";
-
-/**
- * GET /api/v1/developer/webhooks
- * Lista endpoints de webhook registrados para o tenant
- */
+export const dynamic = "force-dynamic";
+const headers = { "Cache-Control": "private, no-store" };
+const id = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .refine((value) => !value.includes("/"));
+const input = z.object({
+  clientId: id.optional(),
+  url: z.string().max(2048),
+  events: z
+    .array(
+      z.enum([
+        "employee.clearance_changed",
+        "aso.expired",
+        "training.expired",
+        "certificate.fraud_detected",
+        "*",
+      ])
+    )
+    .min(1)
+    .max(5),
+});
 export async function GET(req: NextRequest) {
   try {
-    const authKey = await requireApiKey(req);
-    requireScope(authKey, "webhooks:manage");
-
-    const { searchParams } = new URL(req.url);
-    const companyId = searchParams.get("clientId") || authKey.clientId;
-    requireClient(authKey, companyId);
-
-    const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    const q = query(
-      collection(db, "webhooks"),
-      where("clientId", "==", companyId),
-      where("active", "==", true)
-    );
-
-    const snapshot = await getDocs(q);
-    const webhooks = snapshot.docs.map((d) => {
-      const data = d.data();
+    const key = await requireApiKey(req);
+    requireScope(key, "webhooks:manage");
+    const company = id.safeParse(req.nextUrl.searchParams.get("clientId") || key.clientId);
+    if (!company.success) throw new ApiGuardError("Empresa inválida.", 400);
+    requireClient(key, company.data);
+    const snapshot = await adminDb
+      .collection("webhooks")
+      .where("clientId", "==", company.data)
+      .where("active", "==", true)
+      .limit(501)
+      .get();
+    if (snapshot.size > 500)
+      throw new ApiGuardError("Limite de 500 webhooks por consulta excedido.", 422);
+    const webhooks = snapshot.docs.map((doc) => {
+      const data = doc.data();
       return {
-        id: d.id,
+        id: doc.id,
         clientId: data.clientId,
         url: data.url,
         events: data.events,
         active: data.active,
         createdAt: data.createdAt,
-        secretPrefix: `${(data.secret || "").slice(0, 10)}...`, // Oculta o segredo completo
+        secretPrefix: `${(data.secret || "").slice(0, 10)}...`,
       };
     });
-
-    return NextResponse.json({ webhooks });
+    return NextResponse.json({ webhooks }, { headers });
   } catch (error) {
     return handleApiGuardError(error);
   }
 }
-
-/**
- * POST /api/v1/developer/webhooks
- * Cadastra um novo Webhook de Integração com segredo HMAC-SHA256
- */
 export async function POST(req: NextRequest) {
   try {
-    const authKey = await requireApiKey(req);
-    requireScope(authKey, "webhooks:manage");
-
-    const body = await req.json();
-    const { clientId, url, events } = body;
-
-    const targetClientId = clientId || authKey.clientId;
-    requireClient(authKey, targetClientId);
-
-    // Validação Estrita de Segurança de URL (SSRF & Egress Protection)
-    const urlValidation = await validateWebhookTargetUrl(url);
-    if (!urlValidation.valid) {
-      return NextResponse.json(
-        {
-          error: urlValidation.error,
-        },
-        { status: 400 }
-      );
-    }
-
-    if (!events || !Array.isArray(events) || events.length === 0) {
-      return NextResponse.json(
-        {
-          error:
-            'Forneça ao menos um evento no array de eventos (ex: ["employee.clearance_changed", "aso.expired"]).',
-        },
-        { status: 400 }
-      );
-    }
-
+    const key = await requireApiKey(req);
+    requireScope(key, "webhooks:manage");
+    const parsed = input.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) throw new ApiGuardError("Informe empresa, URL e eventos válidos.", 400);
+    const { url, events } = parsed.data;
+    const clientId = parsed.data.clientId || key.clientId;
+    requireClient(key, clientId);
+    const validation = await validateWebhookTargetUrl(url);
+    if (!validation.valid) throw new ApiGuardError(validation.error || "Destino inválido.", 400);
     const secret = `whsec_${randomBytes(24).toString("hex")}`;
-    const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
     const payload = {
-      clientId: targetClientId,
-      url: url.trim(),
+      clientId,
+      url: validation.normalizedUrl!,
       secret,
-      events,
+      events: [...new Set(events)],
       active: true,
       createdAt: new Date().toISOString(),
-      serverTimestamp: serverTimestamp(),
+      serverTimestamp: FieldValue.serverTimestamp(),
     };
-
-    const docRef = await addDoc(collection(db, "webhooks"), payload);
-
+    const ref = await adminDb.collection("webhooks").add(payload);
     return NextResponse.json(
       {
-        id: docRef.id,
-        clientId: payload.clientId,
+        id: ref.id,
+        clientId,
         url: payload.url,
-        secret, // Retorna o segredo no momento do cadastro para que o cliente configure a validação HMAC
+        secret,
         events: payload.events,
         createdAt: payload.createdAt,
-        message: "Webhook cadastrado com sucesso. Guarde o segredo de validação HMAC.",
+        message: "Webhook cadastrado. Guarde o segredo de validação HMAC.",
       },
-      { status: 201 }
+      { status: 201, headers }
     );
   } catch (error) {
     return handleApiGuardError(error);
   }
 }
-
-/**
- * DELETE /api/v1/developer/webhooks?id=...
- * Remove/desativa webhook
- */
 export async function DELETE(req: NextRequest) {
   try {
-    const authKey = await requireApiKey(req);
-    requireScope(authKey, "webhooks:manage");
-
-    const { searchParams } = new URL(req.url);
-    const webhookId = searchParams.get("id");
-
-    if (!webhookId) {
-      return NextResponse.json({ error: "ID do Webhook é obrigatório." }, { status: 400 });
-    }
-
-    const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    await deleteDoc(doc(db, "webhooks", webhookId));
-
-    return NextResponse.json({ success: true, message: "Webhook removido com sucesso." });
+    const key = await requireApiKey(req);
+    requireScope(key, "webhooks:manage");
+    const parsed = id.safeParse(req.nextUrl.searchParams.get("id"));
+    if (!parsed.success) throw new ApiGuardError("ID do webhook inválido.", 400);
+    const ref = adminDb.collection("webhooks").doc(parsed.data);
+    const snapshot = await ref.get();
+    if (!snapshot.exists) throw new ApiGuardError("Webhook não encontrado.", 404);
+    const clientId = snapshot.data()?.clientId;
+    if (typeof clientId !== "string" || !clientId)
+      throw new ApiGuardError("Webhook sem empresa válida.", 409);
+    requireClient(key, clientId);
+    // Preserve delivery history and audit evidence instead of physically deleting the endpoint.
+    await ref.update({
+      active: false,
+      revokedAt: new Date().toISOString(),
+      revokedByKeyId: key.id,
+    });
+    return NextResponse.json({ success: true, message: "Webhook desativado." }, { headers });
   } catch (error) {
     return handleApiGuardError(error);
   }
