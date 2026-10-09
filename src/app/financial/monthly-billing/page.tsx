@@ -199,76 +199,78 @@ function MonthlyBilling() {
                   <p>Nenhuma mensalidade fixa cadastrada para este grupo.</p>
                 )}
               </section>
-              <section className="rounded-2xl border bg-white p-6 space-y-5">
-                <h2 className="text-xl font-semibold">Importar empresas e mensalidades</h2>
-                <p className="text-sm text-slate-600">
-                  Copie as três colunas da planilha: CNPJ, razão social e valor em reais. Não inclua
-                  a linha de total. Cadastros existentes são localizados pelo CNPJ.
-                </p>
-                <div>
-                  <label htmlFor="billing-source" className="block mb-2 font-medium">
-                    Nome da planilha de origem
-                  </label>
-                  <input
-                    id="billing-source"
-                    className="w-full rounded-xl border p-3"
-                    value={sourceName}
-                    maxLength={200}
-                    disabled={saving}
-                    onChange={(e) => {
-                      setSourceName(e.target.value);
-                      setReview(null);
-                    }}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="billing-paste" className="block mb-2 font-medium">
-                    CNPJ, razão social e valor mensal
-                  </label>
-                  <textarea
-                    id="billing-paste"
-                    className="min-h-48 w-full rounded-xl border p-3 font-mono text-sm"
-                    value={paste}
-                    disabled={saving}
-                    onChange={(e) => {
-                      setPaste(e.target.value);
-                      setReview(null);
-                      setSuccess("");
-                    }}
-                  />
-                </div>
-                <Button
-                  disabled={saving || loading || !sourceName.trim() || !paste.trim()}
-                  onClick={() => {
-                    setError("");
-                    setSuccess("");
-                    try {
-                      setReview(parseMonthlyBillingPaste(paste));
-                    } catch (e) {
-                      setReview(null);
-                      setError(e instanceof Error ? e.message : "Lote inválido.");
-                    }
-                  }}
-                >
-                  Revisar lote
-                </Button>
-                {review && (
-                  <div className="space-y-4 rounded-xl border border-teal-200 bg-teal-50 p-5">
-                    <h3 className="font-semibold">
-                      {review.length} CNPJs para {view.group.name} ·{" "}
-                      {money(review.reduce((sum, row) => sum + row.valueCents, 0))} por mês
-                    </h3>
-                    <BillingTable rows={review} />
-                    <p className="text-sm">
-                      Os valores serão cadastrados como mensalidades fixas. Vencimento e competência
-                      de emissão não foram definidos neste cadastro.
-                    </p>
-                    <Button disabled={saving} onClick={() => void save()}>
-                      {saving ? "Gravando e conferindo..." : "Confirmar cadastro e mensalidades"}
-                    </Button>
+              {view.group.id !== "GRUPO_AVP" && (
+                <section className="rounded-2xl border bg-white p-6 space-y-5">
+                  <h2 className="text-xl font-semibold">Importar empresas e mensalidades</h2>
+                  <p className="text-sm text-slate-600">
+                    Copie as três colunas da planilha: CNPJ, razão social e valor em reais. Não
+                    inclua a linha de total. Cadastros existentes são localizados pelo CNPJ.
+                  </p>
+                  <div>
+                    <label htmlFor="billing-source" className="block mb-2 font-medium">
+                      Nome da planilha de origem
+                    </label>
+                    <input
+                      id="billing-source"
+                      className="w-full rounded-xl border p-3"
+                      value={sourceName}
+                      maxLength={200}
+                      disabled={saving}
+                      onChange={(e) => {
+                        setSourceName(e.target.value);
+                        setReview(null);
+                      }}
+                    />
                   </div>
-                )}
-              </section>
+                  <div>
+                    <label htmlFor="billing-paste" className="block mb-2 font-medium">
+                      CNPJ, razão social e valor mensal
+                    </label>
+                    <textarea
+                      id="billing-paste"
+                      className="min-h-48 w-full rounded-xl border p-3 font-mono text-sm"
+                      value={paste}
+                      disabled={saving}
+                      onChange={(e) => {
+                        setPaste(e.target.value);
+                        setReview(null);
+                        setSuccess("");
+                      }}
+                    />
+                  </div>
+                  <Button
+                    disabled={saving || loading || !sourceName.trim() || !paste.trim()}
+                    onClick={() => {
+                      setError("");
+                      setSuccess("");
+                      try {
+                        setReview(parseMonthlyBillingPaste(paste));
+                      } catch (e) {
+                        setReview(null);
+                        setError(e instanceof Error ? e.message : "Lote inválido.");
+                      }
+                    }}
+                  >
+                    Revisar lote
+                  </Button>
+                  {review && (
+                    <div className="space-y-4 rounded-xl border border-teal-200 bg-teal-50 p-5">
+                      <h3 className="font-semibold">
+                        {review.length} CNPJs para {view.group.name} ·{" "}
+                        {money(review.reduce((sum, row) => sum + row.valueCents, 0))} por mês
+                      </h3>
+                      <BillingTable rows={review} />
+                      <p className="text-sm">
+                        Os valores serão cadastrados como mensalidades fixas. Vencimento e
+                        competência de emissão não foram definidos neste cadastro.
+                      </p>
+                      <Button disabled={saving} onClick={() => void save()}>
+                        {saving ? "Gravando e conferindo..." : "Confirmar cadastro e mensalidades"}
+                      </Button>
+                    </div>
+                  )}
+                </section>
+              )}
             </>
           )}
         </>
