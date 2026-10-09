@@ -42,11 +42,7 @@ test("normalizes exact numbers without adding digits", () => {
   assert.equal(normalizeRdPhone("bad"), "");
 });
 test("missing configuration fails closed", async () => {
-  for (const config of [
-    { secret: undefined },
-    { secret: "short" },
-    { allowedPhones: [] },
-  ]) {
+  for (const config of [{ secret: undefined }, { secret: "short" }, { allowedPhones: [] }]) {
     const s = setup(config);
     assert.equal((await receiveRdWebhook(req(), s.config)).status, 503);
     assert.equal(s.stored.size, 0);
@@ -56,13 +52,8 @@ test("wrong or absent header rejected", async () => {
   for (const value of ["", "wrong", "s".repeat(65)]) {
     const s = setup();
     assert.equal(
-      (
-        await receiveRdWebhook(
-          req(payload, { "x-nai-webhook-secret": value }),
-          s.config,
-        )
-      ).status,
-      401,
+      (await receiveRdWebhook(req(payload, { "x-nai-webhook-secret": value }), s.config)).status,
+      401
     );
     assert.equal(s.stored.size, 0);
   }
@@ -91,7 +82,7 @@ test("nested adapter stores customer message", async () => {
         message: { id: "nested", text: "Olá" },
       },
     }),
-    s.config,
+    s.config
   );
   assert.equal(r.status, 200);
   assert.equal(s.stored.size, 1);
@@ -125,21 +116,13 @@ test("invalid JSON and content type rejected", async () => {
   const s = setup();
   assert.equal((await receiveRdWebhook(req("{"), s.config)).status, 400);
   assert.equal(
-    (
-      await receiveRdWebhook(
-        req(payload, { "content-type": "text/plain" }),
-        s.config,
-      )
-    ).status,
-    415,
+    (await receiveRdWebhook(req(payload, { "content-type": "text/plain" }), s.config)).status,
+    415
   );
 });
 test("oversized body rejected even without content-length", async () => {
   const s = setup();
-  assert.equal(
-    (await receiveRdWebhook(req("x".repeat(65537)), s.config)).status,
-    413,
-  );
+  assert.equal((await receiveRdWebhook(req("x".repeat(65537)), s.config)).status, 413);
 });
 test("database failure returns retryable 503 without exposing exception", async () => {
   const s = setup({
@@ -174,11 +157,8 @@ test("diagnostic never includes primitive values or credential contents", () => 
 });
 test("diagnostic is bounded for deep and wide payloads", () => {
   assert.ok(
-    rdPayloadShape(
-      Object.fromEntries(
-        Array.from({ length: 1000 }, (_, i) => ["field" + i, i]),
-      ),
-    ).length <= 100,
+    rdPayloadShape(Object.fromEntries(Array.from({ length: 1000 }, (_, i) => ["field" + i, i])))
+      .length <= 100
   );
 });
 test("diagnostic only runs after authentication and JSON validation", async () => {
@@ -188,10 +168,7 @@ test("diagnostic only runs after authentication and JSON validation", async () =
       calls++;
     },
   });
-  await receiveRdWebhook(
-    req(payload, { "x-nai-webhook-secret": "wrong" }),
-    s.config,
-  );
+  await receiveRdWebhook(req(payload, { "x-nai-webhook-secret": "wrong" }), s.config);
   await receiveRdWebhook(req("{"), s.config);
   assert.equal(calls, 0);
   const r = await receiveRdWebhook(req({ unknown: "private" }), s.config);
