@@ -25,3 +25,9 @@ Débitos e créditos são movimentações contábeis, não receitas/despesas nem
 ## Validação
 
 Os testes em `src/lib/financial/ledger.test.ts`, `src/services/financial-ledger.test.ts` e `src/app/api/financial/ledger/route.test.ts` verificam cálculos, validação de origem, acesso, duplicidades, preservação de versões e exportação CSV. O financeiro consulta contratos pela API autenticada e com escopo autorizado, evitando a consulta collectionGroup negada ao navegador.
+
+## Rankings de recebimentos e saídas
+
+A visão geral apresenta os dez maiores recebimentos de clientes e as dez maiores saídas, com data, histórico, valor, classificação original e acesso ao lançamento completo/PDF. O filtro de fornecedores e prestadores restringe as saídas conforme as contas contábeis. Cada posição representa um lançamento, não um total por participante.
+
+O cálculo recompõe cada lançamento completo e usa o movimento líquido das contas do grupo 1.1.01 (caixa/bancos). Entradas exigem contrapartidas a crédito em Clientes (grupo 1.1.02); provisões de receita, empréstimos recebidos e transferências internas não entram no ranking de clientes. Contrapartidas mistas, diferenças contábeis e recebimentos cujo histórico informa o CNPJ da própria empresa ficam numa lista de conferência, sem atribuição automática. Identificadores numéricos e cobranças sem nome são apresentados como identificação pendente. Os filtros selecionam lançamentos elegíveis, preservando o valor de todas as contrapartidas.

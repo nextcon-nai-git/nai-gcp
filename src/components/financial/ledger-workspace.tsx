@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { CashRankings } from "./cash-rankings";
 import {
   dayLabel,
   emptyFilters,
@@ -582,6 +583,12 @@ export function LedgerWorkspace() {
               </TabsTrigger>
             </TabsList>
             <TabsContent value="overview" className="space-y-5">
+              <CashRankings
+                book={book}
+                visibleKeys={new Set(rows.map(entryKey))}
+                inspect={inspect}
+                filtered={filterActive}
+              />
               <div className="grid gap-5 xl:grid-cols-[1.65fr_1fr]">
                 <section className="min-w-0 rounded-2xl border bg-white p-5 md:p-6">
                   <div className="flex items-center justify-between">
