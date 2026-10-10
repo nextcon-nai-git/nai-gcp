@@ -64,6 +64,16 @@ describe("NotificationService - Periodicidade NR-07 e Alertas PCMSO", () => {
   });
 
   describe("calculateNextAsoDueDate", () => {
+    it("limits leap-day anniversaries to the last day of February", () => {
+      expect(NotificationService.calculateNextAsoDueDate("2024-02-29", { riskDegree: 4 })).toBe(
+        "2025-02-28"
+      );
+    });
+    it("keeps month-end dates inside the target month", () => {
+      expect(
+        NotificationService.calculateNextAsoDueDate("2026-08-31", { hasSpecialExposure: true })
+      ).toBe("2027-02-28");
+    });
     it("deve somar 24 meses para Grau 2 e trabalhador de 30 anos", () => {
       const nextDate = NotificationService.calculateNextAsoDueDate("2024-05-10", {
         riskDegree: 2,

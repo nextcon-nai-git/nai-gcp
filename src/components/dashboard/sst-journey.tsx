@@ -73,8 +73,8 @@ const journeys = [
     ],
     links: [
       { label: "Centro de operação", href: "/action-plans", scoped: "query" },
-      { label: "Documentos do cliente", href: "/clients", scoped: "client" },
-      { label: "Relatórios e laudos", href: "/reports" },
+      { label: "Responsáveis e prazos", href: "/action-plans", scoped: "query" },
+      { label: "Evidências da ação", href: "/action-plans", scoped: "query" },
     ],
   },
 ];
