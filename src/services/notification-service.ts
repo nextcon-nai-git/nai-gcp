@@ -131,7 +131,14 @@ export class NotificationService {
 
     const { intervalMonths } = this.determinePeriodicity(params);
     const dueDate = new Date(lastDate);
-    dueDate.setMonth(dueDate.getMonth() + intervalMonths);
+    // Calendar dates must not drift with the server's timezone or DST.
+    const originalDay = dueDate.getUTCDate();
+    dueDate.setUTCDate(1);
+    dueDate.setUTCMonth(dueDate.getUTCMonth() + intervalMonths);
+    const lastDay = new Date(
+      Date.UTC(dueDate.getUTCFullYear(), dueDate.getUTCMonth() + 1, 0)
+    ).getUTCDate();
+    dueDate.setUTCDate(Math.min(originalDay, lastDay));
 
     return dueDate.toISOString().split("T")[0];
   }

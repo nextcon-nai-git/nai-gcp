@@ -1,60 +1,47 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { suggestExams } from "@/ai/flows/suggest-exams-flow";
+import { requireAuth, extractBearerToken } from "@/lib/auth/require-auth";
+import { AuthError, forbidden, handleAuthError } from "@/lib/auth/errors";
 
-/**
- * @fileOverview API Pública para Recomendação de Exames via IA.
- * Recebe cargo e riscos para retornar protocolos PCMSO dinâmicos.
- */
-
-export async function POST(request: Request) {
+const inputSchema = z.object({
+  jobTitle: z.string().trim().min(1).max(200),
+  companyRisks: z.array(z.string().trim().min(1).max(500)).min(1).max(50),
+  age: z.number().int().min(14).max(100),
+});
+export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-
-    // Validação básica de entrada
-    if (!body.jobTitle || !body.companyRisks) {
+    const user = await requireAuth(request);
+    if (!["SUPER_ADMIN", "ADMIN", "DOCTOR", "NURSE", "HEALTH_PROFESSIONAL"].includes(user.role))
+      throw forbidden();
+    const raw = await request.text();
+    if (raw.length > 30000)
+      return NextResponse.json({ error: "Entrada muito extensa." }, { status: 413 });
+    let body: unknown;
+    try {
+      body = JSON.parse(raw);
+    } catch {
+      return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
+    }
+    const parsed = inputSchema.safeParse(body);
+    if (!parsed.success)
       return NextResponse.json(
-        { sucesso: false, mensagem: "Cargo e Lista de Riscos são obrigatórios." },
+        { error: "Informe cargo, riscos e idade válidos." },
         { status: 400 }
       );
-    }
-
     const result = await suggestExams({
-      jobTitle: body.jobTitle,
-      companyRisks: body.companyRisks,
-      age: body.age || 30, // Fallback de idade
+      ...parsed.data,
+      idToken: extractBearerToken(request) || "",
     });
-
     return NextResponse.json(
-      {
-        sucesso: true,
-        recommendedExams: result.recommendedExams,
-      },
-      {
-        status: 200,
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type",
-        },
-      }
+      { sucesso: true, recommendedExams: result.recommendedExams, requiresMedicalReview: true },
+      { headers: { "Cache-Control": "private, no-store" } }
     );
-  } catch (error: any) {
-    console.error("Erro na API de Sugestão de Exames:", error);
+  } catch (error) {
+    if (error instanceof AuthError) return handleAuthError(error);
     return NextResponse.json(
-      { sucesso: false, mensagem: "Erro interno no processamento da NAI Medical." },
-      { status: 500 }
+      { error: "Não foi possível gerar a sugestão. Tente novamente." },
+      { status: 503 }
     );
   }
-}
-
-// Handler para pre-flight requests do CORS
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    },
-  });
 }
