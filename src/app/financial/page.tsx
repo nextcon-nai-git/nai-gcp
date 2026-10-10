@@ -143,6 +143,23 @@ export default function FinancialModule() {
           Abrir acervo <ArrowRight size={16} />
         </span>
       </Link>
+      <Link
+        href="/financial/balanco"
+        className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-5 transition-colors hover:bg-indigo-100/70"
+      >
+        <div className="flex items-center gap-4">
+          <Scale className="size-8 text-indigo-700" />
+          <div>
+            <h2 className="font-semibold text-slate-900">Balanço 2025</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Ativo, passivo, patrimônio líquido e consulta ao PDF original.
+            </p>
+          </div>
+        </div>
+        <span className="flex items-center gap-2 text-sm font-semibold text-indigo-800">
+          Abrir balanço <ArrowRight size={16} />
+        </span>
+      </Link>
       {/* INTEGRAÇÃO SENIOR / OMIE STATUS */}
       {activeClientId !== "all" && (
         <Card className="border-none bg-blue-50/50 rounded-[2.5rem] p-8 flex flex-col md:flex-row items-center justify-between gap-8 border border-blue-100 shadow-sm transition-all hover:shadow-md">

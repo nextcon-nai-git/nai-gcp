@@ -174,6 +174,13 @@ const NAV_MODULES: NavModule[] = [
     items: [
       { title: "Financeiro", icon: BarChart3, href: "/financial" },
       {
+        title: "Balanço 2025",
+        icon: FileSpreadsheet,
+        href: "/financial/balanco",
+        parentHref: "/financial",
+        badge: "Contábil",
+      },
+      {
         title: "Livro Diário",
         icon: FileSpreadsheet,
         href: "/financial/livro-diario",
