@@ -1,4 +1,5 @@
 "use server";
+import { requireAiAction, FINANCIAL_AI_ROLES } from "@/lib/auth/ai-action";
 /**
  * @fileOverview NAI Real-time Fiscal Engine.
  * Responsável por decompor documentos fiscais e calcular impostos instantaneamente.
@@ -39,8 +40,11 @@ const FiscalDocOutputSchema = z.object({
 export type FiscalDocOutput = z.infer<typeof FiscalDocOutputSchema>;
 
 export async function processFiscalDocument(
-  input: z.infer<typeof FiscalDocInputSchema>
+  input: z.infer<typeof FiscalDocInputSchema>,
+  idToken?: string
 ): Promise<FiscalDocOutput> {
+  await requireAiAction(idToken, FINANCIAL_AI_ROLES, [input]);
+
   const { output } = await fiscalPrompt(input);
   if (!output) throw new Error("Falha no motor de apuração fiscal.");
   return output;

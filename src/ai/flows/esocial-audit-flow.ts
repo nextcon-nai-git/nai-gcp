@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 /**
  * @fileOverview Analisador de conformidade eSocial (S-2240 vs S-2220) usando Gemini.
  *

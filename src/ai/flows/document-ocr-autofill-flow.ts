@@ -1,4 +1,5 @@
 "use server";
+import { requireAiAction, DOCUMENT_AI_ROLES } from "@/lib/auth/ai-action";
 
 /**
  * @fileOverview NAI Document OCR & Auto-Fill Flow - Gemini Vision AI.
@@ -61,8 +62,11 @@ export type DocumentAutofillOutput = z.infer<typeof DocumentAutofillOutputSchema
 export async function extractDocumentAutofillData(
   documentText: string,
   documentType:
-    "CNH" | "RG_CPF" | "CONTRATO_PRESTADOR" | "ASO_SAUDE" | "CERTIFICADO" | "GERAL" = "GERAL"
+    "CNH" | "RG_CPF" | "CONTRATO_PRESTADOR" | "ASO_SAUDE" | "CERTIFICADO" | "GERAL" = "GERAL",
+  idToken?: string
 ): Promise<DocumentAutofillOutput> {
+  await requireAiAction(idToken, DOCUMENT_AI_ROLES, [documentText, documentType]);
+
   const result = await documentAutofillFlow({ documentText, documentType });
   return result;
 }

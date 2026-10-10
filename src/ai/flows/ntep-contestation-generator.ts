@@ -1,4 +1,5 @@
 "use server";
+import { requireAiAction, CLINICAL_AI_ROLES } from "@/lib/auth/ai-action";
 
 /**
  * @fileOverview NAI Gerador de Contestação Jurídico-Tributária de FAP e NTEP
@@ -51,8 +52,11 @@ export const NtepContestationOutputSchema = z.object({
 export type NtepContestationOutput = z.infer<typeof NtepContestationOutputSchema>;
 
 export async function generateNtepContestation(
-  input: NtepContestationInput
+  input: NtepContestationInput,
+  idToken?: string
 ): Promise<NtepContestationOutput> {
+  await requireAiAction(idToken, CLINICAL_AI_ROLES, [input]);
+
   const systemPrompt = `Você é um Advogado Sênior Especialista em Direito Previdenciário e Perícias Médicas Ocupacionais da plataforma NAI (NextCon Intelligence).
 Você opera com a capacidade analítica e raciocínio jurídico aprofundado do modelo Gemini 3.8 Flash.
 

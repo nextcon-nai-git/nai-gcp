@@ -1,4 +1,5 @@
 "use server";
+import { requireAiAction, DOCUMENT_AI_ROLES } from "@/lib/auth/ai-action";
 /**
  * @fileOverview NAI Compliance Auditor - Especialista em Legislação Trabalhista (NRs) e eSocial.
  *
@@ -39,7 +40,12 @@ const ComplianceOutputSchema = z.object({
 });
 export type ComplianceOutput = z.infer<typeof ComplianceOutputSchema>;
 
-export async function runComplianceAudit(input: ComplianceInput): Promise<ComplianceOutput> {
+export async function runComplianceAudit(
+  input: ComplianceInput,
+  idToken?: string
+): Promise<ComplianceOutput> {
+  await requireAiAction(idToken, DOCUMENT_AI_ROLES, [input]);
+
   return complianceAuditorFlow(input);
 }
 

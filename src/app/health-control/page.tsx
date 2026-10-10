@@ -1,4 +1,5 @@
 "use client";
+import { getActionIdToken } from "@/lib/auth/action-token";
 
 interface ExamFormItem {
   procExm: string;
@@ -938,7 +939,11 @@ export default function HealthControl() {
 
                     if (!contentToProcess) continue;
 
-                    const res = await processDigitalAsoIngestion(contentToProcess, file?.name);
+                    const res = await processDigitalAsoIngestion(
+                      contentToProcess,
+                      file?.name,
+                      await getActionIdToken()
+                    );
 
                     // Seleção Inteligente da Empresa
                     let targetCompanyId =

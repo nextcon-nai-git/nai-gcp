@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 /**
  * @fileOverview NAI PCMSO Scanner - Analisador de documentos PCMSO (PDF).
  *

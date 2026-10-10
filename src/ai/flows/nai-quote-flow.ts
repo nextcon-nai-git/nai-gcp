@@ -1,4 +1,5 @@
 "use server";
+import { requireAiAction, FINANCIAL_AI_ROLES } from "@/lib/auth/ai-action";
 /**
  * @fileOverview Agente "nai" - Comercial Nextcon de Elite.
  * Responsável por elaborar propostas comerciais de SST com foco em ROI,
@@ -94,7 +95,12 @@ ESTRUTURA DE PREÇOS BASE (USE COMO REFERÊNCIA):
 - Gestão Mensal: R$ 15 a R$ 45 por vida.`,
 });
 
-export async function generateNaiQuote(input: DadosEmpresaInput): Promise<OrcamentoOutput> {
+export async function generateNaiQuote(
+  input: DadosEmpresaInput,
+  idToken?: string
+): Promise<OrcamentoOutput> {
+  await requireAiAction(idToken, FINANCIAL_AI_ROLES, [input]);
+
   const { output } = await quotePrompt(input);
   if (!output) throw new Error("O motor comercial NAI falhou ao estruturar a proposta de elite.");
   return output;

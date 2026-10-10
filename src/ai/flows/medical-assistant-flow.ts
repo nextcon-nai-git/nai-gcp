@@ -11,37 +11,6 @@ import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { getAuthorizedMedicalHistory } from "@/services/medical-history";
 
-// --- FERRAMENTAS DO AGENTE ---
-
-/**
- * Ferramenta para buscar códigos CID-10 baseados em sintomas.
- */
-export const consultarCIDTool = ai.defineTool(
-  {
-    name: "consultarCID",
-    description: "Busca o código CID-10 oficial baseado em sintomas ou diagnóstico descrito.",
-    inputSchema: z.object({
-      termo: z.string().describe("Descrição do sintoma ou doença (ex: dor lombar)."),
-    }),
-    outputSchema: z.object({
-      codigo: z.string(),
-      descricao: z.string(),
-    }),
-  },
-  async ({ termo }) => {
-    const busca = termo.toLowerCase();
-    // Simulação de busca técnica (Em produção, conectaria a uma API de CID)
-    if (busca.includes("lombar") || busca.includes("costas"))
-      return { codigo: "M54.5", descricao: "Dor lombar baixa" };
-    if (busca.includes("esforço") || busca.includes("repetitivo"))
-      return { codigo: "M75.1", descricao: "Síndrome do manguito rotador" };
-    if (busca.includes("tristeza") || busca.includes("ânimo"))
-      return { codigo: "F33.2", descricao: "Transtorno depressivo recorrente" };
-
-    return { codigo: "R68.8", descricao: "Outros sintomas e sinais gerais especificados" };
-  }
-);
-
 // --- FLUXO DO AGENTE ---
 
 const medicalAssistantFlow = ai.defineFlow(
@@ -68,11 +37,10 @@ const medicalAssistantFlow = ai.defineFlow(
       "${input.mensagemMedico}"
       
       DIRETRIZES:
-      1. Se o médico mencionar sintomas, use 'consultarCID' para sugerir o código.
+      1. Não atribua diagnóstico ou CID automaticamente a sintomas. Não há consulta integrada a uma tabela oficial de CID; informe essa limitação e peça validação médica.
       2. Use apenas o histórico fornecido; consulta indisponível ou sem registros não confirma aptidão nem ausência de restrições.
       3. Seja extremamente profissional, clínico e objetivo.
       4. Sempre mencione que seu parecer deve ser validado pelo médico examinador.`,
-      tools: [consultarCIDTool],
     });
 
     return text;

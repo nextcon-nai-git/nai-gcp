@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 /**
  * @fileOverview NAI Data Architect - Especialista em extração de inteligência GRO/PGR (NR-01).
  * Converte entradas brutas em documentos NoSQL padronizados para o Cloud Firestore.

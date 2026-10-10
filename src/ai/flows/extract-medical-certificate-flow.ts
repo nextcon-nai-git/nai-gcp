@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 /**
  * @fileOverview Fluxo NAI para extração de dados estruturados de atestados médicos.
  *

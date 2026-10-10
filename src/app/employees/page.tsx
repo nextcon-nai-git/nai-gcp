@@ -1,4 +1,5 @@
 "use client";
+import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
 import {
@@ -818,7 +819,11 @@ function EmployeesList() {
                 if (!aiRawText.trim() || !db) return;
                 setIsSubmitting(true);
                 try {
-                  const result = await extractDocumentAutofillData(aiRawText, "CNH");
+                  const result = await extractDocumentAutofillData(
+                    aiRawText,
+                    "CNH",
+                    await getActionIdToken()
+                  );
                   if (result.nomeCompleto) {
                     const targetCompanyId =
                       activeClientId !== "all" && activeClientId !== "unauthorized"

@@ -1,4 +1,5 @@
 "use client";
+import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
 import {
@@ -315,7 +316,7 @@ export default function PpeManagement() {
     }
     setIsAnalyzing(true);
     try {
-      const result = await extractPpeSheetData(rawPpeInput);
+      const result = await extractPpeSheetData(rawPpeInput, await getActionIdToken());
       setExtractedData(result);
       toast({
         title: "Ficha Leitora Concluída",

@@ -1,4 +1,5 @@
 "use server";
+import { requireAiAction, FINANCIAL_AI_ROLES } from "@/lib/auth/ai-action";
 /**
  * @fileOverview NAI Data Intelligence Agent - Especialista em OCR e Visão Computacional.
  * Realiza extração de entidades de documentos e análise de riscos em fotos de incidentes.
@@ -28,8 +29,11 @@ const DataIntelligenceOutputSchema = z.object({
 export type DataIntelligenceOutput = z.infer<typeof DataIntelligenceOutputSchema>;
 
 export async function processDataIntelligence(
-  input: DataIntelligenceInput
+  input: DataIntelligenceInput,
+  idToken?: string
 ): Promise<DataIntelligenceOutput> {
+  await requireAiAction(idToken, FINANCIAL_AI_ROLES, [input]);
+
   return dataIntelligenceFlow(input);
 }
 

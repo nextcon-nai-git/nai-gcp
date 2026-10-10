@@ -1,4 +1,5 @@
 "use client";
+import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
 import {
@@ -63,10 +64,13 @@ export default function DataLabPage() {
 
     try {
       const base64 = await readFileAsDataURL(file);
-      const analysis = await processDataIntelligence({
-        mediaDataUri: base64,
-        contextType: context === "DOCUMENT" ? "DOCUMENT" : "FIELD_PHOTO",
-      });
+      const analysis = await processDataIntelligence(
+        {
+          mediaDataUri: base64,
+          contextType: context === "DOCUMENT" ? "DOCUMENT" : "FIELD_PHOTO",
+        },
+        await getActionIdToken()
+      );
 
       if (!analysis) throw new Error("A NAI não retornou dados para este arquivo.");
 

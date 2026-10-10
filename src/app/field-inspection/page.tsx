@@ -1,4 +1,5 @@
 "use client";
+import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
 import {
@@ -192,14 +193,17 @@ export default function FieldInspectionPage() {
   const handleRunAnalysis = async () => {
     setIsAnalyzing(true);
     try {
-      const result = await analyzeFieldInspectionPhoto({
-        imageBase64: selectedImage || undefined,
-        notes,
-        location: locationName,
-        companyName: currentCompany.name,
-        gpsCoordinates: gpsCoords || undefined,
-        devicePlatform,
-      });
+      const result = await analyzeFieldInspectionPhoto(
+        {
+          imageBase64: selectedImage || undefined,
+          notes,
+          location: locationName,
+          companyName: currentCompany.name,
+          gpsCoordinates: gpsCoords || undefined,
+          devicePlatform,
+        },
+        await getActionIdToken()
+      );
 
       setReport(result);
       if (result.findings.length > 0) {

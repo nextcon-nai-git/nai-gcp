@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 /**
  * @fileOverview NAI LTCAT Scanner - Analisador de laudos LTCAT (PDF).
  *

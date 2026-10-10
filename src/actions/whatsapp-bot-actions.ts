@@ -1,4 +1,5 @@
 "use server";
+import { requireAiAction, FINANCIAL_AI_ROLES } from "@/lib/auth/ai-action";
 
 import {
   processWhatsappMessage,
@@ -18,8 +19,11 @@ export interface SendSimulatedWhatsappMessageInput {
 }
 
 export async function sendSimulatedWhatsappMessage(
-  input: SendSimulatedWhatsappMessageInput
+  input: SendSimulatedWhatsappMessageInput,
+  idToken?: string
 ): Promise<WhatsappBotResponse> {
+  await requireAiAction(idToken, FINANCIAL_AI_ROLES, [input]);
+
   return await processWhatsappMessage(
     input.message,
     input.phone || "554199999999",
@@ -27,12 +31,17 @@ export async function sendSimulatedWhatsappMessage(
   );
 }
 
-export async function sendSimulatedProviderMediaMessage(input: {
-  mediaType: "audio" | "image";
-  textOrTranscript?: string;
-  imageBase64?: string;
-  providerPhone?: string;
-}) {
+export async function sendSimulatedProviderMediaMessage(
+  input: {
+    mediaType: "audio" | "image";
+    textOrTranscript?: string;
+    imageBase64?: string;
+    providerPhone?: string;
+  },
+  idToken?: string
+) {
+  await requireAiAction(idToken, FINANCIAL_AI_ROLES, [input]);
+
   const { processProviderMediaMessage } = await import("@/ai/flows/whatsapp-agent-flow");
   return await processProviderMediaMessage(input);
 }

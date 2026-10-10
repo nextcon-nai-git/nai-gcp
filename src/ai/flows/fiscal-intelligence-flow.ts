@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 /**
  * @fileOverview NAI Fiscal Intelligence - Analisador de cenários tributários 2026.
  *

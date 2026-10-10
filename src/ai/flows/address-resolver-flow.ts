@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 /**
  * @fileOverview Fluxo da NAI para encontrar endereços de empresas pelo nome comercial.
  *

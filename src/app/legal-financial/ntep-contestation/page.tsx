@@ -1,4 +1,5 @@
 "use client";
+import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
 import {
@@ -64,16 +65,19 @@ export default function NtepContestationPage() {
   const handleGenerate = async () => {
     setIsGenerating(true);
     try {
-      const res = await generateNtepContestation({
-        companyName: currentCompany.name,
-        cnpj: currentCompany.cnpj,
-        cnae: (currentCompany as any).cnae || "41.20-4-00",
-        employeeName,
-        jobRole,
-        cid,
-        benefitNumber,
-        workEnvironment,
-      });
+      const res = await generateNtepContestation(
+        {
+          companyName: currentCompany.name,
+          cnpj: currentCompany.cnpj,
+          cnae: (currentCompany as any).cnae || "41.20-4-00",
+          employeeName,
+          jobRole,
+          cid,
+          benefitNumber,
+          workEnvironment,
+        },
+        await getActionIdToken()
+      );
 
       setResult(res);
       toast({

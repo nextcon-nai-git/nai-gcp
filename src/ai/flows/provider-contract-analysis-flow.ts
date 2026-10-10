@@ -1,4 +1,5 @@
 "use server";
+import { requireAiAction, FINANCIAL_AI_ROLES } from "@/lib/auth/ai-action";
 /**
  * @fileOverview NAI Provider Intelligence - Analisador de Contratos de Credenciamento.
  * Extrai dados do prestador (Clínica/Profissional) para automação de cadastro.
@@ -36,7 +37,9 @@ export type ProviderContractOutput = z.infer<typeof ProviderContractOutputSchema
 /**
  * Função principal para análise de contrato via prompt especializado.
  */
-export async function analyzeProviderContract(input: { pdfDataUri: string }) {
+export async function analyzeProviderContract(input: { pdfDataUri: string }, idToken?: string) {
+  await requireAiAction(idToken, FINANCIAL_AI_ROLES, [input]);
+
   const { output } = await providerPrompt(input);
   if (!output)
     throw new Error(
