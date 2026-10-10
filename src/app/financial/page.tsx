@@ -160,45 +160,23 @@ export default function FinancialModule() {
           Abrir balanço <ArrowRight size={16} />
         </span>
       </Link>
-      {/* INTEGRAÇÃO SENIOR / OMIE STATUS */}
-      {activeClientId !== "all" && (
-        <Card className="border-none bg-blue-50/50 rounded-[2.5rem] p-8 flex flex-col md:flex-row items-center justify-between gap-8 border border-blue-100 shadow-sm transition-all hover:shadow-md">
-          <div className="flex items-center gap-6">
-            <div
-              className={cn(
-                "p-5 rounded-[1.5rem] shadow-2xl transition-all duration-500 group",
-                activeCompany?.use_senior ? "bg-blue-600 text-white" : "bg-indigo-600 text-white"
-              )}
-            >
-              {activeCompany?.use_senior ? (
-                <Cpu size={28} className="group-hover:rotate-12 transition-transform" />
-              ) : (
-                <CloudLightning size={28} className="group-hover:scale-110 transition-transform" />
-              )}
-            </div>
-            <div className="text-left space-y-1">
-              <h4 className="text-lg font-black text-primary uppercase font-headline">
-                Integração ERP {activeCompany?.use_senior ? "Senior (G7/X)" : "Omie"}
-              </h4>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.3em]">
-                Status: Sincronização em Tempo Real Ativa
-              </p>
-            </div>
+      <Link
+        href="/financial/omie"
+        className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-5"
+      >
+        <div className="flex items-center gap-4">
+          <CloudLightning className="size-8 text-indigo-700" />
+          <div>
+            <h2 className="font-semibold text-slate-900">Omie · Financeiro NEXTCON</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Conexão, contas a pagar e a receber, com consulta direta ao Omie.
+            </p>
           </div>
-          <div className="flex gap-3">
-            <Badge className="bg-emerald-100 text-emerald-700 border-none font-black text-[10px] px-5 h-10 flex items-center gap-2 rounded-xl">
-              <ShieldCheck className="size-4" /> API SECURE
-            </Badge>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-10 rounded-xl text-primary font-black uppercase text-[10px] gap-2 px-5 bg-white shadow-sm border border-slate-200 btn-hover-effect"
-            >
-              Configurar Webhook <RefreshCw className="size-3.5" />
-            </Button>
-          </div>
-        </Card>
-      )}
+        </div>
+        <span className="flex items-center gap-2 text-sm font-semibold text-indigo-800">
+          Abrir integração <ArrowRight size={16} />
+        </span>
+      </Link>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard

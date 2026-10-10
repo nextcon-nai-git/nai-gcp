@@ -147,3 +147,23 @@ describe("Webhooks geridos pelo servidor", () => {
     }
   });
 });
+
+describe("Omie server credentials", () => {
+  it("blocks every browser role from reading or overwriting integration credentials", async () => {
+    const path = "private-integrations/omie/nextcon.json";
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await uploadBytes(
+        ref(ctx.storage(), path),
+        new TextEncoder().encode('{"appSecret":"synthetic"}'),
+        { contentType: "application/json" }
+      );
+    });
+    for (const uid of ["super", "global", "client", "hr", "doctor"]) {
+      await assertFails(getBytes(ref(store(uid), path)));
+      await assertFails(
+        uploadBytes(ref(store(uid), path), new Uint8Array([1]), { contentType: "application/json" })
+      );
+      await assertFails(deleteObject(ref(store(uid), path)));
+    }
+  });
+});

@@ -175,8 +175,8 @@ export default function IntegrationsHubPage() {
       },
     },
     {
-      id: "omie-rh",
-      name: "Omie ERP & Apdata / LG Lugar de Gente",
+      id: "apdata-lg-rh",
+      name: "Apdata / LG Lugar de Gente",
       category: "OUTROS",
       logoName: "Outros RH",
       status: "ACTIVE",
@@ -250,6 +250,18 @@ export default function IntegrationsHubPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-24 text-slate-900">
+      <Link
+        href="/financial/omie"
+        className="flex items-center justify-between gap-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-5"
+      >
+        <div>
+          <h2 className="font-semibold">Omie · Financeiro NEXTCON</h2>
+          <p className="text-sm text-slate-600">
+            Configurar a conexão e consultar contas a pagar e receber.
+          </p>
+        </div>
+        <ArrowRight size={20} />
+      </Link>
       {/* HEADER EXECUTIVO */}
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
