@@ -30,7 +30,8 @@ export type TaskType =
   | "rnc"
   | "ambiental"
   | "emergencia"
-  | "faturamento";
+  | "faturamento"
+  | "atendimento";
 
 export type EsocialStatus = "Pendente" | "Processando" | "Enviado" | "Erro" | "Bloqueado Firewall";
 export type FiscalObligationStatus = "pending" | "processing" | "delivered" | "error";
@@ -139,7 +140,9 @@ export interface Company extends MasterEntity {
 }
 
 export interface OpsTask extends MasterEntity {
-  sourceType?: "pgr";
+  sourceType?: "pgr" | "client_request";
+  description?: string;
+  department?: string;
   pgrCardId?: string;
   agentRole?:
     | "engenheiro_seguranca"

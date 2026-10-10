@@ -276,6 +276,13 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
         </SheetHeader>
 
         <ScrollArea className="flex-1 p-8 scrollbar-thin">
+          {task.sourceType === "client_request" && (
+            <div className="mx-6 mt-4 rounded-xl border bg-slate-50 p-4 space-y-2">
+              <p className="font-semibold">Solicitação da Central do Cliente</p>
+              <p className="text-xs text-muted-foreground break-all">Protocolo: {task.id}</p>
+              <p className="whitespace-pre-wrap text-sm">{task.description}</p>
+            </div>
+          )}
           {task.sourceType === "pgr" && task.pgrCardId && task.agentRole && (
             <PgrAgentReview
               companyId={task.companyId}
@@ -366,6 +373,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                       <SelectItem value="treinamento">Treinamento</SelectItem>
                       <SelectItem value="esocial">eSocial / Burocracia</SelectItem>
                       <SelectItem value="comercial">Operação Comercial</SelectItem>
+                      <SelectItem value="atendimento">Atendimento ao cliente</SelectItem>
                       <SelectItem value="faturamento">Faturamento</SelectItem>
                     </SelectContent>
                   </Select>

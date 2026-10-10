@@ -94,6 +94,7 @@ const NAV_MODULES: NavModule[] = [
     label: "PAINEL EXECUTIVO",
     icon: Zap,
     items: [
+      { title: "Central do Cliente", icon: LifeBuoy, href: "/client-center", badge: "Novo" },
       { title: "Grupo AVP · Mapa e fila", icon: MapPin, href: "/clients/grupo-avp" },
       { title: "Agendamento de ASO", icon: CalendarDays, href: "/aso-scheduler" },
       { title: "Agentes SST", icon: Bot, href: "/agentes-ia" },
