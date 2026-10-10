@@ -1,4 +1,5 @@
 "use client";
+import { SstJourney } from "@/components/dashboard/sst-journey";
 import { activeClientCount } from "@/lib/client-portfolio";
 
 import { useMemo, useState, type ReactNode } from "react";
@@ -381,6 +382,11 @@ export function ExecutiveDashboardView() {
           />
         </div>
       )}
+
+      <SstJourney
+        companyId={data?.scope || activeClientId}
+        companyName={clients.length === 1 ? clients[0].name : undefined}
+      />
 
       <section className="relative overflow-hidden rounded-2xl bg-[#102b3b] p-6 text-white sm:p-7">
         <div
