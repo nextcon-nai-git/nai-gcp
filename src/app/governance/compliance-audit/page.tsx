@@ -1,4 +1,5 @@
 "use client";
+import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
 import {
@@ -57,10 +58,13 @@ export default function ComplianceAuditPage() {
         throw new Error("O payload deve ser um JSON válido vindo do Data Lab.");
       }
 
-      const audit = await runComplianceAudit({
-        analysisPayload: parsed,
-        context: "Auditoria de Campo / Quase-Acidente",
-      });
+      const audit = await runComplianceAudit(
+        {
+          analysisPayload: parsed,
+          context: "Auditoria de Campo / Quase-Acidente",
+        },
+        await getActionIdToken()
+      );
       setResult(audit);
       toast({
         title: "Auditoria Finalizada",

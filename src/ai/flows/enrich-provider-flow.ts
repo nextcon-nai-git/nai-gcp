@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 /**
  * @fileOverview Fluxo de enriquecimento de dados de prestadores (Simulação de Cloud Function).
  *

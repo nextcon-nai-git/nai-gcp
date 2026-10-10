@@ -3,6 +3,7 @@
  */
 
 "use client";
+import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
 import { useState } from "react";
@@ -29,7 +30,10 @@ export function BotaoSalvarRelatorio({ relatorioDados, onSuccess }: BotaoSalvarR
     setIsSuccess(false);
 
     try {
-      const result = await processarRelatorioSST(relatorioDados.relatorio_visita_tecnica);
+      const result = await processarRelatorioSST(
+        relatorioDados.relatorio_visita_tecnica,
+        await getActionIdToken()
+      );
 
       if (result.sucesso && result.relatorioId && result.analise) {
         setIsSuccess(true);

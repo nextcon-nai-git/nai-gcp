@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 /**
  * @fileOverview NAI Safety Copilot - Cérebro de análise de riscos.
  *

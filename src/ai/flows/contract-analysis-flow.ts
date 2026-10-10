@@ -1,4 +1,5 @@
 "use server";
+import { requireAiAction, FINANCIAL_AI_ROLES } from "@/lib/auth/ai-action";
 /**
  * @fileOverview NAI Contract Intelligence - Analisador Forense de Contratos SST.
  * Extrai dados do cliente, direitos/deveres e gera tarefas operacionais.
@@ -42,7 +43,9 @@ const ContractAnalysisOutputSchema = z.object({
 
 export type ContractAnalysisOutput = z.infer<typeof ContractAnalysisOutputSchema>;
 
-export async function analyzeContract(input: { pdfDataUri: string }) {
+export async function analyzeContract(input: { pdfDataUri: string }, idToken?: string) {
+  await requireAiAction(idToken, FINANCIAL_AI_ROLES, [input]);
+
   const { output } = await contractPrompt(input);
   if (!output) throw new Error("A NAI falhou ao analisar as cláusulas do contrato.");
   return output;

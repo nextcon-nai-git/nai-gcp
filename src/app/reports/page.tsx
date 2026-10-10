@@ -1,4 +1,5 @@
 "use client";
+import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
 import {
@@ -103,7 +104,10 @@ export default function ReportsCenter() {
         reader.readAsDataURL(file);
       });
 
-      const result = await classifyDocument({ pdfDataUri: base64, fileName: file.name });
+      const result = await classifyDocument(
+        { pdfDataUri: base64, fileName: file.name },
+        await getActionIdToken()
+      );
       setClassifiedResult({ ...result, file });
       toast({
         title: "Documento Classificado!",

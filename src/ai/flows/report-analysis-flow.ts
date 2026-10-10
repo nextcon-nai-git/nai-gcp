@@ -1,4 +1,5 @@
 "use server";
+import { requireAiAction, DOCUMENT_AI_ROLES } from "@/lib/auth/ai-action";
 /**
  * @fileOverview NAI Legal & Technical Analysis - Analisador forense de laudos.
  * Converte documentos técnicos em pareceres jurídicos e resumos estratégicos.
@@ -29,8 +30,11 @@ export type ReportAnalysisOutput = z.infer<typeof ReportAnalysisOutputSchema>;
  * Função principal para análise estratégica de documentos SST.
  */
 export async function analyzeSafetyReport(
-  input: z.infer<typeof ReportAnalysisInputSchema>
+  input: z.infer<typeof ReportAnalysisInputSchema>,
+  idToken?: string
 ): Promise<ReportAnalysisOutput> {
+  await requireAiAction(idToken, DOCUMENT_AI_ROLES, [input]);
+
   const result = await analyzeSafetyReportFlow(input);
   if (!result) throw new Error("A NAI não conseguiu processar o parecer jurídico deste laudo.");
   return result;

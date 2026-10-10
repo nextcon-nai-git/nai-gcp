@@ -1,4 +1,5 @@
 "use client";
+import { getActionIdToken } from "@/lib/auth/action-token";
 
 import React, { useState, useRef, useEffect } from "react";
 import {
@@ -98,11 +99,14 @@ export default function WhatsappHubPage() {
     setIsLoading(true);
 
     try {
-      const response = await sendSimulatedWhatsappMessage({
-        phone: sessionState.userPhone || "554199887766",
-        message: text,
-        sessionState: sessionState,
-      });
+      const response = await sendSimulatedWhatsappMessage(
+        {
+          phone: sessionState.userPhone || "554199887766",
+          message: text,
+          sessionState: sessionState,
+        },
+        await getActionIdToken()
+      );
 
       setSessionState(response.updatedState);
 
@@ -149,11 +153,14 @@ export default function WhatsappHubPage() {
 
     setIsLoading(true);
     try {
-      const res = await sendSimulatedProviderMediaMessage({
-        mediaType: "audio",
-        textOrTranscript: audioTranscript,
-        providerPhone: "5511988887777",
-      });
+      const res = await sendSimulatedProviderMediaMessage(
+        {
+          mediaType: "audio",
+          textOrTranscript: audioTranscript,
+          providerPhone: "5511988887777",
+        },
+        await getActionIdToken()
+      );
 
       setMessages((prev) => [
         ...prev,
@@ -185,12 +192,15 @@ export default function WhatsappHubPage() {
 
     setIsLoading(true);
     try {
-      const res = await sendSimulatedProviderMediaMessage({
-        mediaType: "image",
-        textOrTranscript:
-          "ASO Impresso Admissional de Marcos Vinicius Almeida pela Construfam Engenharia, apto com exames de ECG e Audiometria anexos.",
-        providerPhone: "5511988887777",
-      });
+      const res = await sendSimulatedProviderMediaMessage(
+        {
+          mediaType: "image",
+          textOrTranscript:
+            "ASO Impresso Admissional de Marcos Vinicius Almeida pela Construfam Engenharia, apto com exames de ECG e Audiometria anexos.",
+          providerPhone: "5511988887777",
+        },
+        await getActionIdToken()
+      );
 
       setMessages((prev) => [
         ...prev,

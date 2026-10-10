@@ -27,7 +27,6 @@ vi.mock("googleapis", () => ({
 }));
 vi.mock("@/services/medical-history", () => ({ getAuthorizedMedicalHistory: mock.history }));
 vi.mock("@/ai/genkit", () => ({ ai: { generateStream: mock.generate } }));
-vi.mock("@/ai/flows/medical-assistant-flow", () => ({ consultarCIDTool: {} }));
 import { GET, PATCH } from "@/app/api/clients/grupo-avp/queue/route";
 import { POST as scheduled } from "@/app/api/internal/avp-sheet-sync/route";
 import { POST as medical } from "@/app/api/medical-assistant/route";
@@ -143,4 +142,45 @@ describe("Assistente médico protegido", () => {
     expect(mock.generate).not.toHaveBeenCalled();
     expect(response.headers.get("access-control-allow-origin")).toBeNull();
   });
+});
+
+it.each(["{", "null", "[]"])(
+  "recusa corpo clínico inválido %s sem acessar prontuário",
+  async (body) => {
+    const response = await medical(
+      new NextRequest("https://nai.test/api/medical-assistant", { method: "POST", body })
+    );
+    expect(response.status).toBe(400);
+    expect(mock.history).not.toHaveBeenCalled();
+    expect(mock.generate).not.toHaveBeenCalled();
+  }
+);
+
+it("resposta clínica autorizada não permite cache nem consulta de CID simulada", async () => {
+  mock.history.mockResolvedValue({ records: [] });
+  mock.generate.mockReturnValue({
+    stream: (async function* () {
+      yield { text: "Revisão médica necessária." };
+    })(),
+  });
+  const response = await medical(
+    request("POST", "/medical", { mensagemMedico: "Resumo", pacienteId: "p1", companyId: "c1" })
+  );
+  expect(response.status).toBe(200);
+  expect(response.headers.get("cache-control")).toContain("no-store");
+  expect(await response.text()).toBe("Revisão médica necessária.");
+  expect(mock.generate.mock.calls[0][0]).not.toHaveProperty("tools");
+});
+it("encerra streaming com erro genérico, sem expor erro do provedor", async () => {
+  mock.history.mockResolvedValue({ records: [] });
+  mock.generate.mockReturnValue({
+    stream: (async function* () {
+      yield { text: "Início" };
+      throw new Error("segredo-do-provedor");
+    })(),
+  });
+  const response = await medical(
+    request("POST", "/medical", { mensagemMedico: "Resumo", pacienteId: "p1", companyId: "c1" })
+  );
+  await expect(response.text()).rejects.toThrow("A resposta foi interrompida.");
 });

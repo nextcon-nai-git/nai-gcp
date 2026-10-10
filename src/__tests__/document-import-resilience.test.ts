@@ -116,3 +116,13 @@ describe("Suíte de Resiliência: Importação de PGR e Documentos Regulatórios
     expect(result.confidence).toBeGreaterThanOrEqual(80);
   });
 });
+
+vi.mock("@/lib/auth/require-auth", () => ({
+  requireAuth: vi.fn(async () => ({
+    uid: "test",
+    role: "SUPER_ADMIN",
+    tenantId: null,
+    servedCompanies: [],
+    permissions: [],
+  })),
+}));

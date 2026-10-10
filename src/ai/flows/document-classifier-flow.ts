@@ -1,4 +1,5 @@
 "use server";
+import { requireAiAction, DOCUMENT_AI_ROLES } from "@/lib/auth/ai-action";
 /**
  * @fileOverview Triador Inteligente de Documentos SST da NextCon.
  * Identifica o tipo de laudo, empresa e data baseado no conteúdo textual do PDF,
@@ -40,7 +41,12 @@ const ClassifierOutputSchema = z.object({
 });
 export type ClassifierOutput = z.infer<typeof ClassifierOutputSchema>;
 
-export async function classifyDocument(input: ClassifierInput): Promise<ClassifierOutput> {
+export async function classifyDocument(
+  input: ClassifierInput,
+  idToken?: string
+): Promise<ClassifierOutput> {
+  await requireAiAction(idToken, DOCUMENT_AI_ROLES, [input]);
+
   return classifyFlow(input);
 }
 

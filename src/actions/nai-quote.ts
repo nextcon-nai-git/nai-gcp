@@ -1,4 +1,5 @@
 "use server";
+import { requireAiAction, FINANCIAL_AI_ROLES } from "@/lib/auth/ai-action";
 
 /**
  * @fileOverview Server Action para processamento de orçamentos via IA NAI.
@@ -8,11 +9,14 @@ import { generateNaiQuote, DadosEmpresaInput, OrcamentoOutput } from "@/ai/flows
 import { ActionResult } from "@/types/schema";
 
 export async function gerarOrcamentoComNai(
-  dados: DadosEmpresaInput
+  dados: DadosEmpresaInput,
+  idToken?: string
 ): Promise<ActionResult<OrcamentoOutput>> {
+  await requireAiAction(idToken, FINANCIAL_AI_ROLES, [dados]);
+
   try {
     // Chama o fluxo do Genkit passando os dados do formulário
-    const resposta = await generateNaiQuote(dados);
+    const resposta = await generateNaiQuote(dados, idToken);
 
     return {
       sucesso: true,

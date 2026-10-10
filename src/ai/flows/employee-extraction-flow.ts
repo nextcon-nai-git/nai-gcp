@@ -1,4 +1,5 @@
 "use server";
+import { requireAiAction, DOCUMENT_AI_ROLES } from "@/lib/auth/ai-action";
 /**
  * @fileOverview Fluxo NAI para extração de dados de funcionários a partir de texto bruto.
  * Permite importar dados de clientes sem necessidade de integração direta com eSocial/Certificado.
@@ -25,9 +26,14 @@ const EmployeeExtractionOutputSchema = z.object({
 
 export type EmployeeExtractionOutput = z.infer<typeof EmployeeExtractionOutputSchema>;
 
-export async function extractEmployeesFromText(input: {
-  rawText: string;
-}): Promise<EmployeeExtractionOutput> {
+export async function extractEmployeesFromText(
+  input: {
+    rawText: string;
+  },
+  idToken?: string
+): Promise<EmployeeExtractionOutput> {
+  await requireAiAction(idToken, DOCUMENT_AI_ROLES, [input]);
+
   return employeeExtractionFlow(input);
 }
 

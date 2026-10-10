@@ -1,4 +1,5 @@
 "use client";
+import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
 import {
@@ -109,11 +110,14 @@ export function NaiQuoteComponent() {
     setOrcamento(null);
 
     try {
-      const res = await gerarOrcamentoComNai({
-        ...formData,
-        quantidadeFuncionarios: Number(formData.quantidadeFuncionarios),
-        grauDeRisco: Number(formData.grauDeRisco) as 1 | 2 | 3 | 4,
-      });
+      const res = await gerarOrcamentoComNai(
+        {
+          ...formData,
+          quantidadeFuncionarios: Number(formData.quantidadeFuncionarios),
+          grauDeRisco: Number(formData.grauDeRisco) as 1 | 2 | 3 | 4,
+        },
+        await getActionIdToken()
+      );
 
       if (res.sucesso && res.orcamento) {
         setOrcamento(res.orcamento as unknown as OrcamentoGerado);

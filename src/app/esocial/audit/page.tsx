@@ -1,4 +1,5 @@
 "use client";
+import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
 import {
@@ -55,10 +56,13 @@ export default function EsocialAuditPage() {
   const handleRunAudit = React.useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await runEsocialCrossAudit({
-        companyName: currentCompany.name,
-        cnpj: currentCompany.cnpj,
-      });
+      const res = await runEsocialCrossAudit(
+        {
+          companyName: currentCompany.name,
+          cnpj: currentCompany.cnpj,
+        },
+        await getActionIdToken()
+      );
       setReport(res);
       toast({
         title: "Superauditoria eSocial Concluída!",

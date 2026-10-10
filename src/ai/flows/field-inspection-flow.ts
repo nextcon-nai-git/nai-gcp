@@ -1,4 +1,5 @@
 "use server";
+import { requireAiAction, DOCUMENT_AI_ROLES } from "@/lib/auth/ai-action";
 
 /**
  * @fileOverview NAI Field Inspection Flow - Powered by Gemini 3.8 Flash
@@ -64,18 +65,23 @@ export const FieldInspectionReportSchema = z.object({
 
 export type FieldInspectionReport = z.infer<typeof FieldInspectionReportSchema>;
 
-export async function analyzeFieldInspectionPhoto(input: {
-  imageBase64?: string;
-  notes?: string;
-  companyName?: string;
-  location?: string;
-  gpsCoordinates?: {
-    latitude: number;
-    longitude: number;
-    accuracy?: number;
-  };
-  devicePlatform?: "Android" | "iOS" | "Desktop";
-}): Promise<FieldInspectionReport> {
+export async function analyzeFieldInspectionPhoto(
+  input: {
+    imageBase64?: string;
+    notes?: string;
+    companyName?: string;
+    location?: string;
+    gpsCoordinates?: {
+      latitude: number;
+      longitude: number;
+      accuracy?: number;
+    };
+    devicePlatform?: "Android" | "iOS" | "Desktop";
+  },
+  idToken?: string
+): Promise<FieldInspectionReport> {
+  await requireAiAction(idToken, DOCUMENT_AI_ROLES, [input]);
+
   const promptText = `Você é o Engenheiro Perito de Segurança do Trabalho com Visão Computacional da plataforma NAI (NextCon Intelligence).
 Você analisa imagens tiradas por técnicos de segurança em canteiros de obras ou indústrias através de smartphones (Android ou iPhone).
 

@@ -1,4 +1,5 @@
 "use client";
+import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
 import {
@@ -131,7 +132,7 @@ export default function KnowledgeBase() {
     setIsLoading(true);
 
     try {
-      const result = await runKnowledgeAssistant({ query: inputContent });
+      const result = await runKnowledgeAssistant({ query: inputContent }, await getActionIdToken());
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "ai",

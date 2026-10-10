@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 /**
  * @fileOverview Gera planos de mitigação de riscos usando IA generativa com base nos riscos identificados e no ambiente.
  *

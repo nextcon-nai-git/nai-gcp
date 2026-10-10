@@ -1,4 +1,5 @@
 "use server";
+import { requireAiAction, DOCUMENT_AI_ROLES } from "@/lib/auth/ai-action";
 /**
  * @fileOverview Fluxo NAI para leitura e extração estruturada de Fichas de EPI e C.A. (Certificado de Aprovação).
  * Utiliza o modelo Gemini para identificar colaborador, EPIs fornecidos, números de C.A., datas e conformidade NR-06.
@@ -49,7 +50,12 @@ export type PpeItem = z.infer<typeof PpeItemSchema>;
 /**
  * Função pública para invocar o fluxo de leitura inteligente de Fichas de EPI.
  */
-export async function extractPpeSheetData(rawText: string): Promise<ExtractPpeSheetOutput> {
+export async function extractPpeSheetData(
+  rawText: string,
+  idToken?: string
+): Promise<ExtractPpeSheetOutput> {
+  await requireAiAction(idToken, DOCUMENT_AI_ROLES, [rawText]);
+
   return extractPpeSheetFlow(rawText);
 }
 

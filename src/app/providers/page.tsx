@@ -1,4 +1,5 @@
 "use client";
+import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
 import Link from "next/link";
@@ -460,7 +461,10 @@ export default function ProvidersManagement() {
 
     try {
       const base64 = await readFileAsDataURL(file);
-      const result = await analyzeProviderContract({ pdfDataUri: base64 });
+      const result = await analyzeProviderContract(
+        { pdfDataUri: base64 },
+        await getActionIdToken()
+      );
 
       if (result) {
         form.setValue("name", result.name.toUpperCase());

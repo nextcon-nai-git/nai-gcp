@@ -1,4 +1,5 @@
 "use server";
+import { requireAiAction, DOCUMENT_AI_ROLES } from "@/lib/auth/ai-action";
 
 /**
  * @fileOverview Server Action para processamento de relatórios SST via Genkit.
@@ -24,8 +25,11 @@ export type AnaliseRiscoOutput = z.infer<typeof AnaliseRiscoSchema>;
  * Action principal disparada pelo botão de processamento.
  */
 export async function processarRelatorioSST(
-  dadosDoRelatorio: TechnicalReportData
+  dadosDoRelatorio: TechnicalReportData,
+  idToken?: string
 ): Promise<ActionResult<AnaliseRiscoOutput>> {
+  await requireAiAction(idToken, DOCUMENT_AI_ROLES, [dadosDoRelatorio]);
+
   try {
     // Validação básica de entrada
     if (!dadosDoRelatorio?.cabecalho?.empresa_atendida) {

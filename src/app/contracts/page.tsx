@@ -1,4 +1,5 @@
 "use client";
+import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
 import {
@@ -79,7 +80,7 @@ export default function ContractsManagement() {
       reader.readAsDataURL(file);
       const base64 = await base64Promise;
 
-      const analysis = await analyzeContract({ pdfDataUri: base64 });
+      const analysis = await analyzeContract({ pdfDataUri: base64 }, await getActionIdToken());
       setQueue((prev) =>
         prev.map((item) =>
           item.id === id ? { ...item, status: "completed", result: analysis } : item

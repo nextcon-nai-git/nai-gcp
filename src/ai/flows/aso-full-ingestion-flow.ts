@@ -1,4 +1,5 @@
 "use server";
+import { requireAiAction, CLINICAL_AI_ROLES } from "@/lib/auth/ai-action";
 
 /**
  * @fileOverview NAI Full ASO Ingestion Engine - Gemini Multimodal Vision AI.
@@ -84,8 +85,11 @@ export type AsoIngestionOutput = z.infer<typeof AsoIngestionOutputSchema>;
 
 export async function processDigitalAsoIngestion(
   asoContent: string,
-  fileName?: string
+  fileName?: string,
+  idToken?: string
 ): Promise<AsoIngestionOutput> {
+  await requireAiAction(idToken, CLINICAL_AI_ROLES, [asoContent, fileName]);
+
   try {
     const result = await asoIngestionFlow({ asoContent, fileName });
     if (result && result.colaborador?.nome && result.colaborador.nome !== "Não Informado") {

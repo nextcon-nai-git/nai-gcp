@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { parseAsoTextWithHeuristics } from "../ai/flows/aso-heuristic-parser";
 import { processDigitalAsoIngestion } from "../ai/flows/aso-full-ingestion-flow";
 
@@ -95,3 +95,13 @@ describe("Motor de Ingestão de ASO Ocupacional (NR-07 & IA)", () => {
     expect(res.scoreConfiabilidade).toBeGreaterThanOrEqual(90);
   });
 });
+
+vi.mock("@/lib/auth/require-auth", () => ({
+  requireAuth: vi.fn(async () => ({
+    uid: "test",
+    role: "SUPER_ADMIN",
+    tenantId: null,
+    servedCompanies: [],
+    permissions: [],
+  })),
+}));

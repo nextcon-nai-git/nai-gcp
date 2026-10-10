@@ -1,4 +1,5 @@
 "use server";
+import { requireAiAction, CLINICAL_AI_ROLES } from "@/lib/auth/ai-action";
 
 /**
  * @fileOverview NAI Superauditoria Cruzada eSocial - Powered by Gemini 3.8 Flash
@@ -52,20 +53,25 @@ export const CrossAuditReportSchema = z.object({
 
 export type CrossAuditReport = z.infer<typeof CrossAuditReportSchema>;
 
-export async function runEsocialCrossAudit(input: {
-  companyName: string;
-  cnpj?: string;
-  employeesData?: Array<{
-    name: string;
-    cpf: string;
-    role: string;
-    sector: string;
-    hazards: string[];
-    examsDone: string[];
-    hasInsalubrityAddon?: boolean;
-    hasPerilousnessAddon?: boolean;
-  }>;
-}): Promise<CrossAuditReport> {
+export async function runEsocialCrossAudit(
+  input: {
+    companyName: string;
+    cnpj?: string;
+    employeesData?: Array<{
+      name: string;
+      cpf: string;
+      role: string;
+      sector: string;
+      hazards: string[];
+      examsDone: string[];
+      hasInsalubrityAddon?: boolean;
+      hasPerilousnessAddon?: boolean;
+    }>;
+  },
+  idToken?: string
+): Promise<CrossAuditReport> {
+  await requireAiAction(idToken, CLINICAL_AI_ROLES, [input]);
+
   const systemPrompt = `Você é o Superauditor Fiscal Trabalhista e Previdenciário de Inteligência Artificial da plataforma NAI (NextCon Intelligence).
 Você opera com a capacidade analítica e de raciocínio regulatório estendido do modelo Gemini 3.8 Flash.
 

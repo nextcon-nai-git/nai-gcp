@@ -1,4 +1,5 @@
 "use server";
+import { requireAiAction, DOCUMENT_AI_ROLES } from "@/lib/auth/ai-action";
 /**
  * @fileOverview NAI_Nextcon - Motor de Inteligência Comercial e Financeira.
  * Consultora Estratégica especializada em Elaboração de Propostas de SST e ROI.
@@ -68,7 +69,12 @@ Se o usuário fornecer dados de empresa, gere o texto seguindo este formato:
 TEXTO DO USUÁRIO: {{{query}}}`,
 });
 
-export async function runKnowledgeAssistant(input: KnowledgeInput): Promise<KnowledgeOutput> {
+export async function runKnowledgeAssistant(
+  input: KnowledgeInput,
+  idToken?: string
+): Promise<KnowledgeOutput> {
+  await requireAiAction(idToken, DOCUMENT_AI_ROLES, [input]);
+
   const { output } = await prompt(input);
   if (!output) {
     throw new Error("A NAI não pôde processar sua proposta agora.");

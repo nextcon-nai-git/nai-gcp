@@ -1,4 +1,5 @@
 "use client";
+import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
 import {
@@ -145,7 +146,7 @@ export function NaiFloatingWidget() {
 
       const fullQuery = `ESPECIALIDADE SELECIONADA: ${currentSkill.title}\n\nHISTÓRICO:\n${contextPrompt}\n\nNOVA MENSAGEM DO CLIENTE: ${userText}\n\nINSTRUÇÃO: Como NAI (consultora especialista de SST da Nextcon), responda de forma muito atenciosa, analisando a resposta do cliente. Se ele já forneceu os dados (ramo, colaboradores, local), monte uma síntese/proposta com estimativa e próximos passos. Se faltou algo, pergunte objetivamente para concluir a proposta.`;
 
-      const res = await runKnowledgeAssistant({ query: fullQuery });
+      const res = await runKnowledgeAssistant({ query: fullQuery }, await getActionIdToken());
       if (res && res.answer) {
         return { content: res.answer, advice: res.advice };
       }
