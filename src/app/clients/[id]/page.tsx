@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { ClientDocuments } from "@/components/clients/client-documents";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -449,6 +450,8 @@ export default function ClientCockpitPage() {
           </div>
         </div>
       </div>
+
+      <ClientDocuments key={company.id} companyId={company.id} />
 
       {/* 3. CARDS DE INDICADORES CHAVE DO CLIENTE */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

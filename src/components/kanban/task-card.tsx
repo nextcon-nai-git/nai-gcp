@@ -230,7 +230,7 @@ export function TaskCard({ task }: { task: OpsTask }) {
               NX
             </div>
             <div className="size-9 rounded-2xl border-2 border-white bg-slate-200 flex items-center justify-center text-[9px] font-black uppercase text-slate-400 shadow-md">
-              {task.companyName.substring(0, 2)}
+              {(task.companyName || "Unidade").substring(0, 2)}
             </div>
           </div>
         </div>
