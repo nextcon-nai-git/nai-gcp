@@ -4,29 +4,20 @@ import { getActionIdToken } from "@/lib/auth/action-token";
 import * as React from "react";
 import {
   Plus,
-  Building2,
   FileUp,
   Loader2,
   Database,
-  Trash2,
-  Calendar,
-  MessageSquareText,
   ShieldCheck,
   Brain,
-  AlertTriangle,
   Sparkles,
-  Search,
-  ChevronRight,
   FileSearch,
-  X,
   Clock,
   PieChart as PieChartIcon,
   Accessibility,
   Flame,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -38,12 +29,11 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { useUser, useFirestore, useCollection, useMemoFirebase, useStorage } from "@/firebase";
+import { useFirestore, useCollection, useMemoFirebase, useStorage } from "@/firebase";
 import {
   collection,
   query,
   orderBy,
-  doc,
   addDoc,
   serverTimestamp,
   collectionGroup,
@@ -51,7 +41,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { cn } from "@/lib/utils";
 import { classifyDocument } from "@/ai/flows/document-classifier-flow";
-import { analyzeSafetyReport, type ReportAnalysisOutput } from "@/ai/flows/report-analysis-flow";
+import { type ReportAnalysisOutput } from "@/ai/flows/report-analysis-flow";
 import { STORAGE_PATHS } from "@/lib/storage-paths";
 import { useSgi } from "@/contexts/sgi-context";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -59,7 +49,6 @@ import Link from "next/link";
 
 export default function ReportsCenter() {
   const { toast } = useToast();
-  const { user } = useUser();
   const db = useFirestore();
   const storage = useStorage();
   const { activeClientId } = useSgi();
@@ -142,32 +131,22 @@ export default function ReportsCenter() {
 
     setIsUploading(true);
     try {
-      let url = "";
-      if (storage) {
-        try {
-          const path = STORAGE_PATHS.CLIENT_SST_NR(
-            activeClientId,
-            classifiedResult.docType as any,
-            classifiedResult.file.name
-          );
-          const storageRef = ref(storage, path);
-          await uploadBytes(storageRef, classifiedResult.file);
-          url = await getDownloadURL(storageRef);
-        } catch (storageErr) {
-          console.warn(
-            "[Report Storage Warning]: Falha no Cloud Storage, gravando referência local no Firestore:",
-            storageErr
-          );
-          url = `local://reports/${classifiedResult.file.name}`;
-        }
-      }
+      if (!storage) throw new Error("Armazenamento indisponível. Tente novamente.");
+      const path = STORAGE_PATHS.CLIENT_SST_NR(
+        activeClientId,
+        classifiedResult.docType as any,
+        `${crypto.randomUUID()}-${classifiedResult.file.name}`
+      );
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, classifiedResult.file);
+      const url = await getDownloadURL(storageRef);
 
       await addDoc(collection(db, "companies", activeClientId, "reports"), {
         name: classifiedResult.file.name,
         type: classifiedResult.docType,
         url,
         companyId: activeClientId,
-        statusIA: "Auditado NAI",
+        statusIA: "Classificado",
         progresso: 100,
         createdAt: new Date().toISOString(),
         serverTimestamp: serverTimestamp(),
@@ -175,7 +154,7 @@ export default function ReportsCenter() {
 
       toast({
         title: "Laudo Protocolado com Sucesso!",
-        description: "Documento auditado e catalogado no acervo SGI.",
+        description: "Documento armazenado e classificado no acervo SGI. Revisão técnica pendente.",
       });
       setIsUploadOpen(false);
       setClassifiedResult(null);
@@ -197,7 +176,10 @@ export default function ReportsCenter() {
             <Brain className="size-3 text-accent" /> Processamento Assíncrono e Resiliência v2.7.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href="/reports/review">Registrar visita técnica</Link>
+          </Button>
           <Button
             asChild
             variant="outline"
@@ -332,7 +314,9 @@ export default function ReportsCenter() {
                         : "bg-blue-100 text-blue-700 animate-pulse"
                     )}
                   >
-                    {report.statusIA || "Na Fila"}
+                    {report.reviewStatus === "pending"
+                      ? "Revisão pendente"
+                      : report.statusIA || "Sem análise"}
                   </Badge>
                   <Badge
                     variant="outline"
@@ -371,7 +355,7 @@ export default function ReportsCenter() {
                   ) : (
                     <Clock size={14} />
                   )}
-                  {report.statusIA === "Concluído" ? "Ver Parecer IA" : "Aguardando Motor"}
+                  {report.statusIA === "Concluído" ? "Ver Parecer IA" : "Sem parecer IA"}
                 </Button>
               </CardContent>
             </Card>
@@ -394,13 +378,13 @@ export default function ReportsCenter() {
                   Dossiê Técnico NAI
                 </DialogTitle>
                 <DialogDescription className="text-white/60 font-medium italic">
-                  Extraído assincronamente via motor de resiliência.
+                  Análise gerada por IA. Requer revisão pelo profissional responsável.
                 </DialogDescription>
               </div>
               <ScrollArea className="max-h-[60vh] p-8">
                 <div className="space-y-6">
                   <div className="p-6 bg-slate-50 rounded-3xl border italic text-sm text-slate-700 leading-relaxed">
-                    "{selectedAnalysis.resumo_executivo || "Análise concluída."}"
+                    {selectedAnalysis.resumo_executivo || "Análise concluída."}
                   </div>
                   {(selectedAnalysis as any).acoes_imediatas_recomendadas && (
                     <div className="space-y-3">
