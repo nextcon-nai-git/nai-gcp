@@ -1,35 +1,34 @@
 "use server";
 
-import { firebaseConfig } from "@/firebase/config";
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { z } from "zod";
+import { FieldValue } from "firebase-admin/firestore";
+import { adminDb } from "@/lib/firebase-admin";
+import { requireAiAction, DOCUMENT_AI_ROLES } from "@/lib/auth/ai-action";
 
-export interface LeadNaiData {
-  skillTitle: string;
-  userText?: string;
-  aiResponse?: string;
-  name?: string;
-  whatsapp?: string;
-  location?: string;
-  companyName?: string;
-  summary?: string;
-}
+const LeadSchema = z
+  .object({
+    skillTitle: z.string().trim().min(1).max(200),
+    userText: z.string().trim().min(1).max(4000),
+    aiResponse: z.string().trim().min(1).max(20000),
+  })
+  .strict();
+export type LeadNaiData = z.infer<typeof LeadSchema>;
 
-export async function salvarLeadNai(data: LeadNaiData) {
+export async function salvarLeadNai(data: LeadNaiData, idToken?: string) {
+  const user = await requireAiAction(idToken, DOCUMENT_AI_ROLES, data);
+  const parsed = LeadSchema.safeParse(data);
+  if (!parsed.success) return { sucesso: false, erro: "Dados da conversa inválidos." };
   try {
-    const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    await addDoc(collection(db, "nai_leads"), {
-      ...data,
-      createdAt: serverTimestamp(),
+    await adminDb.collection("nai_leads").add({
+      ...parsed.data,
+      ownerUid: user.uid,
+      companyId: user.tenantId,
+      createdAt: FieldValue.serverTimestamp(),
       source: "Widget Flutuante NAI",
       status: "novo",
     });
-
     return { sucesso: true };
-  } catch (error: any) {
-    console.warn("Erro ao salvar lead NAI no Firestore:", error?.message || error);
-    return { sucesso: false, erro: error?.message || "Erro desconhecido" };
+  } catch {
+    return { sucesso: false, erro: "Não foi possível salvar a conversa." };
   }
 }

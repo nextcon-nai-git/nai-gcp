@@ -5,7 +5,6 @@ import * as React from "react";
 import {
   X,
   Sparkles,
-  Zap,
   Loader2,
   ArrowRight,
   ArrowLeft,
@@ -13,11 +12,8 @@ import {
   FileText,
   Calendar,
   Send,
-  RefreshCcw,
   Menu,
-  MapPin,
   MessageSquare,
-  CheckCircle2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -26,7 +22,6 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { runKnowledgeAssistant } from "@/ai/flows/knowledge-assistant-flow";
-import { CLINICAS_BRASIL_MESTRE } from "@/components/providers/occupational-clinics-map";
 import { salvarLeadNai } from "@/actions/save-nai-lead";
 
 const NAI_AVATAR_URL =
@@ -36,7 +31,7 @@ interface SkillItem {
   id: string;
   title: string;
   desc: string;
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
   color: string;
   initialPrompt: string;
   firstAiQuestion: string;
@@ -68,7 +63,7 @@ const AGENT_CONFIG = {
       initialPrompt:
         "Preciso agendar exames ocupacionais (ASO) para meus colaboradores. Quais informações você precisa?",
       firstAiQuestion:
-        "Excelente! Agendamos ASOs (Admissional, Periódico, Demissional) em rede credenciada por todo o Brasil com integração ao eSocial.\n\nPoderia me informar o **seu nome, bairro e número de WhatsApp** para enviarmos a autorização da clínica mais próxima?",
+        "Excelente! Agendamos ASOs (Admissional, Periódico, Demissional) em rede credenciada por todo o Brasil com integração ao eSocial.\n\nInforme a cidade, o tipo de exame e a quantidade de colaboradores. A equipe precisa confirmar clínica, disponibilidade e valores antes de qualquer agendamento. Não envie CPF ou dados de saúde neste chat.",
     },
     {
       id: "outros",
@@ -102,6 +97,7 @@ export function NaiFloatingWidget() {
   const [input, setInput] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
 
+  const sendingRef = React.useRef(false);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const chatScrollContainerRef = React.useRef<HTMLDivElement>(null);
 
@@ -127,6 +123,7 @@ export function NaiFloatingWidget() {
   };
 
   const handleBackToMenu = () => {
+    if (sendingRef.current) return;
     setChatMode(false);
     setSelectedSkill(null);
     setMessages([]);
@@ -141,10 +138,11 @@ export function NaiFloatingWidget() {
     // 1. Try Genkit AI Server Action
     try {
       const contextPrompt = history
+        .slice(-12)
         .map((m) => `${m.role === "user" ? "Cliente" : "NAI"}: ${m.content}`)
         .join("\n");
 
-      const fullQuery = `ESPECIALIDADE SELECIONADA: ${currentSkill.title}\n\nHISTÓRICO:\n${contextPrompt}\n\nNOVA MENSAGEM DO CLIENTE: ${userText}\n\nINSTRUÇÃO: Como NAI (consultora especialista de SST da Nextcon), responda de forma muito atenciosa, analisando a resposta do cliente. Se ele já forneceu os dados (ramo, colaboradores, local), monte uma síntese/proposta com estimativa e próximos passos. Se faltou algo, pergunte objetivamente para concluir a proposta.`;
+      const fullQuery = `ESPECIALIDADE SELECIONADA: ${currentSkill.title}\n\nHISTÓRICO:\n${contextPrompt}\n\nNOVA MENSAGEM DO CLIENTE: ${userText}\n\nINSTRUÇÃO: Como NAI (consultora especialista de SST da Nextcon), responda de forma muito atenciosa, analisando a resposta do cliente. Se ele já forneceu os dados (ramo, colaboradores, local), monte uma síntese e indique próximos passos. Não invente preços, clínicas, disponibilidade, confirmações, envios ou garantias de conformidade; este chat não executa agendamentos ou envios. Não solicite CPF nem dados de saúde. Se faltou algo, pergunte objetivamente para concluir a proposta.`;
 
       const res = await runKnowledgeAssistant({ query: fullQuery }, await getActionIdToken());
       if (res && res.answer) {
@@ -154,109 +152,18 @@ export function NaiFloatingWidget() {
       console.warn("AI server action fallback activated:", e);
     }
 
-    // 2. Intelligent Fallback Strategy
-    const textLower = userText.toLowerCase();
-
-    if (currentSkill.id === "documentos") {
-      if (
-        textLower.includes("sim") ||
-        textLower.includes("quero") ||
-        textLower.includes("enviar") ||
-        textLower.includes("whatsapp") ||
-        textLower.includes("fechar") ||
-        textLower.includes("ok")
-      ) {
-        return {
-          content:
-            "Ótimo! Por favor, informe o **Nome da sua Empresa**, seu **Nome** e **WhatsApp com DDD** para que um de nossos consultores envie a proposta oficial para assinatura digital. 🚀",
-          advice: "Atendimento prioritário em minutos pelo WhatsApp Comercial.",
-          whatsappAction: true,
-        };
-      }
-      return {
-        content: `Perfeito! Analisei suas informações referente à **${currentSkill.title}**.\n\n📊 **Estimativa de Investimento Nextcon:**\n• **PGR + PCMSO + LTCAT:** A partir de R$ 950,00 (anual)\n• **Gestão eSocial (S-2220 / S-2240):** R$ 20,00 a R$ 30,00 por vida/mês\n\n📌 **Benefícios inclusos:**\n✅ Laudos com ART/CRM e assinatura digital\n✅ Envio automatizado ao eSocial sem risco de multas\n✅ Suporte técnico com Engenheiro e Médico do Trabalho\n\nGostaria que um consultor formalize esta proposta e envie os detalhes no seu WhatsApp ou Email?`,
-        advice: "Sem fidelidade abusiva e com suporte técnico especializado.",
-      };
-    }
-
-    if (currentSkill.id === "exames") {
-      // User agreement to proposed clinic unit
-      if (
-        textLower.includes("sim") ||
-        textLower.includes("de acordo") ||
-        textLower.includes("concordo") ||
-        textLower.includes("pode ser") ||
-        textLower.includes("ok") ||
-        textLower.includes("fechado") ||
-        textLower.includes("perfeito")
-      ) {
-        return {
-          content: `Perfeito! Confirmação registrada com sucesso. 🚀\n\nPara concluirmos a reserva da vaga e emitirmos a **Guia de Encaminhamento Ocupacional**, por favor me informe:\n\n1️⃣ **Nome Completo do Colaborador**\n2️⃣ **CPF do Colaborador**\n3️⃣ **Cargo / Função**\n4️⃣ **Tipo do Exame** (Admissional, Periódico, Demissional)\n\nEnviaremos a autorização imediatamente!`,
-          advice: "Guia de autorização enviada digitalmente em minutos.",
-          whatsappAction: true,
-        };
-      }
-
-      // User rejected clinic or requested another location
-      if (
-        textLower.includes("não") ||
-        textLower.includes("nao") ||
-        textLower.includes("outra") ||
-        textLower.includes("mudar") ||
-        textLower.includes("diferente")
-      ) {
-        return {
-          content:
-            "Entendido! Sem problemas.\n\nPor favor, me informe o nome de outro **bairro, cidade ou região** de sua preferência para localizarmos uma nova unidade credenciada!",
-          advice: "Atendimento em mais de 3.500 clínicas credenciadas no Brasil.",
-        };
-      }
-
-      // User entered location/neighborhood details -> Search nearest clinic!
-      const matchedClinic = CLINICAS_BRASIL_MESTRE.find(
-        (c) =>
-          c.city.toLowerCase().includes(textLower) ||
-          c.address.toLowerCase().includes(textLower) ||
-          c.name.toLowerCase().includes(textLower)
-      );
-
-      const clinicName = matchedClinic
-        ? matchedClinic.name
-        : `Clínica Credenciada Nextcon (${userText})`;
-      const clinicAddress = matchedClinic
-        ? matchedClinic.address
-        : `Região do ${userText} (Unidade Credenciada mais próxima)`;
-
-      return {
-        content: `Localizei a clínica credenciada mais próxima para o seu atendimento:\n\n🏥 **${clinicName}**\n📍 **Endereço:** ${clinicAddress}\n🩺 **Exames atendidos:** ASO (Admissional, Periódico, Demissional), Audiometria, Análises Clínicas e Exames Complementares\n\n**Você está de acordo em realizarmos o agendamento nesta unidade?**`,
-        advice: "Clínica parceira com laudo e ASO integrados ao eSocial.",
-      };
-    }
-
-    // Default Fallback
-    if (
-      textLower.includes("sim") ||
-      textLower.includes("quero") ||
-      textLower.includes("contato") ||
-      textLower.includes("ok")
-    ) {
-      return {
-        content:
-          "Ótimo! Qual o melhor **WhatsApp com DDD** e **Nome do Responsável** para enviarmos o direcionamento técnico?",
-        advice: "Consultoria personalizada Nextcon Saúde.",
-        whatsappAction: true,
-      };
-    }
-
     return {
-      content: `Anotado! Compreendi sua solicitação sobre **${currentSkill.title}**.\n\nNossa equipe de Engenharia de Segurança do Trabalho e Medicina Ocupacional está pronta para atender essa necessidade com agilidade.\n\nPara que um consultor sênior entre em contato com a proposta ideal, por favor informe seu **Nome**, **Nome da Empresa** e **WhatsApp ou E-mail**.`,
-      advice: "Solução sob medida para o seu negócio.",
+      content:
+        "A análise está indisponível no momento. Você pode abrir o WhatsApp comercial para solicitar atendimento. Valores, clínicas e horários precisam ser confirmados pela equipe; nenhum agendamento foi realizado neste chat.",
+      whatsappAction: true,
+      advice: undefined,
     };
   };
 
   const handleSend = async (customText?: string) => {
     const textToSend = customText || input.trim();
-    if (!textToSend || isLoading || !selectedSkill) return;
+    if (!textToSend || textToSend.length > 4000 || sendingRef.current || !selectedSkill) return;
+    sendingRef.current = true;
 
     if (!customText) setInput("");
 
@@ -279,24 +186,28 @@ export function NaiFloatingWidget() {
 
       setMessages((prev) => [...prev, aiMsg]);
 
-      // Persist Lead in Firestore nai_leads collection non-blocking
-      salvarLeadNai({
-        skillTitle: selectedSkill.title,
-        userText: textToSend,
-        aiResponse: response.content,
-        summary: `Especialidade: ${selectedSkill.title} | Mensagem: ${textToSend}`,
-      }).catch((err) => console.warn("Lead storage warning:", err));
-    } catch (err: any) {
+      const saved = await salvarLeadNai(
+        {
+          skillTitle: selectedSkill.title,
+          userText: textToSend,
+          aiResponse: response.content,
+        },
+        await getActionIdToken()
+      );
+      if (!saved.sucesso) throw new Error("Não foi possível salvar a conversa.");
+    } catch {
       setMessages((prev) => [
         ...prev,
         {
-          id: (Date.now() + 1).toString(),
+          id: crypto.randomUUID(),
           role: "ai",
           content:
-            "Entendido! Registrei suas informações. Por favor, informe seu **Nome** e **WhatsApp com DDD** para formalizarmos o atendimento.",
+            "Não foi possível salvar esta mensagem. Para solicitar atendimento, abra o WhatsApp comercial.",
+          whatsappAction: true,
         },
       ]);
     } finally {
+      sendingRef.current = false;
       setIsLoading(false);
     }
   };
@@ -306,24 +217,20 @@ export function NaiFloatingWidget() {
       customMsg ||
       `Olá, equipe Nextcon Saúde! Estava conversando com a NAI sobre ${selectedSkill?.title || "SST"} e gostaria de concluir meu atendimento.`;
     const url = `https://wa.me/554135007984?text=${encodeURIComponent(text)}`;
-    window.open(url, "_blank");
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   const getQuickReplies = () => {
     if (!selectedSkill) return [];
     if (selectedSkill.id === "exames") {
       return [
-        "Sim, de acordo com a clínica!",
+        "Como solicitar um agendamento?",
         "Prefiro buscar em outro bairro",
         "Chamar no WhatsApp Comercial",
       ];
     }
     if (selectedSkill.id === "documentos") {
-      return [
-        "Sim, formalizar proposta por e-mail",
-        "Quero falar no WhatsApp",
-        "Dúvidas de eSocial",
-      ];
+      return ["Como solicitar uma proposta?", "Quero falar no WhatsApp", "Dúvidas de eSocial"];
     }
     return ["Falar no WhatsApp", "Solicitar Ligação de Consultor"];
   };
@@ -341,6 +248,7 @@ export function NaiFloatingWidget() {
             <div className="flex items-center justify-between relative z-20 mb-2">
               {chatMode ? (
                 <button
+                  disabled={isLoading}
                   onClick={handleBackToMenu}
                   className="flex items-center gap-1.5 text-[11px] font-black uppercase text-accent hover:text-white bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-xl backdrop-blur-md transition-all shadow-sm cursor-pointer"
                   title="Voltar ao Menu Principal"
@@ -354,6 +262,7 @@ export function NaiFloatingWidget() {
               )}
 
               <button
+                aria-label="Fechar assistente"
                 onClick={() => setIsOpen(false)}
                 className="p-1.5 hover:bg-white/10 rounded-xl transition-colors text-white/80 hover:text-white cursor-pointer"
               >
@@ -384,7 +293,7 @@ export function NaiFloatingWidget() {
                 <div className="bg-white p-5 rounded-[2rem] rounded-tl-none border-l-4 border-accent shadow-sm relative">
                   <Sparkles className="absolute -top-2 -right-2 size-5 text-accent animate-pulse" />
                   <p className="text-xs italic text-slate-700 font-bold leading-relaxed">
-                    "{AGENT_CONFIG.welcome_msg}"
+                    {AGENT_CONFIG.welcome_msg}
                   </p>
                 </div>
 
@@ -528,6 +437,7 @@ export function NaiFloatingWidget() {
                 <div className="px-4 py-1.5 bg-slate-100/70 border-t border-slate-100 flex items-center justify-between shrink-0">
                   <button
                     type="button"
+                    disabled={isLoading}
                     onClick={handleBackToMenu}
                     className="text-[9px] font-black uppercase tracking-wider text-slate-500 hover:text-primary flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
@@ -547,6 +457,7 @@ export function NaiFloatingWidget() {
                   className="p-3 bg-white border-t border-slate-100 flex items-center gap-2 shrink-0"
                 >
                   <Input
+                    maxLength={4000}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="Digite seu bairro, dúvida ou resposta..."
@@ -555,6 +466,7 @@ export function NaiFloatingWidget() {
                   />
                   <Button
                     type="submit"
+                    aria-label="Enviar mensagem"
                     disabled={!input.trim() || isLoading}
                     className="h-10 w-10 p-0 rounded-xl bg-primary text-white hover:bg-primary/90 shrink-0 shadow-md cursor-pointer"
                   >
