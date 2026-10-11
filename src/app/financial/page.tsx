@@ -56,7 +56,15 @@ import {
 } from "@/lib/real-data";
 import { FiscalIntelligenceTab } from "@/components/financial/fiscal-intelligence-tab";
 import { BankStatementConciliation } from "@/components/financial/bank-statement-conciliation";
-import { DreStatementTab } from "@/components/financial/dre-statement-tab";
+import {
+  DRE_BEST_MONTH_2026,
+  DRE_MARGIN_2026,
+  DRE_PERIOD_2026,
+  DRE_SOURCE_NOTE_2026,
+  DRE_TOTALS_2026,
+  DreStatementTab,
+  formatCurrency as formatDreCurrency,
+} from "@/components/financial/dre-statement-tab";
 import { useSgi } from "@/contexts/sgi-context";
 import { useFinancialContracts } from "@/hooks/use-financial-contracts";
 
@@ -178,27 +186,70 @@ export default function FinancialModule() {
         </span>
       </Link>
 
+      <Link
+        href="/financial/omie/dre"
+        className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-violet-200 bg-violet-50 p-5 transition-colors hover:bg-violet-100/70"
+      >
+        <div className="flex items-center gap-4">
+          <FileSpreadsheet className="size-8 text-violet-700" />
+          <div>
+            <h2 className="font-semibold text-slate-900">DRE pelo Omie</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Consulta por período e categoria na conexão financeira existente.
+            </p>
+          </div>
+        </div>
+        <span className="flex items-center gap-2 text-sm font-semibold text-violet-800">
+          Consultar DRE <ArrowRight size={16} />
+        </span>
+      </Link>
+
+      <Link
+        href="/financial/actions"
+        className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 transition-colors hover:bg-emerald-100/70"
+      >
+        <div className="flex items-center gap-4">
+          <CheckCircle2 className="size-8 text-emerald-700" />
+          <div>
+            <h2 className="font-semibold text-slate-900">Ações financeiras</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Prioridades, responsáveis e checklists para acompanhar as decisões financeiras.
+            </p>
+          </div>
+        </div>
+        <span className="flex items-center gap-2 text-sm font-semibold text-emerald-800">
+          Abrir ações <ArrowRight size={16} />
+        </span>
+      </Link>
+
+      <p className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+        {DRE_SOURCE_NOTE_2026}
+      </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
-          title="Receita Bruta 2026"
-          amount="R$ 1.159.556,54"
-          trend="Acumulado"
+          title={`Receita histórica · ${DRE_PERIOD_2026}`}
+          amount={formatDreCurrency(DRE_TOTALS_2026.receitaBruta)}
+          trend="Conciliação pendente"
           icon={Briefcase}
           color="text-blue-600"
           bg="bg-blue-50"
         />
         <StatCard
-          title="Resultado Líquido"
-          amount="+R$ 231.116,76"
-          trend="+19.9% Margem"
+          title={`Resultado · ${DRE_PERIOD_2026}`}
+          amount={formatDreCurrency(DRE_TOTALS_2026.totalGeral)}
+          trend={
+            DRE_MARGIN_2026 === null
+              ? "Margem indisponível"
+              : `${DRE_MARGIN_2026.toLocaleString("pt-BR", { style: "percent", maximumFractionDigits: 1 })} de margem`
+          }
           icon={TrendingUp}
           color="text-emerald-600"
           bg="bg-emerald-50"
         />
         <StatCard
-          title="Mês Recorde (Ago/26)"
-          amount="R$ 335.581,19"
-          trend="Lucro R$ 197k"
+          title={`Maior receita da base (${DRE_BEST_MONTH_2026?.mesAbrev ?? "—"}/26)`}
+          amount={formatDreCurrency(DRE_BEST_MONTH_2026?.receitaBruta ?? 0)}
+          trend={`Resultado ${formatDreCurrency(DRE_BEST_MONTH_2026?.totalGeral ?? 0)}`}
           icon={Sparkles}
           color="text-amber-600"
           bg="bg-amber-50"
@@ -220,7 +271,7 @@ export default function FinancialModule() {
               value="dre"
               className="rounded-xl gap-2 text-[10px] font-black uppercase tracking-widest px-8 text-emerald-700 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
             >
-              <FileSpreadsheet className="size-4" /> DRE Gerencial 2026 (Oficial)
+              <FileSpreadsheet className="size-4" /> DRE histórica · {DRE_PERIOD_2026}
             </TabsTrigger>
             <TabsTrigger
               value="bank_statement"

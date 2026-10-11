@@ -38,6 +38,7 @@ export interface DreMonthData {
   totalGeral: number;
 }
 
+// Base histórica já cadastrada. Preservar os valores de origem até a conciliação.
 export const DRE_DATA_2026: DreMonthData[] = [
   {
     mes: "Janeiro",
@@ -153,20 +154,44 @@ export const DRE_DATA_2026: DreMonthData[] = [
   },
 ];
 
-export const DRE_TOTALS_2026 = {
-  receitaBruta: 1159556.54,
-  impostos: -165989.67,
-  receitasFinanceiras: 628.56,
-  custoServicos: -360817.6,
-  recuperacaoDespesas: 100.43,
-  despesasPessoal: -298026.58,
-  despesasAdmin: -44446.52,
-  despesasFinanceiras: -1517.85,
-  despesasVendasMkt: -58370.55,
-  totalGeral: 231116.76,
-};
+type DreTotals = Omit<DreMonthData, "mes" | "mesAbrev">;
 
-function formatCurrency(val: number) {
+const DRE_AMOUNT_FIELDS = [
+  "receitaBruta",
+  "impostos",
+  "receitasFinanceiras",
+  "custoServicos",
+  "recuperacaoDespesas",
+  "despesasPessoal",
+  "despesasAdmin",
+  "despesasFinanceiras",
+  "despesasVendasMkt",
+  "totalGeral",
+] as const satisfies readonly (keyof DreTotals)[];
+
+export function calculateDreTotals(months: readonly DreMonthData[]): DreTotals {
+  return Object.fromEntries(
+    DRE_AMOUNT_FIELDS.map((field) => [
+      field,
+      months.reduce((sum, month) => sum + Math.round(month[field] * 100), 0) / 100,
+    ])
+  ) as DreTotals;
+}
+
+export const DRE_TOTALS_2026 = calculateDreTotals(DRE_DATA_2026);
+export const DRE_PERIOD_2026 = "Jan–Ago/2026";
+export const DRE_SOURCE_NOTE_2026 =
+  "Base histórica Nextcon de janeiro a agosto de 2026, pendente de conciliação com o Omie.";
+export const DRE_MARGIN_2026 =
+  DRE_TOTALS_2026.receitaBruta === 0
+    ? null
+    : DRE_TOTALS_2026.totalGeral / DRE_TOTALS_2026.receitaBruta;
+export const DRE_BEST_MONTH_2026 = DRE_DATA_2026.reduce<DreMonthData | undefined>(
+  (best, month) => (!best || month.receitaBruta > best.receitaBruta ? month : best),
+  undefined
+);
+
+export function formatCurrency(val: number) {
   if (val === 0) return "R$ 0,00";
   const isNegative = val < 0;
   const formatted = Math.abs(val).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -178,7 +203,11 @@ function formatCurrency(val: number) {
 
 export function DreStatementTab() {
   const exportCsv = () => {
-    const headers = ["Conta do DRE", ...DRE_DATA_2026.map((d) => d.mes), "Total Geral"];
+    const headers = [
+      "Conta do DRE",
+      ...DRE_DATA_2026.map((d) => `${d.mes}/2026`),
+      `Total ${DRE_PERIOD_2026}`,
+    ];
     const rows = [
       [
         "01. Receita Bruta de Vendas",
@@ -234,11 +263,18 @@ export function DreStatementTab() {
 
     const csvContent =
       "data:text/csv;charset=utf-8," +
-      [headers.join(";"), ...rows.map((e) => e.join(";"))].join("\n");
+      [
+        "Fonte;Base histórica Nextcon cadastrada",
+        "Período;Janeiro a agosto de 2026",
+        "Situação;Conciliação com o Omie pendente",
+        "",
+        headers.join(";"),
+        ...rows.map((e) => e.join(";")),
+      ].join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "NAI_DRE_Gerencial_2026.csv");
+    link.setAttribute("download", "NAI_DRE_Historica_Jan_Ago_2026_Pendente_Conciliacao.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -246,6 +282,10 @@ export function DreStatementTab() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 text-left">
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950">
+        <p className="font-semibold">DRE histórica · {DRE_PERIOD_2026}</p>
+        <p className="mt-1 text-sm">{DRE_SOURCE_NOTE_2026}</p>
+      </div>
       {/* Top Banner KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="border-none shadow-sm bg-white rounded-[2rem] p-6 hover:shadow-md transition-all">
@@ -254,7 +294,7 @@ export function DreStatementTab() {
               <DollarSign className="size-6" />
             </div>
             <Badge className="bg-emerald-100 text-emerald-800 border-none text-[9px] font-black uppercase">
-              Acumulado 2026
+              {DRE_PERIOD_2026}
             </Badge>
           </div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
@@ -264,7 +304,7 @@ export function DreStatementTab() {
             {formatCurrency(DRE_TOTALS_2026.receitaBruta)}
           </h3>
           <p className="text-[10px] font-bold text-emerald-600 mt-2 flex items-center gap-1">
-            <ArrowUpRight className="size-3.5" /> Faturamento Jan - Ago/26
+            <ArrowUpRight className="size-3.5" /> Receita da base histórica
           </p>
         </Card>
 
@@ -274,7 +314,9 @@ export function DreStatementTab() {
               <TrendingUp className="size-6" />
             </div>
             <Badge className="bg-blue-100 text-blue-800 border-none text-[9px] font-black uppercase">
-              +19.9% Margem
+              {DRE_MARGIN_2026 === null
+                ? "Margem indisponível"
+                : `${DRE_MARGIN_2026.toLocaleString("pt-BR", { style: "percent", maximumFractionDigits: 1 })} de margem`}
             </Badge>
           </div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
@@ -283,7 +325,9 @@ export function DreStatementTab() {
           <h3 className="text-3xl font-black font-headline text-blue-600 tracking-tight mt-1">
             {formatCurrency(DRE_TOTALS_2026.totalGeral)}
           </h3>
-          <p className="text-[10px] font-bold text-slate-500 mt-2">Lucro Líquido Acumulado</p>
+          <p className="text-[10px] font-bold text-slate-500 mt-2">
+            Resultado histórico · {DRE_PERIOD_2026}
+          </p>
         </Card>
 
         <Card className="border-none shadow-sm bg-white rounded-[2rem] p-6 hover:shadow-md transition-all">
@@ -292,16 +336,18 @@ export function DreStatementTab() {
               <Sparkles className="size-6" />
             </div>
             <Badge className="bg-amber-100 text-amber-800 border-none text-[9px] font-black uppercase">
-              Recorde Histórico
+              Maior receita da base
             </Badge>
           </div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-            Agosto / 2026
+            {DRE_BEST_MONTH_2026?.mes ?? "Sem competência"} / 2026
           </p>
           <h3 className="text-3xl font-black font-headline text-amber-600 tracking-tight mt-1">
-            {formatCurrency(196991.0)}
+            {formatCurrency(DRE_BEST_MONTH_2026?.receitaBruta ?? 0)}
           </h3>
-          <p className="text-[10px] font-bold text-slate-500 mt-2">Faturamento de R$ 335.581,19</p>
+          <p className="text-[10px] font-bold text-slate-500 mt-2">
+            Resultado de {formatCurrency(DRE_BEST_MONTH_2026?.totalGeral ?? 0)}
+          </p>
         </Card>
 
         <Card className="border-none shadow-sm bg-white rounded-[2rem] p-6 hover:shadow-md transition-all">
@@ -331,17 +377,17 @@ export function DreStatementTab() {
           <div className="space-y-2">
             <div className="flex items-center gap-3">
               <Badge className="bg-accent text-primary border-none font-black text-[9px] tracking-[0.3em] h-7 px-4 shadow-lg rounded-lg">
-                DRE OFICIAL 2026
+                DRE HISTÓRICA
               </Badge>
               <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">
-                Atualizado
+                Conciliação pendente
               </span>
             </div>
             <CardTitle className="text-3xl font-headline font-black uppercase tracking-tight text-white">
-              Demonstrativo de Resultados do Exercício (2026)
+              Demonstrativo de Resultados · {DRE_PERIOD_2026}
             </CardTitle>
             <CardDescription className="text-slate-300 font-bold uppercase text-[11px] tracking-[0.3em]">
-              Visão Consolidada Mensal (Janeiro a Agosto) • Faturamento e Despesas Nextcon
+              Base histórica mensal • Faturamento e despesas Nextcon
             </CardDescription>
           </div>
 
@@ -375,7 +421,7 @@ export function DreStatementTab() {
                   </TableHead>
                 ))}
                 <TableHead className="py-5 text-right pr-8 font-black text-primary bg-slate-200/60">
-                  Total 2026
+                  Total {DRE_PERIOD_2026}
                 </TableHead>
               </TableRow>
             </TableHeader>
