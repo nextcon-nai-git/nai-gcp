@@ -246,7 +246,9 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
       prompt: input.pdfDataUri.startsWith("data:")
         ? [...content, { media: { url: input.pdfDataUri } }]
         : content,
-      output: { schema: PgrModelOutputSchema },
+      // Keep the full Zod contract locally. Sending this large nested schema as a
+      // Vertex constrained-output grammar rejects the request before generation.
+      output: { schema: PgrModelOutputSchema, constrained: false, instructions: true },
       config: { temperature: 0.1, maxOutputTokens: 24000 },
       abortSignal: controller.signal,
     });
