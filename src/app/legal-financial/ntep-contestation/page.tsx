@@ -37,39 +37,29 @@ export default function NtepContestationPage() {
   const { toast } = useToast();
 
   const currentCompany = React.useMemo(() => {
-    if (!activeClientId || activeClientId === "all") {
-      return (
-        REAL_COMPANIES[0] || {
-          name: "CONSTRUFAM ENGENHARIA E CONSTRUÇÕES LTDA",
-          cnpj: "44.882.110/0001-92",
-          cnae: "41.20-4-00",
-        }
-      );
-    }
     const found = REAL_COMPANIES.find((c) => c.id === activeClientId);
-    return found || { name: activeClientId, cnpj: "44.882.110/0001-92", cnae: "41.20-4-00" };
+    return found || { name: "", cnpj: "", cnae: "" };
   }, [activeClientId]);
 
-  const [employeeName, setEmployeeName] = React.useState("Cleberson Ricardo dos Santos");
-  const [jobRole, setJobRole] = React.useState("Montador de Estruturas Metálicas");
-  const [cid, setCid] = React.useState("M75.1 (Síndrome do Manguito Rotador / Tendinopatia)");
-  const [benefitNumber, setBenefitNumber] = React.useState("NB 91/982.110.450-1");
-  const [workEnvironment, setWorkEnvironment] = React.useState(
-    "Atividades em altura com rodízio de tarefas, sem posturas estáticas prolongadas de elevação de braço acima dos ombros. Ferramentas elétricas com peso compensado por balancim."
-  );
+  const [employeeName, setEmployeeName] = React.useState("");
+  const [jobRole, setJobRole] = React.useState("");
+  const [cid, setCid] = React.useState("");
+  const [benefitNumber, setBenefitNumber] = React.useState("");
+  const [workEnvironment, setWorkEnvironment] = React.useState("");
 
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [result, setResult] = React.useState<NtepContestationOutput | null>(null);
   const [copied, setCopied] = React.useState(false);
 
   const handleGenerate = async () => {
+    setResult(null);
     setIsGenerating(true);
     try {
       const res = await generateNtepContestation(
         {
           companyName: currentCompany.name,
           cnpj: currentCompany.cnpj,
-          cnae: (currentCompany as any).cnae || "41.20-4-00",
+          cnae: (currentCompany as any).cnae || "",
           employeeName,
           jobRole,
           cid,
@@ -81,8 +71,9 @@ export default function NtepContestationPage() {
 
       setResult(res);
       toast({
-        title: "Petição de Contestação Gerada!",
-        description: `Probabilidade: ${res.successProbability} | Economia FAP estimada: R$ ${res.estimatedTaxSavings.toLocaleString("pt-BR")}`,
+        title: "Minuta preparada para revisão",
+        description:
+          "Confira os fatos, documentos e referências com os responsáveis jurídico e médico.",
       });
     } catch (err: any) {
       toast({
@@ -201,9 +192,7 @@ export default function NtepContestationPage() {
             className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-sm uppercase tracking-wider rounded-xl shadow-lg gap-2"
           >
             <Sparkles className={`size-4 ${isGenerating ? "animate-spin" : ""}`} />
-            {isGenerating
-              ? "Gemini 3.8 Redigindo Petição e Calculando FAP..."
-              : "Gerar Petição Administrativa via Gemini 3.8"}
+            {isGenerating ? "Preparando minuta..." : "Preparar minuta para revisão"}
           </Button>
         </CardContent>
       </Card>
@@ -227,11 +216,11 @@ export default function NtepContestationPage() {
                         : "bg-rose-500/20 text-rose-400 border-rose-500/40 text-sm font-black"
                   }
                 >
-                  {result.successProbability} PROBABILIDADE
+                  Não avaliada
                 </Badge>
               </div>
               <p className="text-xs text-slate-400 pt-1">
-                Fundamentada na presunção relativa da Lei 8.213/91.
+                Depende de avaliação jurídica e médica documentada.
               </p>
             </div>
 
@@ -239,12 +228,9 @@ export default function NtepContestationPage() {
               <span className="text-[10px] text-slate-400 uppercase font-mono">
                 Economia Tributária FAP Anual
               </span>
-              <div className="text-2xl font-black text-emerald-400 font-mono">
-                R${" "}
-                {result.estimatedTaxSavings.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-              </div>
+              <div className="text-2xl font-black text-emerald-400 font-mono">Não calculada</div>
               <p className="text-xs text-slate-400 pt-1">
-                Impacto evitado na alíquota RAT da folha de pagamento.
+                Exige folha, alíquotas e cenário tributário validados.
               </p>
             </div>
 

@@ -22,7 +22,7 @@ import { collection, query, orderBy, collectionGroup, doc, where } from "firebas
 import { cn } from "@/lib/utils";
 import { useSgi } from "@/contexts/sgi-context";
 
-import { parseExtratoToDre, DreFinancialStatement } from "@/actions/dre-excel-parser";
+import { DreFinancialStatement } from "@/actions/dre-excel-parser";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -44,42 +44,6 @@ export default function LegalFinancial() {
   const [payroll, setPayroll] = React.useState(150000);
   const [dreData, setDreData] = React.useState<DreFinancialStatement | null>(null);
   const [isProcessingDre, setIsProcessingDre] = React.useState(false);
-
-  React.useEffect(() => {
-    // Carrega DRE inicial demonstrativa
-    parseExtratoToDre(
-      "Receita ASO CETESB;125800\nClinica Credenciada Exames;-28400\nElaboração PGR DW Montec;-14200\nHonorarios Medicos;-18600"
-    ).then((res) => {
-      if (res.sucesso && res.dados) setDreData(res.dados);
-    });
-  }, []);
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsProcessingDre(true);
-    try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const text = (event.target?.result as string) || "";
-        const res = await parseExtratoToDre(text, file.name);
-        if (res.sucesso && res.dados) {
-          setDreData(res.dados);
-          toast({
-            title: "DRE Gerada com Sucesso!",
-            description: `Extrato ${file.name} processado com EBITDA de R$ ${res.dados.ebitda.toLocaleString("pt-BR")}.`,
-          });
-        }
-      };
-      reader.readAsText(file);
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Erro na Leitura", description: err.message });
-    } finally {
-      setIsProcessingDre(false);
-      if (e.target) e.target.value = "";
-    }
-  };
 
   const profileRef = useMemoFirebase(() => {
     if (!db || !user) return null;
@@ -130,21 +94,12 @@ export default function LegalFinancial() {
             </Button>
           </Link>
 
-          <label className="inline-flex items-center gap-2 h-10 px-5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest cursor-pointer shadow-lg transition-all hover:scale-105">
-            {isProcessingDre ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Upload className="size-4 text-accent" />
-            )}
-            <span>Importar Extrato Excel / CSV</span>
-            <input
-              type="file"
-              accept=".csv,.txt,.xlsx,.xls"
-              onChange={handleFileUpload}
-              className="hidden"
-              disabled={isProcessingDre}
-            />
-          </label>
+          <Link
+            href="/financial/omie/dre"
+            className="inline-flex items-center h-10 px-5 rounded-xl bg-emerald-800 text-white"
+          >
+            Consultar DRE no Omie
+          </Link>
 
           <Badge className="bg-[#090e24] text-[#f59e0b] font-black uppercase text-[10px] tracking-widest px-4 h-10 flex items-center border border-[#f59e0b]/20 shadow-lg">
             Risco em Monitoramento:{" "}

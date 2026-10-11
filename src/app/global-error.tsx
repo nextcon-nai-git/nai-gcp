@@ -63,7 +63,7 @@ export default function GlobalError({
             </p>
             <div className="bg-white/5 p-3 rounded-lg border border-white/10">
               <p className="text-[10px] font-mono text-white/40 truncate">
-                {error?.message || "Erro desconhecido na sincronização"}
+                Tente recarregar a página. Se o problema continuar, informe o módulo ao suporte.
               </p>
             </div>
           </div>
