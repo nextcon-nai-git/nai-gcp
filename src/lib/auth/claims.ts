@@ -14,7 +14,7 @@ export function parseClaims(claims: Record<string, unknown>): NAIClaims {
   return {
     role: (claims.role as UserRole) || "GUEST",
     tenantId:
-      typeof claims.tenantId === "string"
+      typeof claims.tenantId === "string" && claims.tenantId.trim() !== ""
         ? claims.tenantId
         : typeof claims.companyId === "string"
           ? claims.companyId
