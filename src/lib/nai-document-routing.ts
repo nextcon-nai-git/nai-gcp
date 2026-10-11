@@ -26,10 +26,30 @@ export function naiDocumentAgent(tipo: NaiDocumentType): NaiDocument["agenteResp
 export function hasNaiClinicalData(pages: PgrPage[]) {
   const text = normalizePgrText(pages.map((p) => p.texto).join("\n"));
   const lines = pages.flatMap((page) => page.texto.split(/\r?\n/).map(normalizePgrText));
-  const individual =
-    /\b(?:paciente|nome (?:do|da) (?:trabalhador|trabalhadora|colaborador|colaboradora)|empregado)\s*:\s*[a-z]/.test(
-      text
+  // Match a filled identity field on its own line. Never let whitespace consume
+  // the next label in a blank form, or combine an identity with another page.
+  const individualClinical = pages.some((page) => {
+    const pageLines = page.texto.split(/\r?\n/).map(normalizePgrText);
+    const individual = pageLines.some((line, index) => {
+      const match = line.match(
+        /^(?:paciente|nome (?:do|da) (?:trabalhador|trabalhadora|colaborador|colaboradora)|empregado)\s*:[ \t]*(.*)$/
+      );
+      if (!match) return false;
+      const value = match[1] || pageLines.slice(index + 1).find(Boolean) || "";
+      return (
+        /^[a-z][a-z .'-]{2,}/.test(value) &&
+        !/^(?:funcao|cargo|setor|assinatura|data|cpf|rg|matricula|empresa|cnpj|endereco|nome|preencher|___)\b/.test(
+          value
+        )
+      );
+    });
+    return (
+      individual &&
+      /\b(?:exames?|resultados?|apto|inapto|medicacao|consulta|diagnostico)\b/.test(
+        normalizePgrText(page.texto)
+      )
     );
+  });
   return (
     lines.some((line) =>
       /^(?:ficha clinica|prontuario(?: medico)?|anamnese|historia clinica|hipotese diagnostica)(?:$|\s*[:–-])/.test(
@@ -37,8 +57,7 @@ export function hasNaiClinicalData(pages: PgrPage[]) {
       )
     ) ||
     /\bcid(?:\s*[- ]?10)?\s*[:.-]?\s*[a-tv-z]\d{2}/.test(text) ||
-    (individual &&
-      /\b(?:exames?|resultados?|apto|inapto|medicacao|consulta|diagnostico)\b/.test(text))
+    individualClinical
   );
 }
 

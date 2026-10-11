@@ -192,3 +192,26 @@ describe("PGR: identidade e evidências", () => {
     expect(a.acoesCategorizadas.filter((x) => x.fundamento === "documento")).toHaveLength(0);
   });
 });
+
+it("prioriza a identificação expressa do empregador diante de tomadoras", () => {
+  const result = parsePgrDocumentPages([
+    {
+      numero: 1,
+      texto:
+        "PGR\nIDENTIFICAÇÃO DA EMPRESA\nEMPRESA EXEMPLO LTDA\nCNPJ: 43.776.491/0001-70\nEndereço: Rua Exemplo, 100\nListagem de Endereços e CNPJs de Tomadoras de Serviços\nRazão Social: TOMADORA UM\nCNPJ: 44.337.647/0001-89",
+    },
+    { numero: 2, texto: "Razão Social: TOMADORA DOIS\nCNPJ: 81.707.465/0001-89" },
+  ]);
+  expect(result.identidade.status).toBe("identificada");
+  expect(result.pgrCardDetalhado).toMatchObject({
+    razaoSocial: "EMPRESA EXEMPLO LTDA",
+    cnpj: "43.776.491/0001-70",
+  });
+});
+it("mantém ambiguidade entre duas seções explícitas de empregador", () => {
+  const result = parsePgrDocumentPages([
+    { numero: 1, texto: "IDENTIFICAÇÃO DA EMPRESA\nEMPRESA UM\nCNPJ: 43.776.491/0001-70" },
+    { numero: 2, texto: "IDENTIFICAÇÃO DA EMPRESA\nEMPRESA DOIS\nCNPJ: 44.337.647/0001-89" },
+  ]);
+  expect(result.identidade.status).toBe("ambigua");
+});
