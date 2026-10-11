@@ -10,7 +10,7 @@ import { initializeFirebaseTelemetry, shouldEnableFirebaseTelemetry } from "./te
 
 // Habilita o rastreamento e telemetria via Firebase (Genkit 1.x)
 if (shouldEnableFirebaseTelemetry(process.env)) {
-  void initializeFirebaseTelemetry(() => enableFirebaseTelemetry());
+  void initializeFirebaseTelemetry(enableFirebaseTelemetry);
 }
 
 export const ai = genkit({

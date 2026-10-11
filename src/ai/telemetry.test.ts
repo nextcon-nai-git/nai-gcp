@@ -24,6 +24,12 @@ describe("Firebase telemetry lifecycle", () => {
     expect(shouldEnableFirebaseTelemetry({ NODE_ENV: "development" })).toBe(false);
   });
 
+  it("disables document and response payload export while retaining monitoring", async () => {
+    const enable = vi.fn().mockResolvedValue(undefined);
+    await initializeFirebaseTelemetry(enable, { info: vi.fn(), warn: vi.fn() });
+    expect(enable).toHaveBeenCalledWith({ disableLoggingInputAndOutput: true });
+  });
+
   it("logs success only after initialization resolves", async () => {
     let finish!: () => void;
     const log = { info: vi.fn(), warn: vi.fn() };
