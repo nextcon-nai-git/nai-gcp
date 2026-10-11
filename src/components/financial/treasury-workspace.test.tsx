@@ -76,6 +76,7 @@ describe("central financeira", () => {
         {
           id: "42",
           document: "NF-TESTE",
+          partyName: "CLIENTE SINTÉTICO LTDA",
           partyCode: "77",
           dueDate: "11/10/2026",
           amount: 123.45,
@@ -87,6 +88,7 @@ describe("central financeira", () => {
     await render();
     await consult();
     expect(container.textContent).toContain("NF-TESTE");
+    expect(container.textContent).toContain("CLIENTE SINTÉTICO LTDA");
     expect(container.textContent).toContain("Pagamentos parciais podem reduzir o saldo devido");
     expect(container.textContent).toContain("123,45");
   });

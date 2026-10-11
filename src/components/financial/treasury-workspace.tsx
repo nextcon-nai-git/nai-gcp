@@ -113,7 +113,9 @@ export function TreasuryWorkspace() {
       (selected.data?.rows || [])
         .filter((row) => {
           const text =
-            `${row.id} ${row.document} ${row.partyCode} ${row.category}`.toLocaleLowerCase("pt-BR");
+            `${row.id} ${row.document} ${row.partyCode} ${row.partyName ?? ""} ${row.category}`.toLocaleLowerCase(
+              "pt-BR"
+            );
           if (!text.includes(search.trim().toLocaleLowerCase("pt-BR"))) return false;
           const days = daysUntil(row.dueDate, asOf);
           if (window === "overdue") return days !== null && days < 0;
@@ -324,7 +326,7 @@ export function TreasuryWorkspace() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              placeholder="Documento, código ou categoria"
+              placeholder="Nome, documento, código ou categoria"
             />
           </label>
         </div>
@@ -350,7 +352,7 @@ export function TreasuryWorkspace() {
                   <tr className="border-b border-white/20 text-slate-300">
                     {[
                       "Título / documento",
-                      "Cliente ou fornecedor (código)",
+                      "Cliente ou fornecedor",
                       "Vencimento",
                       "Situação no Omie",
                       "Valor original",
@@ -372,7 +374,12 @@ export function TreasuryWorkspace() {
                           <div className="font-normal text-slate-300">{row.document}</div>
                           <div className="text-xs text-slate-400">Categoria {row.category}</div>
                         </td>
-                        <td className="p-3">{row.partyCode}</td>
+                        <td className="p-3">
+                          {row.partyName || "Nome não localizado"}
+                          <span className="block text-xs text-slate-400">
+                            Código: {row.partyCode}
+                          </span>
+                        </td>
                         <td className="whitespace-nowrap p-3">
                           {row.dueDate}
                           <div
