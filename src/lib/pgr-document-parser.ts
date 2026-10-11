@@ -182,7 +182,7 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
     },
   ];
   const sectors = new Set<string>();
-  const riskPages = pages.flatMap((page) => {
+  const riskPages: PgrPage[] = pages.flatMap((page) => {
     const headings = [...page.texto.matchAll(/(?:^|\n)[ \t]*GHE\s*:?\s*\d+\s*[-–][^\n]+/gi)];
     if (headings.length < 2 || !isPgrInventoryPage(page.texto)) return [page];
     return headings.map((heading, index) => ({
