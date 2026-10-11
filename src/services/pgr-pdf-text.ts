@@ -1,4 +1,5 @@
 import "server-only";
+import { readPgrRiskTable } from "@/lib/pgr-risk-table";
 import { PGR_MAX_FILE_BYTES, type PgrPage } from "@/lib/pgr-schema";
 
 export async function readPgrPdfPages(bytes: Uint8Array): Promise<PgrPage[]> {
@@ -37,7 +38,12 @@ export async function readPgrPdfPages(bytes: Uint8Array): Promise<PgrPage[]> {
       chars += texto.length;
       if (chars > 1000000)
         throw new Error("Documento com texto acima do limite; divida em unidades ou seções.");
-      pages.push({ numero: n, texto: texto.trim() });
+      const riscosTabela = readPgrRiskTable(content.items.filter((item) => "str" in item));
+      pages.push({
+        numero: n,
+        texto: texto.trim(),
+        ...(riscosTabela.length ? { riscosTabela } : {}),
+      });
       page.cleanup();
     }
     return pages;

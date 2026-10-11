@@ -232,6 +232,9 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
     const content = [
       { text: naiDocumentAnalysisPrompt(documento) },
       { text: `<documento>\n${documentText}\n</documento>` },
+      {
+        text: `Conferência das tabelas extraídas: ${JSON.stringify(pages.filter((p) => p.riscosTabela?.length).map((p) => ({ pagina: p.numero, ghe: p.riscosTabela![0].setorGhe, linhas: p.riscosTabela!.length })))}. Analise todas essas linhas e mantenha as pendências do documento. Revisão prevista não significa validade.`,
+      },
     ];
     const generation = ai.generate({
       // Even text PDFs contain tables, columns and diagrams lost by plain text extraction.
@@ -258,6 +261,9 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
     const clinical = documento.acesso === "clinico_restrito";
     const isErgonomic = ["AEP", "AET", "DADOS_ERGONOMICOS"].includes(documento.tipo);
     const validated = (clinical ? [] : extracted.riscosIdentificados)
+      .filter(
+        (risk) => !pages.find((page) => page.numero === risk.evidencia.pagina)?.riscosTabela?.length
+      )
       .filter(
         (risk) =>
           isVisual ||
@@ -299,7 +305,9 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
                   risk.categoria === baseRisk.categoria &&
                   ((risk.setorGhe &&
                     normalizePgrText(risk.setorGhe) === normalizePgrText(baseRisk.setorGhe)) ||
-                    risk.evidencia.pagina === baseRisk.evidencia.pagina)
+                    (!risk.setorGhe &&
+                      !baseRisk.setorGhe &&
+                      risk.evidencia.pagina === baseRisk.evidencia.pagina))
               )
           ),
         ];
@@ -364,18 +372,22 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
     const mergedIdentity = mergeNaiIdentity(base, extracted, pages, isVisual);
     const detail = {
       ...mergedIdentity.detail,
-      dataEmissao: isVisual
-        ? extracted.pgrCardDetalhado.dataEmissao
-        : literalDate(
-            extracted.pgrCardDetalhado.dataEmissao,
-            "(?:data de emissao|emissao|data de elaboracao)"
-          ),
-      dataValidade: isVisual
-        ? extracted.pgrCardDetalhado.dataValidade
-        : literalDate(
-            extracted.pgrCardDetalhado.dataValidade,
-            "(?:data de validade|validade|vigencia ate)"
-          ),
+      dataEmissao:
+        base.pgrCardDetalhado.dataEmissao ||
+        (isVisual
+          ? extracted.pgrCardDetalhado.dataEmissao
+          : literalDate(
+              extracted.pgrCardDetalhado.dataEmissao,
+              "(?:data de emissao|emissao|data de elaboracao)"
+            )),
+      dataValidade:
+        base.pgrCardDetalhado.dataValidade ||
+        (isVisual
+          ? extracted.pgrCardDetalhado.dataValidade
+          : literalDate(
+              extracted.pgrCardDetalhado.dataValidade,
+              "(?:data de validade|validade|vigencia ate)"
+            )),
     };
     const providerCandidates = [
       ...extractNaiProviders(pages),

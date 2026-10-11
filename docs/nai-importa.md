@@ -20,6 +20,10 @@ A chamada ao modelo utiliza o prompt do especialista identificado. Documentos es
 
 ### Leitura de tabelas e documentos extensos
 
+- Inventários com cabeçalho reconhecido são lidos por coordenadas das colunas do PDF. Cada linha preserva perigo, GHE, controle existente e classificação literal S/P/Nível. A IA recebe a contagem de linhas por página para a conferência; sua resposta não substitui essas linhas por um resumo incompleto. Layout desconhecido segue pela extração textual e análise do PDF original.
+- Inventário de EPI e referências a avaliações pontuais não comprovam exposição. Riscos não são gerados a partir dessas páginas.
+- Endereço empresarial multilinha inclui CEP; cidade/UF é extraída desse endereço. Emissão, revisão prevista e validade são campos diferentes: revisão não vira vencimento. Classificações documentadas não são recalculadas ou convertidas em aprovação técnica.
+
 - O PDF original acompanha o texto com marcadores de página física, permitindo à IA conferir tabelas, colunas e imagens. Todo PDF/imagem passa por triagem do original antes do especialista, inclusive quando todas as páginas contêm texto.
 - Campos empresariais em tabelas sem dois-pontos são reconhecidos. A identificação mantém a separação entre empregador, prestador e clientes citados na descrição de atividades. A IA pode complementar identificação ausente somente com evidência verificável; identidades conflitantes permanecem para revisão.
 - Grupos de exposição vêm de identificadores GHE documentados. Títulos genéricos de tabelas não são transformados em grupos.

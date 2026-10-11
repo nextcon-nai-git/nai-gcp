@@ -116,6 +116,7 @@ export const PgrAnalysisOutputSchema = z.object({
     cidadeUf: z.string().max(120),
     dataEmissao: z.string().max(100),
     dataValidade: z.string().max(100),
+    dataRevisao: z.string().max(100).optional(),
     coordenadasGps: z.string().max(100),
     totalRiscosMapeados: z.number().int().min(0),
     ghesIdentificados: z.array(z.string().max(350)).max(200),
@@ -140,7 +141,14 @@ export const PgrAnalysisOutputSchema = z.object({
 export type PgrAnalysisOutput = z.infer<typeof PgrAnalysisOutputSchema>;
 export type PgrRisk = z.infer<typeof PgrRiskSchema>;
 export type PgrAction = z.infer<typeof PgrActionSchema>;
-export type PgrPage = { numero: number; texto: string };
+export type PgrPage = {
+  numero: number;
+  texto: string;
+  riscosTabela?: (Pick<
+    PgrRisk,
+    "agente" | "categoria" | "setorGhe" | "controlesDocumentados" | "classificacaoOriginal"
+  > & { trecho: string })[];
+};
 export type PgrCompany = { id: string; name: string; cnpj: string };
 export type PgrDraftView = {
   draftId: string;

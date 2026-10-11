@@ -407,3 +407,42 @@ describe("NAI importa: análise real do especialista e controle clínico", () =>
     expect(result.pgrCardDetalhado.cnpj).toBe("43.776.491/0001-70");
   });
 });
+
+it("mantém linhas tabulares e datas documentadas quando a IA omite o inventário", async () => {
+  const pages = [
+    {
+      numero: 1,
+      texto:
+        "PGR\nRazão Social: CLIENTE SINTÉTICO\nCNPJ: 43.776.491/0001-70\nEmissão: 01/09/2026\nRevisão: 01/09/2028\nGHE: 01 - Escritório\nErgonômico Postura sentada prolongada Trabalho sentado 2 3 6",
+      riscosTabela: [
+        {
+          agente: "Postura sentada prolongada",
+          categoria: "ergonomico" as const,
+          setorGhe: "GHE: 01 - Escritório",
+          trecho: "Ergonômico Postura sentada prolongada Trabalho sentado 2 3 6",
+          controlesDocumentados: [],
+          classificacaoOriginal: "S=2; P=3; Nível=6",
+        },
+      ],
+    },
+  ];
+  mocks.readPages.mockResolvedValue(pages);
+  const output = parsePgrDocumentPages(pages);
+  output.riscosIdentificados = [];
+  output.pgrCardDetalhado.dataEmissao = "";
+  mocks.generate
+    .mockResolvedValueOnce({
+      output: {
+        tipo: "PGR",
+        statusClassificacao: "identificado",
+        contemDadosClinicosIndividuais: false,
+      },
+    })
+    .mockResolvedValueOnce({ output });
+  const result = await analyzePgrDocument({ pdfDataUri: "data:application/pdf;base64,aGVsbG8=" });
+  expect(result.riscosIdentificados).toHaveLength(1);
+  expect(result.riscosIdentificados[0].classificacaoOriginal).toBe("S=2; P=3; Nível=6");
+  expect(result.pgrCardDetalhado.dataEmissao).toBe("01/09/2026");
+  expect(result.pgrCardDetalhado.dataRevisao).toBe("01/09/2028");
+  expect(result.pgrCardDetalhado.dataValidade).toBe("");
+});
