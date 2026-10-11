@@ -1,4 +1,5 @@
 import "server-only";
+import { withPgrRiskCards } from "@/lib/pgr-risk-cards";
 import { readPgrRiskTable } from "@/lib/pgr-risk-table";
 import { PGR_MAX_FILE_BYTES, type PgrPage } from "@/lib/pgr-schema";
 
@@ -46,7 +47,7 @@ export async function readPgrPdfPages(bytes: Uint8Array): Promise<PgrPage[]> {
       });
       page.cleanup();
     }
-    return pages;
+    return withPgrRiskCards(pages);
   } finally {
     clearTimeout(timeout);
     await loading.destroy();

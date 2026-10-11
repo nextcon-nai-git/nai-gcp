@@ -1,3 +1,4 @@
+import { withPgrRiskCards } from "./pgr-risk-cards";
 import { createHash } from "node:crypto";
 import {
   PGR_AGENT_NAMES,
@@ -20,12 +21,14 @@ export function evidenceIsInPages(evidence: { pagina: number; trecho: string }, 
 }
 export function isPgrInventoryPage(text: string) {
   if (
-    /(?:^|\n)\s*(?:\d+[.)]?\s*)?(?:INVENT[ÁA]RIO\s+DE\s+EPI|AVALIA[ÇC][ÕO]ES\s+PONTUAIS|CONCEITOS\s+DE\s+RISCOS|Classifica[çc][aã]o\s+dos\s+agentes|INTRODU[ÇC][ÃA]O|MATRIZ\s+DE\s+DECIS[ÃA]O|PLANO\s+DE\s+A[ÇC][ÃA]O|CRONOGRAMA|SUM[ÁA]RIO)/i.test(
+    /(?:^|\n)\s*(?:\d+(?:\.\d+)*[.)]?\s*)?(?:INVENT[ÁA]RIO\s+DE\s+EPI|AVALIA[ÇC][ÕO]ES\s+PONTUAIS|CONCEITOS\s+DE\s+RISCOS|Classifica[çc][aã]o\s+dos\s+agentes|INTRODU[ÇC][ÃA]O|MATRIZ\s+DE\s+DECIS[ÃA]O|PLANO\s+DE\s+A[ÇC][ÃA]O|CRIT[ÉE]RIOS\s+PARA\s+MONITORAMENTO|CRONOGRAMA|SUM[ÁA]RIO)/i.test(
       text
     )
   )
     return false;
-  return /(?:^|\n)\s*(?:\d+[.)]?\s*)?(?:RECONHECIMENTO\s+DE\s+RISCOS|INVENT[ÁA]RIO\s+DE\s+RISCOS|GHE\s*:?\s*\d+)|\b(?:exposi[çc][aã]o|expost[oa]s?)\s+(?:ocupacional\s+)?a\s+/i.test(
+  if (/perigo\s*\/\s*fator\s+de\s+risco/i.test(text) && /avalia[çc][aã]o\s+de\s+risco/i.test(text))
+    return true;
+  return /(?:^|\n)\s*(?:\d+[.)]?\s*)?(?:RECONHECIMENTO\s+DE\s+RISCOS|INVENT[ÁA]RIO\s+DE\s+RISCOS|(?:GHE|GES)\s*:?\s*\d+)|\b(?:exposi[çc][aã]o|expost[oa]s?)\s+(?:ocupacional\s+)?a\s+/i.test(
     text
   );
 }
@@ -51,6 +54,7 @@ function documentDate(text: string, label: string) {
   return value ? compact(value) : "";
 }
 export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
+  pages = withPgrRiskCards(pages);
   const identityCandidates: {
     name: string;
     cnpj: string;
@@ -114,6 +118,38 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
       });
     }
   }
+  // The document's explicit employer section takes precedence over service
+  // recipients listed later. Multiple employer sections remain ambiguous.
+  const employerSections: typeof identityCandidates = [];
+  for (const page of pages.slice(0, 12)) {
+    for (const match of page.texto.matchAll(
+      /identifica[çc][aã]o\s+da\s+empresa[^\S\n]*\n\s*([^\n]{3,300})/gi
+    )) {
+      const name = compact(match[1].replace(/^(?:raz[aã]o\s+social|empresa)\s*:\s*/i, ""));
+      const block = page.texto
+        .slice(match.index, (match.index || 0) + 1000)
+        .split(/(?:listagem|rela[çc][aã]o)\s+de\s+endere[çc]os|tomadoras?\s+de\s+servi[çc]os/i)[0];
+      const cnpj =
+        block.match(
+          /CNPJ\s*:?\s*(\d{2}[.\s]?\d{3}[.\s]?\d{3}\s*\/\s*\d{4}\s*-\s*\d{2}|\d{14})/i
+        )?.[1] || "";
+      if (
+        !isValidPgrCnpj(cnpj) ||
+        /^(?:cnpj|endereco|campo|informacao)\b/.test(normalizePgrText(name))
+      )
+        continue;
+      const address = block.match(/Endere[çc]o\s*:\s*([^\n]+)/i)?.[1] || "";
+      employerSections.push({
+        name,
+        cnpj: compact(cnpj),
+        page: page.numero,
+        quote: compact(block).slice(0, 1200),
+        address: compact(address),
+      });
+    }
+  }
+  if (employerSections.length)
+    identityCandidates.splice(0, identityCandidates.length, ...employerSections);
   const unique = [
     ...new Map(identityCandidates.map((c) => [normalizePgrText(c.name) + c.cnpj, c])).values(),
   ];
@@ -183,7 +219,9 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
   ];
   const sectors = new Set<string>();
   const riskPages: PgrPage[] = pages.flatMap((page) => {
-    const headings = [...page.texto.matchAll(/(?:^|\n)[ \t]*GHE\s*:?\s*\d+\s*[-–][^\n]+/gi)];
+    const headings = [
+      ...page.texto.matchAll(/(?:^|\n)[ \t]*(?:GHE|GES)\s*:?\s*\d+\s*[-–][^\n]+/gi),
+    ];
     if (headings.length < 2 || !isPgrInventoryPage(page.texto)) return [page];
     return headings.map((heading, index) => ({
       numero: page.numero,
@@ -211,14 +249,14 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
     const lines = page.texto.split("\n").map(compact).filter(Boolean);
     const sectorIndex = lines.findIndex((l) => /RECONHECIMENTO DE RISCOS|INVENT[ÁA]RIO/i.test(l));
     const sector =
-      page.texto.match(/(?:^|\n)\s*GHE\s*:?\s*\d+\s*[-–][^\n]+/i)?.[0].trim() ||
+      page.texto.match(/(?:^|\n)\s*(?:GHE|GES)\s*:?\s*\d+\s*[-–][^\n]+/i)?.[0].trim() ||
       (sectorIndex >= 0
         ? lines
             .slice(sectorIndex + 1, sectorIndex + 5)
             .filter((l) => !/^Grupo Homog|^Fun[çc][oõ]es|^Tipos de|^\d+$/.test(l))
             .join(" · ")
             .slice(0, 300)
-        : page.texto.match(/GHE\s*[:\d-]+[^\n]{0,150}/i)?.[0] || "Setor a conferir");
+        : page.texto.match(/(?:GHE|GES)\s*[:\d-]+[^\n]{0,150}/i)?.[0] || "Setor a conferir");
     for (const spec of riskPatterns) {
       const match = spec.pattern.exec(page.texto);
       if (!match) continue;
@@ -251,10 +289,14 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
   const degree = allText.match(/Grau\s+de\s+Risco\s*:?\s*(?:Grau\s*)?0?([1-4])\b/i)?.[1];
   const documentedGhes = new Map<string, string>();
   for (const match of allText.matchAll(
-    /(?:^|\n)[ \t]*GHE[ \t]*(:?)[ \t]*(\d+)[ \t]*[-–][ \t]*([^\n]{2,160})/gi
+    /(?:^|\n)[ \t]*(?:GHE|GES)[ \t]*(:?)[ \t]*(\d+)[ \t]*[-–][ \t]*([^\n]{2,160})/gi
   )) {
     const previous = documentedGhes.get(match[2]);
-    if (!previous || (match[1] && !previous.startsWith("GHE:")))
+    if (
+      !previous ||
+      (match[1] && !previous.startsWith("GHE:")) ||
+      compact(match[0]).length < previous.length
+    )
       documentedGhes.set(match[2], compact(match[0]));
   }
   const output: PgrAnalysisOutput = {

@@ -225,3 +225,21 @@ it("reconhece CREA com UF antes do número e separa o cliente em tabela sem dois
   expect(providers[0]).toMatchObject({ cnpj: "", registroProfissional: "CREA: PR 123456-D" });
   expect(providers[0].evidencias[0].trecho).not.toContain("CLIENTE EXEMPLO");
 });
+
+it("não trata formulário vazio e recomendação geral de exames como prontuário", () => {
+  const out = classifyNaiDocument([
+    {
+      numero: 1,
+      texto:
+        "PGR\nPrograma de Gerenciamento de Riscos\nRealizar exames de audiometria conforme PCMSO.",
+    },
+    { numero: 2, texto: "ORDEM DE SERVIÇO\nNome do trabalhador:\nFunção:\nAssinatura:" },
+  ]);
+  expect(out).toMatchObject({ tipo: "PGR", acesso: "sst" });
+});
+it("mantém restrição para pessoa e resultado clínico preenchidos em linhas separadas", () => {
+  const out = classifyNaiDocument([
+    { numero: 1, texto: "PGR\nNome do trabalhador:\nPessoa Exemplo\nResultado: inapto" },
+  ]);
+  expect(out.acesso).toBe("clinico_restrito");
+});
