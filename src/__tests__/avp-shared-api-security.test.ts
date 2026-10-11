@@ -8,6 +8,7 @@ const mock = vi.hoisted(() => ({
   patch: vi.fn(),
   oidc: vi.fn(),
   history: vi.fn(),
+  audit: vi.fn(),
   generate: vi.fn(),
 }));
 vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: mock.auth }));
@@ -26,6 +27,9 @@ vi.mock("googleapis", () => ({
   },
 }));
 vi.mock("@/services/medical-history", () => ({ getAuthorizedMedicalHistory: mock.history }));
+vi.mock("@/services/audit/medical-audit-service", () => ({
+  medicalAuditService: { record: mock.audit },
+}));
 vi.mock("@/ai/genkit", () => ({ ai: { generateStream: mock.generate } }));
 import { GET, PATCH } from "@/app/api/clients/grupo-avp/queue/route";
 import { POST as scheduled } from "@/app/api/internal/avp-sheet-sync/route";
@@ -47,6 +51,7 @@ beforeEach(() => {
   mock.sync.mockResolvedValue({ started: true, rowCount: 1 });
   mock.snapshot.mockResolvedValue({ items: [], revision: "synthetic" });
   mock.patch.mockResolvedValue("new-revision");
+  mock.audit.mockResolvedValue(undefined);
   vi.stubEnv("AVP_SYNC_INVOKER_EMAIL", "runtime@example.test");
   vi.stubEnv("AVP_SYNC_AUDIENCE", "https://nai.test/api/internal/avp-sheet-sync");
   mock.oidc.mockResolvedValue({
@@ -133,12 +138,14 @@ describe("Assistente médico protegido", () => {
     mock.auth.mockRejectedValueOnce(new AuthError("Sessão ausente", 401));
     expect((await medical(request("POST", "/medical", body))).status).toBe(401);
     expect(mock.history).not.toHaveBeenCalled();
+    expect(mock.audit).not.toHaveBeenCalled();
     expect(mock.generate).not.toHaveBeenCalled();
   });
   it("nega acesso clínico sem gerar respostas nem expor CORS público", async () => {
     mock.history.mockRejectedValueOnce(new AuthError("Perfil não clínico", 403));
     const response = await medical(request("POST", "/medical", body));
     expect(response.status).toBe(403);
+    expect(mock.audit).not.toHaveBeenCalled();
     expect(mock.generate).not.toHaveBeenCalled();
     expect(response.headers.get("access-control-allow-origin")).toBeNull();
   });

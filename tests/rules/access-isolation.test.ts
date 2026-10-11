@@ -6,7 +6,7 @@ import {
   assertSucceeds,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { doc, setDoc, updateDoc, getDoc } from "firebase/firestore";
+import { deleteDoc, doc, setDoc, updateDoc, getDoc } from "firebase/firestore";
 import { ref, uploadBytes, getBytes, deleteObject } from "firebase/storage";
 
 let env: RulesTestEnvironment;
@@ -41,8 +41,17 @@ beforeEach(async () => {
       notes: "EXCLUSIVAMENTE DADOS SINTÉTICOS",
     });
     await setDoc(doc(ctx.firestore(), "companies/foreign/private/synthetic"), { synthetic: true });
+    await setDoc(doc(ctx.firestore(), "phi_audit_logs/synthetic"), {
+      action: "MEDICAL_ASSISTANT_USED",
+      patientId: "synthetic-patient",
+    });
     await uploadBytes(
       ref(ctx.storage(), "clientes/avp/colaboradores/synthetic/record.pdf"),
+      new Uint8Array([1, 2]),
+      { contentType: "application/pdf" }
+    );
+    await uploadBytes(
+      ref(ctx.storage(), "clientes/foreign/colaboradores/synthetic/record.pdf"),
       new Uint8Array([1, 2]),
       { contentType: "application/pdf" }
     );
@@ -55,6 +64,10 @@ const db = (uid: string) =>
   env.authenticatedContext(uid, { email: `${uid}@example.test` }).firestore();
 const store = (uid: string) =>
   env.authenticatedContext(uid, { email: `${uid}@example.test` }).storage();
+const dbWithClaims = (uid: string, claims: Record<string, unknown>) =>
+  env.authenticatedContext(uid, { email: `${uid}@example.test`, ...claims }).firestore();
+const storeWithClaims = (uid: string, claims: Record<string, unknown>) =>
+  env.authenticatedContext(uid, { email: `${uid}@example.test`, ...claims }).storage();
 
 describe("Perfis e prontuários", () => {
   it("CLIENT_ADMIN não promove a si mesmo nem atravessa empresas", async () => {
@@ -67,6 +80,7 @@ describe("Perfis e prontuários", () => {
   });
   it("RH não lê prontuário e médico autorizado pode registrar ASO", async () => {
     await assertFails(getDoc(doc(db("hr"), "companies/avp/aso_attendances/synthetic")));
+    await assertFails(getDoc(doc(db("client"), "companies/avp/aso_attendances/synthetic")));
     await assertSucceeds(
       setDoc(doc(db("doctor"), "companies/avp/aso_attendances/new"), {
         employeeId: "synthetic-patient",
@@ -78,6 +92,20 @@ describe("Perfis e prontuários", () => {
     await assertSucceeds(getDoc(doc(db("provider"), "companies/avp/aso_attendances/synthetic")));
     await assertFails(getDoc(doc(db("provider"), "companies/foreign/aso_attendances/synthetic")));
   });
+  it("ignora claims forjadas e usa o perfil armazenado para autorização", async () => {
+    const forged = { role: "SUPER_ADMIN", companyId: "foreign" };
+    await assertFails(
+      getDoc(doc(dbWithClaims("client", forged), "companies/foreign/private/synthetic"))
+    );
+    await assertFails(
+      getBytes(
+        ref(
+          storeWithClaims("client", forged),
+          "clientes/foreign/colaboradores/synthetic/record.pdf"
+        )
+      )
+    );
+  });
   it("cliente e operador não alteram a integração e o registro de auditoria", async () => {
     await assertFails(
       setDoc(doc(db("client"), "integrations/grupo-avp"), { sourceVersion: "forged" })
@@ -85,6 +113,17 @@ describe("Perfis e prontuários", () => {
     await assertFails(
       setDoc(doc(db("global"), "integrations/grupo-avp/audit/forged"), { action: "fake" })
     );
+  });
+  it("impede todos os perfis do navegador de criar, alterar ou excluir logs PHI", async () => {
+    for (const uid of ["client", "hr", "doctor", "provider", "global", "super"]) {
+      const log = doc(db(uid), "phi_audit_logs/synthetic");
+      await assertFails(setDoc(doc(db(uid), "phi_audit_logs/forged"), { action: "forged" }));
+      await assertFails(updateDoc(log, { patientId: "forged" }));
+      await assertFails(deleteDoc(log));
+    }
+    await assertSucceeds(getDoc(doc(db("global"), "phi_audit_logs/synthetic")));
+    await assertSucceeds(getDoc(doc(db("super"), "phi_audit_logs/synthetic")));
+    await assertFails(getDoc(doc(db("hr"), "phi_audit_logs/synthetic")));
   });
 });
 describe("Evidências no Storage", () => {
