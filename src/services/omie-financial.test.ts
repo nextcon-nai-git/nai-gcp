@@ -126,6 +126,91 @@ describe("Omie financial boundary", () => {
       param: [{ pagina: 2, registros_por_pagina: 50, filtrar_por_status: "ATRASADO" }],
     });
   });
+  it.each(["payable", "receivable"])(
+    "resolves %s names by code in one batch, never by position",
+    async (kind) => {
+      storage.data = JSON.stringify(saved);
+      const title = (id: number, code: number) => ({
+        codigo_lancamento_omie: id,
+        codigo_cliente_fornecedor: code,
+        valor_documento: 10,
+        data_vencimento: "11/10/2026",
+      });
+      fetchMock
+        .mockResolvedValueOnce(
+          response({
+            pagina: 1,
+            total_de_paginas: 1,
+            total_de_registros: 4,
+            [kind === "payable" ? "conta_pagar_cadastro" : "conta_receber_cadastro"]: [
+              title(1, 77),
+              title(2, 88),
+              title(3, 77),
+              title(4, 99),
+            ],
+          })
+        )
+        .mockResolvedValueOnce(
+          response({
+            clientes_cadastro_resumido: [
+              { codigo_cliente: 88, razao_social: " ", nome_fantasia: "Fornecedor Teste" },
+              {
+                codigo_cliente: 77,
+                razao_social: "Cliente Teste Ltda",
+                nome_fantasia: "Outro nome",
+                cnpj_cpf: "private-document",
+              },
+              { codigo_cliente: 123, razao_social: "Não solicitado" },
+            ],
+          })
+        );
+      const result = await listOmie(admin, { kind });
+      expect(result.rows.map((r) => r.partyName)).toEqual([
+        "Cliente Teste Ltda",
+        "Fornecedor Teste",
+        "Cliente Teste Ltda",
+        null,
+      ]);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
+        call: "ListarClientesResumido",
+        param: [
+          {
+            clientesPorCodigo: [
+              { codigo_cliente_omie: 77 },
+              { codigo_cliente_omie: 88 },
+              { codigo_cliente_omie: 99 },
+            ],
+          },
+        ],
+      });
+      expect(JSON.stringify(result)).not.toContain("private-document");
+      expect(JSON.stringify(result)).not.toContain("Não solicitado");
+    }
+  );
+  it("keeps titles and marks names unresolved when the directory is unavailable", async () => {
+    storage.data = JSON.stringify(saved);
+    fetchMock
+      .mockResolvedValueOnce(
+        response({
+          pagina: 1,
+          total_de_paginas: 1,
+          total_de_registros: 1,
+          conta_receber_cadastro: [
+            {
+              codigo_lancamento_omie: 1,
+              codigo_cliente_fornecedor: 77,
+              valor_documento: 10,
+              data_vencimento: "11/10/2026",
+            },
+          ],
+        })
+      )
+      .mockRejectedValueOnce(new Error("private-provider-error"));
+    const result = await listOmie(admin, {});
+    expect(result.rows[0]).toMatchObject({ partyCode: "77", partyName: null, amount: 10 });
+    expect(JSON.stringify(result)).not.toContain("private-provider-error");
+  });
   it("rejects arbitrary operations and malformed responses instead of showing empty finances", async () => {
     storage.data = JSON.stringify(saved);
     await expect(listOmie(admin, { kind: "LancarPagamento" })).rejects.toThrow("inválida");

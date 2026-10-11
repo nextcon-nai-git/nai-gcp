@@ -44,6 +44,7 @@ const methods = {
   payable: ["financas/contapagar", "ListarContasPagar"],
   receivable: ["financas/contareceber", "ListarContasReceber"],
   dre: ["financas/dre", "ListarDRE"],
+  parties: ["geral/clientes", "ListarClientesResumido"],
 } as const;
 const DRE_RESPONSE_MAX_BYTES = 16 * 1024 * 1024;
 const dreTooLarge = () =>
@@ -87,7 +88,7 @@ async function call(
       method: "POST",
       redirect: "error",
       cache: "no-store",
-      signal: AbortSignal.timeout(kind === "dre" ? 45000 : 20000),
+      signal: AbortSignal.timeout(kind === "dre" ? 45000 : kind === "parties" ? 8000 : 20000),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         call: method,
@@ -320,6 +321,42 @@ export async function disconnectOmie(user: AuthContext) {
   await file().delete({ ignoreNotFound: true });
   return { connected: false };
 }
+// Resolve only this page's distinct counterparties in one read-only request.
+// Official contract: https://app.omie.com.br/api/v1/geral/clientes/
+async function partyNames(credentials: Credentials, codes: number[]): Promise<Map<number, string>> {
+  const names = new Map<number, string>();
+  const unique = [...new Set(codes)].filter((code) => Number.isSafeInteger(code) && code > 0);
+  if (!unique.length) return names;
+  try {
+    const data = await call(credentials, "parties", {
+      pagina: 1,
+      registros_por_pagina: 50,
+      apenas_importado_api: "N",
+      clientesPorCodigo: unique.map((codigo_cliente_omie) => ({ codigo_cliente_omie })),
+    });
+    const result = z
+      .array(
+        z.object({
+          codigo_cliente: z.number().int().positive(),
+          razao_social: z.string().max(1000).optional(),
+          nome_fantasia: z.string().max(1000).optional(),
+        })
+      )
+      .max(50)
+      .safeParse(data.clientes_cadastro_resumido);
+    if (!result.success) return names;
+    const requested = new Set(unique);
+    for (const row of result.data) {
+      const name = row.razao_social?.trim() || row.nome_fantasia?.trim();
+      if (requested.has(row.codigo_cliente) && name) names.set(row.codigo_cliente, name);
+    }
+  } catch {
+    // A missing name must not hide an otherwise valid financial title.
+    // The UI explicitly identifies unresolved names; provider errors stay private.
+  }
+  return names;
+}
+
 export async function listOmie(user: AuthContext, input: unknown): Promise<OmiePage> {
   requireFinancialAccess(user);
   const parsed = OmieQuerySchema.safeParse(input);
@@ -357,6 +394,12 @@ export async function listOmie(user: AuthContext, input: unknown): Promise<OmieP
     .max(50)
     .safeParse(data[kind === "payable" ? "conta_pagar_cadastro" : "conta_receber_cadastro"]);
   if (!result.success || !records.success) throw unavailable();
+  const names = await partyNames(
+    credentials,
+    records.data.flatMap((r) =>
+      r.codigo_cliente_fornecedor === undefined ? [] : [r.codigo_cliente_fornecedor]
+    )
+  );
   return {
     page: result.data.pagina,
     pages: result.data.total_de_paginas,
@@ -366,6 +409,7 @@ export async function listOmie(user: AuthContext, input: unknown): Promise<OmieP
       id: String(r.codigo_lancamento_omie),
       document: r.numero_documento || "—",
       partyCode: String(r.codigo_cliente_fornecedor ?? "—"),
+      partyName: names.get(r.codigo_cliente_fornecedor ?? 0) ?? null,
       dueDate: r.data_vencimento,
       amount: r.valor_documento,
       status: r.status_titulo || "Não informado",

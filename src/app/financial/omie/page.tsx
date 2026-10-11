@@ -281,7 +281,7 @@ export default function OmieFinancialPage() {
                       <tr className="border-b text-slate-500">
                         {[
                           "Título / documento",
-                          "Cliente / fornecedor (código)",
+                          "Cliente / fornecedor",
                           "Vencimento",
                           "Situação",
                           "Valor original",
@@ -299,7 +299,12 @@ export default function OmieFinancialPage() {
                             <strong>{r.id}</strong>
                             <div className="text-slate-500">{r.document}</div>
                           </td>
-                          <td className="p-3">{r.partyCode}</td>
+                          <td className="p-3">
+                            {r.partyName || "Nome não localizado"}
+                            <span className="block text-xs text-slate-400">
+                              Código: {r.partyCode}
+                            </span>
+                          </td>
                           <td className="p-3">{r.dueDate}</td>
                           <td className="p-3">{r.status}</td>
                           <td className="whitespace-nowrap p-3">{money.format(r.amount)}</td>
