@@ -70,6 +70,7 @@ import { cn } from "@/lib/utils";
 import { useSgi } from "@/contexts/sgi-context";
 import { enriquecerDadosEmpresa } from "@/actions/company-enrichment";
 import { REAL_COMPANIES } from "@/lib/real-data";
+import { sortCompaniesByName } from "@/lib/company-order";
 
 const companySchema = z.object({
   name: z.string().min(3, "Nome ou Razão Social obrigatória"),
@@ -183,13 +184,7 @@ export default function ClientsManagement() {
       }
     }
 
-    return Array.from(map.values())
-      .filter((c) => c.isDeleted !== true)
-      .sort((a, b) => {
-        const nameA = (a.displayName || a.name || a.companyName || a.id || "").toUpperCase();
-        const nameB = (b.displayName || b.name || b.companyName || b.id || "").toUpperCase();
-        return nameA.localeCompare(nameB);
-      });
+    return sortCompaniesByName(Array.from(map.values()).filter((c) => c.isDeleted !== true));
   }, [companies, localCustomCompanies]);
 
   const filteredCompanies = React.useMemo(() => {
