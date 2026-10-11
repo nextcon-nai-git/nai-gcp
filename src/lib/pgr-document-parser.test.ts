@@ -71,6 +71,67 @@ describe("PGR: identidade e evidências", () => {
     expect(a.identidade.status).toBe("ambigua");
     expect(a.pgrCardDetalhado.razaoSocial).toBe("");
   });
+  it("não captura CNPJ da prestadora quando o cliente não informa CNPJ", () => {
+    const result = parsePgrDocumentPages([
+      {
+        numero: 1,
+        texto: "PGR\nCLIENTE: CETESB\nPRESTADORA: Clínica Exemplo\nCNPJ: 44.337.647/0001-89",
+      },
+    ]);
+    expect(result.pgrCardDetalhado.razaoSocial).toBe("CETESB");
+    expect(result.pgrCardDetalhado.cnpj).toBe("");
+  });
+  it("separa a razão social do elaborador da empresa avaliada", () => {
+    const result = parsePgrDocumentPages([
+      {
+        numero: 1,
+        texto:
+          "PGR\nCLIENTE: CETESB\nCNPJ: 43.776.491/0001-70\n" +
+          "PRESTADORA:\nRAZÃO SOCIAL: Clínica Exemplo\nCNPJ: 44.337.647/0001-89",
+      },
+    ]);
+    expect(result.identidade.status).toBe("identificada");
+    expect(result.pgrCardDetalhado.razaoSocial).toBe("CETESB");
+    expect(result.pgrCardDetalhado.cnpj).toBe("43.776.491/0001-70");
+  });
+  it("reconhece empregador em ASO sem usar o CNPJ do emissor", () => {
+    const result = parsePgrDocumentPages([
+      {
+        numero: 1,
+        texto:
+          "ASO\nPRESTADORA: Clínica Exemplo\nCNPJ: 44.337.647/0001-89\n" +
+          "EMPREGADOR: CETESB\nCNPJ: 43.776.491/0001-70\nMédico examinador: Dr. Exemplo\nCRM-SP: 123456",
+      },
+    ]);
+    expect(result.identidade.status).toBe("identificada");
+    expect(result.pgrCardDetalhado.razaoSocial).toBe("CETESB");
+    expect(result.pgrCardDetalhado.cnpj).toBe("43.776.491/0001-70");
+  });
+  it.each(["EMPREGADO", "TRABALHADOR", "PACIENTE", "Nome do colaborador", "FUNCIONÁRIA"])(
+    "não transforma endereço de %s em endereço da empresa",
+    (label) => {
+      const result = parsePgrDocumentPages([
+        {
+          numero: 1,
+          texto: `ASO\nEMPRESA: CETESB\nCNPJ: 43.776.491/0001-70\n${label}: Pessoa Sintética\nEndereço: ENDERECO_PESSOAL_CANARIO`,
+        },
+      ]);
+      expect(result.pgrCardDetalhado.razaoSocial).toBe("CETESB");
+      expect(result.pgrCardDetalhado.cnpj).toBe("43.776.491/0001-70");
+      expect(result.pgrCardDetalhado.enderecoCompleto).toBe("");
+      expect(JSON.stringify(result.pgrCardDetalhado)).not.toContain("ENDERECO_PESSOAL_CANARIO");
+    }
+  );
+  it("preserva endereço empresarial anterior ao bloco do trabalhador", () => {
+    const result = parsePgrDocumentPages([
+      {
+        numero: 1,
+        texto:
+          "ASO\nEMPRESA: CETESB\nCNPJ: 43.776.491/0001-70\nEndereço: Avenida Empresarial, 100\nTRABALHADOR: Pessoa Sintética\nEndereço: ENDERECO_PESSOAL_CANARIO",
+      },
+    ]);
+    expect(result.pgrCardDetalhado.enderecoCompleto).toBe("Avenida Empresarial, 100");
+  });
   it("associa pelo CNPJ exato, preservando o ID cadastral", () => {
     const a = parsePgrDocumentPages(pages);
     expect(

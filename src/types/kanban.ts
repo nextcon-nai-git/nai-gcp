@@ -11,7 +11,20 @@ export type Status =
   | "archived";
 export type Priority = "low" | "medium" | "high" | "critical";
 export type TaskType =
-  "pgr" | "pcmso" | "treinamento" | "vistoria" | "esocial" | "comercial" | "rnc" | "ambiental";
+  | "pgr"
+  | "pcmso"
+  | "ltcat"
+  | "aso"
+  | "pericia_medica"
+  | "aep"
+  | "aet"
+  | "ergonomia"
+  | "treinamento"
+  | "vistoria"
+  | "esocial"
+  | "comercial"
+  | "rnc"
+  | "ambiental";
 
 export interface SSTTask {
   id: string;

@@ -79,6 +79,11 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
 
   const [isUploadingOld, setIsUploadingOld] = React.useState(false);
   const [isUploadingNew, setIsUploadingNew] = React.useState(false);
+  const imported = task.sourceType === "pgr";
+  const restrictedImport =
+    imported &&
+    (task.restricted === true ||
+      ["PCMSO", "ASO", "PERICIA_MEDICA"].includes(task.documentType || ""));
 
   React.useEffect(() => {
     setEditedTask(task);
@@ -105,6 +110,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
   const { data: providers } = useCollection(providersQuery);
 
   const handleUpdateField = (field: keyof OpsTask, value: any) => {
+    if (restrictedImport && ["title", "lastComment"].includes(field)) return;
     setEditedTask((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -140,8 +146,9 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
   };
 
   const toggleChecklistItem = (index: number) => {
-    const newChecklist = [...(editedTask.checklist || [])];
-    newChecklist[index].checked = !newChecklist[index].checked;
+    const newChecklist = (editedTask.checklist || []).map((item, itemIndex) =>
+      itemIndex === index ? { ...item, checked: !item.checked } : item
+    );
 
     const checkedCount = newChecklist.filter((item) => item.checked).length;
     const progress = Math.round((checkedCount / newChecklist.length) * 100);
@@ -154,13 +161,15 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
   };
 
   const updateChecklistItemText = (index: number, text: string) => {
-    const newChecklist = [...(editedTask.checklist || [])];
-    newChecklist[index].text = text;
+    if (restrictedImport || (imported && editedTask.checklist?.[index]?.mandatory)) return;
+    const newChecklist = (editedTask.checklist || []).map((item, itemIndex) =>
+      itemIndex === index ? { ...item, text } : item
+    );
     setEditedTask((prev) => ({ ...prev, checklist: newChecklist }));
   };
 
   const addChecklistItem = () => {
-    if (!newChecklistItem.trim()) return;
+    if (restrictedImport || !newChecklistItem.trim()) return;
     const newItem = { text: newChecklistItem, checked: false };
     const newChecklist = [...(editedTask.checklist || []), newItem];
 
@@ -176,6 +185,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
   };
 
   const removeChecklistItem = (index: number) => {
+    if (restrictedImport || (imported && editedTask.checklist?.[index]?.mandatory)) return;
     const newChecklist = editedTask.checklist?.filter((_, i) => i !== index) || [];
     const checkedCount = newChecklist.filter((item) => item.checked).length;
     const progress =
@@ -220,7 +230,9 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
       if (task.sourceType === "pgr") {
         if (!user) throw new Error("Entre novamente para salvar este card.");
         if (editedTask.companyId !== task.companyId)
-          throw new Error("O cliente do card é definido pelo PGR e não pode ser trocado aqui.");
+          throw new Error(
+            "O cliente do card é definido pelo documento e não pode ser trocado aqui."
+          );
         await updatePgrTask(user, task.companyId, task.id, {
           title: updateData.title,
           status: updateData.status,
@@ -246,7 +258,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
   };
 
   const handleDelete = () => {
-    if (!db || !task.companyId) return;
+    if (!db || !task.companyId || imported) return;
     if (confirm("Deseja excluir permanentemente esta tarefa?")) {
       const taskRef = doc(db, "companies", task.companyId, "tasks", task.id);
       deleteDocumentNonBlocking(taskRef);
@@ -290,32 +302,39 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
               role={task.agentRole}
             />
           )}
+          {restrictedImport && (
+            <p className="my-4 rounded-xl bg-violet-50 p-4 text-xs leading-5 text-violet-900">
+              Consulte o conteúdo clínico no registro restrito. Este card acompanha somente os
+              encaminhamentos administrativos.
+            </p>
+          )}
           <div className="space-y-8 pb-20 text-left">
-            {/* AGENTE AUTÔNOMO NAI */}
-            <Card className="border-none bg-accent/5 rounded-[2rem] p-6 flex items-center justify-between shadow-sm">
-              <div className="flex items-center gap-4">
-                <div
-                  className={cn(
-                    "p-3 rounded-2xl shadow-inner transition-all",
-                    editedTask.agentEnabled ? "bg-accent text-white" : "bg-white text-slate-300"
-                  )}
-                >
-                  <Bot className="size-6" />
+            {task.sourceType !== "pgr" && (
+              <Card className="border-none bg-accent/5 rounded-[2rem] p-6 flex items-center justify-between shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div
+                    className={cn(
+                      "p-3 rounded-2xl shadow-inner transition-all",
+                      editedTask.agentEnabled ? "bg-accent text-white" : "bg-white text-slate-300"
+                    )}
+                  >
+                    <Bot className="size-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-primary uppercase">
+                      Agente NAI (Autônomo)
+                    </h4>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">
+                      Monitoramento via WhatsApp
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-xs font-black text-primary uppercase">
-                    Agente NAI (Autônomo)
-                  </h4>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase">
-                    Monitoramento via WhatsApp
-                  </p>
-                </div>
-              </div>
-              <Switch
-                checked={!!editedTask.agentEnabled}
-                onCheckedChange={(v) => handleUpdateField("agentEnabled", v)}
-              />
-            </Card>
+                <Switch
+                  checked={!!editedTask.agentEnabled}
+                  onCheckedChange={(v) => handleUpdateField("agentEnabled", v)}
+                />
+              </Card>
+            )}
 
             <div className="space-y-4">
               <div className="space-y-2">
@@ -324,6 +343,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                 </label>
                 <Input
                   value={editedTask.title}
+                  readOnly={restrictedImport}
                   onChange={(e) => handleUpdateField("title", e.target.value)}
                   className="h-12 bg-slate-50 border-none rounded-xl font-bold text-primary shadow-inner"
                 />
@@ -369,6 +389,11 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                     <SelectContent>
                       <SelectItem value="pgr">PGR (NR-01)</SelectItem>
                       <SelectItem value="pcmso">PCMSO (NR-07)</SelectItem>
+                      <SelectItem value="aso">ASO (NR-07)</SelectItem>
+                      <SelectItem value="pericia_medica">Perícia médica</SelectItem>
+                      <SelectItem value="aep">AEP (NR-17)</SelectItem>
+                      <SelectItem value="aet">AET (NR-17)</SelectItem>
+                      <SelectItem value="ergonomia">Dados ergonômicos</SelectItem>
                       <SelectItem value="ltcat">LTCAT / Laudo</SelectItem>
                       <SelectItem value="treinamento">Treinamento</SelectItem>
                       <SelectItem value="esocial">eSocial / Burocracia</SelectItem>
@@ -630,6 +655,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                     <div className="flex-1 flex items-center gap-2">
                       <Input
                         value={item.text}
+                        readOnly={restrictedImport || (imported && item.mandatory)}
                         onChange={(e) => updateChecklistItemText(idx, e.target.value)}
                         className={cn(
                           "h-8 bg-transparent border-none p-0 text-xs font-bold shadow-none focus-visible:ring-0",
@@ -637,31 +663,36 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                         )}
                       />
                     </div>
-                    <button
-                      onClick={() => removeChecklistItem(idx)}
-                      className="p-1.5 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-50 transition-all"
-                    >
-                      <X className="size-3.5" />
-                    </button>
+                    {!(restrictedImport || (imported && item.mandatory)) && (
+                      <button
+                        onClick={() => removeChecklistItem(idx)}
+                        aria-label="Remover item do checklist"
+                        className="p-1.5 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-50 transition-all"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    )}
                   </div>
                 ))}
 
-                <div className="flex gap-2 mt-4">
-                  <Input
-                    placeholder="Adicionar etapa ao processo..."
-                    value={newChecklistItem}
-                    onChange={(e) => setNewChecklistItem(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addChecklistItem()}
-                    className="h-11 bg-slate-50 border-none rounded-xl text-xs"
-                  />
-                  <Button
-                    size="icon"
-                    onClick={addChecklistItem}
-                    className="h-11 w-11 bg-primary text-white rounded-xl shadow-lg shrink-0"
-                  >
-                    <Plus className="size-5" />
-                  </Button>
-                </div>
+                {!restrictedImport && (
+                  <div className="flex gap-2 mt-4">
+                    <Input
+                      placeholder="Adicionar etapa ao processo..."
+                      value={newChecklistItem}
+                      onChange={(e) => setNewChecklistItem(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && addChecklistItem()}
+                      className="h-11 bg-slate-50 border-none rounded-xl text-xs"
+                    />
+                    <Button
+                      size="icon"
+                      onClick={addChecklistItem}
+                      className="h-11 w-11 bg-primary text-white rounded-xl shadow-lg shrink-0"
+                    >
+                      <Plus className="size-5" />
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -675,7 +706,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
               disabled={task.sourceType === "pgr"}
               title={
                 task.sourceType === "pgr"
-                  ? "Arquive o card no quadro para preservar as evidências do PGR."
+                  ? "Arquive o card no quadro para preservar as evidências do documento."
                   : undefined
               }
               className="flex-1 h-14 rounded-2xl font-black uppercase text-[10px] border-red-200 text-red-500 hover:bg-red-50 gap-2"

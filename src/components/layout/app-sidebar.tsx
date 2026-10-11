@@ -94,6 +94,7 @@ const NAV_MODULES: NavModule[] = [
     label: "PAINEL EXECUTIVO",
     icon: Zap,
     items: [
+      { title: "NAI importa", icon: FileSearch, href: "/nai-importa", badge: "IA" },
       { title: "Central do Cliente", icon: LifeBuoy, href: "/client-center", badge: "Novo" },
       { title: "Grupo AVP · Mapa e fila", icon: MapPin, href: "/clients/grupo-avp" },
       { title: "Agendamento de ASO", icon: CalendarDays, href: "/aso-scheduler" },
@@ -144,7 +145,7 @@ const NAV_MODULES: NavModule[] = [
         badgeColor: "bg-blue-500/20 text-blue-400 border-blue-500/30",
       },
       {
-        title: "Auditoria PGR (Upload)",
+        title: "Importações de documentos",
         icon: HardHat,
         href: "/risk-management/pgr-analysis",
         badge: "Auto",

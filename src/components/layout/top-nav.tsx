@@ -18,7 +18,6 @@ import {
   Command,
   Plus,
   Stethoscope,
-  HardHat,
   FileText,
   LifeBuoy,
 } from "lucide-react";
@@ -362,9 +361,9 @@ export function TopNav() {
             </DropdownMenuItem>
             <DropdownMenuItem
               className="gap-2.5 py-2.5 text-xs font-bold uppercase cursor-pointer rounded-xl"
-              onClick={() => router.push("/risk-management/pgr-analysis")}
+              onClick={() => router.push("/nai-importa")}
             >
-              <HardHat className="size-4 text-amber-500" /> Importar PGR (NR-01)
+              <Sparkles className="size-4 text-amber-500" /> NAI importa
             </DropdownMenuItem>
             <DropdownMenuItem
               className="gap-2.5 py-2.5 text-xs font-bold uppercase cursor-pointer rounded-xl"

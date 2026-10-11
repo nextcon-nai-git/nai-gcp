@@ -42,15 +42,33 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
     address: string;
   }[] = [];
   for (const page of pages.slice(0, 12)) {
-    const regex = /(?:raz[aã]o\s+social|empresa|contratante|cliente)\s*:\s*([^\n]{3,300})/gi;
+    const regex =
+      /(?:raz[aã]o\s+social|empresa(?:\s+(?:avaliada|contratante))?|contratante|cliente|empregador)\s*:\s*([^\n]{3,300})/gi;
     for (const m of page.texto.matchAll(regex)) {
+      // A provider's labeled corporate name is not a second client. Respect the nearest
+      // identification block, and stop before the issuer when looking for an employer CNPJ.
+      const priorHeadings = [
+        ...page.texto
+          .slice(0, m.index || 0)
+          .matchAll(
+            /(?:^|\n)\s*((?:identifica[çc][aã]o|dados)\s+d[ao]\s+(?:empresa|contratante|cliente|prestador[a]?|contratada)|empresa\s+(?:elaboradora|prestadora|contratada|avaliada|contratante)|prestador[a]?|contratada|elaborad[oa]\s+por|respons[aá]vel\s+t[eé]cnico|m[eé]dico\s+(?:respons[aá]vel|examinador|coordenador)|cliente|contratante|empregador)\s*(?::|\n)/gi
+          ),
+      ];
+      const heading = normalizePgrText(priorHeadings.at(-1)?.[1] || "");
+      const explicitClient =
+        /^(?:cliente|contratante|empregador|empresa\s+(?:avaliada|contratante))\s*:/i.test(m[0]);
+      if (
+        !explicitClient &&
+        /prestador|contratada|elaborad|responsavel tecnico|medico/.test(heading)
+      )
+        continue;
       const name = compact(
         m[1].split(/\b(?:C\.?N\.?P\.?J\.?|CNAE|Endere[çc]o|Grau\s+de\s+Risco)\s*:/i)[0]
       );
       if (!name || /^(respons[aá]vel|contratada|elaboradora|prestador)/i.test(name)) continue;
       const tail = page.texto.slice((m.index || 0) + m[0].length, (m.index || 0) + 1000);
       const nextEntity = tail.search(
-        /(?:raz[aã]o\s+social|empresa|contratante|cliente|elaborad[oa]\s+por|respons[aá]vel\s+t[eé]cnico)\s*:/i
+        /(?:raz[aã]o\s+social|empresa(?:\s+(?:elaboradora|prestadora|contratada|avaliada|contratante))?|contratante|cliente|empregador|prestador[a]?|contratada|cl[ií]nica(?:\s+executante)?|elaborad[oa]\s+por|respons[aá]vel\s+t[eé]cnico|m[eé]dico\s+(?:respons[aá]vel|examinador|coordenador)|(?:nome\s+d[oa]\s+)?(?:empregad[oa]|trabalhador[a]?|colaborador[a]?|paciente|funcion[aá]ri[oa]))\s*:/i
       );
       const context = m[0] + (nextEntity >= 0 ? tail.slice(0, nextEntity) : tail);
       const cnpj =

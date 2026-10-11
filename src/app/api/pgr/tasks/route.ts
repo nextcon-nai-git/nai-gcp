@@ -4,8 +4,8 @@ import { z } from "zod";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase-admin";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { requirePgrCompany } from "@/lib/auth/require-pgr-access";
-import { AuthError, handleAuthError, badRequest } from "@/lib/auth/errors";
+import { canAccessClinicalImport, requirePgrCompany } from "@/lib/auth/require-pgr-access";
+import { AuthError, handleAuthError, badRequest, forbidden } from "@/lib/auth/errors";
 const Patch = z
   .object({
     title: z.string().min(3).max(180).optional(),
@@ -62,6 +62,13 @@ export async function PATCH(request: NextRequest) {
     if (typeof data.taskId !== "string" || !/^pgr_[a-f0-9_]+$/.test(data.taskId))
       throw badRequest("Card inválido.");
     const patch = Patch.parse(data.patch);
+    if (
+      patch.dueDate &&
+      (!/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z)?$/.test(patch.dueDate) ||
+        Number.isNaN(Date.parse(patch.dueDate)) ||
+        new Date(patch.dueDate).toISOString().slice(0, 10) !== patch.dueDate.slice(0, 10))
+    )
+      throw badRequest("Prazo inválido.");
     const ref = adminDb
       .collection("companies")
       .doc(data.companyId)
@@ -74,10 +81,55 @@ export async function PATCH(request: NextRequest) {
         snap.data()?.sourceType !== "pgr" ||
         snap.data()?.companyId !== data.companyId
       )
-        throw badRequest("Card PGR não encontrado nesta empresa.");
-      const checklist = patch.checklist || snap.data()?.checklist || [];
+        throw badRequest("Card da importação não encontrado nesta empresa.");
+      const current = snap.data()!;
+      const restricted =
+        current.restricted === true ||
+        ["PCMSO", "ASO", "PERICIA_MEDICA"].includes(current.documentType);
+      const finalStatus = patch.status ?? current.status;
+      if (patch.status === "done" && restricted && !canAccessClinicalImport(user))
+        throw forbidden("A conclusão desta revisão exige um perfil de saúde autorizado.");
+
+      // A mandatory source checklist cannot be removed to bypass completion.
+      const originalChecklist = (current.checklist || []) as {
+        id?: string;
+        text: string;
+        checked: boolean;
+        mandatory?: boolean;
+      }[];
+      if (restricted) {
+        const changedText = ["title", "lastComment"].some(
+          (key) =>
+            patch[key as "title" | "lastComment"] !== undefined &&
+            patch[key as "title" | "lastComment"] !== (current[key] || "")
+        );
+        const changedChecklist =
+          patch.checklist &&
+          (patch.checklist.length !== originalChecklist.length ||
+            patch.checklist.some(
+              (item, index) =>
+                item.id !== originalChecklist[index].id ||
+                item.text !== originalChecklist[index].text
+            ));
+        if (changedText || changedChecklist)
+          throw new AuthError(
+            "O texto deste card é administrativo. Consulte a análise médica no registro restrito.",
+            409
+          );
+      }
+      if (patch.checklist) {
+        for (const original of originalChecklist.filter((item) => item.mandatory)) {
+          const item = patch.checklist.find((candidate) =>
+            original.id ? candidate.id === original.id : candidate.text === original.text
+          );
+          if (!item || item.mandatory === false || item.text !== original.text)
+            throw new AuthError("Preserve os itens obrigatórios do checklist de origem.", 409);
+          item.mandatory = true;
+        }
+      }
+      const checklist = patch.checklist || originalChecklist;
       if (
-        patch.status === "done" &&
+        finalStatus === "done" &&
         checklist.some((c: { mandatory?: boolean; checked: boolean }) => c.mandatory && !c.checked)
       )
         throw new AuthError("Conclua o checklist obrigatório antes de finalizar o card.", 409);

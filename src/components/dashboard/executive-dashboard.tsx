@@ -273,10 +273,10 @@ export function ExecutiveDashboardView() {
           </button>
           <Link
             className={cn(action, "bg-[#102b3b] text-white hover:bg-[#1c4053]")}
-            href="/risk-management/pgr-analysis"
+            href="/nai-importa"
           >
             <FileText className="size-4" />
-            Importar PGR
+            NAI importa
           </Link>
         </div>
       </header>

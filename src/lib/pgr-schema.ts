@@ -20,6 +20,57 @@ export const PgrEvidenceSchema = z.object({
   pagina: z.number().int().min(1).max(300),
   trecho: z.string().min(3).max(1200),
 });
+export const NAI_DOCUMENT_TYPES = [
+  "PGR",
+  "LTCAT",
+  "PCMSO",
+  "ASO",
+  "PERICIA_MEDICA",
+  "AEP",
+  "AET",
+  "DADOS_ERGONOMICOS",
+  "OUTRO",
+] as const;
+export type NaiDocumentType = (typeof NAI_DOCUMENT_TYPES)[number];
+export const NAI_DOCUMENT_NAMES: Record<NaiDocumentType, string> = {
+  PGR: "PGR",
+  LTCAT: "LTCAT",
+  PCMSO: "PCMSO",
+  ASO: "ASO",
+  PERICIA_MEDICA: "Perícia médica",
+  AEP: "AEP",
+  AET: "AET",
+  DADOS_ERGONOMICOS: "Dados ergonômicos",
+  OUTRO: "Documento a identificar",
+};
+export const NaiDocumentSchema = z.object({
+  tipo: z.enum(NAI_DOCUMENT_TYPES),
+  agenteResponsavel: z.enum(PGR_AGENT_ROLES).nullable(),
+  statusClassificacao: z.enum(["identificado", "ambiguo", "nao_identificado"]),
+  evidencias: z.array(PgrEvidenceSchema).max(10),
+  justificativa: z.string().max(800),
+  acesso: z.enum(["sst", "clinico_restrito"]),
+});
+export type NaiDocument = z.infer<typeof NaiDocumentSchema>;
+export const NaiProviderSchema = z.object({
+  id: z.string().max(100),
+  nome: z.string().min(3).max(300),
+  cnpj: z.string().max(30),
+  registroProfissional: z.string().max(160),
+  especialidade: z.string().max(180),
+  papelNoDocumento: z.string().max(180),
+  evidencias: z.array(PgrEvidenceSchema).min(1).max(5),
+  cidadeUf: z.string().max(120),
+  endereco: z.string().max(500),
+  email: z.string().max(200),
+  telefone: z.string().max(100),
+});
+export type NaiProvider = z.infer<typeof NaiProviderSchema>;
+export const NaiAgentAnalysisSchema = z.object({
+  agente: z.enum(PGR_AGENT_ROLES).nullable(),
+  status: z.enum(["concluida", "pendente", "indisponivel"]),
+  resumo: z.string().max(4000),
+});
 export const PgrRiskSchema = z.object({
   id: z.string().max(100),
   agente: z.string().min(2).max(180),
@@ -52,6 +103,10 @@ export const PgrActionSchema = z.object({
   prazoDocumentado: z.string().max(180).default(""),
 });
 export const PgrAnalysisOutputSchema = z.object({
+  // Optional so saved PGR analyses keep their identity and remain readable.
+  documento: NaiDocumentSchema.optional(),
+  prestadoresIdentificados: z.array(NaiProviderSchema).max(25).optional(),
+  analiseAgente: NaiAgentAnalysisSchema.optional(),
   pgrCardDetalhado: z.object({
     razaoSocial: z.string().max(300),
     cnpj: z.string().max(30),
@@ -95,7 +150,21 @@ export type PgrDraftView = {
   companies: PgrCompany[];
   suggestedCompanyId: string | null;
   canCreateCompany: boolean;
+  canRegisterProviders?: boolean;
 };
+
+export function getNaiDocument(analysis: Pick<PgrAnalysisOutput, "documento">): NaiDocument {
+  return (
+    analysis.documento || {
+      tipo: "PGR",
+      agenteResponsavel: "engenheiro_seguranca",
+      statusClassificacao: "identificado",
+      evidencias: [],
+      justificativa: "Registro do fluxo anterior de PGR; classificação original preservada.",
+      acesso: "sst",
+    }
+  );
+}
 
 export function normalizePgrText(value: string) {
   return value
