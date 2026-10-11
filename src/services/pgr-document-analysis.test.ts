@@ -164,7 +164,7 @@ describe("NAI importa: análise real do especialista e controle clínico", () =>
       Object.assign(new Error("conteúdo confidencial do provedor"), { status: 429 })
     );
     const result = await analyzePgrDocument({ pdfDataUri: text });
-    expect(result.analiseAgente?.resumo).toContain("limite temporário");
+    expect(result.analiseAgente?.resumo).toContain("Código: QUOTA");
     expect(JSON.stringify(result)).not.toContain("conteúdo confidencial");
   });
   it.each([
@@ -445,4 +445,16 @@ it("mantém linhas tabulares e datas documentadas quando a IA omite o inventári
   expect(result.pgrCardDetalhado.dataEmissao).toBe("01/09/2026");
   expect(result.pgrCardDetalhado.dataRevisao).toBe("01/09/2028");
   expect(result.pgrCardDetalhado.dataValidade).toBe("");
+});
+
+it("classifica falha do especialista sem expor o documento na mensagem", async () => {
+  mocks.generate.mockRejectedValue(
+    new Error("Schema validation failed: private document contents")
+  );
+  const result = await analyzePgrDocument({
+    pdfDataUri: "PGR\nPrograma de Gerenciamento de Riscos\n" + text,
+  });
+  expect(result.analiseAgente?.status).toBe("indisponivel");
+  expect(result.analiseAgente?.resumo).toContain("Código: FORMAT");
+  expect(result.analiseAgente?.resumo).not.toContain("private document contents");
 });
