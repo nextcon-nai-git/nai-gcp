@@ -141,91 +141,9 @@ Gere para CADA não-conformidade identificada um PLANO DE AÇÃO 5W2H completo e
       return res;
     }
   } catch (err) {
-    console.warn("[Gemini 3.8 Field Inspection Fallback]", err);
+    // Provider errors must never manufacture findings or expose document data.
   }
-
-  // Fallback heurístico inteligente
-  const fallback = generateDeterministicInspectionReport(
-    input.companyName || "Construfam Engenharia",
-    input.location || "Canteiro Obra Torre A"
+  throw new Error(
+    "A inspeção não foi concluída pela IA. Nenhum achado foi gerado; tente novamente."
   );
-  if (input.gpsCoordinates) {
-    fallback.gpsLocation = `${input.gpsCoordinates.latitude.toFixed(5)}, ${input.gpsCoordinates.longitude.toFixed(5)} (±${input.gpsCoordinates.accuracy || 5}m)`;
-  }
-  if (input.devicePlatform) {
-    fallback.deviceSource = input.devicePlatform;
-  }
-  return fallback;
-}
-
-function generateDeterministicInspectionReport(
-  companyName: string,
-  location: string
-): FieldInspectionReport {
-  return {
-    inspectionTitle: `Laudo de Vistoria de Canteiro - ${companyName}`,
-    inspectionDate: new Date().toISOString().split("T")[0],
-    locationDetected: location,
-    overallSafetyStatus: "ATENCAO",
-    safetyIndex: 72,
-    detectedWorkersCount: 4,
-    findings: [
-      {
-        id: "FIND-01",
-        category: "NR_35_ALTURA",
-        title: "Trabalhador em Altura sem Duplo Talabarte Ancorado",
-        description:
-          "Operador sobre andaime tubular no 3º pavimento sem conectar o talabarte do cinto à linha de vida horizontal.",
-        severity: "RISCO_IMINENTE",
-        applicableStandard: "NR-35 Item 35.5.1 (Sistemas de Proteção Contra Quedas)",
-        status: "NAO_CONFORME",
-        actionPlan: {
-          what: "Paralisar imediatamente a atividade em altura e ancorar o trabalhador em linha de vida certificada.",
-          why: "Prevenir acidente fatal por queda em desnível superior a 2 metros.",
-          who: "Encarregado de Obras e Técnico de Segurança da Unidade",
-          where: "Andaime Fachada Oeste - 3º Pavimento",
-          when: "Imediato (Zero Minutos)",
-          how: "Instalar cabo de aço guia com trava-quedas e orientar o uso obrigatório do duplo talabarte tipo Y.",
-        },
-      },
-      {
-        id: "FIND-02",
-        category: "NR_06_EPI",
-        title: "Ausência de Jugular no Capacete de Segurança",
-        description:
-          "2 colaboradores operando próximo a área de içamento com capacetes soltos sem fita jugular afivelada.",
-        severity: "GRAVE",
-        applicableStandard: "NR-06 Item 6.6.1 e NR-18 Item 18.10",
-        status: "NAO_CONFORME",
-        actionPlan: {
-          what: "Fornecer e exigir o uso imediato de fitas jugulares fixadas ao capacete.",
-          why: "Evitar desprendimento do capacete em caso de ventania ou movimentação brusca em altura.",
-          who: "Almoxarife e Técnico de SST",
-          where: "Pátio Geral de Cargas",
-          when: "Em até 2 horas",
-          how: "Distribuir jugulares sobressalentes e registrar na ficha de entrega de EPI.",
-        },
-      },
-      {
-        id: "FIND-03",
-        category: "NR_10_ELETRICA",
-        title: "Quadro de Distribuição Provisório com Porta Aberta",
-        description:
-          "QGBT de canteiro destrancado com disjuntores aparentes expostos a intempéries e respingos.",
-        severity: "GRAVE",
-        applicableStandard: "NR-10 Item 10.4.4 e NR-18 Item 18.14",
-        status: "NAO_CONFORME",
-        actionPlan: {
-          what: "Trancar o invólucro do quadro e aplicar proteção IP54 contra chuva e poeira.",
-          why: "Eliminar risco de choque elétrico por contato acidental de serventes.",
-          who: "Eletricista Responsável pelo Canteiro",
-          where: "Entrada do Canteiro - Bloco Central",
-          when: "Em até 4 horas",
-          how: "Reparar a tranca, instalar dispositivo DR (Diferencial Residual) e sinalizar perigo de alta tensão.",
-        },
-      },
-    ],
-    executiveSummary:
-      "A análise visual via Gemini 3.8 revelou que a frente de serviço necessita de intervenção imediata no andaime do 3º pavimento devido ao risco iminente de queda em altura (NR-35). As demais adequações de EPI e elétrica provisória possuem planos de ação 5W2H definidos com prazos de 2 a 4 horas para restabelecimento da conformidade total.",
-  };
 }

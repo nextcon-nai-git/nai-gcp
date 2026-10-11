@@ -1,3 +1,4 @@
+import { isValidCpf } from "@/lib/cpf";
 import { jsPDF } from "jspdf";
 import { WorkOrderConstrufamData, WorkOrderEmployeeInfo } from "@/types/work-order";
 
@@ -9,7 +10,7 @@ export function getDefaultConstrufamOsData(
 ): WorkOrderConstrufamData {
   return {
     id: `OS-NR01-CFM-${Date.now().toString().slice(-6)}`,
-    numeroControle: `OS-CFM-2026/089`,
+    numeroControle: `MINUTA-${new Date().getFullYear()}-${Date.now()}`,
     versaoPgr: "PGR Revisão 03 (Vigência 2026-2028)",
     vigenciaPgr: "17/06/2026 a 16/06/2028",
     empresa: {
@@ -25,16 +26,16 @@ export function getDefaultConstrufamOsData(
       unidadeOperacional: "Bacia do Rio Piranhas-Açu / PCH São João / PCH Fruteiras",
     },
     colaborador: {
-      nome: employeeOverrides?.nome || "João Carlos da Silva",
-      cpf: employeeOverrides?.cpf || "000.000.000-00",
-      matricula: employeeOverrides?.matricula || "CFM-0412",
+      nome: employeeOverrides?.nome || "",
+      cpf: employeeOverrides?.cpf || "",
+      matricula: employeeOverrides?.matricula || "",
       cargo: employeeOverrides?.cargo || "HIDROMETRISTA",
       setor: "HIDROMETRIA E OPERAÇÕES DE CAMPO",
       ghe: "GES 02 - HIDROMETRIA (TRABALHO EMBARCADO)",
-      dataAdmissao: employeeOverrides?.dataAdmissao || "15/01/2024",
+      dataAdmissao: employeeOverrides?.dataAdmissao || "",
       dataEmissaoOs: employeeOverrides?.dataEmissaoOs || new Date().toLocaleDateString("pt-BR"),
-      numeroColeteSalvaVidas: employeeOverrides?.numeroColeteSalvaVidas || "CV-NAI-084",
-      registroArrais: employeeOverrides?.registroArrais || "381P2021004562 (Capitania dos Portos)",
+      numeroColeteSalvaVidas: employeeOverrides?.numeroColeteSalvaVidas || "",
+      registroArrais: employeeOverrides?.registroArrais || "",
     },
     descricaoAtividades: [
       "Planejamento, reconhecimento e acesso aos locais de trabalho ao longo da calha de rios e reservatórios de usinas hidrelétricas.",
@@ -255,6 +256,9 @@ export function getDefaultConstrufamOsData(
  * Motor de renderização de PDF oficial A4 via jsPDF
  */
 export function generateConstrufamOsPdf(data: WorkOrderConstrufamData): jsPDF {
+  if (data.colaborador.nome.trim().length < 3 || !isValidCpf(data.colaborador.cpf)) {
+    throw new Error("Informe nome e CPF válidos antes de gerar a minuta.");
+  }
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",
@@ -424,6 +428,9 @@ export function generateConstrufamOsPdf(data: WorkOrderConstrufamData): jsPDF {
     );
     doc.text(`[${risco.grupo.toUpperCase()}] ${risco.fatorRisco}`, marginX + 2, cursorY + 3.8);
 
+    doc.setFontSize(8);
+    doc.setTextColor(170, 60, 30);
+    doc.text("MINUTA — REQUER REVISÃO E ASSINATURAS", marginX, pageHeight - 13);
     doc.setFontSize(6.5);
     doc.setTextColor(71, 85, 105);
     doc.text(
@@ -655,6 +662,9 @@ export function generateConstrufamOsPdf(data: WorkOrderConstrufamData): jsPDF {
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(170, 60, 30);
+    doc.text("MINUTA — REQUER REVISÃO E ASSINATURAS", marginX, pageHeight - 13);
     doc.setFontSize(6.5);
     doc.setTextColor(148, 163, 184);
     doc.text(
@@ -676,7 +686,7 @@ export function generateConstrufamOsPdf(data: WorkOrderConstrufamData): jsPDF {
 export function downloadConstrufamOsPdf(data: WorkOrderConstrufamData): void {
   const doc = generateConstrufamOsPdf(data);
   const cleanName = data.colaborador.nome.replace(/[^a-zA-Z0-9]/g, "_");
-  const fileName = `OS_NR01_CONSTRUFAM_EMBARCADO_${cleanName}.pdf`;
+  const fileName = `MINUTA_OS_NR01_CONSTRUFAM_EMBARCADO_${cleanName}.pdf`;
   doc.save(fileName);
 }
 
@@ -690,7 +700,7 @@ export function getWhatsAppOsDispatchMessage(data: WorkOrderConstrufamData): str
 
 Prezado(a) *${data.colaborador.nome}* (${data.colaborador.cargo}),
 
-Conforme os Artigos 157 e 158 da CLT e a Norma Regulamentadora NR-01, comunicamos a emissão da sua *Ordem de Serviço de Trabalho Embarcado e Hidrometria* (PGR CHESF / STATKRAFT).
+Encaminhamos uma *minuta para conferência* da Ordem de Serviço de Trabalho Embarcado e Hidrometria. A validação técnica e as assinaturas estão pendentes.
 
 ⚠️ *REGRAS CRÍTICAS DE SEGURANÇA:*
 1. *Colete Salva-Vidas (Classe V/Marinha):* Uso 100% obrigatório a bordo do barco e nas margens de rio.
@@ -698,6 +708,6 @@ Conforme os Artigos 157 e 158 da CLT e a Norma Regulamentadora NR-01, comunicamo
 3. *Intempéries:* Parada imediata das atividades na água ao menor sinal de chuva forte, vento ou descargas atmosféricas.
 4. *EPIs em Campo:* Botina com perneira (animais peçonhentos), óculos UV, protetor solar e capacete com jugular.
 
-📄 A via oficial em PDF completa com as diretrizes e termo de ciência foi emitida e registrada no sistema NAI Intelligence sob o número *${data.numeroControle}*.`
+📄 Minuta identificada por *${data.numeroControle}*.`
   );
 }

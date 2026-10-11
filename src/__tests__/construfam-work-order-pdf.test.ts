@@ -52,7 +52,7 @@ describe("Construfam Ordem de Serviço NR-01 (Trabalho Embarcado)", () => {
   });
 
   it("deve gerar o documento PDF A4 multipágina via jsPDF sem exceções", () => {
-    const data = getDefaultConstrufamOsData();
+    const data = getDefaultConstrufamOsData({ nome: "Colaborador de teste", cpf: "52998224725" });
     const doc = generateConstrufamOsPdf(data);
 
     expect(doc).toBeDefined();
@@ -68,6 +68,13 @@ describe("Construfam Ordem de Serviço NR-01 (Trabalho Embarcado)", () => {
     const uint8 = new Uint8Array(arrayBuffer);
     const pdfHeader = String.fromCharCode(uint8[0], uint8[1], uint8[2], uint8[3], uint8[4]);
     expect(pdfHeader).toBe("%PDF-");
+  });
+
+  it("bloqueia PDF com identidade ausente ou CPF inválido", () => {
+    expect(() => generateConstrufamOsPdf(getDefaultConstrufamOsData())).toThrow("CPF");
+    expect(() =>
+      generateConstrufamOsPdf(getDefaultConstrufamOsData({ nome: "Teste", cpf: "11111111111" }))
+    ).toThrow("CPF");
   });
 
   it("deve montar mensagem formatada para envio via WhatsApp com link e texto normativo", () => {

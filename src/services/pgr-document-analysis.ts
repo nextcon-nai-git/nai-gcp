@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { aiFailureCode, aiFailureMessage } from "@/lib/ai-failure";
 import { getPgrAi } from "./pgr-ai-provider";
 import {
   NAI_DOCUMENT_TYPES,
@@ -117,6 +118,7 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
     (documento.statusClassificacao !== "identificado" &&
       pages.some((page) => page.texto.trim().length >= 40));
   let visualTriaged = !needsClassification;
+  let triageFailure = "FORMAT";
   const ai = getPgrAi();
   if (needsClassification && ai) {
     const controller = new AbortController();
@@ -142,6 +144,7 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
         new Promise<null>((resolve) => {
           timer = setTimeout(() => {
             controller.abort();
+            triageFailure = "TIMEOUT";
             resolve(null);
           }, 45000);
         }),
@@ -183,8 +186,10 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
               : "sst",
         };
       }
-    } catch {
-      // No patient data or specialist conclusion is returned by the triage schema.
+    } catch (error) {
+      triageFailure = aiFailureCode(error);
+      // Only a fixed code is recorded: never a document, credential or raw provider error.
+      console.warn("NAI document triage unavailable", { code: triageFailure });
     } finally {
       if (timer) clearTimeout(timer);
     }
@@ -210,7 +215,7 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
     );
   if (!visualTriaged)
     return pending(
-      "A triagem das páginas digitalizadas não foi concluída. Nenhum especialista recebeu o arquivo; reenvie uma cópia legível ou tente novamente.",
+      `${aiFailureMessage(triageFailure)} Código: ${triageFailure}. A triagem documental não foi concluída; a extração foi preservada e nenhum especialista confirmou a análise.`,
       "indisponivel"
     );
   if (documento.statusClassificacao !== "identificado" || !documento.agenteResponsavel)

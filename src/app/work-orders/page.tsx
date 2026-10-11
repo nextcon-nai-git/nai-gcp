@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { isValidCpf } from "@/lib/cpf";
 import {
   FileText,
   Download,
@@ -42,7 +43,7 @@ const PRESET_CARGOS = [
     cargo: "HIDROMETRISTA",
     descricao: "Coordenação de medição de vazão e operação de barco na calha do rio",
     ghe: "GES 02 - HIDROMETRIA (TRABALHO EMBARCADO)",
-    arrais: "381P2021004562 (Arrais-Amador)",
+    arrais: "",
   },
   {
     cargo: "AUXILIAR DE HIDROMETRISTA",
@@ -94,7 +95,7 @@ export default function WorkOrdersPage() {
         ...prev.colaborador,
         cargo: preset.cargo,
         ghe: preset.ghe,
-        registroArrais: preset.arrais,
+        registroArrais: "",
       },
     }));
     toast({
@@ -103,13 +104,25 @@ export default function WorkOrdersPage() {
     });
   };
 
-  // Download do PDF oficial
+  const validateIdentity = () => {
+    if (data.colaborador.nome.trim().length < 3 || !isValidCpf(data.colaborador.cpf)) {
+      toast({
+        variant: "destructive",
+        title: "Confira os dados do colaborador",
+        description: "Preencha nome completo e CPF válido antes de gerar ou compartilhar a minuta.",
+      });
+      return false;
+    }
+    return true;
+  };
+  // Download de minuta para revisão
   const handleDownloadPdf = () => {
+    if (!validateIdentity()) return;
     try {
       setIsGeneratingPdf(true);
       downloadConstrufamOsPdf(data);
       toast({
-        title: "PDF Oficial Emitido!",
+        title: "Minuta PDF gerada",
         description: `O arquivo da Ordem de Serviço foi gerado com sucesso para ${data.colaborador.nome}.`,
       });
     } catch (err: any) {
@@ -125,6 +138,7 @@ export default function WorkOrdersPage() {
 
   // Enviar via WhatsApp
   const handleSendWhatsApp = () => {
+    if (!validateIdentity()) return;
     const message = getWhatsAppOsDispatchMessage(data);
     const cleanPhone = whatsappPhone.replace(/\D/g, "");
     const url =
@@ -133,13 +147,14 @@ export default function WorkOrdersPage() {
         : `https://wa.me/?text=${message}`;
     window.open(url, "_blank");
     toast({
-      title: "WhatsApp Disparado",
-      description: "Link do WhatsApp gerado com os termos e notificação da Ordem de Serviço.",
+      title: "Conversa aberta no WhatsApp",
+      description: "Confira a mensagem e envie pelo WhatsApp. O sistema não confirmou entrega.",
     });
   };
 
   // Imprimir diretamente (Print CSS)
   const handlePrint = () => {
+    if (!validateIdentity()) return;
     window.print();
   };
 
@@ -186,7 +201,7 @@ export default function WorkOrdersPage() {
             className="bg-blue-950 hover:bg-blue-900 text-white font-medium shadow-sm transition-all"
           >
             <Download className="w-4 h-4 mr-1.5" />
-            {isGeneratingPdf ? "Gerando PDF..." : "Baixar PDF Oficial"}
+            {isGeneratingPdf ? "Gerando PDF..." : "Baixar minuta PDF"}
           </Button>
 
           <Button
@@ -209,6 +224,10 @@ export default function WorkOrdersPage() {
         </div>
       </div>
 
+      <p className="rounded-xl border border-amber-500 p-4 text-foreground">
+        Minuta: confira o vínculo do colaborador, riscos, dados técnicos e assinaturas antes de uso.
+        Este download não representa emissão ou assinatura digital.
+      </p>
       {/* Grid Principal: Formulário / Parâmetros à Esquerda e Preview Oficial à Direita */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Painel Lateral de Configuração (4 colunas) */}

@@ -88,114 +88,45 @@ Analise a solicitação sob a atuação dos 7 Agentes Especializados:
 7. Supervisor (Alertas e Exceções).
 
 DADOS DA SOLICITAÇÃO:
-- Empresa: ${input.companyName || "Empresa Cliente NAI"} (CNPJ: ${input.cnpj || "43.050.496/0001-11"})
-- Trabalhador: ${input.employeeName || "Trabalhador Indicado"} (CPF: ${input.cpf || "000.000.000-00"})
-- Cargo: ${input.roleTitle || "Operador"} (Setor: ${input.department || "Produção"})
+- Empresa: ${input.companyName || "Empresa Cliente NAI"} (CNPJ: ${input.cnpj || "Não informado"})
+- Trabalhador: ${input.employeeName || "Trabalhador Indicado"} (CPF: ${input.cpf || "Não informado"})
+- Cargo: ${input.roleTitle || "Não informado"} (Setor: ${input.department || "Não informado"})
 - Tipo ASO: ${input.examType || "admissional"}
-- Riscos Declarados: ${input.declaredRisks?.join(", ") || "Ruído contínuo, Postura e Riscos mecânicos"}
+- Riscos Declarados: ${input.declaredRisks?.join(", ") || "Não informados"}
 - Instrução Adicional: "${input.userPrompt}"
 
-Retorne a análise estruturada exata no JSON Schema.`;
+Não invente clínicas, horários, riscos, identificadores ou protocolos. Sem PCMSO documentado, sinalize dados faltantes. Não afirme que agendou, enviou mensagens, validou aptidão ou confirmou exames. Produza apenas sugestões para revisão profissional. Retorne a análise estruturada no JSON Schema.`;
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
   try {
-    const generatePromise = ai.generate({
-      model: "googleai/gemini-1.5-flash",
+    const response = await ai.generate({
       prompt,
       output: { schema: AsoSystemOrchestratorOutputSchema },
+      abortSignal: controller.signal,
     });
-
-    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000));
-
-    const response = await Promise.race([generatePromise, timeoutPromise]);
-
-    if (
-      response &&
-      response.output &&
-      typeof response.output === "object" &&
-      "triagem" in response.output
-    ) {
-      return response.output as AsoSystemOrchestratorOutput;
-    }
-  } catch (err) {
-    console.warn("[Genkit ASO System Orchestrator] Modo Fallback Ativado:", err);
+    const result = AsoSystemOrchestratorOutputSchema.parse(response.output);
+    return {
+      ...result,
+      kit_digital: { ...result.kit_digital, preparacao_impressao_pronta: false },
+      followup: {
+        ...result.followup,
+        status_inicial_pipeline: "pendente_revisao",
+        proxima_acao_automática: "Conferir PCMSO e confirmar disponibilidade com a clínica.",
+      },
+      supervisor: {
+        ...result.supervisor,
+        requer_intervencao_humana: true,
+        severidade_alerta: "WARNING",
+        mensagem_alerta:
+          "Sugestão de IA: requer conferência profissional e confirmação da clínica.",
+      },
+    };
+  } catch {
+    throw new Error(
+      "A IA de agendamento não concluiu a análise. Nenhum agendamento ou protocolo foi confirmado."
+    );
+  } finally {
+    clearTimeout(timeout);
   }
-
-  // Fallback estruturado seguro
-  return {
-    triagem: {
-      valido: true,
-      dados_faltantes: [],
-      observacoes_triagem: "Dados validados com sucesso pela IA de Triagem NAI.",
-    },
-    protocolos: {
-      tipo_aso_confirmado: (input.examType || "admissional").toUpperCase(),
-      exames_obrigatorios: [
-        {
-          code: "4.01.01.01-0",
-          name: "Avaliação Clínica Ocupacional",
-          mandatory: "OBRIGATORIO",
-          pcmsoJustification: "NR-07 Exame clínico presencial com Anamnese Ocupacional.",
-          patientPreparo: "Apresentar documento de identidade oficial com foto (RG/CNH).",
-        },
-        {
-          code: "4.08.05.01-8",
-          name: "Audiometria Tonal Ocupacional",
-          mandatory: "OBRIGATORIO",
-          pcmsoJustification:
-            "NR-07 Anexo II — Exposição a ruído contínuo ou intermitente acima do Nível de Ação.",
-          patientPreparo:
-            "Repouso auditivo rigoroso de 14 horas antes do exame (evitar fones/som alto).",
-        },
-        {
-          code: "4.01.02.02-4",
-          name: "Electrocardiograma (ECG)",
-          mandatory: "CONDICIONAL",
-          pcmsoJustification:
-            "NR-35 / NR-33 — Avaliação de aptidão física para Trabalho em Altura e Espaço Confinado.",
-          patientPreparo: "Camisa aberta ou de fácil remoção; pele limpa sem cremes no tórax.",
-        },
-      ],
-      justificativa_normativa:
-        "Protocolo alinhado à NR-07 (PCMSO) e matriz de riscos do PGR (NR-01).",
-    },
-    agendamento_matching: {
-      clinica_recomendada_id: "CLIN_01",
-      clinica_recomendada_nome: "Centro de Medicina Ocupacional Paulista",
-      score_compatibilidade: 98,
-      motivo_escolha:
-        "Excelente nota de atendimento (4.9/5), proximidade (2.4 km), sala acústica certificada e devolução de ASO em 24h.",
-      horarios_sugeridos: ["08:00", "09:30", "11:00", "13:30"],
-    },
-    kit_digital: {
-      guia_numero: `OS-NAI-${Math.floor(100000 + Math.random() * 900000)}`,
-      instrucoes_paciente: [
-        "Chegar com 15 minutos de antecedência.",
-        "Apresentar documento oficial com foto (RG ou CNH).",
-        "Cumprir rigorosamente o repouso auditivo de 14 horas.",
-      ],
-      instrucoes_clinica: [
-        "Realizar anamnese e exame clínico completo.",
-        "Emitir o ASO em 2 vias originais assinadas pelo Médico Examinador.",
-        "Enviar arquivo de carga eSocial S-2220 e PDF em até 48h.",
-      ],
-      prazo_devolucao_dias: 2,
-      preparacao_impressao_pronta: true,
-    },
-    comunicacao: {
-      mensagem_trabalhador_whatsapp: `Olá ${input.employeeName || "Trabalhador"}! Seu agendamento de ASO foi realizado no Centro de Medicina Paulista para o dia 05/09 às 09:30. Lembre-se do repouso auditivo de 14h e documento com foto.`,
-      email_clinica_parceira: `Prezada equipe da Centro de Medicina Paulista, segue a Guia de Encaminhamento Ocupacional NAI para o trabalhador ${input.employeeName || "Trabalhador"}. Favor confirmar o recebimento.`,
-    },
-    followup: {
-      status_inicial_pipeline: "agendado",
-      proxima_acao_automática:
-        "Aguardar confirmação de recebimento da clínica parceira para enviar o Kit Digital.",
-    },
-    supervisor: {
-      requer_intervencao_humana: false,
-      severidade_alerta: "NONE",
-      mensagem_alerta:
-        "Solicitação processada perfeitamente. Todos os exames e clínicas parceiras estão compatíveis.",
-      acao_recomendada: "Nenhuma ação corretiva manual necessária.",
-    },
-  };
 }
