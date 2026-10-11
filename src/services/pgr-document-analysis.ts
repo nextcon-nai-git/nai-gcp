@@ -6,6 +6,7 @@ import {
   NAI_DOCUMENT_TYPES,
   PGR_AGENT_NAMES,
   PgrAnalysisOutputSchema,
+  PgrEvidenceSchema,
   normalizePgrText,
   type NaiProvider,
   type PgrAnalysisOutput,
@@ -30,6 +31,7 @@ import {
 } from "@/lib/pgr-agent-prompts";
 import { forbidden } from "@/lib/auth/errors";
 import { readPgrPdfPages } from "./pgr-pdf-text";
+import { mergeNaiIdentity } from "@/lib/nai-import-evidence";
 
 export type PgrAnalysisInput = {
   pdfDataUri: string;
@@ -46,6 +48,7 @@ const VisualClassificationSchema = z.object({
   tipo: z.enum(NAI_DOCUMENT_TYPES),
   statusClassificacao: z.enum(["identificado", "ambiguo", "nao_identificado"]),
   contemDadosClinicosIndividuais: z.boolean(),
+  evidencias: z.array(PgrEvidenceSchema).max(10).optional(),
 });
 
 function validatedProviders(
@@ -109,9 +112,13 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
   }
 
   let documento = classifyNaiDocument(pages);
-  let visualTriaged = !isVisual;
+  const needsClassification =
+    input.pdfDataUri.startsWith("data:") ||
+    (documento.statusClassificacao !== "identificado" &&
+      pages.some((page) => page.texto.trim().length >= 40));
+  let visualTriaged = !needsClassification;
   const ai = getPgrAi();
-  if (isVisual && ai) {
+  if (needsClassification && ai) {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -119,7 +126,15 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
         ai.generate({
           prompt: [
             { text: NAI_VISUAL_CLASSIFICATION_PROMPT },
-            { media: { url: input.pdfDataUri } },
+            ...(input.pdfDataUri.startsWith("data:")
+              ? [{ media: { url: input.pdfDataUri } }]
+              : [
+                  {
+                    text: pages
+                      .map((page) => `[PÁGINA PDF ${page.numero}]\n${page.texto}`)
+                      .join("\n\n"),
+                  },
+                ]),
           ],
           output: { schema: VisualClassificationSchema },
           abortSignal: controller.signal,
@@ -128,7 +143,7 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
           timer = setTimeout(() => {
             controller.abort();
             resolve(null);
-          }, 20000);
+          }, 45000);
         }),
       ]);
       const classification = VisualClassificationSchema.safeParse(result?.output);
@@ -139,8 +154,14 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
           documento.statusClassificacao === "identificado" &&
           value.statusClassificacao === "identificado" &&
           documento.tipo !== value.tipo;
+        const evidence = (value.evidencias || []).filter((item) => evidenceIsInPages(item, pages));
         const identified =
-          !conflicting && value.statusClassificacao === "identificado" && value.tipo !== "OUTRO";
+          !conflicting &&
+          value.statusClassificacao === "identificado" &&
+          value.tipo !== "OUTRO" &&
+          (isVisual ||
+            evidence.length > 0 ||
+            (documento.statusClassificacao === "identificado" && documento.tipo === value.tipo));
         const tipo = identified ? value.tipo : "OUTRO";
         documento = {
           tipo,
@@ -150,9 +171,9 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
             : conflicting || value.statusClassificacao === "ambiguo"
               ? "ambiguo"
               : "nao_identificado",
-          evidencias: [],
+          evidencias: evidence,
           justificativa: identified
-            ? "Tipo identificado pela triagem visual. Confira o título no original antes de integrar."
+            ? "Tipo identificado pela triagem de conteúdo da IA. Confira as evidências e o original antes de integrar."
             : "A triagem visual não distinguiu um único tipo documental. Reenvie o documento legível e separado.",
           acesso:
             documento.acesso === "clinico_restrito" ||
@@ -205,6 +226,7 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   const controller = new AbortController();
+  let timedOut = false;
   try {
     const documentText = pages.map((p) => `[PÁGINA PDF ${p.numero}]\n${p.texto}`).join("\n\n");
     const content = [
@@ -212,17 +234,22 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
       { text: `<documento>\n${documentText}\n</documento>` },
     ];
     const generation = ai.generate({
-      prompt: isVisual ? [...content, { media: { url: input.pdfDataUri } }] : content,
+      // Even text PDFs contain tables, columns and diagrams lost by plain text extraction.
+      prompt: input.pdfDataUri.startsWith("data:")
+        ? [...content, { media: { url: input.pdfDataUri } }]
+        : content,
       output: { schema: PgrModelOutputSchema },
+      config: { temperature: 0.1, maxOutputTokens: 24000 },
       abortSignal: controller.signal,
     });
     const response = await Promise.race([
       generation,
       new Promise<null>((resolve) => {
         timer = setTimeout(() => {
+          timedOut = true;
           controller.abort();
           resolve(null);
-        }, 60000);
+        }, 180000);
       }),
     ]);
     const parsed = PgrModelOutputSchema.safeParse(response?.output);
@@ -334,21 +361,22 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
       ).test(text)
         ? value
         : "";
-    const textIdentity = base.identidade.evidencias.length > 0;
-    const detail =
-      isVisual && !textIdentity
-        ? extracted.pgrCardDetalhado
-        : {
-            ...base.pgrCardDetalhado,
-            dataEmissao: literalDate(
-              extracted.pgrCardDetalhado.dataEmissao,
-              "(?:data de emissao|emissao|data de elaboracao)"
-            ),
-            dataValidade: literalDate(
-              extracted.pgrCardDetalhado.dataValidade,
-              "(?:data de validade|validade|vigencia ate)"
-            ),
-          };
+    const mergedIdentity = mergeNaiIdentity(base, extracted, pages, isVisual);
+    const detail = {
+      ...mergedIdentity.detail,
+      dataEmissao: isVisual
+        ? extracted.pgrCardDetalhado.dataEmissao
+        : literalDate(
+            extracted.pgrCardDetalhado.dataEmissao,
+            "(?:data de emissao|emissao|data de elaboracao)"
+          ),
+      dataValidade: isVisual
+        ? extracted.pgrCardDetalhado.dataValidade
+        : literalDate(
+            extracted.pgrCardDetalhado.dataValidade,
+            "(?:data de validade|validade|vigencia ate)"
+          ),
+    };
     const providerCandidates = [
       ...extractNaiProviders(pages),
       ...validatedProviders(extracted.prestadoresIdentificados || [], pages, isVisual, detail.cnpj),
@@ -379,7 +407,7 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
         coordenadasGps: "",
         esocialS2240Status: base.pgrCardDetalhado.esocialS2240Status,
       },
-      identidade: isVisual && !textIdentity ? extracted.identidade : base.identidade,
+      identidade: mergedIdentity.identity,
       riscosIdentificados: risks,
       acoesCategorizadas: actions,
       leitura: {
@@ -404,9 +432,24 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
       },
     };
     return withNaiDocumentWorkflow(withPgrSuggestedActions(safe, pages), pages, documento);
-  } catch {
+  } catch (error) {
+    const status =
+      error && typeof error === "object"
+        ? String(
+            (error as { status?: unknown; code?: unknown }).status ||
+              (error as { code?: unknown }).code ||
+              ""
+          )
+        : "";
+    const reason = timedOut
+      ? "O tempo de leitura da IA foi excedido. Tente novamente ou divida o documento por unidade."
+      : /429|RESOURCE_EXHAUSTED/.test(status)
+        ? "O serviço de IA atingiu o limite temporário de uso. Tente novamente em alguns minutos."
+        : /401|403|404|PERMISSION_DENIED|UNAUTHENTICATED|NOT_FOUND/.test(status)
+          ? "O provedor de IA não está acessível. A administração precisa conferir o modelo e a autorização do serviço."
+          : "A IA não concluiu esta análise ou retornou uma estrutura incompleta. Tente analisar novamente.";
     return pending(
-      "A IA não concluiu esta análise. Exibida a extração documental com tarefas propostas para revisão; o rascunho precisa ser reanalisado antes da integração.",
+      `${reason} A extração documental foi preservada; a integração aguarda uma análise concluída.`,
       "indisponivel"
     );
   } finally {

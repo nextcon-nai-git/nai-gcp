@@ -4,34 +4,27 @@
 
 @layer base {
   :root {
-    /* Nextcon Enterprise Palette 2026 - Sober Grey & Deep Navy */
-    --background: 210 40% 98%; /* #F8FAFC */
-    --foreground: 215 32% 17%; /* #1E293B */
-
-    --card: 0 0% 100%;
-    --card-foreground: 215 32% 17%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 215 32% 17%;
-
-    --primary: 210 100% 12%; /* #001F3F - Darker Navy */
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 215 25% 27%; /* #334155 - Slate Grey */
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 215 25% 27%; /* #334155 - Dark Slate Grey */
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 84% 60%; /* #EF4444 */
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 210 100% 12%;
+    /* NAI navy theme: shared by cards, forms, overlays and navigation. */
+    color-scheme: dark;
+    --background: 217 58% 10%;
+    --foreground: 0 0% 100%;
+    --card: 216 48% 15%;
+    --card-foreground: 0 0% 100%;
+    --popover: 216 48% 15%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 213 82% 43%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 215 38% 23%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 216 40% 20%;
+    --muted-foreground: 214 28% 80%;
+    --accent: 213 48% 26%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 70% 44%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 215 32% 31%;
+    --input: 215 32% 36%;
+    --ring: 211 96% 76%;
     --radius: 1.5rem;
 
     /* Sidebar Variables 2026 */
@@ -48,11 +41,11 @@
 
 @layer components {
   .glass-panel {
-    @apply bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm transition-all duration-300;
+    @apply bg-card/90 backdrop-blur-xl border border-border shadow-sm transition-all duration-300;
   }
 
   .glass-card {
-    @apply bg-white/90 backdrop-blur-md border border-slate-200/80 shadow-[0_4px_20px_rgba(0,31,63,0.06)] rounded-3xl transition-all duration-300;
+    @apply bg-card/95 backdrop-blur-md border border-border shadow-[0_4px_20px_rgba(0,31,63,0.06)] rounded-3xl transition-all duration-300;
   }
 
   .gradient-nextcon {
@@ -74,7 +67,7 @@
   }
 
   .text-gradient-navy {
-    background: linear-gradient(135deg, #001f3f 0%, #1e3a8a 100%);
+    background: linear-gradient(135deg, #ffffff 0%, #a9ceff 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
@@ -113,10 +106,10 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased selection:bg-primary/10 selection:text-primary;
+    @apply bg-background text-foreground antialiased selection:bg-blue-600 selection:text-white;
     font-family: "Inter", sans-serif;
     background-attachment: fixed;
-    background-image: radial-gradient(at 0% 0%, hsla(210, 100%, 97%, 1) 0, transparent 50%);
+    background-image: radial-gradient(at 0% 0%, hsla(214, 62%, 22%, 0.5) 0, transparent 50%);
   }
 }
 
@@ -130,11 +123,19 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-primary/10 rounded-full hover:bg-primary/20;
+  @apply bg-slate-500/60 rounded-full hover:bg-slate-400/80;
 }
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+@media screen {
+  .dark .recharts-default-tooltip {
+    background-color: hsl(var(--popover)) !important;
+    color: hsl(var(--popover-foreground));
+    border-color: hsl(var(--border)) !important;
+  }
 }
 
 .animate-shake {
@@ -200,5 +201,23 @@ body {
   select,
   textarea {
     font-size: 16px !important;
+  }
+}
+
+/* Document printing keeps paper colors independent of the application theme. */
+@media print {
+  :root {
+    color-scheme: light;
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 0%;
+    --muted: 0 0% 95%;
+    --muted-foreground: 0 0% 25%;
+    --border: 0 0% 75%;
+  }
+  body {
+    background: white;
+    color: black;
   }
 }

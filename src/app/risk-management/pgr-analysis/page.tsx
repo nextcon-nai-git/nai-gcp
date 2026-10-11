@@ -262,7 +262,7 @@ export default function NaiImportaPage() {
     setConfirmed(false);
     setSelectedCompany("");
     setIncludeProviders(true);
-    const timer = setTimeout(() => controller.abort(), 120000);
+    const timer = setTimeout(() => controller.abort(), 300000);
     try {
       const body = new FormData();
       body.set("file", normalizedFile);
@@ -495,7 +495,7 @@ export default function NaiImportaPage() {
           <div className="mt-5 flex flex-col justify-between gap-3 border-t pt-4 sm:flex-row sm:items-center">
             <p role="status" aria-live="polite" className="text-sm text-teal-800">
               Identificando o documento e consultando o agente responsável. Aguarde a conclusão da
-              análise.
+              análise. Documentos extensos podem levar alguns minutos.
             </p>
             <Button variant="ghost" size="sm" onClick={cancelAnalysis}>
               Interromper leitura

@@ -83,7 +83,7 @@ export async function preparePgrDraft(
         "Este documento já está sendo analisado. Aguarde e tente novamente.",
         429
       );
-    tx.set(leaseRef, { ownerUid: user.uid, busyUntil: now + 120000 }, { merge: true });
+    tx.set(leaseRef, { ownerUid: user.uid, busyUntil: now + 330000 }, { merge: true });
   });
   try {
     const analysis = PgrAnalysisOutputSchema.parse(
