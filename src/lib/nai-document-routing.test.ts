@@ -213,3 +213,15 @@ describe("NAI importa: prestadores e plano por documento", () => {
     expect(result.acoesCategorizadas.every((action) => action.colunaKanban === "todo")).toBe(true);
   });
 });
+
+it("reconhece CREA com UF antes do número e separa o cliente em tabela sem dois-pontos", () => {
+  const header =
+    "Responsável Técnico: Engenheiro Exemplo\n\nCREA: PR 123456-D\nRegistro MTE: 123456/MG\n";
+  const providers = extractNaiProviders([
+    { numero: 1, texto: header },
+    { numero: 3, texto: header + "\nRazão Social   CLIENTE EXEMPLO\nCNPJ   43.776.491/0001-70" },
+  ]);
+  expect(providers).toHaveLength(1);
+  expect(providers[0]).toMatchObject({ cnpj: "", registroProfissional: "CREA: PR 123456-D" });
+  expect(providers[0].evidencias[0].trecho).not.toContain("CLIENTE EXEMPLO");
+});

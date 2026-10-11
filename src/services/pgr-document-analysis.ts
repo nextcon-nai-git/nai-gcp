@@ -261,7 +261,7 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
       }),
     ]);
     const parsed = PgrModelOutputSchema.safeParse(response?.output);
-    if (!parsed.success) throw new Error("IA sem resultado estruturado.");
+    if (!parsed.success) throw new Error("Schema validation: IA sem resultado estruturado.");
     const extracted = parsed.data;
     const clinical = documento.acesso === "clinico_restrito";
     const isErgonomic = ["AEP", "AET", "DADOS_ERGONOMICOS"].includes(documento.tipo);
@@ -450,21 +450,8 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
     };
     return withNaiDocumentWorkflow(withPgrSuggestedActions(safe, pages), pages, documento);
   } catch (error) {
-    const status =
-      error && typeof error === "object"
-        ? String(
-            (error as { status?: unknown; code?: unknown }).status ||
-              (error as { code?: unknown }).code ||
-              ""
-          )
-        : "";
-    const reason = timedOut
-      ? "O tempo de leitura da IA foi excedido. Tente novamente ou divida o documento por unidade."
-      : /429|RESOURCE_EXHAUSTED/.test(status)
-        ? "O serviço de IA atingiu o limite temporário de uso. Tente novamente em alguns minutos."
-        : /401|403|404|PERMISSION_DENIED|UNAUTHENTICATED|NOT_FOUND/.test(status)
-          ? "O provedor de IA não está acessível. A administração precisa conferir o modelo e a autorização do serviço."
-          : "A IA não concluiu esta análise ou retornou uma estrutura incompleta. Tente analisar novamente.";
+    const code = timedOut ? "TIMEOUT" : aiFailureCode(error);
+    const reason = `${aiFailureMessage(code)} Código: ${code}.`;
     return pending(
       `${reason} A extração documental foi preservada; a integração aguarda uma análise concluída.`,
       "indisponivel"

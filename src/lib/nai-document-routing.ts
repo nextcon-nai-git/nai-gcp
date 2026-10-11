@@ -195,7 +195,7 @@ export function extractNaiProviders(pages: PgrPage[]): NaiProvider[] {
       const nextEntity = context
         .slice(match[0].trimStart().length)
         .search(
-          /\n\s*(?:empresa|raz[aã]o\s+social|contratante|cliente|contratada|prestador|respons[aá]vel\s+t[eé]cnico|m[eé]dico\s+(?:respons[aá]vel|examinador|coordenador))\s*:/i
+          /\n\s*(?:empresa|raz[aã]o\s+social|contratante|cliente|contratada|prestador|respons[aá]vel\s+t[eé]cnico|m[eé]dico\s+(?:respons[aá]vel|examinador|coordenador))(?:\s*:|[ \t]+|\s*\n)/i
         );
       if (nextEntity >= 0) context = context.slice(0, match[0].trimStart().length + nextEntity);
       const cnpj = compact(
@@ -205,7 +205,7 @@ export function extractNaiProviders(pages: PgrPage[]): NaiProvider[] {
       );
       const registroProfissional = compact(
         context.match(
-          /\b(?:CRM|CREA|COREN|CREFITO|CRP)\s*(?:[-/]\s*[A-Z]{2})?\s*[:º°n.N\s-]*\d[\d.\s-]{1,30}(?:\s*[-/]\s*[A-Z]{2})?/i
+          /\b(?:CRM|CREA|COREN|CREFITO|CRP)[ \t]*(?:[-/][ \t]*[A-Z]{2})?[ \t:º°n.N-]*(?:[A-Z]{2}[ \t]+)?\d[\d.]*(?:[ \t]*[-/][ \t]*[A-Z0-9]{1,8})?/i
         )?.[0] || ""
       );
       const row: NaiProvider = {
