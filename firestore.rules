@@ -11,9 +11,17 @@ service cloud.firestore {
         : null;
     }
 
+    function isInternalStaff(profile) {
+      return profile != null && (
+        profile.role == 'SUPER_ADMIN' ||
+        (profile.role in ['ADMIN', 'OPERATIONS'] &&
+          (!('tenantId' in profile) || profile.tenantId == null || profile.tenantId == '') &&
+          (!('companyId' in profile) || profile.companyId == null || profile.companyId in ['', 'nextcon']))
+      );
+    }
+
     function isNextconOfficial() {
-      let profile = getUserProfile();
-      return isSignedIn() && profile != null && profile.role in ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'];
+      return isSignedIn() && isInternalStaff(getUserProfile());
     }
 
     function belongsToCompany(companyId) {
@@ -42,7 +50,10 @@ service cloud.firestore {
     function hasClinicalAccess(companyId) {
       let profile = getUserProfile();
       return isSignedIn() && profile != null && (
-        profile.role in ['SUPER_ADMIN', 'ADMIN'] ||
+        profile.role == 'SUPER_ADMIN' ||
+        (profile.role == 'ADMIN' && (isInternalStaff(profile) ||
+          profile.companyId == companyId ||
+          ('servedCompanies' in profile && profile.servedCompanies is list && companyId in profile.servedCompanies))) ||
         (profile.role in ['DOCTOR', 'NURSE', 'HEALTH_PROFESSIONAL', 'PROVIDER'] &&
           (profile.companyId == companyId || ('servedCompanies' in profile && profile.servedCompanies is list && companyId in profile.servedCompanies)))
       );
@@ -203,17 +214,13 @@ service cloud.firestore {
         isNextconOfficial() ||
         belongsToCompany(resource.data.companyId)
       );
-      allow create: if isSignedIn() && (
-        isNextconOfficial() ||
-        isCompanyAdmin(request.resource.data.companyId) ||
-        isHealthProfessionalForCompany(request.resource.data.companyId)
-      );
-      allow update, delete: if isSignedIn() && (isNextconOfficial() || isCompanyAdmin(resource.data.companyId));
+      // Legacy background jobs are server-owned. Callers must use authenticated import APIs.
+      allow create, update, delete: if false;
     }
 
     match /{rootCollection}/{document=**} {
       allow read: if isSignedIn() && isNextconOfficial() && !(rootCollection in ['users', 'companies', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries']);
-      allow write: if isNextconOfficial() && !(rootCollection in ['users', 'companies', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs']);
+      allow write: if isNextconOfficial() && !(rootCollection in ['users', 'companies', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'analisesPGR']);
     }
   }
 }
