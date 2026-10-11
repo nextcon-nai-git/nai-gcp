@@ -18,6 +18,17 @@ export function evidenceIsInPages(evidence: { pagina: number; trecho: string }, 
   const page = pages.find((p) => p.numero === evidence.pagina);
   return !!page && normalizePgrText(page.texto).includes(normalizePgrText(evidence.trecho));
 }
+export function isPgrInventoryPage(text: string) {
+  if (
+    /(?:^|\n)\s*(?:\d+[.)]?\s*)?(?:INVENT[ÁA]RIO\s+DE\s+EPI|AVALIA[ÇC][ÕO]ES\s+PONTUAIS|CONCEITOS\s+DE\s+RISCOS|Classifica[çc][aã]o\s+dos\s+agentes|INTRODU[ÇC][ÃA]O|MATRIZ\s+DE\s+DECIS[ÃA]O|PLANO\s+DE\s+A[ÇC][ÃA]O|CRONOGRAMA|SUM[ÁA]RIO)/i.test(
+      text
+    )
+  )
+    return false;
+  return /(?:^|\n)\s*(?:\d+[.)]?\s*)?(?:RECONHECIMENTO\s+DE\s+RISCOS|INVENT[ÁA]RIO\s+DE\s+RISCOS|GHE\s*:?\s*\d+)|\b(?:exposi[çc][aã]o|expost[oa]s?)\s+(?:ocupacional\s+)?a\s+/i.test(
+    text
+  );
+}
 export function isPgrExposureEvidence(
   evidence: { pagina: number; trecho: string },
   pages: PgrPage[]
@@ -26,12 +37,18 @@ export function isPgrExposureEvidence(
   return (
     !!page &&
     evidenceIsInPages(evidence, pages) &&
-    !/CONCEITOS\s+DE\s+RISCOS|Classifica[çc][aã]o\s+dos\s+agentes|INTRODU[ÇC][ÃA]O|MATRIZ\s+DE\s+DECIS[ÃA]O/i.test(
-      page.texto
-    ) &&
-    /RECONHECIMENTO\s+DE\s+RISCOS|INVENT[ÁA]RIO|GHE|EXPOST[OA]|EXPOSI[ÇC][ÃA]O/i.test(page.texto) &&
+    isPgrInventoryPage(page.texto) &&
     !/(?:n[aã]o\s+h[aá]|sem|aus[eê]ncia\s+de)\s+exposi[çc][aã]o/i.test(evidence.trecho)
   );
+}
+function documentDate(text: string, label: string) {
+  const value = text.match(
+    new RegExp(
+      `(?:^|\\n)\\s*(?:${label})\\s*:?\\s*(\\d{1,2}/\\d{1,2}/\\d{4}|\\d{1,2} de [a-zç]+ de \\d{4})`,
+      "i"
+    )
+  )?.[1];
+  return value ? compact(value) : "";
 }
 export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
   const identityCandidates: {
@@ -82,7 +99,9 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
           /C\.?\s*N\.?\s*P\.?\s*J\.?\s*:?\s*(\d{2}[.\s]?\d{3}[.\s]?\d{3}\s*\/\s*\d{4}\s*-\s*\d{2}|\d{14})/i
         )?.[1] || "";
       const address =
-        context.match(/Endere[çc]o(?:\s*\([^\n)]*\))?\s*:?\s*([^\n]{3,400})/i)?.[1] || "";
+        context.match(
+          /Endere[çc]o(?:\s*\([^\n)]*\))?\s*:?\s*([\s\S]{3,500}?)(?=\n\s*(?:C\.?N\.?P\.?J|CNAE|Grau|Quantidade|Modelo|Telefone|E-mail|Raz[aã]o|Nome|ELABORA[ÇC][ÃA]O|REVIS[ÃA]O)\b|$)/i
+        )?.[1] || "";
       // Unpunctuated table labels require a nearby CNPJ; wrapped prose such as
       // "cliente Exemplo" in job descriptions is not another employer identity.
       if (!m[0].includes(":") && !cnpj) continue;
@@ -133,12 +152,17 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
       label: "Fatores ergonômicos",
       category: "ergonomico",
       pattern:
-        /\b(?:postura\s+(?:inadequada|est[aá]tica)|movimentos?\s+repetitivos?|levantamento\s+(?:manual\s+)?de\s+cargas|sobrecarga\s+muscular)\b/i,
+        /\b(?:postura\s+(?:inadequada|est[aá]tica|sentada|em\s+p[eé])|exig[eê]ncia\s+postural|movimentos?\s+repetitivos?|levantamento\s+(?:manual\s+)?de\s+cargas|sobrecarga\s+muscular)\b/i,
     },
     {
       label: "Fatores psicossociais",
       category: "psicossocial",
       pattern: /\b(?:fatores?\s+psicossociais|ass[eé]dio|sobrecarga\s+de\s+trabalho)\b/i,
+    },
+    {
+      label: "Acidente de trânsito",
+      category: "acidente",
+      pattern: /\bacidente\s+de\s+tr[aâ]nsito\b/i,
     },
     {
       label: "Trabalho em altura",
@@ -158,27 +182,43 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
     },
   ];
   const sectors = new Set<string>();
-  for (const page of pages) {
-    // Definições, introdução, índice e matrizes não provam exposição da unidade.
-    if (
-      /CONCEITOS\s+DE\s+RISCOS|Classifica[çc][aã]o\s+dos\s+agentes|INTRODU[ÇC][ÃA]O|MATRIZ\s+DE\s+DECIS[ÃA]O/i.test(
-        page.texto
-      )
-    )
+  const riskPages = pages.flatMap((page) => {
+    const headings = [...page.texto.matchAll(/(?:^|\n)[ \t]*GHE\s*:?\s*\d+\s*[-–][^\n]+/gi)];
+    if (headings.length < 2 || !isPgrInventoryPage(page.texto)) return [page];
+    return headings.map((heading, index) => ({
+      numero: page.numero,
+      texto: page.texto.slice(heading.index, headings[index + 1]?.index),
+    }));
+  });
+  for (const page of riskPages) {
+    if (risks.length >= 100) break;
+    if (!isPgrInventoryPage(page.texto)) continue;
+    if (page.riscosTabela?.length) {
+      for (const row of page.riscosTabela.slice(0, 100 - risks.length)) {
+        if (!evidenceIsInPages({ pagina: page.numero, trecho: row.trecho }, pages)) continue;
+        risks.push({
+          id: id(row.agente + row.setorGhe + row.trecho),
+          agente: row.agente,
+          categoria: row.categoria,
+          setorGhe: row.setorGhe,
+          evidencia: { pagina: page.numero, trecho: row.trecho },
+          controlesDocumentados: row.controlesDocumentados,
+          classificacaoOriginal: row.classificacaoOriginal,
+        });
+      }
       continue;
-    const inventory =
-      /RECONHECIMENTO\s+DE\s+RISCOS|INVENT[ÁA]RIO|GHE|EXPOST[OA]|EXPOSI[ÇC][ÃA]O/i.test(page.texto);
-    if (!inventory) continue;
+    }
     const lines = page.texto.split("\n").map(compact).filter(Boolean);
     const sectorIndex = lines.findIndex((l) => /RECONHECIMENTO DE RISCOS|INVENT[ÁA]RIO/i.test(l));
     const sector =
-      sectorIndex >= 0
+      page.texto.match(/(?:^|\n)\s*GHE\s*:?\s*\d+\s*[-–][^\n]+/i)?.[0].trim() ||
+      (sectorIndex >= 0
         ? lines
             .slice(sectorIndex + 1, sectorIndex + 5)
             .filter((l) => !/^Grupo Homog|^Fun[çc][oõ]es|^Tipos de|^\d+$/.test(l))
             .join(" · ")
             .slice(0, 300)
-        : page.texto.match(/GHE\s*[:\d-]+[^\n]{0,150}/i)?.[0] || "Setor a conferir";
+        : page.texto.match(/GHE\s*[:\d-]+[^\n]{0,150}/i)?.[0] || "Setor a conferir");
     for (const spec of riskPatterns) {
       const match = spec.pattern.exec(page.texto);
       if (!match) continue;
@@ -224,9 +264,15 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
       cnae: compact(cnae),
       grauDeRisco: degree ? Number(degree) : null,
       enderecoCompleto: candidate?.address || "",
-      cidadeUf: "",
-      dataEmissao: "",
-      dataValidade: "",
+      cidadeUf:
+        candidate?.address
+          .match(/([^,–\n-]+)\s*\/\s*([A-Z]{2})\b/)
+          ?.slice(1)
+          .map((x) => x.trim())
+          .join("/") || "",
+      dataEmissao: documentDate(allText, "data de emiss[aã]o|emiss[aã]o|elabora[çc][aã]o"),
+      dataValidade: documentDate(allText, "data de validade|validade|vig[eê]ncia at[eé]"),
+      dataRevisao: documentDate(allText, "pr[oó]xima revis[aã]o|revis[aã]o"),
       coordenadasGps: "",
       totalRiscosMapeados: risks.length,
       ghesIdentificados: [...documentedGhes.values()].slice(0, 200),

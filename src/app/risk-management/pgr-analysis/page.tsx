@@ -919,6 +919,9 @@ export default function NaiImportaPage() {
                       ))}
                       <div className="grid gap-2 border-t pt-3 text-xs text-slate-500 sm:grid-cols-2">
                         <p>Emissão: {result.pgrCardDetalhado.dataEmissao || "não identificada"}</p>
+                        {result.pgrCardDetalhado.dataRevisao && (
+                          <p>Revisão prevista: {result.pgrCardDetalhado.dataRevisao}</p>
+                        )}
                         <p>
                           Validade: {result.pgrCardDetalhado.dataValidade || "não identificada"}
                         </p>
