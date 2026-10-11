@@ -94,9 +94,16 @@ describe("Perfis e prontuários", () => {
   });
   it("ignora claims forjadas e usa o perfil armazenado para autorização", async () => {
     const forged = { role: "SUPER_ADMIN", companyId: "foreign" };
-    await assertFails(getDoc(doc(dbWithClaims("client", forged), "companies/foreign/private/synthetic")));
     await assertFails(
-      getBytes(ref(storeWithClaims("client", forged), "clientes/foreign/colaboradores/synthetic/record.pdf"))
+      getDoc(doc(dbWithClaims("client", forged), "companies/foreign/private/synthetic"))
+    );
+    await assertFails(
+      getBytes(
+        ref(
+          storeWithClaims("client", forged),
+          "clientes/foreign/colaboradores/synthetic/record.pdf"
+        )
+      )
     );
   });
   it("cliente e operador não alteram a integração e o registro de auditoria", async () => {
