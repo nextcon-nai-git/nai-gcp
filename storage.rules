@@ -45,16 +45,39 @@ service firebase.storage {
       );
     }
 
-    match /clientes/{companyId}/{category}/{allPaths=**} {
-      allow read: if category == 'colaboradores' || category == 'prontuarios'
-        ? hasClinicalAccess(companyId)
-        : isSignedIn() && (isNextconOfficial() || belongsToCompany(companyId));
-      allow create, update: if (category == 'colaboradores' || category == 'prontuarios'
-        ? hasClinicalAccess(companyId)
-        : isSignedIn() && (isNextconOfficial() || isCompanyAdmin(companyId) || isHealthProfessionalForCompany(companyId))) && isSafeFile();
-      allow delete: if category == 'colaboradores' || category == 'prontuarios'
-        ? isSignedIn() && getUserData().role == 'SUPER_ADMIN'
-        : isSignedIn() && (isNextconOfficial() || isCompanyAdmin(companyId));
+    function isClinicalImport(category, folderOrFile) {
+      return category == 'prontuarios' && folderOrFile == 'importacoes';
+    }
+
+    function hasClinicalImportAccess(companyId) {
+      let user = getUserData();
+      let tenantId = user != null && 'tenantId' in user && user.tenantId is string
+        ? user.tenantId
+        : user != null && 'companyId' in user && user.companyId is string
+          ? user.companyId
+          : '';
+      return isSignedIn() && user != null && (
+        user.role == 'SUPER_ADMIN' ||
+        (user.role == 'ADMIN' && tenantId == '') ||
+        (user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'HEALTH_PROFESSIONAL'] &&
+          (tenantId == companyId || ('servedCompanies' in user && user.servedCompanies is list && companyId in user.servedCompanies)))
+      );
+    }
+
+    match /clientes/{companyId}/{category}/{folderOrFile}/{allPaths=**} {
+      allow read: if isClinicalImport(category, folderOrFile)
+        ? hasClinicalImportAccess(companyId)
+        : category == 'colaboradores' || category == 'prontuarios'
+          ? hasClinicalAccess(companyId)
+          : isSignedIn() && (isNextconOfficial() || belongsToCompany(companyId));
+      allow create, update: if !isClinicalImport(category, folderOrFile) &&
+        (category == 'colaboradores' || category == 'prontuarios'
+          ? hasClinicalAccess(companyId)
+          : isSignedIn() && (isNextconOfficial() || isCompanyAdmin(companyId) || isHealthProfessionalForCompany(companyId))) && isSafeFile();
+      allow delete: if !isClinicalImport(category, folderOrFile) &&
+        (category == 'colaboradores' || category == 'prontuarios'
+          ? isSignedIn() && getUserData().role == 'SUPER_ADMIN'
+          : isSignedIn() && (isNextconOfficial() || isCompanyAdmin(companyId)));
     }
 
     match /internos_nextcon/{allPaths=**} {

@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["pdfjs-dist"],
   outputFileTracingIncludes: {
     "/api/pgr/*": ["./node_modules/pdfjs-dist/legacy/build/*.mjs"],
+    "/api/nai-importa/*": ["./node_modules/pdfjs-dist/legacy/build/*.mjs"],
     "/api/financial/balances": ["./node_modules/pdfjs-dist/legacy/build/*.mjs"],
   },
   typescript: {

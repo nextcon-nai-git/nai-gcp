@@ -52,6 +52,39 @@ service cloud.firestore {
       return name in ['aso_attendances', 'medical_records', 'clinical_records', 'prontuarios', 'medical_certificates'];
     }
 
+    function isClinicalImportDocument(name, documentId) {
+      return name == 'clinical_records' && documentId.matches('import_.*');
+    }
+
+    function hasClinicalImportAccess(companyId) {
+      let profile = getUserProfile();
+      let tenantId = profile != null && 'tenantId' in profile && profile.tenantId is string
+        ? profile.tenantId
+        : profile != null && 'companyId' in profile && profile.companyId is string
+          ? profile.companyId
+          : '';
+      return isSignedIn() && profile != null && (
+        profile.role == 'SUPER_ADMIN' ||
+        (profile.role == 'ADMIN' && tenantId == '') ||
+        (profile.role in ['ADMIN', 'DOCTOR', 'NURSE', 'HEALTH_PROFESSIONAL'] &&
+          (tenantId == companyId || ('servedCompanies' in profile && profile.servedCompanies is list && companyId in profile.servedCompanies)))
+      );
+    }
+
+    function isImportOperationalCollection(name) {
+      return name in ['tasks', 'risks'];
+    }
+
+    function hasImportSource(data) {
+      return 'sourceType' in data && data.sourceType == 'pgr';
+    }
+
+    function isServerManagedImportDocument(name, documentId) {
+      return name == 'pgr_cards' || isClinicalImportDocument(name, documentId) ||
+        (name == 'tasks' && documentId.matches('pgr_.*')) ||
+        (name == 'risks' && documentId.matches('risk_.*'));
+    }
+
     function userSelfManagedCreateKeysAreValid(userId) {
       return request.resource.data.keys().hasOnly(['id', 'email', 'name', 'updatedAt', 'crm', 'rqe', 'certificate_info'])
         && request.resource.data.id == userId
@@ -76,16 +109,31 @@ service cloud.firestore {
       allow list: if isNextconOfficial();
     }
 
-    match /companies/{companyId}/{subcollection}/{document=**} {
-      allow read: if isClinicalCollection(subcollection)
-        ? hasClinicalAccess(companyId)
-        : isSignedIn() && (belongsToCompany(companyId) || isNextconOfficial());
-      allow create, update: if isClinicalCollection(subcollection)
-        ? hasClinicalAccess(companyId)
-        : isCompanyAdmin(companyId) || isNextconOfficial();
-      allow delete: if isClinicalCollection(subcollection)
-        ? isSecurityAdmin()
-        : isCompanyAdmin(companyId) || isNextconOfficial();
+    match /companies/{companyId}/{subcollection}/{documentId}/{nested=**} {
+      allow read: if isClinicalImportDocument(subcollection, documentId)
+        ? hasClinicalImportAccess(companyId)
+        : isClinicalCollection(subcollection)
+          ? hasClinicalAccess(companyId)
+          : isSignedIn() && (belongsToCompany(companyId) || isNextconOfficial());
+      // Import records are written by authenticated server handlers. Checking
+      // both versions of sourceType also blocks changing/removing the marker to
+      // bypass checklist, classification or clinical-review validation.
+      allow create: if !isServerManagedImportDocument(subcollection, documentId) &&
+        !(isImportOperationalCollection(subcollection) && hasImportSource(request.resource.data)) &&
+        (isClinicalCollection(subcollection)
+          ? hasClinicalAccess(companyId)
+          : isCompanyAdmin(companyId) || isNextconOfficial());
+      allow update: if !isServerManagedImportDocument(subcollection, documentId) &&
+        !(isImportOperationalCollection(subcollection) &&
+          (hasImportSource(resource.data) || hasImportSource(request.resource.data))) &&
+        (isClinicalCollection(subcollection)
+          ? hasClinicalAccess(companyId)
+          : isCompanyAdmin(companyId) || isNextconOfficial());
+      allow delete: if !isServerManagedImportDocument(subcollection, documentId) &&
+        !(isImportOperationalCollection(subcollection) && hasImportSource(resource.data)) &&
+        (isClinicalCollection(subcollection)
+          ? isSecurityAdmin()
+          : isCompanyAdmin(companyId) || isNextconOfficial());
     }
 
     match /users/{userId} {
@@ -94,6 +142,20 @@ service cloud.firestore {
       allow update: if (isSelf(userId) && userSelfManagedUpdateKeysAreValid()) || isSecurityAdmin() ||
         ((isNextconOfficial() || isCompanyAdmin(resource.data.companyId)) && userSelfManagedUpdateKeysAreValid());
       allow delete: if isSecurityAdmin();
+    }
+
+    // Import drafts can contain unreviewed clinical text. Only authenticated
+    // server handlers may return their contents after checking the owner/role.
+    match /nai_importa_drafts/{draftId} {
+      allow read, write: if false;
+    }
+
+    // Preserve other operational user subcollections without exposing drafts
+    // through the broad root-collection read rule below.
+    match /users/{userId}/{subcollection}/{document=**} {
+      allow read: if isNextconOfficial() &&
+        !(subcollection in ['pgr_analysis_drafts', 'nai_import_drafts', 'nai_importa_drafts']);
+      allow write: if false;
     }
 
     match /documents/{documentId} {
@@ -145,8 +207,8 @@ service cloud.firestore {
     }
 
     match /{rootCollection}/{document=**} {
-      allow read: if isSignedIn() && isNextconOfficial() && !(rootCollection in ['companies', 'api_keys', 'webhooks', 'webhook_deliveries']);
-      allow write: if isNextconOfficial() && !(rootCollection in ['users', 'companies', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries']);
+      allow read: if isSignedIn() && isNextconOfficial() && !(rootCollection in ['users', 'companies', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries']);
+      allow write: if isNextconOfficial() && !(rootCollection in ['users', 'companies', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries']);
     }
   }
 }

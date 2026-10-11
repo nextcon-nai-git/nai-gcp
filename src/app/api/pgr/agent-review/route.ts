@@ -8,8 +8,9 @@ import { AuthError, handleAuthError, badRequest } from "@/lib/auth/errors";
 import { adminDb } from "@/lib/firebase-admin";
 import { getPgrAi } from "@/services/pgr-ai-provider";
 import { assertPgrClientBinding } from "@/lib/pgr-save-plan";
-import { PGR_AGENT_ROLES, PgrAnalysisOutputSchema } from "@/lib/pgr-schema";
+import { PGR_AGENT_ROLES, getNaiDocument } from "@/lib/pgr-schema";
 import { pgrAgentPrompt } from "@/lib/pgr-agent-prompts";
+import { loadNaiImportForReview } from "@/services/nai-import-review";
 export const runtime = "nodejs";
 export const maxDuration = 90;
 const Input = z.object({
@@ -38,14 +39,7 @@ export async function GET(request: NextRequest) {
     await requirePgrAppCheck(request);
     const input = Input.parse(Object.fromEntries(request.nextUrl.searchParams));
     requirePgrCompany(user, input.companyId);
-    const ref = adminDb
-      .collection("companies")
-      .doc(input.companyId)
-      .collection("pgr_cards")
-      .doc(input.cardId);
-    const card = await ref.get();
-    if (!card.exists || card.data()?.companyId !== input.companyId)
-      throw badRequest("PGR não encontrado nesta empresa.");
+    const { ref } = await loadNaiImportForReview(user, input);
     const snap = await ref.collection("agent_reviews").doc(input.role).get();
     const parsed = Review.safeParse(snap.data()?.review);
     return NextResponse.json(
@@ -67,22 +61,9 @@ export async function POST(request: NextRequest) {
     if (Buffer.byteLength(text) > 2000) throw badRequest("Solicitação acima do limite.");
     const input = Input.parse(JSON.parse(text));
     requirePgrCompany(user, input.companyId);
-    const ref = adminDb
-      .collection("companies")
-      .doc(input.companyId)
-      .collection("pgr_cards")
-      .doc(input.cardId);
-    const snap = await ref.get();
-    if (!snap.exists)
-      throw badRequest("Integre o PGR ao cliente antes de solicitar revisão do agente.");
-    const analysis = PgrAnalysisOutputSchema.parse(snap.data()?.analysis);
-    const company = await adminDb.collection("companies").doc(input.companyId).get();
-    if (
-      !company.exists ||
-      snap.data()?.companyId !== input.companyId ||
-      snap.data()?.sourceHash !== input.cardId
-    )
-      throw badRequest("Vínculo do PGR inválido. Reimporte o original para revisão.");
+    const { ref, analysis, companyRef } = await loadNaiImportForReview(user, input);
+    const company = await companyRef.get();
+    if (!company.exists) throw badRequest("Cliente não encontrado para a revisão do documento.");
     assertPgrClientBinding(analysis, {
       id: input.companyId,
       name: String(company.data()?.name || ""),
@@ -112,10 +93,12 @@ export async function POST(request: NextRequest) {
           { text: pgrAgentPrompt(input.role) },
           {
             text: JSON.stringify({
+              documento: getNaiDocument(analysis),
               empresa: analysis.pgrCardDetalhado,
               riscos: analysis.riscosIdentificados,
               acoes: analysis.acoesCategorizadas.filter((a) => a.agenteSugerido === input.role),
               leitura: analysis.leitura,
+              analiseInicial: analysis.analiseAgente ?? null,
             }),
           },
         ],

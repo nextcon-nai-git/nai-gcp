@@ -4,6 +4,8 @@
  * Optimized for multi-tenant subcollections and ERP audit standards.
  */
 
+import type { NaiDocumentType } from "@/lib/pgr-schema";
+
 export type RiskCategory = "fisico" | "quimico" | "biológico" | "ergonomico" | "acidente";
 export type TaskStatus =
   | "to_review"
@@ -22,6 +24,11 @@ export type TaskType =
   | "pgr"
   | "pcmso"
   | "ltcat"
+  | "aso"
+  | "pericia_medica"
+  | "aep"
+  | "aet"
+  | "ergonomia"
   | "treinamento"
   | "esocial"
   | "iot_check"
@@ -141,6 +148,9 @@ export interface Company extends MasterEntity {
 
 export interface OpsTask extends MasterEntity {
   sourceType?: "pgr" | "client_request";
+  sourceLabel?: string;
+  documentType?: NaiDocumentType;
+  restricted?: boolean;
   description?: string;
   department?: string;
   pgrCardId?: string;

@@ -74,7 +74,7 @@ export function PgrAgentReview({
   }
   return (
     <div className="space-y-3 rounded-xl border bg-slate-50 p-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm font-bold">{PGR_AGENT_NAMES[role]}</p>
         <Button size="sm" variant="outline" onClick={run} disabled={busy || !user}>
           {busy ? (
@@ -82,11 +82,12 @@ export function PgrAgentReview({
           ) : (
             <Bot className="mr-2 size-4" />
           )}
-          Preparar revisão IA
+          {busy ? "Consultando agente…" : review ? "Atualizar revisão" : "Revisar documento"}
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">
-        Gera e salva um rascunho de revisão. A equipe valida e executa as ações.
+        O agente revisa as evidências deste documento e salva uma proposta de trabalho para
+        conferência da equipe.
       </p>
       {error && (
         <p role="alert" className="text-sm text-red-700">
