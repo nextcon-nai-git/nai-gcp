@@ -167,12 +167,49 @@ function EmployeesList() {
     if (!db || !role || activeClientId === "unauthorized") return null;
     if (activeClientId === "all") {
       if (!isGlobalStaff) return null;
-      return query(collectionGroup(db, "employees"));
+      return null;
     }
     return query(collection(db, "companies", activeClientId, "employees"), orderBy("name", "asc"));
   }, [db, activeClientId, role, isGlobalStaff]);
 
-  const { data: employees, isLoading: loadingEmployees } = useCollection(employeesQuery);
+  const { data: scopedEmployees, isLoading: loadingScopedEmployees } =
+    useCollection(employeesQuery);
+  const [globalEmployees, setGlobalEmployees] = React.useState<any[]>([]);
+  const [loadingGlobalEmployees, setLoadingGlobalEmployees] = React.useState(false);
+  const [employeesError, setEmployeesError] = React.useState("");
+  const [employeesTruncated, setEmployeesTruncated] = React.useState(false);
+  const [employeeReload, setEmployeeReload] = React.useState(0);
+  React.useEffect(() => {
+    if (!user || activeClientId !== "all" || !isGlobalStaff) return;
+    const controller = new AbortController();
+    setGlobalEmployees([]);
+    setEmployeesError("");
+    setLoadingGlobalEmployees(true);
+    void (async () => {
+      try {
+        const response = await fetch("/api/employees?company=all", {
+          headers: { Authorization: `Bearer ${await user.getIdToken()}` },
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error("unavailable");
+        const data = await response.json();
+        if (!controller.signal.aborted) {
+          setGlobalEmployees(data.employees);
+          setEmployeesTruncated(data.truncated);
+        }
+      } catch {
+        if (!controller.signal.aborted)
+          setEmployeesError("Não foi possível consultar os colaboradores. Tente novamente.");
+      } finally {
+        if (!controller.signal.aborted) setLoadingGlobalEmployees(false);
+      }
+    })();
+    return () => controller.abort();
+  }, [user, activeClientId, isGlobalStaff, employeeReload]);
+  const employees = activeClientId === "all" ? globalEmployees : scopedEmployees;
+  const loadingEmployees =
+    activeClientId === "all" ? loadingGlobalEmployees : loadingScopedEmployees;
 
   // Query para buscar exames do funcionário selecionado
   const examsQuery = useMemoFirebase(() => {
@@ -317,13 +354,29 @@ function EmployeesList() {
 
   return (
     <div className="space-y-8 text-left">
+      {activeClientId === "all" && employeesError && (
+        <div role="alert">
+          {employeesError}
+          <Button variant="outline" onClick={() => setEmployeeReload((value) => value + 1)}>
+            Tentar novamente
+          </Button>
+        </div>
+      )}
+      {activeClientId === "all" && employeesTruncated && (
+        <p role="status">
+          Exibindo até 1.000 colaboradores. Selecione uma unidade para consultar os demais.
+        </p>
+      )}
       <EmployeeCreateDialog
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
         db={db}
         companies={companies || []}
         selectedCompany={activeClientId}
-        onSaved={() => toast({ title: "Colaborador salvo" })}
+        onSaved={() => {
+          setEmployeeReload((value) => value + 1);
+          toast({ title: "Colaborador salvo" });
+        }}
       />
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
