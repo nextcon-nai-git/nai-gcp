@@ -158,6 +158,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /phi_audit_logs/{logId} {
+      allow read: if isNextconOfficial();
+      allow write: if false;
+    }
+
     match /documents/{documentId} {
       allow read: if isSignedIn() && (
         isNextconOfficial() ||
@@ -208,7 +213,7 @@ service cloud.firestore {
 
     match /{rootCollection}/{document=**} {
       allow read: if isSignedIn() && isNextconOfficial() && !(rootCollection in ['users', 'companies', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries']);
-      allow write: if isNextconOfficial() && !(rootCollection in ['users', 'companies', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries']);
+      allow write: if isNextconOfficial() && !(rootCollection in ['users', 'companies', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs']);
     }
   }
 }
