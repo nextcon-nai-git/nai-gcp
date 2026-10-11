@@ -700,7 +700,7 @@ export default function NaiImportaPage() {
               },
               { label: "Prestadores extraídos", value: providers.length, Icon: UserCheck },
               {
-                label: "Cards propostos",
+                label: agentComplete ? "Cards propostos" : "Roteiros para revisão",
                 value: result.acoesCategorizadas.length,
                 Icon: ClipboardList,
               },
@@ -851,7 +851,9 @@ export default function NaiImportaPage() {
                           <Badge variant="outline">
                             {action.fundamento === "documento"
                               ? "Consta no documento"
-                              : "Sugestão do agente"}
+                              : agentComplete
+                                ? "Sugestão do agente"
+                                : "Roteiro padrão — IA pendente"}
                           </Badge>
                           <Badge variant="secondary">
                             Prioridade {PRIORITY_LABELS[action.prioridade].toLowerCase()}
