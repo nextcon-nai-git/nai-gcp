@@ -89,6 +89,84 @@ describe("IA PGR com limites", () => {
 });
 
 describe("NAI importa: análise real do especialista e controle clínico", () => {
+  it("envia também o PDF textual original para a IA conferir tabelas e colunas", async () => {
+    mocks.readPages.mockResolvedValue([{ numero: 1, texto: text }]);
+    mocks.generate
+      .mockResolvedValueOnce({
+        output: {
+          tipo: "PGR",
+          statusClassificacao: "identificado",
+          contemDadosClinicosIndividuais: false,
+        },
+      })
+      .mockResolvedValueOnce({
+        output: parsePgrDocumentPages([{ numero: 1, texto: text }]),
+      });
+    const pdfDataUri = "data:application/pdf;base64,aGVsbG8=";
+    const result = await analyzePgrDocument({ pdfDataUri });
+    expect(mocks.generate.mock.calls[1][0].prompt).toContainEqual({ media: { url: pdfDataUri } });
+    expect(result.analiseAgente?.status).toBe("concluida");
+    expect(result.leitura.modo).toBe("ia_com_evidencias");
+  });
+
+  it("triagem do original detecta dados clínicos em PDF que possui texto em todas as páginas", async () => {
+    mocks.readPages.mockResolvedValue([{ numero: 1, texto: text }]);
+    mocks.generate.mockResolvedValueOnce({
+      output: {
+        tipo: "PGR",
+        statusClassificacao: "identificado",
+        contemDadosClinicosIndividuais: true,
+      },
+    });
+    await expect(
+      analyzePgrDocument({ pdfDataUri: "data:application/pdf;base64,aGVsbG8=" })
+    ).rejects.toMatchObject({ status: 403 });
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
+  });
+
+  it("classifica um título em várias linhas pela IA e verifica a evidência antes do especialista", async () => {
+    const source =
+      "PROGRAMA DE\nGERENCIAMENTO DE\nRISCOS\nRazão Social: EMPRESA TESTE\nCNPJ: 44.337.647/0001-89";
+    mocks.generate
+      .mockResolvedValueOnce({
+        output: {
+          tipo: "PGR",
+          statusClassificacao: "identificado",
+          contemDadosClinicosIndividuais: false,
+          evidencias: [{ pagina: 1, trecho: "PROGRAMA DE GERENCIAMENTO DE RISCOS" }],
+        },
+      })
+      .mockResolvedValueOnce({ output: parsePgrDocumentPages([{ numero: 1, texto: source }]) });
+    const result = await analyzePgrDocument({ pdfDataUri: source });
+    expect(result.documento?.tipo).toBe("PGR");
+    expect(result.analiseAgente?.status).toBe("concluida");
+    expect(mocks.generate).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejeita classificação textual sem título verificável", async () => {
+    mocks.generate.mockResolvedValueOnce({
+      output: {
+        tipo: "PGR",
+        statusClassificacao: "identificado",
+        contemDadosClinicosIndividuais: false,
+        evidencias: [{ pagina: 1, trecho: "Título inventado sem fonte" }],
+      },
+    });
+    const result = await analyzePgrDocument({
+      pdfDataUri: "Documento genérico de aquisição de materiais sem título de SST.",
+    });
+    expect(result.analiseAgente?.status).toBe("pendente");
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
+  });
+
+  it("informa limite do provedor sem divulgar a mensagem original", async () => {
+    mocks.generate.mockRejectedValue(
+      Object.assign(new Error("conteúdo confidencial do provedor"), { status: 429 })
+    );
+    const result = await analyzePgrDocument({ pdfDataUri: text });
+    expect(result.analiseAgente?.resumo).toContain("limite temporário");
+    expect(JSON.stringify(result)).not.toContain("conteúdo confidencial");
+  });
   it.each([
     ["PGR", "Engenheiro de Segurança", "engenheiro_seguranca", false],
     ["PCMSO", "Médico do Trabalho", "medico_trabalho", true],

@@ -22,7 +22,8 @@ describe("Suíte de Resiliência: Importação de PGR e Documentos Regulatórios
     expect(result.pgrCardDetalhado.razaoSocial).toContain("AVP");
     expect(result.pgrCardDetalhado.cnpj).toBe("05.474.924/0001-92");
     expect(result.pgrCardDetalhado.grauDeRisco).toBe(3);
-    expect(result.pgrCardDetalhado.ghesIdentificados.length).toBeGreaterThanOrEqual(1);
+    // The excerpt has no explicit GHE identifier; do not invent a group.
+    expect(result.pgrCardDetalhado.ghesIdentificados).toEqual([]);
     expect(result.acoesCategorizadas.length).toBeGreaterThanOrEqual(1);
     expect(result.riscosIdentificados.length).toBeGreaterThanOrEqual(1);
     expect(result.riscosIdentificados[0].evidencia.trecho).toContain("ruído");

@@ -42,8 +42,12 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
     address: string;
   }[] = [];
   for (const page of pages.slice(0, 12)) {
-    const regex =
-      /(?:raz[aã]o\s+social|empresa(?:\s+(?:avaliada|contratante))?|contratante|cliente|empregador)\s*:\s*([^\n]{3,300})/gi;
+    const identityLabel =
+      "(?:raz[aã]o\\s+social|empresa(?:\\s+(?:avaliada|contratante))?|contratante|cliente|empregador)";
+    const regex = new RegExp(
+      `(?:${identityLabel}\\s*:\\s*|(?:^|\\n)[ \\t]*${identityLabel}(?:[ \\t]+|\\s*\\n\\s*))([^\\n]{3,300})`,
+      "gi"
+    );
     for (const m of page.texto.matchAll(regex)) {
       // A provider's labeled corporate name is not a second client. Respect the nearest
       // identification block, and stop before the issuer when looking for an employer CNPJ.
@@ -51,12 +55,14 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
         ...page.texto
           .slice(0, m.index || 0)
           .matchAll(
-            /(?:^|\n)\s*((?:identifica[çc][aã]o|dados)\s+d[ao]\s+(?:empresa|contratante|cliente|prestador[a]?|contratada)|empresa\s+(?:elaboradora|prestadora|contratada|avaliada|contratante)|prestador[a]?|contratada|elaborad[oa]\s+por|respons[aá]vel\s+t[eé]cnico|m[eé]dico\s+(?:respons[aá]vel|examinador|coordenador)|cliente|contratante|empregador)\s*(?::|\n)/gi
+            /(?:^|\n)\s*(?:\d+[.)]?\s+)?((?:identifica[çc][aã]o|dados)\s+d[ao]\s+(?:empresa|contratante|cliente|prestador[a]?|contratada)|caracteriza[çc][aã]o\s+da\s+organiza[çc][aã]o[^\n]*|empresa\s+(?:elaboradora|prestadora|contratada|avaliada|contratante)|prestador[a]?|contratada|elaborad[oa]\s+por|respons[aá]vel\s+t[eé]cnico|m[eé]dico\s+(?:respons[aá]vel|examinador|coordenador)|cliente|contratante|empregador)\s*(?::|\n)/gi
           ),
       ];
       const heading = normalizePgrText(priorHeadings.at(-1)?.[1] || "");
       const explicitClient =
-        /^(?:cliente|contratante|empregador|empresa\s+(?:avaliada|contratante))\s*:/i.test(m[0]);
+        /^\s*(?:cliente|contratante|empregador|empresa\s+(?:avaliada|contratante))(?:\s*:|\s+)/i.test(
+          m[0]
+        );
       if (
         !explicitClient &&
         /prestador|contratada|elaborad|responsavel tecnico|medico/.test(heading)
@@ -68,14 +74,18 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
       if (!name || /^(respons[aá]vel|contratada|elaboradora|prestador)/i.test(name)) continue;
       const tail = page.texto.slice((m.index || 0) + m[0].length, (m.index || 0) + 1000);
       const nextEntity = tail.search(
-        /(?:raz[aã]o\s+social|empresa(?:\s+(?:elaboradora|prestadora|contratada|avaliada|contratante))?|contratante|cliente|empregador|prestador[a]?|contratada|cl[ií]nica(?:\s+executante)?|elaborad[oa]\s+por|respons[aá]vel\s+t[eé]cnico|m[eé]dico\s+(?:respons[aá]vel|examinador|coordenador)|(?:nome\s+d[oa]\s+)?(?:empregad[oa]|trabalhador[a]?|colaborador[a]?|paciente|funcion[aá]ri[oa]))\s*:/i
+        /(?:^|\n)[ \t]*(?:raz[aã]o\s+social|empresa(?:\s+(?:elaboradora|prestadora|contratada|avaliada|contratante))?|contratante|cliente|empregador|prestador[a]?|contratada|cl[ií]nica(?:\s+executante)?|elaborad[oa]\s+por|respons[aá]vel\s+t[eé]cnico|m[eé]dico\s+(?:respons[aá]vel|examinador|coordenador)|(?:nome\s+d[oa]\s+)?(?:empregad[oa]|trabalhador[a]?|colaborador[a]?|paciente|funcion[aá]ri[oa]))(?:\s*:|[ \t]+|\s*\n)/i
       );
       const context = m[0] + (nextEntity >= 0 ? tail.slice(0, nextEntity) : tail);
       const cnpj =
         context.match(
           /C\.?\s*N\.?\s*P\.?\s*J\.?\s*:?\s*(\d{2}[.\s]?\d{3}[.\s]?\d{3}\s*\/\s*\d{4}\s*-\s*\d{2}|\d{14})/i
         )?.[1] || "";
-      const address = context.match(/Endere[çc]o\s*:\s*([^\n]{3,400})/i)?.[1] || "";
+      const address =
+        context.match(/Endere[çc]o(?:\s*\([^\n)]*\))?\s*:?\s*([^\n]{3,400})/i)?.[1] || "";
+      // Unpunctuated table labels require a nearby CNPJ; wrapped prose such as
+      // "cliente Exemplo" in job descriptions is not another employer identity.
+      if (!m[0].includes(":") && !cnpj) continue;
       identityCandidates.push({
         name,
         cnpj: compact(cnpj),
@@ -197,8 +207,16 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
     }
     if (risks.length >= 100) break;
   }
-  const cnae = allText.match(/\bCNAE\s*:\s*([^\n]{1,160})/i)?.[1] || "";
-  const degree = allText.match(/Grau\s+de\s+Risco\s*:\s*([1-4])\b/i)?.[1];
+  const cnae = allText.match(/\bCNAE(?:\s+Principal)?\s*:?\s*(\d[^\n]{0,159})/i)?.[1] || "";
+  const degree = allText.match(/Grau\s+de\s+Risco\s*:?\s*(?:Grau\s*)?0?([1-4])\b/i)?.[1];
+  const documentedGhes = new Map<string, string>();
+  for (const match of allText.matchAll(
+    /(?:^|\n)[ \t]*GHE[ \t]*(:?)[ \t]*(\d+)[ \t]*[-–][ \t]*([^\n]{2,160})/gi
+  )) {
+    const previous = documentedGhes.get(match[2]);
+    if (!previous || (match[1] && !previous.startsWith("GHE:")))
+      documentedGhes.set(match[2], compact(match[0]));
+  }
   const output: PgrAnalysisOutput = {
     pgrCardDetalhado: {
       razaoSocial: candidate?.name || "",
@@ -211,7 +229,7 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
       dataValidade: "",
       coordenadasGps: "",
       totalRiscosMapeados: risks.length,
-      ghesIdentificados: [...sectors],
+      ghesIdentificados: [...documentedGhes.values()].slice(0, 200),
       esocialS2240Status:
         "A conferir pelo responsável técnico; PGR não comprova enquadramento ou transmissão do S-2240.",
     },

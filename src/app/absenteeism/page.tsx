@@ -688,7 +688,7 @@ export default function AbsenteeismPage() {
                                   <Progress value={progress} className="h-2 mt-2 bg-white/10" />
                                 </DialogHeader>
 
-                                <div className="flex-1 overflow-y-auto p-8 bg-[#F8FAFC]">
+                                <div className="flex-1 overflow-y-auto p-8 bg-background">
                                   <Tabs defaultValue="phase1" className="w-full">
                                     <TabsList className="grid w-full grid-cols-4 bg-muted/50 p-1.5 rounded-2xl h-16 mb-8">
                                       {NTEP_WORKFLOW_STEPS.map((phase) => (

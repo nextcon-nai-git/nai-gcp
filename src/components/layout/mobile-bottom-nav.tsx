@@ -68,7 +68,7 @@ export function MobileBottomNav() {
                   className={cn(
                     "p-1.5 rounded-xl transition-all duration-300",
                     item.isActive
-                      ? "bg-[#001F3F] text-accent shadow-md scale-105"
+                      ? "bg-[#001F3F] text-white shadow-md scale-105"
                       : "group-hover:bg-slate-100"
                   )}
                 >
@@ -103,7 +103,7 @@ export function MobileBottomNav() {
             className={cn(
               "p-1.5 rounded-xl transition-all duration-300",
               openMobile
-                ? "bg-[#001F3F] text-accent shadow-md scale-105"
+                ? "bg-[#001F3F] text-white shadow-md scale-105"
                 : "group-hover:bg-slate-100"
             )}
           >

@@ -18,6 +18,16 @@ A entrada da tela inicial e dos menus é **NAI importa**, em `/nai-importa`. A r
 
 A chamada ao modelo utiliza o prompt do especialista identificado. Documentos escaneados ou com páginas sem texto passam antes por uma triagem visual limitada a tipo e restrição clínica. Uma capa legível não permite ignorar anexos escaneados.
 
+### Leitura de tabelas e documentos extensos
+
+- O PDF original acompanha o texto com marcadores de página física, permitindo à IA conferir tabelas, colunas e imagens. Todo PDF/imagem passa por triagem do original antes do especialista, inclusive quando todas as páginas contêm texto.
+- Campos empresariais em tabelas sem dois-pontos são reconhecidos. A identificação mantém a separação entre empregador, prestador e clientes citados na descrição de atividades. A IA pode complementar identificação ausente somente com evidência verificável; identidades conflitantes permanecem para revisão.
+- Grupos de exposição vêm de identificadores GHE documentados. Títulos genéricos de tabelas não são transformados em grupos.
+- Títulos fragmentados podem ser classificados pela IA com evidência literal. Documentos ambíguos ou clínicos continuam sujeitos às mesmas restrições de acesso.
+- Orçamento de leitura: até 45 segundos para extração, 45 para triagem e 180 para análise; requisição e interface limitadas a 300 segundos. Falhas não marcam a análise como concluída. As mensagens distinguem tempo excedido, limite temporário e indisponibilidade do provedor sem expor seu conteúdo de erro.
+
+O tema padrão do aplicativo utiliza azul escuro e textos claros, incluindo componentes legados, estados de interação e formulários. A impressão preserva fundo de papel claro.
+
 Quando a IA está indisponível, excede o tempo ou não entrega análise estruturada suficiente, o resultado permanece pendente/indisponível. A extração de texto isolada não habilita a integração de uma nova análise. Os registros legados continuam consultáveis.
 
 ## Organização criada
