@@ -50,6 +50,11 @@ beforeEach(async () => {
       new Uint8Array([1, 2]),
       { contentType: "application/pdf" }
     );
+    await uploadBytes(
+      ref(ctx.storage(), "clientes/foreign/colaboradores/synthetic/record.pdf"),
+      new Uint8Array([1, 2]),
+      { contentType: "application/pdf" }
+    );
   });
 });
 afterAll(async () => {
@@ -59,6 +64,10 @@ const db = (uid: string) =>
   env.authenticatedContext(uid, { email: `${uid}@example.test` }).firestore();
 const store = (uid: string) =>
   env.authenticatedContext(uid, { email: `${uid}@example.test` }).storage();
+const dbWithClaims = (uid: string, claims: Record<string, unknown>) =>
+  env.authenticatedContext(uid, { email: `${uid}@example.test`, ...claims }).firestore();
+const storeWithClaims = (uid: string, claims: Record<string, unknown>) =>
+  env.authenticatedContext(uid, { email: `${uid}@example.test`, ...claims }).storage();
 
 describe("Perfis e prontuários", () => {
   it("CLIENT_ADMIN não promove a si mesmo nem atravessa empresas", async () => {
@@ -82,6 +91,13 @@ describe("Perfis e prontuários", () => {
   it("prestador acessa somente a empresa concedida", async () => {
     await assertSucceeds(getDoc(doc(db("provider"), "companies/avp/aso_attendances/synthetic")));
     await assertFails(getDoc(doc(db("provider"), "companies/foreign/aso_attendances/synthetic")));
+  });
+  it("ignora claims forjadas e usa o perfil armazenado para autorização", async () => {
+    const forged = { role: "SUPER_ADMIN", companyId: "foreign" };
+    await assertFails(getDoc(doc(dbWithClaims("client", forged), "companies/foreign/private/synthetic")));
+    await assertFails(
+      getBytes(ref(storeWithClaims("client", forged), "clientes/foreign/colaboradores/synthetic/record.pdf"))
+    );
   });
   it("cliente e operador não alteram a integração e o registro de auditoria", async () => {
     await assertFails(
