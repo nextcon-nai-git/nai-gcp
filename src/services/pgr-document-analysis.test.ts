@@ -105,6 +105,11 @@ describe("NAI importa: análise real do especialista e controle clínico", () =>
     const pdfDataUri = "data:application/pdf;base64,aGVsbG8=";
     const result = await analyzePgrDocument({ pdfDataUri });
     expect(mocks.generate.mock.calls[1][0].prompt).toContainEqual({ media: { url: pdfDataUri } });
+    expect(mocks.generate.mock.calls[1][0].output).toMatchObject({
+      constrained: false,
+      instructions: true,
+    });
+    expect(mocks.generate.mock.calls[1][0].output.schema.safeParse({}).success).toBe(false);
     expect(result.analiseAgente?.status).toBe("concluida");
     expect(result.leitura.modo).toBe("ia_com_evidencias");
   });
