@@ -48,6 +48,7 @@ import { OfflineSyncBadge } from "@/components/layout/offline-sync-badge";
 import { cn } from "@/lib/utils";
 import { useSgi } from "@/contexts/sgi-context";
 import { REAL_COMPANIES } from "@/lib/real-data";
+import { sortCompaniesByName } from "@/lib/company-order";
 import { useSidebar } from "@/components/ui/sidebar";
 import { GlobalCommandPalette } from "@/components/layout/global-command-palette";
 
@@ -204,12 +205,7 @@ export function TopNav() {
       allList = allList.filter((c) => authorizedCompanies.includes(c.id));
     }
 
-    // Ordenar alfabeticamente pelo nome exibido
-    return allList.filter(Boolean).sort((a, b) => {
-      const nameA = (a?.displayName || a?.name || a?.razaoSocial || a?.id || "").toUpperCase();
-      const nameB = (b?.displayName || b?.name || b?.razaoSocial || b?.id || "").toUpperCase();
-      return nameA.localeCompare(nameB);
-    });
+    return sortCompaniesByName(allList.filter(Boolean));
   }, [rawCompanies, localCustomCompanies, isGlobalStaff, authorizedCompanies]);
 
   const activeCompanyName = React.useMemo(() => {
