@@ -1,21 +1,22 @@
-/**
- * NextCon Intelligence (NAI) - Notification & Expiration Service (NR-07 / PCMSO)
- *
- * Implementa as diretrizes do Item 7.5.8 da NR-07:
- * - Grau de Risco 1 e 2: Bienal para 18 a 45 anos; Anual para <18 e >45 anos.
- * - Grau de Risco 3 e 4: Anual para todas as faixas etárias.
- * - Riscos Especiais (Quadro 1 da NR-07 / Biológico / Químico / Ruído Crítico): Semestral (6 meses).
- *
- * Janela de Alerta Diferenciada:
- * - Grau 3/4 e Riscos Especiais: 60 dias de antecedência (devido à complexidade de agendamento de exames complementares).
- * - Grau 1/2: 30 dias de antecedência.
- */
+/** Prazos clínicos definidos pelo PCMSO; idade e grau de risco não substituem avaliação médica. */
 
 import { logger, maskPhone } from "@/lib/logger";
 
-export type ExamPeriodicity = "SEMESTRAL" | "ANUAL" | "BIENAL";
+export type ExamPeriodicity = "SEMESTRAL" | "ANUAL" | "BIENAL" | "PERSONALIZADA" | "PENDENTE";
 
-export interface ExamEvaluationInput {
+export interface ClinicalPeriodicityInput {
+  riskDegree?: 1 | 2 | 3 | 4;
+  age?: number;
+  birthDate?: string;
+  hasSpecialExposure?: boolean;
+  pcmsoReviewed?: boolean;
+  hasPgrExposure?: boolean;
+  chronicSusceptibility?: boolean;
+  hyperbaricExposure?: boolean;
+  physicianIntervalMonths?: number;
+}
+
+export interface ExamEvaluationInput extends ClinicalPeriodicityInput {
   id: string;
   name: string;
   employeeName: string;
@@ -57,79 +58,56 @@ export class NotificationService {
   /**
    * Determina a periodicidade legal do exame periódico com base na NR-07 Item 7.5.8.
    */
-  static determinePeriodicity(params: {
-    riskDegree?: 1 | 2 | 3 | 4;
-    age?: number;
-    birthDate?: string;
-    hasSpecialExposure?: boolean;
-  }): { periodicity: ExamPeriodicity; intervalMonths: number; regulatoryBasis: string } {
-    // 1. Exposição a condições hiperbáricas, químicos críticos ou indicadores biológicos (Quadro 1 NR-07)
-    if (params.hasSpecialExposure) {
-      return {
-        periodicity: "SEMESTRAL",
-        intervalMonths: 6,
-        regulatoryBasis: 'NR-07 Item 7.5.8 alínea "c" (Riscos Especiais / Quadro 1)',
-      };
-    }
-
-    const risk = params.riskDegree ?? 2;
-    let computedAge = params.age;
-
-    if (computedAge === undefined && params.birthDate) {
-      const birth = new Date(params.birthDate);
-      if (!isNaN(birth.getTime())) {
-        const today = new Date();
-        computedAge = today.getFullYear() - birth.getFullYear();
-        const m = today.getMonth() - birth.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
-          computedAge--;
-        }
-      }
-    }
-
-    const age = computedAge ?? 30;
-
-    // 2. Grau de Risco 3 e 4: Anual para todas as idades
-    if (risk >= 3) {
-      return {
-        periodicity: "ANUAL",
-        intervalMonths: 12,
-        regulatoryBasis: `NR-07 Item 7.5.8 alínea "b" (Grau de Risco ${risk})`,
-      };
-    }
-
-    // 3. Grau de Risco 1 e 2: Varia conforme a idade
-    if (age < 18 || age > 45) {
-      return {
-        periodicity: "ANUAL",
-        intervalMonths: 12,
-        regulatoryBasis: `NR-07 Item 7.5.8 alínea "a" (Grau de Risco ${risk}, idade ${age} anos)`,
-      };
-    }
-
+  static determinePeriodicity(params: ClinicalPeriodicityInput): {
+    periodicity: ExamPeriodicity;
+    intervalMonths: number | null;
+    regulatoryBasis: string;
+  } {
+    const pending = {
+      periodicity: "PENDENTE" as const,
+      intervalMonths: null,
+      regulatoryBasis:
+        "Periodicidade pendente de conferência do PCMSO e do médico responsável (NR-7, 7.5.8).",
+    };
+    if (
+      !params.pcmsoReviewed ||
+      params.hasPgrExposure === undefined ||
+      params.chronicSusceptibility === undefined
+    )
+      return pending;
+    const ceiling = params.hasPgrExposure || params.chronicSusceptibility ? 12 : 24;
+    if (params.hyperbaricExposure && params.physicianIntervalMonths === undefined) return pending;
+    const months = params.physicianIntervalMonths ?? ceiling;
+    if (!Number.isInteger(months) || months <= 0 || months > ceiling) return pending;
     return {
-      periodicity: "BIENAL",
-      intervalMonths: 24,
-      regulatoryBasis: `NR-07 Item 7.5.8 alínea "a" (Grau de Risco ${risk}, 18-45 anos - Bienal)`,
+      periodicity:
+        months === 6
+          ? "SEMESTRAL"
+          : months === 12
+            ? "ANUAL"
+            : months === 24
+              ? "BIENAL"
+              : "PERSONALIZADA",
+      intervalMonths: months,
+      regulatoryBasis: params.hyperbaricExposure
+        ? "Prazo registrado pelo médico no PCMSO: conferir NR-7, Anexo IV (condições hiperbáricas)."
+        : params.physicianIntervalMonths !== undefined
+          ? "Prazo registrado pelo médico responsável no PCMSO; NR-7, 7.5.8."
+          : ceiling === 12
+            ? "NR-7, 7.5.8, II, a: exame clínico anual ou intervalo menor a critério médico."
+            : "NR-7, 7.5.8, II, b: exame clínico a cada dois anos, conforme enquadramento conferido no PCMSO.",
     };
   }
 
   /**
    * Calcula a data legal de vencimento do próximo ASO periódico a partir do último realizado.
    */
-  static calculateNextAsoDueDate(
-    lastAsoDateIso: string,
-    params: {
-      riskDegree?: 1 | 2 | 3 | 4;
-      age?: number;
-      birthDate?: string;
-      hasSpecialExposure?: boolean;
-    }
-  ): string {
+  static calculateNextAsoDueDate(lastAsoDateIso: string, params: ClinicalPeriodicityInput): string {
     const lastDate = new Date(lastAsoDateIso);
     if (isNaN(lastDate.getTime())) return "";
 
     const { intervalMonths } = this.determinePeriodicity(params);
+    if (intervalMonths === null) return "";
     const dueDate = new Date(lastDate);
     // Calendar dates must not drift with the server's timezone or DST.
     const originalDay = dueDate.getUTCDate();
@@ -156,6 +134,7 @@ export class NotificationService {
     for (const exam of exams) {
       const risk = exam.riskDegree ?? 2;
       const { periodicity, regulatoryBasis } = this.determinePeriodicity({
+        ...exam,
         riskDegree: risk,
         age: exam.employeeAge,
         birthDate: exam.employeeBirthDate,
@@ -167,6 +146,7 @@ export class NotificationService {
         exam.validUntil ||
         (exam.lastAsoDate
           ? this.calculateNextAsoDueDate(exam.lastAsoDate, {
+              ...exam,
               riskDegree: risk,
               age: exam.employeeAge,
               birthDate: exam.employeeBirthDate,
@@ -302,9 +282,8 @@ export class NotificationService {
             timestamp,
           };
         } else {
-          const errText = await response.text();
           logger.warn(
-            `[WhatsApp Notification] Falha no Webhook para ${masked}: ${response.status} - ${errText}`
+            `[WhatsApp Notification] Falha no Webhook para ${masked}: ${response.status}`
           );
           return {
             success: false,
@@ -330,18 +309,14 @@ export class NotificationService {
       }
     }
 
-    // Modo Standalone / Fila Interna Auditável
-    logger.info(
-      `[WhatsApp Notification AUDIT] Mensagem enfileirada e auditada para ${masked}: "${alert.title}" | Id: ${messageId}`
-    );
-
     return {
-      success: true,
+      success: false,
       messageId,
-      status: "QUEUED",
+      status: "FAILED",
       maskedPhone: masked,
       formattedMessage,
       timestamp,
+      error: "Canal de envio não configurado. Nenhuma mensagem foi enviada ou enfileirada.",
     };
   }
 }

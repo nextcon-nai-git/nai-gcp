@@ -1,4 +1,5 @@
 "use client";
+import { EmployeeCreateDialog } from "@/components/employees/employee-create-dialog";
 import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
@@ -94,6 +95,7 @@ import {
   doc,
   where,
   addDoc,
+  updateDoc,
   serverTimestamp,
 } from "firebase/firestore";
 import {
@@ -242,30 +244,28 @@ function EmployeesList() {
     if (!db) return;
 
     const confirmDelete = window.confirm(
-      `Deseja realmente excluir o colaborador ${emp.name}? Esta ação removerá o registro do Quadro de Vidas.`
+      `Arquivar o colaborador ${emp.name}? O histórico será preservado e o registro sairá do quadro ativo.`
     );
     if (!confirmDelete) return;
-
-    // Optimistic removal from state
-    setOptimisticDeletedIds((prev) => [...prev, emp.id]);
 
     try {
       const companyId = emp.companyId || activeClientId;
       if (!companyId || companyId === "all" || companyId === "unauthorized") {
         toast({
           variant: "destructive",
-          title: "Erro ao excluir",
+          title: "Erro ao arquivar",
           description: "Empresa do colaborador não identificada.",
         });
         return;
       }
 
       const empRef = doc(db, "companies", companyId, "employees", emp.id);
-      await deleteDocumentNonBlocking(empRef);
+      await updateDoc(empRef, { isArchived: true, archivedAt: serverTimestamp() });
+      setOptimisticDeletedIds((prev) => [...prev, emp.id]);
 
       toast({
-        title: "Colaborador Excluído! 🗑️",
-        description: `${emp.name} foi removido do Quadro de Vidas.`,
+        title: "Colaborador arquivado",
+        description: `${emp.name} foi arquivado; o histórico foi preservado.`,
       });
       if (selectedEmployee?.id === emp.id) {
         setSelectedEmployee(null);
@@ -273,8 +273,8 @@ function EmployeesList() {
     } catch (error) {
       toast({
         variant: "destructive",
-        title: "Erro ao excluir",
-        description: "Não foi possível excluir o colaborador.",
+        title: "Erro ao arquivar",
+        description: "Não foi possível arquivar o colaborador.",
       });
     }
   };
@@ -297,37 +297,6 @@ function EmployeesList() {
     });
   }, [employees, optimisticDeletedIds]);
 
-  const handlePurgeUndefinedRoles = async () => {
-    if (!db || undefinedRoleEmployees.length === 0) return;
-    const confirmPurge = window.confirm(
-      `Deseja realmente excluir todos os ${undefinedRoleEmployees.length} colaboradores com cargo não definido do Quadro de Vidas?`
-    );
-    if (!confirmPurge) return;
-
-    const idsToPurge = undefinedRoleEmployees.map((e) => e.id);
-    setOptimisticDeletedIds((prev) => [...prev, ...idsToPurge]);
-
-    try {
-      for (const emp of undefinedRoleEmployees) {
-        const companyId = emp.companyId || activeClientId;
-        if (companyId && companyId !== "all" && companyId !== "unauthorized") {
-          const empRef = doc(db, "companies", companyId, "employees", emp.id);
-          deleteDocumentNonBlocking(empRef);
-        }
-      }
-      toast({
-        title: "Limpeza de Cargos Concluída! 🗑️",
-        description: `${idsToPurge.length} colaboradores sem cargo foram excluídos do Quadro de Vidas.`,
-      });
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Erro ao limpar",
-        description: "Ocorreu um problema ao excluir os colaboradores sem cargo.",
-      });
-    }
-  };
-
   const filteredEmployees = React.useMemo(() => {
     if (!employees) return [];
     const term = searchTerm.toLowerCase();
@@ -339,20 +308,7 @@ function EmployeesList() {
           if (emp.companyId && emp.companyId !== activeClientId) return false;
         }
 
-        // Excluir colaboradores com cargo não definido por padrão do quadro de vidas
-        const rawRole = (emp.job_role?.title || emp.jobRole || emp.role || emp.cargo || "")
-          .toLowerCase()
-          .trim();
-        const isRoleUndefined =
-          !rawRole ||
-          rawRole === "não definido" ||
-          rawRole === "nao definido" ||
-          rawRole === "não informado" ||
-          rawRole === "cargo não definido" ||
-          rawRole === "sem cargo";
-        if (isRoleUndefined) {
-          return false;
-        }
+        if (emp.isArchived === true) return false;
 
         return (emp.name || "").toLowerCase().includes(term) || (emp.cpf || "").includes(term);
       })
@@ -361,6 +317,14 @@ function EmployeesList() {
 
   return (
     <div className="space-y-8 text-left">
+      <EmployeeCreateDialog
+        open={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+        db={db}
+        companies={companies || []}
+        selectedCompany={activeClientId}
+        onSaved={() => toast({ title: "Colaborador salvo" })}
+      />
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-3xl font-headline font-black text-primary tracking-tight uppercase leading-none">
@@ -372,17 +336,6 @@ function EmployeesList() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {undefinedRoleEmployees.length > 0 && (
-            <Button
-              variant="outline"
-              onClick={handlePurgeUndefinedRoles}
-              className="border-red-200 text-red-600 bg-red-50 hover:bg-red-100 font-black uppercase text-[10px] tracking-widest h-12 px-5 rounded-xl gap-2 cursor-pointer shadow-sm"
-            >
-              <Trash2 className="size-4 text-red-500" /> Excluir ({undefinedRoleEmployees.length})
-              Sem Cargo
-            </Button>
-          )}
-
           {isGlobalStaff && (
             <>
               <Button
@@ -507,7 +460,7 @@ function EmployeesList() {
                                 variant="ghost"
                                 size="icon"
                                 onClick={(e) => handleDeleteEmployee(emp, e)}
-                                title="Excluir Colaborador"
+                                title="Arquivar Colaborador"
                                 className="size-8 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                               >
                                 <Trash2 className="size-4" />
@@ -536,7 +489,7 @@ function EmployeesList() {
                                     onClick={(e) => handleDeleteEmployee(emp, e)}
                                     className="h-7 text-[9px] font-black uppercase tracking-widest gap-1 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-md"
                                   >
-                                    <Trash2 className="size-3" /> Excluir Colaborador
+                                    <Trash2 className="size-3" /> Arquivar Colaborador
                                   </Button>
                                 </div>
                                 <div className="flex items-center gap-5">

@@ -80,11 +80,6 @@ export async function createAsoRequestAction(
       declaredRisks: payload.declaredRisks,
     });
 
-    const recommendedClinic =
-      INITIAL_PARTNER_CLINICS.find(
-        (c) => c.id === aiResult.agendamento_matching.clinica_recomendada_id
-      ) || INITIAL_PARTNER_CLINICS[0];
-
     const newRequest: AsoRequest = {
       id: newId,
       companyName: payload.companyName,
@@ -96,11 +91,11 @@ export async function createAsoRequestAction(
       examType: payload.examType,
       declaredRisks: payload.declaredRisks,
       status: "validando",
-      clinicId: recommendedClinic.id,
-      clinicName: recommendedClinic.name,
+      clinicId: "",
+      clinicName: "A confirmar",
       appointmentDate: "",
-      appointmentTime: aiResult.agendamento_matching.horarios_sugeridos[0] || "09:00",
-      validationPassed: aiResult.triagem.valido,
+      appointmentTime: "",
+      validationPassed: false,
       validationNotes: [
         aiResult.triagem.observacoes_triagem,
         aiResult.protocolos.justificativa_normativa,
@@ -133,12 +128,12 @@ export async function createAsoRequestAction(
     const digitalKit: DigitalKit = {
       kitId: `KIT-${Math.floor(1000 + Math.random() * 9000)}`,
       requestId: newId,
-      guiaNumber: aiResult.kit_digital.guia_numero,
+      guiaNumber: `MINUTA-${newId}`,
       generatedAt: new Date().toISOString(),
       companyDetails: {
         name: payload.companyName,
         cnpj: payload.cnpj,
-        contact: "atendimento@nai.com.br",
+        contact: "",
       },
       employeeDetails: {
         name: payload.employeeName,
@@ -148,9 +143,9 @@ export async function createAsoRequestAction(
       },
       examType: payload.examType,
       clinicDetails: {
-        name: recommendedClinic.name,
-        address: recommendedClinic.address,
-        phone: recommendedClinic.contactPhone,
+        name: "A confirmar",
+        address: "",
+        phone: "",
       },
       appointmentDateTime: "A confirmar com a clínica",
       examList: newRequest.exams,
@@ -161,9 +156,9 @@ export async function createAsoRequestAction(
         declaredRisks: payload.declaredRisks,
         fitnessChecklist:
           "[ ] APTO para a função declarada\n[ ] INAPTO para a função declarada\n[ ] APTO com restrições temporárias",
-        doctorNotes: "Exame presencial realizado conforme protocolo PCMSO / NR-07.",
+        doctorNotes: "Pendente de exame e preenchimento pelo médico responsável.",
       },
-      qrCodeUrl: `https://nai.nextcon.com.br/qr/${newId}`,
+      qrCodeUrl: "",
     };
 
     newRequest.digitalKit = digitalKit;

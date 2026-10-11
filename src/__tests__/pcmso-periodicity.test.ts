@@ -2,101 +2,54 @@ import { describe, it, expect } from "vitest";
 import { NotificationService } from "@/services/notification-service";
 
 describe("NotificationService - Periodicidade NR-07 e Alertas PCMSO", () => {
-  describe("determinePeriodicity (NR-07 Item 7.5.8)", () => {
-    it("deve definir periodicidade bienal (24 meses) para Grau 1/2 e idade entre 18 e 45 anos", () => {
-      const res = NotificationService.determinePeriodicity({
-        riskDegree: 2,
-        age: 30,
-      });
-
-      expect(res.periodicity).toBe("BIENAL");
-      expect(res.intervalMonths).toBe(24);
-      expect(res.regulatoryBasis).toContain("Bienal");
+  describe("periodicidade clínica baseada no PCMSO", () => {
+    it("não calcula prazo a partir de idade ou grau isolados", () => {
+      for (const params of [
+        { age: 17, riskDegree: 2 as const },
+        { age: 46, riskDegree: 4 as const },
+        { hasSpecialExposure: true },
+      ]) {
+        expect(NotificationService.determinePeriodicity(params).intervalMonths).toBeNull();
+        expect(NotificationService.calculateNextAsoDueDate("2026-01-01", params)).toBe("");
+      }
     });
-
-    it("deve definir periodicidade anual (12 meses) para Grau 1/2 e idade > 45 anos", () => {
-      const res = NotificationService.determinePeriodicity({
-        riskDegree: 1,
-        age: 46,
-      });
-
-      expect(res.periodicity).toBe("ANUAL");
-      expect(res.intervalMonths).toBe(12);
+    it("aplica prazo bienal apenas com enquadramento conferido", () => {
+      const params = {
+        pcmsoReviewed: true,
+        hasPgrExposure: false,
+        chronicSusceptibility: false,
+        age: 50,
+      };
+      expect(NotificationService.determinePeriodicity(params).intervalMonths).toBe(24);
+      expect(NotificationService.calculateNextAsoDueDate("2024-05-10", params)).toBe("2026-05-10");
     });
-
-    it("deve definir periodicidade anual (12 meses) para Grau 1/2 e idade < 18 anos", () => {
-      const res = NotificationService.determinePeriodicity({
-        riskDegree: 2,
-        age: 17,
-      });
-
-      expect(res.periodicity).toBe("ANUAL");
-      expect(res.intervalMonths).toBe(12);
+    it("aplica anual para exposição confirmada sem depender da idade", () => {
+      const params = { pcmsoReviewed: true, hasPgrExposure: true, chronicSusceptibility: false };
+      expect(NotificationService.determinePeriodicity(params).intervalMonths).toBe(12);
+      expect(NotificationService.calculateNextAsoDueDate("2024-02-29", params)).toBe("2025-02-28");
     });
-
-    it("deve definir periodicidade anual (12 meses) para Grau 3 e 4 independente da idade", () => {
-      const resGrau3 = NotificationService.determinePeriodicity({
-        riskDegree: 3,
-        age: 28,
-      });
-      expect(resGrau3.periodicity).toBe("ANUAL");
-      expect(resGrau3.intervalMonths).toBe(12);
-
-      const resGrau4 = NotificationService.determinePeriodicity({
-        riskDegree: 4,
-        age: 35,
-      });
-      expect(resGrau4.periodicity).toBe("ANUAL");
-      expect(resGrau4.intervalMonths).toBe(12);
-    });
-
-    it("deve definir periodicidade semestral (6 meses) para riscos especiais do Quadro 1", () => {
-      const res = NotificationService.determinePeriodicity({
-        riskDegree: 2,
-        age: 30,
-        hasSpecialExposure: true,
-      });
-
-      expect(res.periodicity).toBe("SEMESTRAL");
-      expect(res.intervalMonths).toBe(6);
-      expect(res.regulatoryBasis).toContain("Riscos Especiais");
-    });
-  });
-
-  describe("calculateNextAsoDueDate", () => {
-    it("limits leap-day anniversaries to the last day of February", () => {
-      expect(NotificationService.calculateNextAsoDueDate("2024-02-29", { riskDegree: 4 })).toBe(
-        "2025-02-28"
-      );
-    });
-    it("keeps month-end dates inside the target month", () => {
+    it("respeita intervalo menor definido pelo médico e limita fim de mês", () => {
+      const params = {
+        pcmsoReviewed: true,
+        hasPgrExposure: true,
+        chronicSusceptibility: false,
+        physicianIntervalMonths: 6,
+      };
+      expect(NotificationService.calculateNextAsoDueDate("2026-08-31", params)).toBe("2027-02-28");
       expect(
-        NotificationService.calculateNextAsoDueDate("2026-08-31", { hasSpecialExposure: true })
-      ).toBe("2027-02-28");
+        NotificationService.determinePeriodicity({ ...params, physicianIntervalMonths: 18 })
+          .intervalMonths
+      ).toBeNull();
     });
-    it("deve somar 24 meses para Grau 2 e trabalhador de 30 anos", () => {
-      const nextDate = NotificationService.calculateNextAsoDueDate("2024-05-10", {
-        riskDegree: 2,
-        age: 30,
-      });
-      expect(nextDate).toBe("2026-05-10");
-    });
-
-    it("deve somar 12 meses para Grau 4", () => {
-      const nextDate = NotificationService.calculateNextAsoDueDate("2025-08-15", {
-        riskDegree: 4,
-        age: 30,
-      });
-      expect(nextDate).toBe("2026-08-15");
-    });
-
-    it("deve somar 6 meses para exposição a riscos especiais", () => {
-      const nextDate = NotificationService.calculateNextAsoDueDate("2026-01-10", {
-        riskDegree: 3,
-        age: 30,
-        hasSpecialExposure: true,
-      });
-      expect(nextDate).toBe("2026-07-10");
+    it("exige prazo específico para condições hiperbáricas", () => {
+      expect(
+        NotificationService.determinePeriodicity({
+          pcmsoReviewed: true,
+          hasPgrExposure: true,
+          chronicSusceptibility: false,
+          hyperbaricExposure: true,
+        }).intervalMonths
+      ).toBeNull();
     });
   });
 
@@ -200,7 +153,7 @@ describe("NotificationService - Periodicidade NR-07 e Alertas PCMSO", () => {
       expect(msg).toContain("NR-07 Item 7.5.8");
     });
 
-    it("deve despachar e auditar o alerta com mascaramento LGPD do número", async () => {
+    it("não declara enfileiramento quando não existe canal configurado", async () => {
       const alert = {
         id: "alt_2",
         title: "ASO Vence em 5 dias",
@@ -214,9 +167,9 @@ describe("NotificationService - Periodicidade NR-07 e Alertas PCMSO", () => {
       };
 
       const result = await NotificationService.sendWhatsAppAlert(alert, "11987654321");
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
       expect(result.messageId).toContain("msg_");
-      expect(result.status).toBe("QUEUED");
+      expect(result.status).toBe("FAILED");
       expect(result.maskedPhone).toContain("***");
     });
   });

@@ -224,16 +224,17 @@ export default function ReportsCenter() {
           <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
             <DialogTrigger asChild>
               <Button className="gradient-nextcon text-white h-11 px-8 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg gap-2">
-                <Plus className="size-4" /> Upload p/ Fila NAI
+                <Plus className="size-4" /> Adicionar ao acervo
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px] rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden bg-white">
               <DialogHeader className="p-8 bg-primary text-white space-y-2">
                 <DialogTitle className="text-xl font-headline font-black uppercase">
-                  Fila de Auditoria NAI
+                  Adicionar documento ao acervo
                 </DialogTitle>
                 <DialogDescription className="text-white/60 font-medium italic">
-                  O documento será analisado assincronamente pelo Cloud Tasks.
+                  O arquivo será classificado e armazenado. A análise especializada está disponível
+                  no NAI importa.
                 </DialogDescription>
               </DialogHeader>
               <div className="p-8 space-y-6">
@@ -283,7 +284,7 @@ export default function ReportsCenter() {
                       ) : (
                         <Database className="size-4 text-accent" />
                       )}
-                      Confirmar e Injetar na Fila
+                      Confirmar armazenamento
                     </Button>
                   </div>
                 )}

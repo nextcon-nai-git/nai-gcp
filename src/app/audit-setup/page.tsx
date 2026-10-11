@@ -6,7 +6,7 @@ import { useUser } from "@/firebase";
 import { Button } from "@/components/ui/button";
 
 export default function AuditSetupPage() {
-  const { user } = useUser();
+  const { user, role } = useUser();
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
   async function inspect() {
@@ -37,6 +37,27 @@ export default function AuditSetupPage() {
       setLoading(false);
     }
   }
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiStatus, setAiStatus] = useState("");
+  async function inspectAi() {
+    if (!user || aiLoading) return;
+    setAiLoading(true);
+    setAiStatus("");
+    try {
+      const response = await fetch("/api/admin/ai-diagnostic", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${await user.getIdToken()}` },
+        signal: AbortSignal.timeout(45000),
+      });
+      if (!response.ok) throw new Error("unavailable");
+      const result = await response.json();
+      setAiStatus(`${result.message} Código: ${result.code}.`);
+    } catch {
+      setAiStatus("Não foi possível concluir o diagnóstico da IA. Tente novamente.");
+    } finally {
+      setAiLoading(false);
+    }
+  }
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-6 text-white">
       <Link href="/" className="text-cyan-300 underline">
@@ -57,6 +78,16 @@ export default function AuditSetupPage() {
         <p role="status" className="rounded-xl border border-white/20 p-4">
           {status}
         </p>
+      )}
+      {role === "SUPER_ADMIN" && (
+        <section className="space-y-3 rounded-xl border border-white/20 p-5">
+          <h2 className="text-xl font-semibold">Disponibilidade da IA</h2>
+          <p>Envia uma solicitação curta ao provedor, sem documentos ou dados pessoais.</p>
+          <Button onClick={inspectAi} disabled={aiLoading}>
+            {aiLoading ? "Testando IA…" : "Testar provedor de IA"}
+          </Button>
+          {aiStatus && <p role="status">{aiStatus}</p>}
+        </section>
       )}
       <section className="space-y-3 rounded-xl border border-white/20 p-5">
         <h2 className="text-xl font-semibold">Revisão de cadastros</h2>
