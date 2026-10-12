@@ -919,7 +919,12 @@ export function FinanceOperationsWorkspace() {
                     </Button>
                     <Button
                       variant="secondary"
-                      disabled={busy}
+                      disabled={busy || book.contractFlows.some((flow) => flow.contractId === c.id)}
+                      title={
+                        book.contractFlows.some((flow) => flow.contractId === c.id)
+                          ? "Contrato vinculado a proposta aprovada; alterações comerciais exigem aditivo."
+                          : undefined
+                      }
                       onClick={() =>
                         showForm({
                           title: "Revisar contrato e reajuste",
