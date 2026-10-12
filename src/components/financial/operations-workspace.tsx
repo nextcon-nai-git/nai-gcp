@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { ContractFlowWorkspace } from "./contract-flow-workspace";
 import { ErpWorkspace } from "./erp-workspace";
 import Papa from "papaparse";
 import { useUser } from "@/firebase";
@@ -55,6 +56,7 @@ const stateLabels: Record<string, string> = {
 };
 const tabs = [
   ["overview", "Visão geral"],
+  ["flow", "Contrato ao recebimento"],
   ["masters", "Cadastros"],
   ["orders", "Compras e vendas"],
   ["collections", "Cobrança"],
@@ -443,6 +445,17 @@ export function FinanceOperationsWorkspace() {
               busy={busy}
               showForm={showForm}
               request={request}
+            />
+          )}
+          {tab === "flow" && (
+            <ContractFlowWorkspace
+              book={book}
+              period={period}
+              today={today}
+              busy={busy}
+              actor={user.uid}
+              showForm={showForm}
+              navigate={setTab}
             />
           )}
           {tab === "overview" && (
