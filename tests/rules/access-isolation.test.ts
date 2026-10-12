@@ -206,3 +206,21 @@ describe("Omie server credentials", () => {
     }
   });
 });
+
+describe("Native financial control server boundary", () => {
+  it("denies browser roles access to the financial book", async () => {
+    const path = "financial-operations/v1/nextcon.json";
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await uploadBytes(ref(ctx.storage(), path), new TextEncoder().encode('{"synthetic":true}'), {
+        contentType: "application/json",
+      });
+    });
+    for (const uid of ["super", "global", "client", "hr", "doctor", "provider"]) {
+      await assertFails(getBytes(ref(store(uid), path)));
+      await assertFails(
+        uploadBytes(ref(store(uid), path), new Uint8Array([1]), { contentType: "application/json" })
+      );
+      await assertFails(deleteObject(ref(store(uid), path)));
+    }
+  });
+});

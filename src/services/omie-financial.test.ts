@@ -561,3 +561,75 @@ describe("Omie official DRE boundary", () => {
     await expect(listOmieDre(admin, dreQuery)).rejects.toThrow("período menor");
   });
 });
+
+describe("verified native finance references", () => {
+  it("uses only a read-only detail call and validates company party, amount and due date", async () => {
+    const { verifyOmieTitleReference } = await import("./omie-financial");
+    storage.data = JSON.stringify(saved);
+    fetchMock.mockImplementation(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body));
+      if (body.call === "ConsultarContaReceber")
+        return response({
+          codigo_lancamento_omie: 123,
+          valor_documento: 100.01,
+          data_vencimento: "10/10/2026",
+          codigo_cliente_fornecedor: 77,
+          status_titulo: "EMABERTO",
+        });
+      return response({
+        clientes_cadastro_resumido: [{ codigo_cliente: 77, razao_social: "CLIENTE TESTE LTDA" }],
+      });
+    });
+    expect(
+      await verifyOmieTitleReference(
+        admin,
+        {
+          kind: "receivable",
+          amountCents: 10001,
+          dueDate: "2026-10-10",
+          party: "Cliente Teste Ltda",
+        },
+        "123"
+      )
+    ).toMatchObject({ reference: "123" });
+    expect(fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body).call)).toEqual([
+      "ConsultarContaReceber",
+      "ListarClientesResumido",
+    ]);
+    await expect(
+      verifyOmieTitleReference(
+        admin,
+        {
+          kind: "receivable",
+          amountCents: 10002,
+          dueDate: "2026-10-10",
+          party: "Cliente Teste Ltda",
+        },
+        "123"
+      )
+    ).rejects.toMatchObject({ status: 409 });
+    await expect(
+      verifyOmieTitleReference(
+        admin,
+        { kind: "receivable", amountCents: 10001, dueDate: "2026-10-10", party: "Outra Empresa" },
+        "123"
+      )
+    ).rejects.toMatchObject({ status: 409 });
+  });
+  it("rejects tenant-scoped credentials access and invalid identifiers before network", async () => {
+    const { verifyOmieTitleReference } = await import("./omie-financial");
+    const title = {
+      kind: "payable" as const,
+      amountCents: 100,
+      dueDate: "2026-10-10",
+      party: "Teste",
+    };
+    await expect(
+      verifyOmieTitleReference({ ...admin, role: "ADMIN", tenantId: "client" }, title, "123")
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(verifyOmieTitleReference(admin, title, "abc")).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

@@ -49,6 +49,8 @@ const methods = {
   receivable: ["financas/contareceber", "ListarContasReceber"],
   dre: ["financas/dre", "ListarDRE"],
   parties: ["geral/clientes", "ListarClientesResumido"],
+  payableDetail: ["financas/contapagar", "ConsultarContaPagar"],
+  receivableDetail: ["financas/contareceber", "ConsultarContaReceber"],
 } as const;
 const DRE_RESPONSE_MAX_BYTES = 16 * 1024 * 1024;
 const dreTooLarge = () =>
@@ -459,4 +461,57 @@ export async function listOmie(user: AuthContext, input: unknown): Promise<OmieP
       category: r.codigo_categoria || "—",
     })),
   };
+}
+
+/** Read-only validation against the connected application before linking a native title. */
+export async function verifyOmieTitleReference(
+  user: AuthContext,
+  title: { kind: "payable" | "receivable"; amountCents: number; dueDate: string; party: string },
+  reference: string
+) {
+  requireFinancialAccess(user);
+  if (!/^[1-9]\d{0,14}$/.test(reference) || !Number.isSafeInteger(Number(reference)))
+    throw badRequest("Informe o código numérico do título no Omie.");
+  const credentials = await read();
+  if (!credentials) throw new AuthError("Conecte o Omie antes de vincular um título.", 409);
+  const raw = await call(
+    credentials,
+    title.kind === "payable" ? "payableDetail" : "receivableDetail",
+    { codigo_lancamento_omie: Number(reference) }
+  );
+  const result = z
+    .object({
+      codigo_lancamento_omie: z.number().int(),
+      valor_documento: z.number().finite(),
+      data_vencimento: z.string(),
+      codigo_cliente_fornecedor: z.number().int().positive(),
+      status_titulo: z.string().optional(),
+    })
+    .safeParse(raw);
+  if (!result.success) throw unavailable();
+  const r = result.data;
+  if (
+    r.codigo_lancamento_omie !== Number(reference) ||
+    omieUnitsToCents(omieAmountUnits(r.valor_documento)) !== title.amountCents ||
+    fromOmieDate(r.data_vencimento) !== title.dueDate ||
+    r.status_titulo === "CANCELADO"
+  )
+    throw new AuthError(
+      "Título Omie divergente: confira identificador, valor original, vencimento e situação.",
+      409
+    );
+  const names = await partyNames(credentials, [r.codigo_cliente_fornecedor]);
+  const normalize = (v: string) =>
+    v
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .toUpperCase();
+  const party = names.get(r.codigo_cliente_fornecedor);
+  if (!party || normalize(party) !== normalize(title.party))
+    throw new AuthError(
+      "Nome do cliente/fornecedor não confere com o cadastro Omie. Revise o título antes de vincular.",
+      409
+    );
+  return { reference, verifiedAt: new Date().toISOString() };
 }
