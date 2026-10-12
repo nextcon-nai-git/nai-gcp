@@ -362,3 +362,43 @@ describe("financial controls", () => {
     expect(financeCsv(b)).toContain("'=HYPERLINK(test)");
   });
 });
+
+it("returns cancelled service billing to the unbilled queue while preserving its cancelled title", () => {
+  let b = run(emptyFinanceBook(), {
+    action: "contract",
+    data: {
+      name: "Contrato",
+      client: "Cliente",
+      center: "AVP",
+      monthlyCents: 0,
+      dueDay: 10,
+      active: true,
+    },
+  });
+  b = run(b, {
+    action: "service",
+    data: {
+      contractId: b.contracts[0].id,
+      date: "2026-10-10",
+      description: "Exame",
+      supplier: "Clínica teste",
+      city: "Curitiba PR",
+      quantity: 1,
+      unitRevenueCents: 6000,
+      unitCostCents: 4000,
+      billingMode: "separate",
+      evidence: "Medição teste",
+    },
+  });
+  b = run(b, { action: "billService", id: b.services[0].id, dueDate: "2026-10-20" });
+  b = run(b, {
+    action: "review",
+    id: b.titles[0].id,
+    status: "cancelled",
+    reason: "Correção da cobrança",
+  });
+  expect(financeSummary(b, "2026-10", "2026-10-12").unbilled).toHaveLength(1);
+  b = run(b, { action: "billService", id: b.services[0].id, dueDate: "2026-10-25" });
+  expect(b.titles).toHaveLength(2);
+  expect(b.titles[0].status).toBe("cancelled");
+});

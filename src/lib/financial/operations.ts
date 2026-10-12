@@ -496,7 +496,10 @@ export function applyFinanceCommand(
         fail("Estorne as baixas antes de cancelar o título.");
       if (command.status === "cancelled" && t.source === "service") {
         const service = book.services.find((s) => s.titleId === t.id);
-        if (service) service.titleId = null;
+        if (service) {
+          unlocked(book, service.date.slice(0, 7));
+          service.titleId = null;
+        }
       }
       t.status = command.status;
       if (command.status === "approved") t.approvedBy = actor;
