@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { AuthError } from "@/lib/auth/errors";
+import { OmieUpstreamError } from "@/lib/financial/omie-errors";
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), list: vi.fn() }));
 vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: mocks.auth }));
 vi.mock("@/services/omie-financial", () => ({ listOmieDre: mocks.list }));
@@ -15,6 +16,15 @@ beforeEach(() => {
   mocks.list.mockReset();
 });
 describe("DRE HTTP boundary", () => {
+  it("tells clients to wait on upstream limits while keeping the response private", async () => {
+    mocks.auth.mockResolvedValue({ uid: "synthetic" });
+    mocks.list.mockRejectedValue(new OmieUpstreamError("BLOCKED", 425));
+    const response = await GET(request());
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("1800");
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(await response.json()).toMatchObject({ code: "OMIE_BLOCKED", retryAfter: 1800 });
+  });
   it("does not call the financial service before successful authentication", async () => {
     mocks.auth.mockRejectedValue(new AuthError("Entre no NAI", 401));
     const response = await GET(request());
