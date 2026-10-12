@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { AuthError } from "@/lib/auth/errors";
 import { listOmieDre } from "@/services/omie-financial";
+import { OmieUpstreamError } from "@/lib/financial/omie-errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,10 +19,21 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       {
+        ...(error instanceof OmieUpstreamError
+          ? { code: error.code, retryAfter: error.retryAfter }
+          : {}),
         error:
           error instanceof AuthError ? error.message : "Não foi possível consultar a DRE no Omie.",
       },
-      { status: error instanceof AuthError ? error.status : 503, headers }
+      {
+        status: error instanceof AuthError ? error.status : 503,
+        headers: {
+          ...headers,
+          ...(error instanceof OmieUpstreamError && error.retryAfter
+            ? { "Retry-After": String(error.retryAfter) }
+            : {}),
+        },
+      }
     );
   }
 }

@@ -23,6 +23,11 @@ import {
   type OmieDreRow,
 } from "@/lib/financial/omie-dre";
 import { FinancialActionImportSchema } from "@/lib/financial/actions";
+import {
+  OmieUpstreamError,
+  omieResponseError,
+  omieTransportError,
+} from "@/lib/financial/omie-errors";
 // Default-deny Storage Rules protect this prefix, including from client-side admins.
 // No download tokens, signed URLs, credential readback or client Firestore storage.
 const file = () =>
@@ -34,11 +39,7 @@ type Saved = Credentials & {
   verifiedAt: string;
   connectedBy: string;
 };
-const unavailable = () =>
-  new AuthError(
-    "Omie indisponível ou credenciais sem acesso. Confira a chave do aplicativo NEXTCON e tente novamente.",
-    503
-  );
+const unavailable = () => new OmieUpstreamError("RESPONSE");
 const methods = {
   company: ["geral/empresas", "ListarEmpresas"],
   payable: ["financas/contapagar", "ListarContasPagar"],
@@ -97,14 +98,22 @@ async function call(
         param: [param],
       }),
     });
-    const data = kind === "dre" ? await readDreJson(response) : await response.json();
-    if (!response.ok || !data || typeof data !== "object") throw unavailable();
+    let data: unknown;
+    try {
+      data = kind === "dre" ? await readDreJson(response) : await response.json();
+    } catch (error) {
+      if (error instanceof AuthError) throw error;
+      // An HTML 429/503 must retain the HTTP cause instead of becoming a JSON/key error.
+      if (!response.ok) throw omieResponseError(response.status);
+      throw error;
+    }
+    if (!response.ok) throw omieResponseError(response.status, data);
+    if (!data || typeof data !== "object" || Array.isArray(data)) throw unavailable();
     const record = data as Record<string, unknown>;
-    if (record.faultstring || record.faultcode) throw unavailable();
+    if (record.faultstring || record.faultcode) throw omieResponseError(response.status, record);
     return record;
   } catch (error) {
-    if (kind === "dre" && error instanceof AuthError && error.status === 413) throw error;
-    throw unavailable();
+    throw omieTransportError(error);
   }
 }
 

@@ -95,6 +95,34 @@ describe("Omie financial boundary", () => {
     await expect(connectOmie(admin, credentials)).rejects.not.toThrow("private secret");
     expect(JSON.parse(storage.data!)).toEqual(saved);
   });
+  it("preserves the upstream status for non-JSON failures and does not automatically repeat a blocked call", async () => {
+    storage.data = JSON.stringify(saved);
+    fetchMock.mockResolvedValueOnce(new Response("<html>PRIVATE</html>", { status: 429 }));
+    await expect(listOmie(admin, {})).rejects.toMatchObject({
+      code: "OMIE_RATE_LIMIT",
+      status: 429,
+      retryAfter: 60,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(storage.data!)).toEqual(saved);
+  });
+  it("keeps a DRE access failure distinct from a timeout or invalid report", async () => {
+    storage.data = JSON.stringify(saved);
+    fetchMock.mockResolvedValueOnce(
+      response(
+        {
+          faultcode: "SOAP-ENV:Client-101",
+          faultstring: "Sem permissão para esta consulta PRIVATE_SECRET",
+        },
+        500
+      )
+    );
+    await expect(
+      listOmieDre(admin, { start: "2026-09-01", end: "2026-09-30", dateBasis: "emission" })
+    ).rejects.toMatchObject({ code: "OMIE_ACCESS", status: 502 });
+    fetchMock.mockRejectedValueOnce(new DOMException("private", "TimeoutError"));
+    await expect(listOmie(admin, {})).rejects.toMatchObject({ code: "OMIE_TIMEOUT", status: 504 });
+  });
   it("enforces pagination and maps a minimal read-only response", async () => {
     storage.data = JSON.stringify(saved);
     fetchMock.mockResolvedValue(

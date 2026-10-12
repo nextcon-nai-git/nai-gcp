@@ -3,18 +3,28 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { requireFinancialAccess } from "@/lib/auth/financial-access";
 import { AuthError, badRequest } from "@/lib/auth/errors";
 import { connectOmie, disconnectOmie, listOmie, omieStatus } from "@/services/omie-financial";
+import { OmieUpstreamError } from "@/lib/financial/omie-errors";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const headers = { "Cache-Control": "private, no-store" };
+const headers = { "Cache-Control": "private, no-store", Vary: "Authorization" };
 function failure(e: unknown) {
   return NextResponse.json(
     {
+      ...(e instanceof OmieUpstreamError ? { code: e.code, retryAfter: e.retryAfter } : {}),
       error:
         e instanceof AuthError
           ? e.message
           : "Não foi possível acessar a integração Omie. Tente novamente.",
     },
-    { status: e instanceof AuthError ? e.status : 503, headers }
+    {
+      status: e instanceof AuthError ? e.status : 503,
+      headers: {
+        ...headers,
+        ...(e instanceof OmieUpstreamError && e.retryAfter
+          ? { "Retry-After": String(e.retryAfter) }
+          : {}),
+      },
+    }
   );
 }
 export async function GET(request: NextRequest) {
