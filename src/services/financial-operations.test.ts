@@ -117,6 +117,19 @@ describe("financial control persistence", () => {
     expect(storage.writes).toHaveLength(1);
     expect(storage.writes[0].options.metadata).toEqual({ cacheControl: "private, no-store" });
   });
+  it("reads the deployed book with additive ERP defaults and preserves existing records", async () => {
+    const saved = await saveFinanceCommand(admin, cmd());
+    const record = storage.files.get("financial-operations/v1/nextcon.json")!;
+    const legacy = JSON.parse(record.bytes.toString());
+    delete legacy.erp;
+    record.bytes = Buffer.from(JSON.stringify(legacy));
+    const read = await getFinanceBook(admin);
+    expect(read.accounts).toEqual(saved.accounts);
+    expect(read.audit).toEqual(saved.audit);
+    expect(read.version).toBe(saved.version);
+    expect(read.erp.orders).toEqual([]);
+    expect(storage.writes).toHaveLength(1);
+  });
   it("does not overwrite a concurrent writer", async () => {
     storage.beforeWrite = () => {
       storage.files.set("financial-operations/v1/nextcon.json", {

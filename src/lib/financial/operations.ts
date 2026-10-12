@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isCalendarDate } from "./omie-dre";
+import { ErpSchema, erpCommands, applyErpCommand } from "./erp";
 
 const text = z.string().trim().min(1).max(180);
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
@@ -44,7 +45,7 @@ const Title = z.object({
   center: text,
   contractId: id.nullable(),
   sourceKey: text,
-  source: z.enum(["manual", "recurring", "service"]),
+  source: z.enum(["manual", "recurring", "service", "order"]),
   externalReference: z.string().trim().max(180),
   evidence: note,
   status: z.enum(["draft", "submitted", "approved", "rejected", "cancelled"]),
@@ -102,6 +103,7 @@ const Audit = z.object({
 });
 export const FinanceBookSchema = z.object({
   schemaVersion: z.literal(1),
+  erp: ErpSchema.default({}),
   version: z.number().int().nonnegative(),
   accounts: z.array(Account).max(100),
   contracts: z.array(Contract).max(3000),
@@ -119,6 +121,7 @@ export type FinanceTitle = z.infer<typeof Title>;
 export function emptyFinanceBook(): FinanceBook {
   return {
     schemaVersion: 1,
+    erp: ErpSchema.parse({}),
     version: 0,
     accounts: [],
     contracts: [],
@@ -134,6 +137,7 @@ export function emptyFinanceBook(): FinanceBook {
 }
 const common = { requestId: z.string().uuid(), expectedVersion: z.number().int().nonnegative() };
 export const FinanceCommandSchema = z.discriminatedUnion("action", [
+  ...erpCommands,
   z
     .object({
       ...common,
@@ -301,6 +305,12 @@ function addTitle(book: FinanceBook, title: FinanceTitle) {
 export function closingIssues(book: FinanceBook, period: string): string[] {
   const issues: string[] = [];
   if (
+    book.erp.orders.some(
+      (o) => o.competence === period && !["converted", "cancelled"].includes(o.status)
+    )
+  )
+    issues.push("Existem pedidos sem conversão financeira ou cancelamento.");
+  if (
     book.titles.some(
       (t) => t.competence === period && ["draft", "submitted", "rejected"].includes(t.status)
     )
@@ -356,6 +366,15 @@ export function applyFinanceCommand(
   const book = structuredClone(current),
     key = command.requestId;
   switch (command.action) {
+    case "erpParty":
+    case "erpCategory":
+    case "erpCenter":
+    case "erpOrder":
+    case "erpReviewOrder":
+    case "erpConvertOrder":
+    case "erpFollowUp":
+      applyErpCommand(book, command, actor, { fail, unlocked, addTitle });
+      break;
     case "account":
       if (book.accounts.some((a) => a.name.toLowerCase() === command.name.toLowerCase()))
         fail("Conta já cadastrada.");
@@ -443,6 +462,8 @@ export function applyFinanceCommand(
     }
     case "editTitle": {
       const t = titleFor(book, command.id);
+      if (t.source === "order")
+        fail("Título originado de pedido: cancele e registre um novo pedido corrigido.");
       if (!["draft", "rejected"].includes(t.status))
         fail("Somente rascunhos ou títulos devolvidos podem ser corrigidos.");
       unlocked(book, command.data.competence);
@@ -494,6 +515,13 @@ export function applyFinanceCommand(
         book.settlements.some((s) => s.titleId === t.id && !s.reversed)
       )
         fail("Estorne as baixas antes de cancelar o título.");
+      if (command.status === "cancelled" && t.source === "order") {
+        const order = book.erp.orders.find((o) => o.titleId === t.id);
+        if (order) {
+          unlocked(book, order.competence);
+          order.status = "cancelled";
+        }
+      }
       if (command.status === "cancelled" && t.source === "service") {
         const service = book.services.find((s) => s.titleId === t.id);
         if (service) {

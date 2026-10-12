@@ -175,6 +175,7 @@ const NAV_MODULES: NavModule[] = [
     icon: Database,
     items: [
       { title: "Financeiro", icon: BarChart3, href: "/financial" },
+      { title: "ERP financeiro", icon: BarChart3, href: "/financial/operacoes" },
       {
         title: "Ações financeiras",
         icon: ClipboardCheck,

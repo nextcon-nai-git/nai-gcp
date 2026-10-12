@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { ErpWorkspace } from "./erp-workspace";
 import Papa from "papaparse";
 import { useUser } from "@/firebase";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,7 @@ type Field = {
   optional?: boolean;
   multiple?: boolean;
 };
-type Form = {
+export type FinanceForm = {
   title: string;
   description: string;
   fields: Field[];
@@ -54,6 +55,10 @@ const stateLabels: Record<string, string> = {
 };
 const tabs = [
   ["overview", "Visão geral"],
+  ["masters", "Cadastros"],
+  ["orders", "Compras e vendas"],
+  ["collections", "Cobrança"],
+  ["reports", "Relatórios"],
   ["titles", "Pagar e receber"],
   ["contracts", "Contratos"],
   ["services", "Produção SST"],
@@ -87,7 +92,7 @@ export function FinanceOperationsWorkspace() {
   const [tab, setTab] = useState("overview"),
     [period, setPeriod] = useState(() => brazilToday().slice(0, 7)),
     [search, setSearch] = useState("");
-  const [form, setForm] = useState<Form | null>(null),
+  const [form, setForm] = useState<FinanceForm | null>(null),
     [formError, setFormError] = useState("");
   const [bankAccount, setBankAccount] = useState(""),
     [bankPreview, setBankPreview] = useState<Array<{
@@ -192,7 +197,7 @@ export function FinanceOperationsWorkspace() {
   const accounts = book?.accounts.map((a) => ({ value: a.id, label: a.name })) || [];
   const contracts =
     book?.contracts.map((c) => ({ value: c.id, label: `${c.client} · ${c.name}` })) || [];
-  const showForm = (f: Form) => {
+  const showForm = (f: FinanceForm) => {
     setFormError("");
     setForm(f);
   };
@@ -353,12 +358,12 @@ export function FinanceOperationsWorkspace() {
             ← Central financeira
           </Link>
           <p className="mt-5 text-xs uppercase tracking-widest text-cyan-300">
-            NEXTCON · Gestão financeira
+            NEXTCON · ERP financeiro
           </p>
-          <h1 className="mt-2 text-3xl font-semibold">Controle, conciliação e resultado</h1>
+          <h1 className="mt-2 text-3xl font-semibold">ERP financeiro NAI</h1>
           <p className="mt-3 max-w-3xl text-sm text-slate-300">
-            Contratos e produção conectados à aprovação, baixa e conferência bancária. Os registros
-            deste módulo são gerenciais; a carteira Omie continua disponível na central.
+            Cadastros, compras, vendas, contratos e produção conectados ao financeiro. Gestão
+            gerencial com aprovação, conciliação e histórico; a consulta Omie continua na central.
           </p>
         </div>
         <Button disabled={busy} onClick={() => void request()}>
@@ -427,6 +432,19 @@ export function FinanceOperationsWorkspace() {
               </button>
             ))}
           </nav>
+          {["masters", "orders", "collections", "reports"].includes(tab) && (
+            <ErpWorkspace
+              key={user.uid}
+              book={book}
+              section={tab}
+              period={period}
+              today={today}
+              actor={user.uid}
+              busy={busy}
+              showForm={showForm}
+              request={request}
+            />
+          )}
           {tab === "overview" && (
             <>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -597,7 +615,7 @@ export function FinanceOperationsWorkspace() {
                       </div>
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2">
-                      {["draft", "rejected"].includes(t.status) && (
+                      {t.source !== "order" && ["draft", "rejected"].includes(t.status) && (
                         <Button
                           variant="secondary"
                           disabled={busy}

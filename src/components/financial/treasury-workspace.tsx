@@ -24,8 +24,8 @@ const money = (cents: number) =>
 const links = [
   [
     "/financial/operacoes",
-    "Controle financeiro",
-    "Aprovações, baixas, conciliação, contratos e orçamento",
+    "ERP financeiro NAI",
+    "Cadastros, compras, vendas, tesouraria e relatórios",
   ],
   ["/financial/omie/dre", "Resultado e despesas", "DRE por período e categoria no Omie"],
   ["/financial/actions", "Plano de ação", "Responsáveis, prazos e checklists financeiros"],
