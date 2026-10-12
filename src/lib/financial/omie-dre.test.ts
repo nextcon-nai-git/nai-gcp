@@ -7,6 +7,7 @@ import {
   previousClosedMonthQuery,
   suggestOmieDreActions,
   summarizeOmieDre,
+  splitOmieDreQuery,
   type OmieDreReport,
   type OmieDreRow,
 } from "./omie-dre";
@@ -44,6 +45,29 @@ const report = (rows: OmieDreRow[]): OmieDreReport => {
 };
 
 describe("Omie DRE analysis", () => {
+  it("covers every selected date exactly once across month, year and leap-day boundaries", () => {
+    for (const [start, end] of [
+      ["2026-09-01", "2026-09-30"],
+      ["2024-02-01", "2024-03-31"],
+      ["2025-12-15", "2026-02-15"],
+      ["2026-01-01", "2026-12-31"],
+      ["2026-10-11", "2026-10-11"],
+    ]) {
+      const periods = splitOmieDreQuery({ start, end, dateBasis: "emission" });
+      const covered = periods.flatMap((period) => {
+        const days = (Date.parse(period.end) - Date.parse(period.start)) / 86400000 + 1;
+        expect(days).toBeGreaterThan(0);
+        expect(days).toBeLessThanOrEqual(30);
+        return Array.from({ length: days }, (_, index) =>
+          new Date(Date.parse(period.start) + index * 86400000).toISOString().slice(0, 10)
+        );
+      });
+      expect(covered[0]).toBe(start);
+      expect(covered.at(-1)).toBe(end);
+      expect(new Set(covered).size).toBe(covered.length);
+      expect(covered.length).toBe((Date.parse(end) - Date.parse(start)) / 86400000 + 1);
+    }
+  });
   it("validates calendar dates, range and allowed query fields", () => {
     expect(fromOmieDate("29/02/2024")).toBe("2024-02-29");
     expect(fromOmieDate("29/02/2026")).toBeNull();

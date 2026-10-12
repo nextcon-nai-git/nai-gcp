@@ -18,6 +18,7 @@ import {
   OmieDreQuerySchema,
   suggestOmieDreActions,
   summarizeOmieDre,
+  splitOmieDreQuery,
   toOmieDate,
   type OmieDreReport,
   type OmieDreRow,
@@ -81,7 +82,8 @@ async function readDreJson(response: Response): Promise<unknown> {
 async function call(
   credentials: Credentials,
   kind: keyof typeof methods,
-  param: Record<string, unknown>
+  param: Record<string, unknown>,
+  signal?: AbortSignal
 ): Promise<Record<string, unknown>> {
   const [path, method] = methods[kind];
   try {
@@ -89,7 +91,10 @@ async function call(
       method: "POST",
       redirect: "error",
       cache: "no-store",
-      signal: AbortSignal.timeout(kind === "dre" ? 45000 : kind === "parties" ? 8000 : 20000),
+      signal: AbortSignal.any([
+        AbortSignal.timeout(kind === "dre" ? 45000 : kind === "parties" ? 8000 : 20000),
+        ...(signal ? [signal] : []),
+      ]),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         call: method,
@@ -132,7 +137,10 @@ const dreRecordSchema = z.object({
   cidade: z.string().max(100).default(""),
   estado: z.string().max(2).default(""),
   tagFuncionario: z.string().max(30).default(""),
-  cnpjEmpresa: z.string().max(30),
+  // ListarDRE is scoped to the application credentials. Its actual rows do not
+  // include cnpjEmpresa; the company's identity was verified by ListarEmpresas
+  // when these credentials were saved. Validate the field if a provider adds it.
+  cnpjEmpresa: z.string().max(30).optional(),
 });
 const invalidDre = () =>
   new AuthError(
@@ -168,20 +176,41 @@ export async function listOmieDre(user: AuthContext, input: unknown): Promise<Om
   const companyCnpj = credentials.cnpj.replace(/\D/g, "");
   if (companyCnpj.length !== 14) throw invalidDre();
   const query = parsed.data;
-  const params = {
-    dPeriodoInicial: toOmieDate(query.start),
-    dPeriodoFinal: toOmieDate(query.end),
-    cTipoData: query.dateBasis === "emission" ? "1" : "2",
-  };
-  const data = await call(credentials, "dre", params);
-  for (const key of ["dPeriodoInicial", "dPeriodoFinal", "cTipoData"] as const) {
-    if (data[key] !== undefined && data[key] !== params[key]) throw invalidDre();
+  const allRows: z.infer<typeof dreRecordSchema>[] = [];
+  const deadline = AbortSignal.timeout(240000);
+  let totalBytes = 0;
+  // Sequential, disjoint periods respect the provider limit. Never return partial finances.
+  for (const period of splitOmieDreQuery(query)) {
+    if (deadline.aborted) throw omieTransportError(deadline.reason);
+    const params = {
+      dPeriodoInicial: toOmieDate(period.start),
+      dPeriodoFinal: toOmieDate(period.end),
+      cTipoData: period.dateBasis === "emission" ? "1" : "2",
+    };
+    const data = await call(credentials, "dre", params, deadline);
+    for (const key of ["dPeriodoInicial", "dPeriodoFinal", "cTipoData"] as const) {
+      if (data[key] !== undefined && data[key] !== params[key]) throw invalidDre();
+    }
+    const result = z.array(dreRecordSchema).max(50000).safeParse(data.listaDRE);
+    if (!result.success) throw invalidDre();
+    totalBytes += Buffer.byteLength(JSON.stringify(result.data), "utf8");
+    if (allRows.length + result.data.length > 50000 || totalBytes > DRE_RESPONSE_MAX_BYTES)
+      throw dreTooLarge();
+    for (const row of result.data) {
+      const rowDate = fromOmieDate(row.dataMovimento);
+      if (
+        !rowDate ||
+        rowDate < period.start ||
+        rowDate > period.end ||
+        (row.cnpjEmpresa !== undefined && row.cnpjEmpresa.replace(/\D/g, "") !== companyCnpj)
+      )
+        throw invalidDre();
+    }
+    allRows.push(...result.data);
   }
-  const result = z.array(dreRecordSchema).max(50000).safeParse(data.listaDRE);
-  if (!result.success) throw invalidDre();
   // Sorting makes import identity independent of Omie's row order. Equal rows remain separate:
   // a duplicate-looking row may be a legitimate allocation or another transaction.
-  const canonical = result.data.map((row) => JSON.stringify(row)).sort();
+  const canonical = allRows.map((row) => JSON.stringify(row)).sort();
   // A credential rotation also rotates pseudonyms. Give that context its own revision
   // so an unchanged raw report never collides with differently pseudonymized cards.
   const identityContext = createHmac("sha256", credentials.appSecret)
@@ -199,7 +228,7 @@ export async function listOmieDre(user: AuthContext, input: unknown): Promise<Om
       !date ||
       date < query.start ||
       date > query.end ||
-      row.cnpjEmpresa.replace(/\D/g, "") !== companyCnpj ||
+      (row.cnpjEmpresa !== undefined && row.cnpjEmpresa.replace(/\D/g, "") !== companyCnpj) ||
       !Number.isSafeInteger(amountCents) ||
       Math.abs(amountCents) > 1e14 ||
       Math.abs(scaled - amountCents) > 0.00001

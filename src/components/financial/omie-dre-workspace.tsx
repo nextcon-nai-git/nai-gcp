@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   exportOmieDreCsv,
+  OmieDreQuerySchema,
   previousClosedMonthQuery,
   toOmieDate,
   type OmieDreCost,
@@ -102,7 +103,10 @@ export function OmieDreWorkspace() {
     const response = await fetch(path, {
       ...init,
       cache: "no-store",
-      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]),
+      signal: AbortSignal.any([
+        controller.signal,
+        AbortSignal.timeout(path.startsWith("/api/financial/omie/dre?") ? 270000 : 60000),
+      ]),
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     });
     const body = await response.json();
@@ -127,6 +131,17 @@ export function OmieDreWorkspace() {
   async function consult(event: React.FormEvent) {
     event.preventDefault();
     if (!user || busy || saving) return;
+    const fields = new FormData(event.currentTarget as HTMLFormElement);
+    const selected = OmieDreQuerySchema.safeParse({
+      start: fields.get("start"),
+      end: fields.get("end"),
+      dateBasis: fields.get("dateBasis"),
+    });
+    if (!selected.success) {
+      setError("Informe um período válido de até 12 meses e a base de datas.");
+      return;
+    }
+    setQuery(selected.data);
     const current = session.generation;
     const uid = user.uid;
     const controller = new AbortController();
@@ -137,13 +152,19 @@ export function OmieDreWorkspace() {
     setData(null);
     setRowPage(0);
     try {
-      const params = new URLSearchParams(query);
+      const params = new URLSearchParams(selected.data);
       const result = await request(`/api/financial/omie/dre?${params}`, controller);
       if (session.generation === current && !controller.signal.aborted)
         setData({ uid, report: result });
     } catch (error) {
       if (session.generation === current && !controller.signal.aborted)
-        setError(error instanceof Error ? error.message : "Falha ao consultar a DRE.");
+        setError(
+          error instanceof Error && error.name === "TimeoutError"
+            ? "A consulta da DRE demorou além do limite. Tente um período menor."
+            : error instanceof Error
+              ? error.message
+              : "Falha ao consultar a DRE."
+        );
     } finally {
       session.requests.delete(controller);
       if (session.generation === current) setBusy(false);
@@ -240,6 +261,7 @@ export function OmieDreWorkspace() {
             <span className="block">Data inicial</span>
             <Input
               aria-label="Data inicial"
+              name="start"
               type="date"
               min="2000-01-01"
               max={query.end}
@@ -252,6 +274,7 @@ export function OmieDreWorkspace() {
             <span className="block">Data final</span>
             <Input
               aria-label="Data final"
+              name="end"
               type="date"
               min={query.start}
               max="2100-12-31"
@@ -263,6 +286,7 @@ export function OmieDreWorkspace() {
           <label className="space-y-2 text-sm">
             <span className="block">Base de datas no Omie</span>
             <select
+              name="dateBasis"
               aria-label="Base de datas no Omie"
               className="h-10 rounded-md border bg-white px-3"
               value={query.dateBasis}
@@ -279,6 +303,12 @@ export function OmieDreWorkspace() {
             {busy ? "Consultando DRE…" : "Consultar DRE"}
           </Button>
         </fieldset>
+        {busy && (
+          <p role="status" className="mt-4 text-sm text-slate-600">
+            Consultando o período em intervalos de até 30 dias. Períodos maiores podem levar alguns
+            minutos; o relatório será exibido quando todas as consultas terminarem.
+          </p>
+        )}
         <p className="mt-4 text-xs text-slate-500">
           A base escolhida segue o relatório Omie. O fechamento por competência exige conferir
           provisões, estornos e documentos registrados depois da prestação.
