@@ -190,6 +190,16 @@ afterEach(async () => {
 });
 
 describe("Omie DRE workspace session and financial workflow", () => {
+  it("submits the dates visible in the form even when autofill has not emitted a change event", async () => {
+    mocks.fetch.mockResolvedValueOnce(json(reportFixture()));
+    await mount();
+    container.querySelector<HTMLInputElement>('[name="start"]')!.value = "2026-09-01";
+    container.querySelector<HTMLInputElement>('[name="end"]')!.value = "2026-09-30";
+    await consult();
+    const requested = new URL(mocks.fetch.mock.calls[0][0], "https://example.test");
+    expect(requested.searchParams.get("start")).toBe("2026-09-01");
+    expect(requested.searchParams.get("end")).toBe("2026-09-30");
+  });
   it("does not fetch or expose report/actions before an authenticated consultation", async () => {
     mocks.user = null;
     await mount();

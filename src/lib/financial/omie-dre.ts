@@ -25,6 +25,22 @@ export const OmieDreQuerySchema = z
   });
 
 export type OmieDreQuery = z.infer<typeof OmieDreQuerySchema>;
+
+/** Omie's ListarDRE accepts at most 30 calendar days per request (Client-1005). */
+export function splitOmieDreQuery(input: OmieDreQuery): OmieDreQuery[] {
+  const query = OmieDreQuerySchema.parse(input);
+  const day = 86400000;
+  const end = Date.parse(`${query.end}T00:00:00Z`);
+  const periods: OmieDreQuery[] = [];
+  for (let start = Date.parse(`${query.start}T00:00:00Z`); start <= end; start += 30 * day) {
+    periods.push({
+      start: new Date(start).toISOString().slice(0, 10),
+      end: new Date(Math.min(end, start + 29 * day)).toISOString().slice(0, 10),
+      dateBasis: query.dateBasis,
+    });
+  }
+  return periods;
+}
 export type OmieDreRow = {
   id: string;
   date: string;

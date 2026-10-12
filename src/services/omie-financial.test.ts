@@ -255,7 +255,7 @@ describe("Omie financial boundary", () => {
   });
 });
 
-const dreQuery = { start: "2026-01-01", end: "2026-09-30", dateBasis: "emission" };
+const dreQuery = { start: "2026-09-01", end: "2026-09-30", dateBasis: "emission" };
 const dreRow = {
   dreTipo: "Custos",
   dreGrupo: "Custos diretos",
@@ -270,6 +270,92 @@ const dreRow = {
   cnpjEmpresa: saved.cnpj,
 };
 describe("Omie official DRE boundary", () => {
+  it("accepts the real ListarDRE shape without a company field on each row", async () => {
+    storage.data = JSON.stringify(saved);
+    const row = { ...dreRow, cnpjEmpresa: undefined };
+    fetchMock.mockResolvedValueOnce(response({
+      dPeriodoInicial: "01/09/2026",
+      dPeriodoFinal: "30/09/2026",
+      cTipoData: "1",
+      listaDRE: [{ ...row, estado: undefined, tagFuncionario: "Não" }],
+    }));
+    const result = await listOmieDre(admin, dreQuery);
+    expect(result.company).toBe(saved.company);
+    expect(result.cnpj).toBe(saved.cnpj);
+    expect(result.rows[0]).toMatchObject({ amountCents: -10010, state: "", identityStatus: "cnpj" });
+    expect(storage.data).toBe(JSON.stringify(saved));
+  });
+  it("still rejects invalid dates and amounts when Omie omits the company field", async () => {
+    storage.data = JSON.stringify(saved);
+    const row = { ...dreRow, cnpjEmpresa: undefined };
+    for (const invalid of [
+      { ...row, dataMovimento: "01/10/2026" },
+      { ...row, valor: "-100.10" },
+      { ...row, valor: 1.005 },
+    ]) {
+      fetchMock.mockResolvedValueOnce(response({ listaDRE: [invalid] }));
+      await expect(listOmieDre(admin, dreQuery)).rejects.toThrow("validada");
+    }
+  });
+  it("splits a long report into sequential disjoint periods of at most 30 days", async () => {
+    storage.data = JSON.stringify(saved);
+    let active = 0;
+    let peak = 0;
+    fetchMock.mockImplementation(async (_url, init) => {
+      active++;
+      peak = Math.max(peak, active);
+      const period = JSON.parse(init.body).param[0];
+      await Promise.resolve();
+      active--;
+      return response({
+        ...period,
+        listaDRE: [{ ...dreRow, dataMovimento: period.dPeriodoInicial }],
+      });
+    });
+    const result = await listOmieDre(admin, {
+      start: "2026-01-01",
+      end: "2026-09-30",
+      dateBasis: "registration",
+    });
+    const periods = fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body).param[0]);
+    expect(periods).toHaveLength(10);
+    expect(periods[0]).toEqual({
+      dPeriodoInicial: "01/01/2026",
+      dPeriodoFinal: "30/01/2026",
+      cTipoData: "2",
+    });
+    expect(periods[1]).toEqual({
+      dPeriodoInicial: "31/01/2026",
+      dPeriodoFinal: "01/03/2026",
+      cTipoData: "2",
+    });
+    expect(periods[9]).toEqual({
+      dPeriodoInicial: "28/09/2026",
+      dPeriodoFinal: "30/09/2026",
+      cTipoData: "2",
+    });
+    expect(peak).toBe(1);
+    expect(result.rows).toHaveLength(10);
+    expect(result.summary.totalSignedCents).toBe(-100100);
+    expect(result.query).toEqual({
+      start: "2026-01-01",
+      end: "2026-09-30",
+      dateBasis: "registration",
+    });
+  });
+  it("rejects the entire report if a later period fails or a row belongs to another slice", async () => {
+    storage.data = JSON.stringify(saved);
+    const query = { start: "2026-09-01", end: "2026-10-15", dateBasis: "emission" };
+    fetchMock
+      .mockResolvedValueOnce(response({ listaDRE: [dreRow] }))
+      .mockResolvedValueOnce(response({ faultstring: "Private provider failure" }, 500));
+    await expect(listOmieDre(admin, query)).rejects.toMatchObject({ code: "OMIE_REQUEST" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue(response({ listaDRE: [dreRow] }));
+    await expect(listOmieDre(admin, query)).rejects.toThrow("validada");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
   it("calls ListarDRE with emission or registration dates and returns minimal financial fields", async () => {
     storage.data = JSON.stringify(saved);
     fetchMock.mockResolvedValue(
@@ -289,7 +375,7 @@ describe("Omie official DRE boundary", () => {
     expect(url).toBe("https://app.omie.com.br/api/v1/financas/dre/");
     expect(JSON.parse(init.body)).toMatchObject({
       call: "ListarDRE",
-      param: [{ dPeriodoInicial: "01/01/2026", dPeriodoFinal: "30/09/2026", cTipoData: "2" }],
+      param: [{ dPeriodoInicial: "01/09/2026", dPeriodoFinal: "30/09/2026", cTipoData: "2" }],
     });
     expect(init.cache).toBe("no-store");
     expect(init.redirect).toBe("error");

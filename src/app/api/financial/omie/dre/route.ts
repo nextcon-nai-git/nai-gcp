@@ -6,7 +6,7 @@ import { OmieUpstreamError } from "@/lib/financial/omie-errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 const headers = { "Cache-Control": "private, no-store", Vary: "Authorization" };
 
 export async function GET(request: NextRequest) {
