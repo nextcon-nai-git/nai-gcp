@@ -16,6 +16,8 @@ import { z } from "zod";
 import {
   fromOmieDate,
   OmieDreQuerySchema,
+  omieAmountUnits,
+  omieUnitsToCents,
   suggestOmieDreActions,
   summarizeOmieDre,
   splitOmieDreQuery,
@@ -222,16 +224,17 @@ export async function listOmieDre(user: AuthContext, input: unknown): Promise<Om
   const rows: OmieDreRow[] = canonical.map((value, index) => {
     const row = JSON.parse(value) as z.infer<typeof dreRecordSchema>;
     const date = fromOmieDate(row.dataMovimento);
-    const scaled = row.valor * 100;
-    const amountCents = Math.round(scaled);
+    let amountCents: number;
+    try {
+      amountCents = omieUnitsToCents(omieAmountUnits(row.valor));
+    } catch {
+      throw invalidDre();
+    }
     if (
       !date ||
       date < query.start ||
       date > query.end ||
-      (row.cnpjEmpresa !== undefined && row.cnpjEmpresa.replace(/\D/g, "") !== companyCnpj) ||
-      !Number.isSafeInteger(amountCents) ||
-      Math.abs(amountCents) > 1e14 ||
-      Math.abs(scaled - amountCents) > 0.00001
+      (row.cnpjEmpresa !== undefined && row.cnpjEmpresa.replace(/\D/g, "") !== companyCnpj)
     )
       throw invalidDre();
     const document = row.cnpj_cpf.replace(/\D/g, "");
@@ -253,6 +256,7 @@ export async function listOmieDre(user: AuthContext, input: unknown): Promise<Om
       account: clean(row.dreConta) || "Conta não informada",
       category: clean(row.categoria) || "Categoria não informada",
       amountCents,
+      amountDecimal: String(row.valor),
       partyId,
       partyName: person
         ? `Pessoa física ${partyId.slice(0, 8)}`
@@ -270,6 +274,7 @@ export async function listOmieDre(user: AuthContext, input: unknown): Promise<Om
     throw invalidDre();
   }
   const warnings = [
+    "Valores com até quatro casas decimais do Omie são preservados no cálculo e no CSV. Totais são arredondados para centavos após a soma; a soma visual de valores já arredondados pode diferir por centavos.",
     "O relatório inclui as categorias vinculadas a contas DRE no Omie. Confira categorias sem vínculo e ajustes por competência antes de considerar o período fechado.",
     "A cidade é a do cadastro do fornecedor no Omie. Confirme a unidade executante na NF e no atendimento antes de concluir o custo dos exames por cidade.",
     "Os rankings usam a classificação financeira explícita e custos com saldo negativo, compensando valores positivos da mesma classificação. Confira sinais e estornos; quantidade de lançamentos não é quantidade de exames.",
