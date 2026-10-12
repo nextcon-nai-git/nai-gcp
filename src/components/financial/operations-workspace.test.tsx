@@ -57,6 +57,20 @@ describe("financial operations UI", () => {
     expect(mocks.fetch).toHaveBeenCalledTimes(1);
     expect(mocks.fetch.mock.calls[0][1].method).toBe("GET");
   });
+  it("opens the ERP areas without creating transactions", async () => {
+    mocks.fetch.mockResolvedValue(new Response(JSON.stringify(emptyFinanceBook())));
+    await render();
+    await act(async () => button("Abrir controle").click());
+    await act(async () => button("Cadastros").click());
+    expect(container.textContent).toContain("Plano de contas gerencial");
+    await act(async () => button("Compras e vendas").click());
+    expect(button("Novo pedido").disabled).toBe(true);
+    await act(async () => button("Cobrança").click());
+    expect(container.textContent).toContain("Nenhum recebível aprovado");
+    await act(async () => button("Relatórios").click());
+    expect(container.textContent).toContain("Não representa saldo histórico");
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+  });
   it("discards finance responses after sign out", async () => {
     let done!: (r: Response) => void;
     mocks.fetch.mockImplementation(
