@@ -49,6 +49,8 @@ export type OmieDreRow = {
   account: string;
   category: string;
   amountCents: number;
+  /** Original BRL precision from Omie (up to four decimal places for allocations). */
+  amountDecimal?: string;
   partyId: string;
   partyName: string;
   partyCnpj: string | null;
@@ -117,9 +119,35 @@ export function previousClosedMonthQuery(now = new Date()): OmieDreQuery {
   };
 }
 
-function addCents(a: number, b: number): number {
+const MAX_AMOUNT_UNITS = BigInt("10000000000000000");
+/** Fixed-point units of 0.0001 BRL; never sum allocation values as binary floats. */
+export function omieAmountUnits(value: string | number): bigint {
+  const text = String(value);
+  const match = /^(-?)(\d+)(?:\.(\d{1,4}))?$/.exec(text);
+  if (!match) throw new Error("Precisão monetária inválida");
+  const units =
+    (BigInt(match[2]) * BigInt("10000") + BigInt((match[3] || "").padEnd(4, "0"))) *
+    (match[1] ? -BigInt("1") : BigInt("1"));
+  if (units > MAX_AMOUNT_UNITS || units < -MAX_AMOUNT_UNITS)
+    throw new Error("Valor financeiro fora do limite seguro");
+  return units;
+}
+export function omieUnitsToCents(units: bigint): number {
+  const negative = units < BigInt("0");
+  const cents = Number(((negative ? -units : units) + BigInt("50")) / BigInt("100"));
+  return cents === 0 ? 0 : cents * (negative ? -1 : 1);
+}
+function rowUnits(row: OmieDreRow): bigint {
+  if (!Number.isSafeInteger(row.amountCents) || Math.abs(row.amountCents) > 1e14)
+    throw new Error("Valor financeiro fora do limite seguro");
+  if (row.amountDecimal === undefined) return BigInt(row.amountCents) * BigInt("100");
+  const units = omieAmountUnits(row.amountDecimal);
+  if (omieUnitsToCents(units) !== row.amountCents) throw new Error("Valor financeiro divergente");
+  return units;
+}
+function addUnits(a: bigint, b: bigint): bigint {
   const result = a + b;
-  if (!Number.isSafeInteger(result) || Math.abs(result) > 1e14)
+  if (result > MAX_AMOUNT_UNITS || result < -MAX_AMOUNT_UNITS)
     throw new Error("Valor financeiro fora do limite seguro");
   return result;
 }
@@ -169,12 +197,17 @@ export function summarizeOmieDre(rows: OmieDreRow[], query: OmieDreQuery): OmieD
     unclassifiedExpenseEntries: 0,
     positiveExpenseEntries: 0,
   };
-  const accounts = new Map<string, OmieDreSummary["accounts"][number]>();
-  const months = new Map<string, number>();
-  const suppliers = new Map<string, OmieDreCost & { segment: "engineering" | "exams" }>();
-  const cities = new Map<string, OmieDreSummary["supplierCities"][number]>();
+  let totalUnits = BigInt("0");
+  const accounts = new Map<string, OmieDreSummary["accounts"][number] & { units: bigint }>();
+  const months = new Map<string, bigint>();
+  const suppliers = new Map<
+    string,
+    OmieDreCost & { segment: "engineering" | "exams"; units: bigint }
+  >();
+  const cities = new Map<string, OmieDreSummary["supplierCities"][number] & { units: bigint }>();
   for (const row of rows) {
-    summary.totalSignedCents = addCents(summary.totalSignedCents, row.amountCents);
+    const units = rowUnits(row);
+    totalUnits = addUnits(totalUnits, units);
     const accountKey = JSON.stringify([row.type, row.group, row.account]);
     const account = accounts.get(accountKey) || {
       key: accountKey,
@@ -182,15 +215,16 @@ export function summarizeOmieDre(rows: OmieDreRow[], query: OmieDreQuery): OmieD
       group: row.group,
       account: row.account,
       amountCents: 0,
+      units: BigInt("0"),
     };
-    account.amountCents = addCents(account.amountCents, row.amountCents);
+    account.units = addUnits(account.units, units);
     accounts.set(accountKey, account);
     const month = row.date.slice(0, 7);
-    months.set(month, addCents(months.get(month) || 0, row.amountCents));
+    months.set(month, addUnits(months.get(month) || BigInt("0"), units));
     if (row.date < start || row.date > query.end) continue;
     const segment = expenseSegment(row);
     if (!segment) continue;
-    if (row.amountCents > 0) summary.positiveExpenseEntries++;
+    if (units > BigInt("0")) summary.positiveExpenseEntries++;
     if (segment === "other") {
       summary.unclassifiedExpenseEntries++;
       continue;
@@ -206,11 +240,12 @@ export function summarizeOmieDre(rows: OmieDreRow[], query: OmieDreQuery): OmieD
       cnpj: row.partyCnpj,
       segment,
       costCents: 0,
+      units: BigInt("0"),
       entries: 0,
       categories: [],
     };
     // Preserve positive reversals. Only a negative net in an expense account becomes a cost.
-    cost.costCents = addCents(cost.costCents, -row.amountCents);
+    cost.units = addUnits(cost.units, -units);
     cost.entries++;
     if (!cost.categories.includes(row.category)) cost.categories.push(row.category);
     suppliers.set(key, cost);
@@ -220,21 +255,26 @@ export function summarizeOmieDre(rows: OmieDreRow[], query: OmieDreQuery): OmieD
         city: row.city || "Cidade não informada",
         state: row.state,
         costCents: 0,
+        units: BigInt("0"),
         entries: 0,
       };
-      city.costCents = addCents(city.costCents, -row.amountCents);
+      city.units = addUnits(city.units, -units);
       city.entries++;
       cities.set(cityKey, city);
     }
   }
-  summary.accounts = [...accounts.values()].sort((a, b) => a.key.localeCompare(b.key, "pt-BR"));
+  summary.totalSignedCents = omieUnitsToCents(totalUnits);
+  summary.accounts = [...accounts.values()]
+    .map(({ units, ...account }) => ({ ...account, amountCents: omieUnitsToCents(units) }))
+    .sort((a, b) => a.key.localeCompare(b.key, "pt-BR"));
   summary.months = [...months]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, amountCents]) => ({
+    .map(([month, units]) => ({
       month,
-      amountCents,
+      amountCents: omieUnitsToCents(units),
     }));
-  for (const { segment, ...cost } of suppliers.values()) {
+  for (const { segment, units, ...cost } of suppliers.values()) {
+    cost.costCents = omieUnitsToCents(units);
     if (cost.costCents <= 0) continue;
     cost.categories.sort((a, b) => a.localeCompare(b, "pt-BR"));
     (segment === "engineering" ? summary.engineering : summary.occupationalExams).push(cost);
@@ -244,6 +284,7 @@ export function summarizeOmieDre(rows: OmieDreRow[], query: OmieDreQuery): OmieD
   summary.engineering.sort(compareCosts);
   summary.occupationalExams.sort(compareCosts);
   summary.supplierCities = [...cities.values()]
+    .map(({ units, ...city }) => ({ ...city, costCents: omieUnitsToCents(units) }))
     .filter((city) => city.costCents > 0)
     .sort((a, b) => b.costCents - a.costCents || a.city.localeCompare(b.city, "pt-BR"));
   return summary;
@@ -366,6 +407,10 @@ export function suggestOmieDreActions(
 }
 
 export function exportOmieDreCsv(report: OmieDreReport): string {
+  const amount = (row: OmieDreRow) => {
+    rowUnits(row);
+    return (row.amountDecimal ?? (row.amountCents / 100).toFixed(2)).replace(".", ",");
+  };
   // Spreadsheet formula injection applies to every untrusted text cell, including after whitespace.
   const cell = (value: string) => {
     const cleaned = value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
@@ -402,7 +447,7 @@ export function exportOmieDreCsv(report: OmieDreReport): string {
         row.city,
         row.state,
       ].map(cell),
-      (row.amountCents / 100).toFixed(2).replace(".", ","),
+      amount(row),
       ...[
         report.query.dateBasis === "emission" ? "Emissão" : "Registro",
         report.query.start,

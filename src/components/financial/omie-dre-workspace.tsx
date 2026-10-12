@@ -515,7 +515,14 @@ export function OmieDreWorkspace() {
                           <td className="py-3 pr-4">{row.partyName}</td>
                           <td className="py-3 pr-4">{row.category}</td>
                           <td className="whitespace-nowrap py-3 text-right tabular-nums">
-                            {money(row.amountCents)}
+                            {row.amountDecimal === undefined
+                              ? money(row.amountCents)
+                              : new Intl.NumberFormat("pt-BR", {
+                                  style: "currency",
+                                  currency: "BRL",
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 4,
+                                }).format(Number(row.amountDecimal))}
                           </td>
                         </tr>
                       ))}

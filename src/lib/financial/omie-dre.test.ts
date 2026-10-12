@@ -4,6 +4,8 @@ import {
   exportOmieDreCsv,
   fromOmieDate,
   OmieDreQuerySchema,
+  omieAmountUnits,
+  omieUnitsToCents,
   previousClosedMonthQuery,
   suggestOmieDreActions,
   summarizeOmieDre,
@@ -45,6 +47,39 @@ const report = (rows: OmieDreRow[]): OmieDreReport => {
 };
 
 describe("Omie DRE analysis", () => {
+  it("sums fixed-point allocations before rounding totals, accounts, months and suppliers", () => {
+    const rows = ["-0.3333", "-0.3333", "-0.3334", "0.0101"].map((amountDecimal) =>
+      row({
+        account: "Exames ocupacionais",
+        category: "ASO",
+        amountDecimal,
+        amountCents: omieUnitsToCents(omieAmountUnits(amountDecimal)),
+      })
+    );
+    const data = report(rows);
+    expect(data.summary.totalSignedCents).toBe(-99);
+    expect(data.summary.accounts[0].amountCents).toBe(-99);
+    expect(data.summary.months[0].amountCents).toBe(-99);
+    expect(data.summary.occupationalExams[0]).toMatchObject({ costCents: 99, entries: 4 });
+    expect(data.summary.supplierCities[0].costCents).toBe(99);
+    expect(FinancialActionImportSchema.safeParse(data.suggestedActions).success).toBe(true);
+    expect(exportOmieDreCsv(data)).toContain(";-0,3333;");
+    expect(exportOmieDreCsv(data)).toContain(";0,0101;");
+    expect(() => JSON.stringify(data)).not.toThrow();
+  });
+  it("rounds half cents symmetrically and rejects unsupported or inconsistent amounts", () => {
+    expect(omieUnitsToCents(omieAmountUnits("1.005"))).toBe(101);
+    expect(omieUnitsToCents(omieAmountUnits("-1.005"))).toBe(-101);
+    for (const value of ["1.00001", "NaN", "=1+1", "1000000000000.0001"]) {
+      expect(() => omieAmountUnits(value)).toThrow();
+    }
+    expect(() =>
+      summarizeOmieDre([row({ amountDecimal: "-0.3333", amountCents: -34 })], query)
+    ).toThrow();
+    const data = report([row()]);
+    data.rows[0].amountDecimal = "=1+1";
+    expect(() => exportOmieDreCsv(data)).toThrow();
+  });
   it("covers every selected date exactly once across month, year and leap-day boundaries", () => {
     for (const [start, end] of [
       ["2026-09-01", "2026-09-30"],

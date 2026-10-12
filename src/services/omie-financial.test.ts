@@ -297,7 +297,7 @@ describe("Omie official DRE boundary", () => {
     for (const invalid of [
       { ...row, dataMovimento: "01/10/2026" },
       { ...row, valor: "-100.10" },
-      { ...row, valor: 1.005 },
+      { ...row, valor: 1.00001 },
     ]) {
       fetchMock.mockResolvedValueOnce(response({ listaDRE: [invalid] }));
       await expect(listOmieDre(admin, dreQuery)).rejects.toThrow("validada");
@@ -400,13 +400,36 @@ describe("Omie official DRE boundary", () => {
     }
   });
 
-  it("rejects another company, dates outside the requested period, mismatched metadata and fractional cents", async () => {
+  it("preserves four-decimal allocation values and rounds only aggregated totals", async () => {
+    storage.data = JSON.stringify(saved);
+    fetchMock.mockResolvedValueOnce(
+      response({
+        listaDRE: [
+          { ...dreRow, valor: -0.3333 },
+          { ...dreRow, valor: -0.3333 },
+          { ...dreRow, valor: -0.3334 },
+        ],
+      })
+    );
+    const result = await listOmieDre(admin, dreQuery);
+    expect(result.rows.map((row) => row.amountDecimal).sort()).toEqual([
+      "-0.3333",
+      "-0.3333",
+      "-0.3334",
+    ]);
+    expect(result.rows.reduce((sum, row) => sum + row.amountCents, 0)).toBe(-99);
+    expect(result.summary.totalSignedCents).toBe(-100);
+    expect(result.summary.engineering[0].costCents).toBe(100);
+    expect(result.suggestedActions.actions[1].baseAmountCents).toBe(100);
+    expect(JSON.stringify(result)).not.toContain("synthetic-secret");
+  });
+  it("rejects another company, invalid dates, mismatched metadata and unsupported precision", async () => {
     storage.data = JSON.stringify(saved);
     for (const invalid of [
       { listaDRE: [{ ...dreRow, cnpjEmpresa: "99999999000199" }] },
       { listaDRE: [{ ...dreRow, dataMovimento: "01/10/2026" }] },
       { listaDRE: [{ ...dreRow, dataMovimento: "31/09/2026" }] },
-      { listaDRE: [{ ...dreRow, valor: 1.005 }] },
+      { listaDRE: [{ ...dreRow, valor: 1.00001 }] },
       { listaDRE: [dreRow], cTipoData: "2" },
       { listaDRE: [dreRow], dPeriodoFinal: "31/12/2026" },
     ]) {
