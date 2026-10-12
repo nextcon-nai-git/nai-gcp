@@ -273,16 +273,22 @@ describe("Omie official DRE boundary", () => {
   it("accepts the real ListarDRE shape without a company field on each row", async () => {
     storage.data = JSON.stringify(saved);
     const row = { ...dreRow, cnpjEmpresa: undefined };
-    fetchMock.mockResolvedValueOnce(response({
-      dPeriodoInicial: "01/09/2026",
-      dPeriodoFinal: "30/09/2026",
-      cTipoData: "1",
-      listaDRE: [{ ...row, estado: undefined, tagFuncionario: "Não" }],
-    }));
+    fetchMock.mockResolvedValueOnce(
+      response({
+        dPeriodoInicial: "01/09/2026",
+        dPeriodoFinal: "30/09/2026",
+        cTipoData: "1",
+        listaDRE: [{ ...row, estado: undefined, tagFuncionario: "Não" }],
+      })
+    );
     const result = await listOmieDre(admin, dreQuery);
     expect(result.company).toBe(saved.company);
     expect(result.cnpj).toBe(saved.cnpj);
-    expect(result.rows[0]).toMatchObject({ amountCents: -10010, state: "", identityStatus: "cnpj" });
+    expect(result.rows[0]).toMatchObject({
+      amountCents: -10010,
+      state: "",
+      identityStatus: "cnpj",
+    });
     expect(storage.data).toBe(JSON.stringify(saved));
   });
   it("still rejects invalid dates and amounts when Omie omits the company field", async () => {

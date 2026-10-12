@@ -161,7 +161,9 @@ export function OmieDreWorkspace() {
         setError(
           error instanceof Error && error.name === "TimeoutError"
             ? "A consulta da DRE demorou além do limite. Tente um período menor."
-            : error instanceof Error ? error.message : "Falha ao consultar a DRE."
+            : error instanceof Error
+              ? error.message
+              : "Falha ao consultar a DRE."
         );
     } finally {
       session.requests.delete(controller);
