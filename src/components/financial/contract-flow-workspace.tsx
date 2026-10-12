@@ -95,6 +95,93 @@ export function ContractFlowWorkspace({
       }),
     });
   }
+  function enroll() {
+    if (!row) return;
+    showForm({
+      title: "Incluir contrato existente no fluxo",
+      description: `${row.contract.client} · ${row.contract.name} · ${money(row.contract.monthlyCents)}/mês · vencimento dia ${row.contract.dueDay}. Confirme o cliente e as condições já contratadas. O histórico permanece intacto. Não cria pedido, título ou nota fiscal. O checklist começa pendente.`,
+      fields: [
+        {
+          name: "partyId",
+          label: "Cliente correspondente ao contrato",
+          value: "",
+          options: [
+            { value: "", label: "Selecione o cliente e confira o documento" },
+            ...book.erp.parties
+              .filter((p) => p.active && p.role !== "supplier" && p.document.trim())
+              .map((p) => ({ value: p.id, label: `${p.name} · ${p.document}` })),
+          ],
+        },
+        {
+          name: "monthlyPriceConfirmed",
+          label: "Conferência do contrato",
+          value: "",
+          options: [
+            { value: "", label: "Selecione" },
+            {
+              value: "true",
+              label: "Conferi o cliente, a mensalidade fixa e o vencimento exibidos",
+            },
+          ],
+        },
+        { name: "owner", label: "Responsável pela implantação" },
+        { name: "acceptedOn", label: "Data original do aceite", type: "date" },
+        { name: "acceptanceEvidence", label: "Referência do contrato/aceite", type: "textarea" },
+        {
+          name: "implementationDue",
+          label: "Prazo para conferir implantação",
+          type: "date",
+          value: today,
+        },
+        {
+          name: "billingStartMonth",
+          label: "Primeira competência livre de cobranças (atual ou futura)",
+          type: "month",
+          value: period < today.slice(0, 7) ? today.slice(0, 7) : period,
+        },
+        {
+          name: "billingRequiresReadiness",
+          label: "Regra contratual de cobrança",
+          value: "true",
+          options: [
+            { value: "true", label: "Cobrar somente após implantação conferida" },
+            { value: "false", label: "Contrato permite mensalidade durante a implantação" },
+          ],
+        },
+        {
+          name: "existingBillingReviewed",
+          label: "Conferência de cobranças no Omie e demais controles",
+          value: "",
+          options: [
+            { value: "", label: "Selecione" },
+            {
+              value: "true",
+              label: "Conferi: não há cobranças já emitidas a partir da competência escolhida",
+            },
+          ],
+        },
+        {
+          name: "billingEvidence",
+          label: "Evidência da conferência e última competência já cobrada",
+          type: "textarea",
+        },
+      ],
+      build: (f) => ({
+        action: "enrollExistingContract",
+        contractId: row.contract.id,
+        partyId: get(f, "partyId"),
+        owner: get(f, "owner"),
+        acceptedOn: get(f, "acceptedOn"),
+        acceptanceEvidence: get(f, "acceptanceEvidence"),
+        implementationDue: get(f, "implementationDue"),
+        billingStartMonth: get(f, "billingStartMonth"),
+        billingRequiresReadiness: get(f, "billingRequiresReadiness") === "true",
+        monthlyPriceConfirmed: get(f, "monthlyPriceConfirmed") === "true",
+        existingBillingReviewed: get(f, "existingBillingReviewed") === "true",
+        billingEvidence: get(f, "billingEvidence"),
+      }),
+    });
+  }
   return (
     <section className="space-y-5" aria-label="Fluxo do contrato ao recebimento">
       <div className={card}>
@@ -172,8 +259,10 @@ export function ContractFlowWorkspace({
                 {row.flow ? (
                   <>
                     <p className="mt-3 text-sm">
-                      Pedido {book.erp.orders.find((o) => o.id === row.flow?.orderId)?.number} ·
-                      Responsável: {row.flow.owner} · Implantação até {row.flow.implementationDue}
+                      {row.flow.migration
+                        ? "Contrato existente incluído no fluxo"
+                        : `Pedido ${book.erp.orders.find((o) => o.id === row.flow?.orderId)?.number}`}{" "}
+                      · Responsável: {row.flow.owner} · Implantação até {row.flow.implementationDue}
                     </p>
                     <p className="mt-2 text-sm">
                       Documento do cliente: {row.flow.customerDocument || "não informado"}. Aceite
@@ -184,6 +273,12 @@ export function ContractFlowWorkspace({
                         ? "Mensalidade depende da implantação conferida."
                         : "Mensalidade permitida durante a implantação, conforme aceite registrado."}
                     </p>
+                    {row.flow.migration && (
+                      <p className="mt-2 text-sm">
+                        Primeira competência no fluxo: {row.flow.migration.billingStartMonth}.
+                        Conferência de cobranças: {row.flow.migration.billingEvidence}
+                      </p>
+                    )}
                     <ul className="my-4 space-y-2 text-sm">
                       {Object.entries(checklistLabels).map(([key, label]) => (
                         <li key={key}>
@@ -232,10 +327,15 @@ export function ContractFlowWorkspace({
                     </Button>
                   </>
                 ) : (
-                  <p className="mt-3 text-amber-300">
-                    Contrato anterior ao fluxo integrado. Mantém suas regras atuais; não há aceite
-                    ou checklist verificado por este fluxo.
-                  </p>
+                  <div className="mt-3 space-y-3">
+                    <p className="text-amber-300">
+                      Contrato anterior ao fluxo integrado. Confira o contrato e as cobranças
+                      existentes para incluí-lo com histórico preservado.
+                    </p>
+                    <Button disabled={busy || !row.contract.active} onClick={enroll}>
+                      Incluir contrato existente no fluxo
+                    </Button>
+                  </div>
                 )}
               </article>
               <article className={card}>
@@ -280,6 +380,8 @@ export function ContractFlowWorkspace({
                       row.contract.active &&
                       s.billingMode === "separate" &&
                       !s.titleId &&
+                      (!row.flow?.migration ||
+                        s.date.slice(0, 7) >= row.flow.migration.billingStartMonth) &&
                       (!row.flow || (flowReady(row.flow) && reviewed));
                     return (
                       <div key={s.id} className="rounded-lg border border-slate-700 p-4">

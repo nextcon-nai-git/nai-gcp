@@ -39,8 +39,8 @@ validação automática de documentos, assinatura eletrônica ou execução clí
 
 - Esta entrega atende contratos de mensalidade fixa com serviços avulsos. Não
   implementa preço por vida, faixas, pró-rata, reajustes ou medição automática.
-- Contratos anteriores preservam suas regras e aparecem identificados como fora
-  do fluxo integrado. Não há migração automática dos contratos ou dados do Omie.
+- Contratos anteriores preservam suas regras até a inclusão assistida descrita
+  abaixo. Não há migração automática dos contratos ou dados do Omie.
 - O bloqueio de duplicidade é local ao controle NAI. Cobranças prévias no Omie
   precisam ser conferidas e vinculadas antes de gerar/exportar novos títulos.
 - A conferência operacional é manual e usa a Produção SST financeira; não há
@@ -56,3 +56,31 @@ Testes cobrem aprovação, checklist, segregação da revisão, duplicidade,
 repetição de pedidos, competência anterior ao aceite, serviços incluídos,
 recebimento parcial, retenção, estorno e compatibilidade com livros anteriores.
 Não são criados registros sintéticos no ambiente de produção.
+
+## Inclusão assistida de contratos existentes
+
+Na aba **Contrato ao recebimento**, selecione um contrato ativo e use **Incluir
+contrato existente no fluxo**. Selecione o cliente cadastrado e confira seu
+documento, a mensalidade fixa e o vencimento. Registre responsável, aceite original,
+evidência contratual, prazo de conferência da implantação e regra de cobrança.
+
+Informe a primeira competência livre de cobranças, no mês atual ou futuro.
+A inclusão exige confirmação explícita da conferência no Omie e nos demais
+controles, com referência da evidência e última competência cobrada. O NAI rejeita
+a inclusão se encontrar títulos a receber não cancelados desse contrato a partir
+da competência escolhida, inclusive rascunhos e títulos já liquidados. Nesse caso,
+confira os títulos e escolha uma competência posterior; não cancele cobranças
+válidas apenas para migrar. Competências fechadas também são bloqueadas.
+
+A inclusão preserva ID, preços, vencimento, cliente exibido e todos os registros
+anteriores; não cria pedido, cobrança, recebimento ou NFS-e. O vínculo com o cadastro
+do cliente e seu documento fica registrado no fluxo, sem renomear dados históricos.
+O checklist começa pendente e precisa ser conferido. Novas mensalidades e produção
+só podem usar competências a partir da entrada; serviços antigos ainda não cobrados
+devem ser tratados antes da inclusão. Títulos anteriores continuam visíveis e seus
+recebimentos seguem os controles existentes.
+
+A operação usa os mesmos controles de acesso, auditoria, versão e idempotência.
+Os valores contratuais passam a ter a mesma proteção contra edição direta dos
+contratos criados por pedido. A conferência externa é uma declaração humana,
+não uma consulta automática ao Omie, e não substitui aprovação financeira.

@@ -317,3 +317,147 @@ describe("contract to cash", () => {
     ).toThrow(/inativo/);
   });
 });
+
+describe("existing contract enrollment", () => {
+  function legacy() {
+    return run(proposal(), {
+      action: "contract",
+      data: {
+        name: "Contrato existente",
+        client: "Cliente sintético",
+        center: "SST",
+        monthlyCents: 10000,
+        dueDay: 20,
+        active: true,
+      },
+    });
+  }
+  const enroll = (b: FinanceBook, extra = {}) => ({
+    action: "enrollExistingContract",
+    contractId: b.contracts[0].id,
+    partyId: b.erp.parties[0].id,
+    owner: "Operação teste",
+    acceptedOn: "2026-01-01",
+    acceptanceEvidence: "Contrato sintético arquivado",
+    implementationDue: "2026-10-20",
+    billingRequiresReadiness: true,
+    billingStartMonth: "2026-10",
+    billingEvidence: "Omie conferido até setembro; sem cobranças futuras",
+    existingBillingReviewed: true,
+    monthlyPriceConfirmed: true,
+    ...extra,
+  });
+  it("preserves contracts, historic titles, services and settlements without creating an order", () => {
+    let b = legacy();
+    b = run(b, { action: "recurring", contractId: b.contracts[0].id, month: "2026-09" });
+    const next = run(b, enroll(b));
+    for (const key of ["contracts", "titles", "services", "settlements", "erp"] as const)
+      expect(next[key]).toEqual(b[key]);
+    expect(next.contractFlows[0]).toMatchObject({
+      orderId: null,
+      contractId: b.contracts[0].id,
+      customerDocument: "12345678000190",
+      migration: { billingStartMonth: "2026-10", partyId: b.erp.parties[0].id },
+    });
+    expect(FinanceBookSchema.parse(next).contractFlows).toEqual(next.contractFlows);
+    expect(() => run(next, enroll(next))).toThrow(/já vinculado/);
+    expect(contractFlowOverview(next, "2026-09", "2026-10-12")[0]).toMatchObject({
+      billed: 10000,
+      readyForMonthly: false,
+    });
+  });
+  it("requires explicit price and previous billing confirmations", () => {
+    const b = legacy();
+    expect(() => run(b, enroll(b, { existingBillingReviewed: false }))).toThrow();
+    expect(() => run(b, enroll(b, { monthlyPriceConfirmed: false }))).toThrow();
+    expect(() => run(b, enroll(b, { billingEvidence: "" }))).toThrow();
+  });
+  it("rejects inactive contracts, suppliers and customers missing documents", () => {
+    const b = legacy();
+    b.contracts[0].active = false;
+    expect(() => run(b, enroll(b))).toThrow(/inativo/);
+    b.contracts[0].active = true;
+    b.erp.parties[0].role = "supplier";
+    expect(() => run(b, enroll(b))).toThrow(/cliente ativo/);
+    b.erp.parties[0].role = "customer";
+    b.erp.parties[0].document = "";
+    expect(() => run(b, enroll(b))).toThrow(/documento/);
+  });
+  it("rejects backdated, closed, invalid and already billed cutovers", () => {
+    let b = legacy();
+    expect(() => run(b, enroll(b, { billingStartMonth: "2026-09" }))).toThrow(
+      /primeira competência/
+    );
+    expect(() => run(b, enroll(b, { acceptedOn: "2026-10-13" }))).toThrow(/aceite/);
+    expect(() => run(b, enroll(b, { implementationDue: "2025-12-31" }))).toThrow(/aceite/);
+    b.periods.push({
+      month: "2026-10",
+      closed: true,
+      evidence: "Fechamento teste",
+      updatedBy: "reviewer",
+      updatedAt: now,
+    });
+    expect(() => run(b, enroll(b))).toThrow(/fechada/);
+    b.periods = [];
+    b = run(b, { action: "recurring", contractId: b.contracts[0].id, month: "2026-11" });
+    expect(() => run(b, enroll(b))).toThrow(/Já existem cobranças/);
+    expect(run(b, enroll(b, { billingStartMonth: "2026-12" })).contractFlows).toHaveLength(1);
+  });
+  it("enforces cutover on monthly charges, old unbilled services and new production", () => {
+    let b = service(legacy(), { date: "2026-09-10" });
+    const oldService = b.services[0].id;
+    expect(() => run(b, enroll(b))).toThrow(/serviços avulsos anteriores/);
+    b = run(b, { action: "billService", id: oldService, dueDate: "2026-10-20" });
+    b = run(b, enroll(b));
+    expect(() => service(b)).toThrow(/implantação/);
+    b = ready(b);
+    expect(() =>
+      run(b, { action: "recurring", contractId: b.contracts[0].id, month: "2026-09" })
+    ).toThrow(/entrada no fluxo/);
+    expect(() => service(b, { date: "2026-09-30" })).toThrow(/entrada no fluxo/);
+    expect(() => run(b, { action: "billService", id: oldService, dueDate: "2026-10-20" })).toThrow(
+      /entrada no fluxo/
+    );
+    b = run(b, { action: "recurring", contractId: b.contracts[0].id, month: "2026-10" });
+    expect(b.titles.at(-1)?.status).toBe("draft");
+    expect(() =>
+      run(b, { action: "recurring", contractId: b.contracts[0].id, month: "2026-10" })
+    ).toThrow(/já possui/);
+  });
+  it("does not mistake a new order for the migrated contract's null order", () => {
+    const before = legacy();
+    const b = run(before, enroll(before));
+    const order = b.erp.orders[0];
+    expect(() =>
+      run(b, {
+        action: "erpOrder",
+        id: null,
+        data: {
+          kind: "sale",
+          number: "NOVA-PROPOSTA",
+          partyId: order.partyId,
+          categoryId: order.categoryId,
+          centerId: order.centerId,
+          competence: "2026-10",
+          dueDate: "2026-10-20",
+          items: order.items,
+          discountCents: 0,
+          evidence: "Nova proposta sintética",
+        },
+        reason: "Criar nova proposta",
+      })
+    ).not.toThrow();
+  });
+  it("keeps enrollment replay idempotent and records its evidence in audit", () => {
+    const b = legacy();
+    const command = FinanceCommandSchema.parse({
+      ...enroll(b),
+      requestId: randomUUID(),
+      expectedVersion: b.version,
+    });
+    const next = applyFinanceCommand(b, command, "creator", now, "enrollment");
+    expect(applyFinanceCommand(next, command, "creator", now, "enrollment")).toBe(next);
+    expect(next.audit.at(-1)?.action).toBe("enrollExistingContract");
+    expect(() => run(next, { ...enroll(b), expectedVersion: b.version })).toThrow(/outra sessão/);
+  });
+});

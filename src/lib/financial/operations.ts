@@ -394,7 +394,7 @@ export function applyFinanceCommand(
     (command.action === "erpReviewOrder" ||
       command.action === "erpConvertOrder" ||
       command.action === "erpOrder") &&
-    current.contractFlows.some((f) => f.orderId === command.id)
+    current.contractFlows.some((f) => f.orderId !== null && f.orderId === command.id)
   )
     fail("Pedido vinculado a contrato. Não pode ser alterado nem gerar cobrança paralela.");
   if (
@@ -402,7 +402,7 @@ export function applyFinanceCommand(
     current.contractFlows.some((f) => f.contractId === command.id)
   )
     fail(
-      "Contrato originado de proposta aprovada. Alterações comerciais exigem aditivo; não edite o valor diretamente."
+      "Contrato do fluxo integrado. Alterações comerciais exigem aditivo; não edite o valor diretamente."
     );
   if (command.action === "editTitle") {
     const title = current.titles.find((t) => t.id === command.id);
@@ -420,6 +420,18 @@ export function applyFinanceCommand(
   const flow = current.contractFlows.find((f) => f.contractId === contractId);
   if (flow) {
     if (!current.contracts.find((c) => c.id === contractId)?.active) fail("Contrato inativo.");
+    const operationMonth =
+      command.action === "recurring"
+        ? command.month
+        : command.action === "service"
+          ? command.data.date.slice(0, 7)
+          : command.action === "billService"
+            ? current.services.find((s) => s.id === command.id)?.date.slice(0, 7)
+            : undefined;
+    if (flow.migration && operationMonth && operationMonth < flow.migration.billingStartMonth)
+      fail(
+        "Competência anterior à entrada no fluxo integrado. Preserve e confira o histórico anterior."
+      );
     if (command.action === "service" && (!flowReady(flow) || command.data.date < flow.acceptedOn))
       fail("Conclua a implantação e confira a data de aceite antes de registrar a produção.");
     if (
@@ -437,6 +449,7 @@ export function applyFinanceCommand(
   const book = structuredClone(current),
     key = command.requestId;
   switch (command.action) {
+    case "enrollExistingContract":
     case "contractFromOrder":
     case "flowChecklist":
     case "flowReviewService":
