@@ -91,6 +91,17 @@ interface NavModule {
 
 const NAV_MODULES: NavModule[] = [
   {
+    label: "FORNECEDORES",
+    icon: ClipboardCheck,
+    items: [
+      {
+        title: "Homologação de fornecedores",
+        icon: ClipboardCheck,
+        href: "/suppliers/qualification",
+      },
+    ],
+  },
+  {
     label: "PAINEL EXECUTIVO",
     icon: Zap,
     items: [
@@ -175,6 +186,7 @@ const NAV_MODULES: NavModule[] = [
     icon: Database,
     items: [
       { title: "Financeiro", icon: BarChart3, href: "/financial" },
+      { title: "Conectores Omie", icon: BarChart3, href: "/financial/omie/conectores" },
       { title: "ERP financeiro", icon: BarChart3, href: "/financial/operacoes" },
       {
         title: "Ações financeiras",
@@ -336,8 +348,18 @@ export function AppSidebar() {
   const filteredModules = React.useMemo(() => {
     const query = normalizeNavigationSearch(filterText);
     return NAV_MODULES.map((module) => {
-      if (isEngineeringProvider && module.label !== "OPERACIONAL — ENGENHARIA") return null;
-      if (isHealthProvider && module.label !== "OPERACIONAL — SAÚDE") return null;
+      if (
+        isEngineeringProvider &&
+        module.label !== "OPERACIONAL — ENGENHARIA" &&
+        module.label !== "FORNECEDORES"
+      )
+        return null;
+      if (
+        isHealthProvider &&
+        module.label !== "OPERACIONAL — SAÚDE" &&
+        module.label !== "FORNECEDORES"
+      )
+        return null;
 
       if (!query) return module;
 

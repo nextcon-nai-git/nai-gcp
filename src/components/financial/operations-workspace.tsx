@@ -614,6 +614,14 @@ export function FinanceOperationsWorkspace() {
                         </p>
                       </div>
                     </div>
+                    {book.omieExports.some((e) => e.sourceId === t.id) && (
+                      <p className="mt-3 text-sm text-amber-200">
+                        Envio Omie registrado: alterações e baixas locais bloqueadas.{" "}
+                        <Link className="underline" href="/financial/omie/conectores">
+                          Conferir resultado no conector
+                        </Link>
+                      </p>
+                    )}
                     <div className="mt-4 flex flex-wrap gap-2">
                       {t.source !== "order" && ["draft", "rejected"].includes(t.status) && (
                         <Button
@@ -725,7 +733,14 @@ export function FinanceOperationsWorkspace() {
                         </>
                       )}
                       {t.status === "approved" && outstanding(book, t) > 0 && (
-                        <Button disabled={busy || !accounts.length} onClick={() => settle(t.id)}>
+                        <Button
+                          disabled={
+                            busy ||
+                            !accounts.length ||
+                            book.omieExports.some((e) => e.sourceId === t.id)
+                          }
+                          onClick={() => settle(t.id)}
+                        >
                           Registrar baixa
                         </Button>
                       )}

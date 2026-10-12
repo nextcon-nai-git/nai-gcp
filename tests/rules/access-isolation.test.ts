@@ -208,8 +208,11 @@ describe("Omie server credentials", () => {
 });
 
 describe("Native financial control server boundary", () => {
-  it("denies browser roles access to the financial book", async () => {
-    const path = "financial-operations/v1/nextcon.json";
+  it.each([
+    "financial-operations/v1/nextcon.json",
+    "supplier-qualification/v1/book.json",
+    "supplier-qualification/v1/documents/process/document",
+  ])("denies browser roles access to %s", async (path) => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       await uploadBytes(ref(ctx.storage(), path), new TextEncoder().encode('{"synthetic":true}'), {
         contentType: "application/json",

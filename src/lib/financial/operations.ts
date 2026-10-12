@@ -1,3 +1,4 @@
+import { OmieExport } from "./omie-export";
 import { z } from "zod";
 import { isCalendarDate } from "./omie-dre";
 import { ErpSchema, erpCommands, applyErpCommand } from "./erp";
@@ -103,6 +104,7 @@ const Audit = z.object({
 });
 export const FinanceBookSchema = z.object({
   schemaVersion: z.literal(1),
+  omieExports: z.array(OmieExport).max(20000).default([]),
   erp: ErpSchema.default({}),
   version: z.number().int().nonnegative(),
   accounts: z.array(Account).max(100),
@@ -121,6 +123,7 @@ export type FinanceTitle = z.infer<typeof Title>;
 export function emptyFinanceBook(): FinanceBook {
   return {
     schemaVersion: 1,
+    omieExports: [],
     erp: ErpSchema.parse({}),
     version: 0,
     accounts: [],
@@ -363,6 +366,18 @@ export function applyFinanceCommand(
   }
   if (command.expectedVersion !== current.version)
     fail("Os dados foram alterados em outra sessão. Atualize e revise antes de salvar.");
+  const touchedTitle =
+    command.action === "settle"
+      ? command.data.titleId
+      : command.action === "reverse"
+        ? current.settlements.find((s) => s.id === command.id)?.titleId
+        : ["editTitle", "review", "reference"].includes(command.action) && "id" in command
+          ? command.id
+          : undefined;
+  if (touchedTitle && current.omieExports.some((e) => e.sourceId === touchedTitle))
+    fail(
+      "Título reservado ou enviado ao Omie. Alterações e baixas devem ser conferidas no Omie; o conector não sincroniza baixas automaticamente."
+    );
   const book = structuredClone(current),
     key = command.requestId;
   switch (command.action) {

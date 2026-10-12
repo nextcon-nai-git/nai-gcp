@@ -44,6 +44,15 @@ type Saved = Credentials & {
 };
 const unavailable = () => new OmieUpstreamError("RESPONSE");
 const methods = {
+  catalogParties: ["geral/clientes", "ListarClientes"],
+  categories: ["geral/categorias", "ListarCategorias"],
+  accounts: ["geral/contacorrente", "ListarContasCorrentes"],
+  partyDetail: ["geral/clientes", "ConsultarCliente"],
+  categoryDetail: ["geral/categorias", "ConsultarCategoria"],
+  accountDetail: ["geral/contacorrente", "ConsultarContaCorrente"],
+  createSupplier: ["geral/clientes", "IncluirCliente"],
+  createPayable: ["financas/contapagar", "IncluirContaPagar"],
+  createReceivable: ["financas/contareceber", "IncluirContaReceber"],
   company: ["geral/empresas", "ListarEmpresas"],
   payable: ["financas/contapagar", "ListarContasPagar"],
   receivable: ["financas/contareceber", "ListarContasReceber"],
@@ -109,7 +118,21 @@ async function call(
     });
     let data: unknown;
     try {
-      data = kind === "dre" ? await readDreJson(response) : await response.json();
+      data =
+        kind === "dre" ||
+        [
+          "catalogParties",
+          "categories",
+          "accounts",
+          "partyDetail",
+          "categoryDetail",
+          "accountDetail",
+          "createSupplier",
+          "createPayable",
+          "createReceivable",
+        ].includes(kind)
+          ? await readDreJson(response)
+          : await response.json();
     } catch (error) {
       if (error instanceof AuthError) throw error;
       // An HTML 429/503 must retain the HTTP cause instead of becoming a JSON/key error.
@@ -514,4 +537,20 @@ export async function verifyOmieTitleReference(
       409
     );
   return { reference, verifiedAt: new Date().toISOString() };
+}
+
+/** Server-only, fixed method allowlist; credentials never leave this closure. */
+export async function omieConnectorSession(user: AuthContext) {
+  requireFinancialAccess(user);
+  const saved = await read();
+  if (!saved) throw new AuthError("Conecte o aplicativo NEXTCON do Omie primeiro.", 409);
+  const scope = createHash("sha256")
+    .update(saved.appKey + ":" + saved.cnpj)
+    .digest("hex");
+  return {
+    scope,
+    company: saved.company,
+    cnpj: saved.cnpj,
+    call: (kind: keyof typeof methods, param: Record<string, unknown>) => call(saved, kind, param),
+  };
 }
