@@ -3,6 +3,7 @@ import { isCalendarDate } from "./omie-dre";
 import type { FinanceBook } from "./operations";
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 const note = z.string().trim().min(3).max(1000);
+const month = z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/);
 const date = z.string().refine(isCalendarDate, "Data inválida.");
 const common = { requestId: z.string().uuid(), expectedVersion: z.number().int().nonnegative() };
 export const checklistLabels = {
@@ -21,7 +22,15 @@ const Checklist = z
   .strict();
 export const ContractFlowSchema = z.object({
   contractId: id,
-  orderId: id,
+  orderId: id.nullable(),
+  migration: z
+    .object({
+      partyId: id,
+      billingStartMonth: month,
+      billingEvidence: note,
+      at: z.string(),
+    })
+    .optional(),
   customerDocument: z.string().max(30),
   owner: z.string().trim().min(1).max(180),
   acceptedOn: date,
@@ -35,6 +44,23 @@ export const ContractFlowSchema = z.object({
     .max(20000),
 });
 export const flowCommands = [
+  z
+    .object({
+      ...common,
+      action: z.literal("enrollExistingContract"),
+      contractId: id,
+      partyId: id,
+      owner: z.string().trim().min(1).max(180),
+      acceptedOn: date,
+      acceptanceEvidence: note,
+      implementationDue: date,
+      billingRequiresReadiness: z.boolean(),
+      billingStartMonth: month,
+      billingEvidence: note,
+      existingBillingReviewed: z.literal(true),
+      monthlyPriceConfirmed: z.literal(true),
+    })
+    .strict(),
   z
     .object({
       ...common,
@@ -79,6 +105,72 @@ export function applyFlowCommand(
   now: string,
   fail: (message: string) => never
 ) {
+  if (command.action === "enrollExistingContract") {
+    const contract =
+      book.contracts.find((c) => c.id === command.contractId) || fail("Contrato não encontrado.");
+    if (!contract.active) fail("Contrato inativo.");
+    if (book.contractFlows.some((f) => f.contractId === contract.id))
+      fail("Contrato já vinculado ao fluxo integrado.");
+    const party = book.erp.parties.find((p) => p.id === command.partyId);
+    if (!party?.active || party.role === "supplier" || !party.document.trim())
+      fail("Selecione um cliente ativo com documento cadastrado.");
+    const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(
+      new Date(now)
+    );
+    if (command.acceptedOn > today || command.implementationDue < command.acceptedOn)
+      fail("Confira a data do aceite e o prazo de implantação.");
+    if (
+      command.billingStartMonth < today.slice(0, 7) ||
+      command.billingStartMonth < command.acceptedOn.slice(0, 7)
+    )
+      fail("A primeira competência deve ser o mês atual ou posterior ao aceite.");
+    if (book.periods.some((p) => p.month === command.billingStartMonth && p.closed))
+      fail("Primeira competência fechada.");
+    if (
+      book.titles.some(
+        (t) =>
+          t.contractId === contract.id &&
+          t.kind === "receivable" &&
+          t.status !== "cancelled" &&
+          t.competence >= command.billingStartMonth
+      )
+    )
+      fail(
+        "Já existem cobranças a partir da primeira competência. Confira os títulos e selecione uma competência posterior."
+      );
+    if (
+      book.services.some(
+        (s) =>
+          s.contractId === contract.id &&
+          s.billingMode === "separate" &&
+          !s.titleId &&
+          s.date.slice(0, 7) < command.billingStartMonth
+      )
+    )
+      fail(
+        "Existem serviços avulsos anteriores à entrada ainda sem cobrança. Confira e trate esses serviços antes de incluir o contrato."
+      );
+    book.contractFlows.push({
+      contractId: contract.id,
+      orderId: null,
+      customerDocument: party.document,
+      owner: command.owner,
+      acceptedOn: command.acceptedOn,
+      acceptanceEvidence: command.acceptanceEvidence,
+      implementationDue: command.implementationDue,
+      billingRequiresReadiness: command.billingRequiresReadiness,
+      checklist: { clientData: false, scope: false, network: false, schedule: false },
+      createdBy: actor,
+      serviceReviews: [],
+      migration: {
+        partyId: party.id,
+        billingStartMonth: command.billingStartMonth,
+        billingEvidence: command.billingEvidence,
+        at: now,
+      },
+    });
+    return;
+  }
   if (command.action === "contractFromOrder") {
     const order =
       book.erp.orders.find((o) => o.id === command.orderId) || fail("Pedido não encontrado.");
@@ -170,11 +262,13 @@ export function contractFlowOverview(book: FinanceBook, month: string, today: st
     );
     const blocked = !contract.active
       ? "Contrato inativo"
-      : flow && month < flow.acceptedOn.slice(0, 7)
-        ? "Competência anterior ao aceite"
-        : flow && flow.billingRequiresReadiness && !flowReady(flow)
-          ? "Implantação pendente"
-          : "";
+      : flow?.migration && month < flow.migration.billingStartMonth
+        ? "Competência anterior à entrada no fluxo"
+        : flow && month < flow.acceptedOn.slice(0, 7)
+          ? "Competência anterior ao aceite"
+          : flow && flow.billingRequiresReadiness && !flowReady(flow)
+            ? "Implantação pendente"
+            : "";
     const recurringExists = titles.some((t) => t.sourceKey === `recurring:${contract.id}:${month}`);
     return {
       contract,
