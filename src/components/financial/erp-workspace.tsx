@@ -73,6 +73,7 @@ export function ErpWorkspace({
   const [query, setQuery] = useState("");
   const [editor, setEditor] = useState<{ order?: Order } | null>(null);
   const erp = book.erp;
+  const contractedOrders = new Set(book.contractFlows.map((f) => f.orderId));
   const report = erpReports(book, period, today);
   const command = (title: string, data: Record<string, unknown>) =>
     showForm({
@@ -390,7 +391,11 @@ export function ErpWorkspace({
                     </div>
                     <div className="text-right">
                       <strong>{money(o.totalCents)}</strong>
-                      <p className="text-sm text-cyan-300">{labels[o.status]}</p>
+                      <p className="text-sm text-cyan-300">
+                        {contractedOrders.has(o.id)
+                          ? "Vinculado a contrato · acompanhe em Contrato ao recebimento"
+                          : labels[o.status]}
+                      </p>
                     </div>
                   </div>
                   <details className="my-3 text-sm">
@@ -469,7 +474,7 @@ export function ErpWorkspace({
                         )}
                       </>
                     )}
-                    {o.status === "approved" && (
+                    {o.status === "approved" && !contractedOrders.has(o.id) && (
                       <Button
                         disabled={busy}
                         onClick={() =>
@@ -482,21 +487,22 @@ export function ErpWorkspace({
                         Gerar título em rascunho
                       </Button>
                     )}
-                    {!["converted", "cancelled"].includes(o.status) && (
-                      <Button
-                        variant="secondary"
-                        disabled={busy}
-                        onClick={() =>
-                          command("Cancelar pedido", {
-                            action: "erpReviewOrder",
-                            id: o.id,
-                            status: "cancelled",
-                          })
-                        }
-                      >
-                        Cancelar
-                      </Button>
-                    )}
+                    {!["converted", "cancelled"].includes(o.status) &&
+                      !contractedOrders.has(o.id) && (
+                        <Button
+                          variant="secondary"
+                          disabled={busy}
+                          onClick={() =>
+                            command("Cancelar pedido", {
+                              action: "erpReviewOrder",
+                              id: o.id,
+                              status: "cancelled",
+                            })
+                          }
+                        >
+                          Cancelar
+                        </Button>
+                      )}
                   </div>
                 </article>
               ))}

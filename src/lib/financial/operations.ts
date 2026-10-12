@@ -1,3 +1,4 @@
+import { ContractFlowSchema, flowCommands, applyFlowCommand, flowReady } from "./contract-flow";
 import { OmieExport } from "./omie-export";
 import { z } from "zod";
 import { isCalendarDate } from "./omie-dre";
@@ -104,6 +105,7 @@ const Audit = z.object({
 });
 export const FinanceBookSchema = z.object({
   schemaVersion: z.literal(1),
+  contractFlows: z.array(ContractFlowSchema).max(3000).default([]),
   omieExports: z.array(OmieExport).max(20000).default([]),
   erp: ErpSchema.default({}),
   version: z.number().int().nonnegative(),
@@ -123,6 +125,7 @@ export type FinanceTitle = z.infer<typeof Title>;
 export function emptyFinanceBook(): FinanceBook {
   return {
     schemaVersion: 1,
+    contractFlows: [],
     omieExports: [],
     erp: ErpSchema.parse({}),
     version: 0,
@@ -141,6 +144,7 @@ export function emptyFinanceBook(): FinanceBook {
 const common = { requestId: z.string().uuid(), expectedVersion: z.number().int().nonnegative() };
 export const FinanceCommandSchema = z.discriminatedUnion("action", [
   ...erpCommands,
+  ...flowCommands,
   z
     .object({
       ...common,
@@ -302,7 +306,15 @@ function addTitle(book: FinanceBook, title: FinanceTitle) {
   unlocked(book, title.competence);
   if (book.titles.some((t) => t.sourceKey === title.sourceKey && t.status !== "cancelled"))
     fail("Esta origem já possui título. Confira o registro existente.");
-  if (title.contractId) one(book.contracts, title.contractId);
+  if (title.contractId) {
+    one(book.contracts, title.contractId);
+    if (
+      title.kind === "receivable" &&
+      title.source === "manual" &&
+      book.contractFlows.some((f) => f.contractId === title.contractId)
+    )
+      fail("Use mensalidade ou serviço conferido para cobrar um contrato do fluxo integrado.");
+  }
   book.titles.push(title);
 }
 export function closingIssues(book: FinanceBook, period: string): string[] {
@@ -378,9 +390,58 @@ export function applyFinanceCommand(
     fail(
       "Título reservado ou enviado ao Omie. Alterações e baixas devem ser conferidas no Omie; o conector não sincroniza baixas automaticamente."
     );
+  if (
+    (command.action === "erpReviewOrder" ||
+      command.action === "erpConvertOrder" ||
+      command.action === "erpOrder") &&
+    current.contractFlows.some((f) => f.orderId === command.id)
+  )
+    fail("Pedido vinculado a contrato. Não pode ser alterado nem gerar cobrança paralela.");
+  if (
+    command.action === "editContract" &&
+    current.contractFlows.some((f) => f.contractId === command.id)
+  )
+    fail(
+      "Contrato originado de proposta aprovada. Alterações comerciais exigem aditivo; não edite o valor diretamente."
+    );
+  if (command.action === "editTitle") {
+    const title = current.titles.find((t) => t.id === command.id);
+    if (title?.contractId && current.contractFlows.some((f) => f.contractId === title.contractId))
+      fail("Cobrança do fluxo integrado: cancele e revise a origem antes de gerar novamente.");
+  }
+  const contractId =
+    command.action === "service"
+      ? command.data.contractId
+      : command.action === "recurring"
+        ? command.contractId
+        : command.action === "billService"
+          ? current.services.find((s) => s.id === command.id)?.contractId
+          : null;
+  const flow = current.contractFlows.find((f) => f.contractId === contractId);
+  if (flow) {
+    if (!current.contracts.find((c) => c.id === contractId)?.active) fail("Contrato inativo.");
+    if (command.action === "service" && (!flowReady(flow) || command.data.date < flow.acceptedOn))
+      fail("Conclua a implantação e confira a data de aceite antes de registrar a produção.");
+    if (
+      command.action === "recurring" &&
+      (command.month < flow.acceptedOn.slice(0, 7) ||
+        (flow.billingRequiresReadiness && !flowReady(flow)))
+    )
+      fail("Mensalidade bloqueada: confira aceite e implantação.");
+    if (
+      command.action === "billService" &&
+      (!flowReady(flow) || !flow.serviceReviews.some((r) => r.serviceId === command.id))
+    )
+      fail("A cobrança avulsa exige implantação concluída e conferência independente do serviço.");
+  }
   const book = structuredClone(current),
     key = command.requestId;
   switch (command.action) {
+    case "contractFromOrder":
+    case "flowChecklist":
+    case "flowReviewService":
+      applyFlowCommand(book, command, actor, now, fail);
+      break;
     case "erpParty":
     case "erpCategory":
     case "erpCenter":
