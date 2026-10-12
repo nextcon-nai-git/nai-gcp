@@ -22,6 +22,11 @@ const labels: Record<Kind, string> = { receivable: "Contas a receber", payable: 
 const money = (cents: number) =>
   (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const links = [
+  [
+    "/financial/operacoes",
+    "Controle financeiro",
+    "Aprovações, baixas, conciliação, contratos e orçamento",
+  ],
   ["/financial/omie/dre", "Resultado e despesas", "DRE por período e categoria no Omie"],
   ["/financial/actions", "Plano de ação", "Responsáveis, prazos e checklists financeiros"],
   ["/financial/monthly-billing", "Faturamento mensal", "Acompanhamento por grupo e contrato"],
