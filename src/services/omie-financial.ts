@@ -44,6 +44,7 @@ type Saved = Credentials & {
 };
 const unavailable = () => new OmieUpstreamError("RESPONSE");
 const methods = {
+  invoices: ["servicos/nfse", "ListarNFSEs"],
   catalogParties: ["geral/clientes", "ListarClientes"],
   categories: ["geral/categorias", "ListarCategorias"],
   accounts: ["geral/contacorrente", "ListarContasCorrentes"],
@@ -121,6 +122,7 @@ async function call(
       data =
         kind === "dre" ||
         [
+          "invoices",
           "catalogParties",
           "categories",
           "accounts",
