@@ -2,6 +2,8 @@
 
 Revisão local do checkout NAI em `fix/comprehensive-review-20261012`, a partir de `b9e5707`. As correções descritas foram desenvolvidas e testadas localmente, sem alterar registros reais. A publicação posterior de regras e índices é registrada no [relatório integral](reviews/2026-10-13-integral.md). Os testes usam dados sintéticos. Este documento registra a parcela de segurança/operação da revisão; não constitui homologação de todos os fluxos do produto.
 
+A PR #100 foi integrada em `fe2d367` e teve rollout concluído no Firebase. O complemento em `fix/clinical-review-boundaries-20261013` trata os dois achados adicionais descritos abaixo, a partir desse commit integrado.
+
 ## Problemas corrigidos e reprodução
 
 | Área                                 | Problema reproduzido no código anterior                                                                                                                                                                                                                                   | Correção e evidência                                                                                                                                                                                                                                                                                                                                                      |
@@ -30,6 +32,20 @@ Revisão local do checkout NAI em `fix/comprehensive-review-20261012`, a partir 
 - Fixture S-2220 gerada pelo próprio construtor e conferida com `lxml` contra os três XSD originais, preservados em `tests/fixtures/esocial/s-1.3-20260701/`. O script `scripts/validate-esocial-s2220.py` exige que o único erro no envelope completo seja a ausência da assinatura XMLDSig. Não adiciona assinatura simulada.
 
 O pacote XSD foi obtido no [portal oficial de documentação técnica do eSocial](https://www.gov.br/esocial/pt-br/documentacao-tecnica), [S-1.3 disponível para produção em 01/07/2026](https://www.gov.br/esocial/pt-br/documentacao-tecnica/manuais/2026-07-01_esquemas_xsd_v_s_01_03_00.zip). URL e SHA-256 constam em `SOURCE.md` junto aos esquemas. A fixture XML é comparada byte a byte com a saída do construtor no teste automatizado.
+
+## Complemento após a PR #100
+
+**As regras da fila passaram a proteger a progressão que antes existia apenas no serviço da tela.** O cliente pode criar `Agendado`, fazer check-in para `Em Espera` e iniciar `Em Atendimento`, com os campos previstos, vínculo de empresa/colaborador e calendário válido. Não pode concluir, reverter, saltar etapas, excluir ou acrescentar aprovação/assinatura/resultado clínico. A escrita de `agendamentos` foi retirada do match genérico recursivo e da coleção raiz legada, evitando permissões sobrepostas.
+
+Empresa e funcionário são conferidos com `getAfter`, incluindo seu estado ao término da gravação atômica. O teste reproduziu a aceitação indevida de um lote que criava/avançava agendamento e alterava o vínculo do trabalhador; após a correção, esse lote é rejeitado. Os escritores reais e as leituras da fila passaram em **35 testes, em dois arquivos**, incluindo empresas distintas, registros antigos, exclusões lógicas, datas impossíveis e anos bissextos. O emulador usou somente `demo-nai-security`.
+
+Registros legados permanecem legíveis. Um registro sem colaborador verificável, com empresa divergente ou sujeitos removidos não avança; não houve migração automática. `check_in_at` continua como string ISO do relógio do cliente, cujo formato e calendário são conferidos; não é apresentado como horário autenticado do servidor. A retomada preserva o registro existente.
+
+**O motor de regras clínicas deixou de gerar decisões clínicas a partir de campos isolados.** As 14 linhas agora exibem somente valores informados ou cálculos aritméticos verificados. Os resultados têm `clinicallyValidated: false`, `reviewRequired: true` e validade estrutural explícita; ausência de dados não vira normalidade. O relato e seus valores originais são preservados. A página ativa apresenta resumo preliminar, começa vazia e identifica o exemplo sintético; uma edição ou erro remove a saída anterior.
+
+O adaptador legado compartilha o motor, sem valores normais por padrão, e a ferramenta de IA deixa de alegar diretrizes oficiais ou exigir reprodução de condutas. A página usa apenas estado React; não foi encontrado escritor de prontuário/ASO nesse caminho. Ferramenta e consumidor legado não tiveram uso ativo localizado. **105 testes em cinco arquivos** cobriram motor, adaptador, ferramenta, interface e uma regressão existente. Eles não se somam integralmente aos lotes anteriores.
+
+TypeScript global aprovado; ESLint global com zero erros e 1.367 avisos. O relatório integral registra os resultados completos da PR #100 e os critérios de CI/rollout do complemento. A correção não implementa aprovação profissional nem conclusão da fila por importação de ASO.
 
 ## Limites operacionais explícitos
 
