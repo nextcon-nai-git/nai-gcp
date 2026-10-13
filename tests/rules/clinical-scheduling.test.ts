@@ -98,8 +98,8 @@ beforeEach(async () => {
     }
     batch.set(doc(store, "users/schedule-served-doctor"), {
       role: "DOCTOR",
-      companyId: "schedule-b",
-      tenantId: "schedule-b",
+      companyId: "schedule-doctor-home",
+      tenantId: "schedule-doctor-home",
       servedCompanies: [companyId],
     });
     batch.set(doc(store, "companies", companyId), { name: "Empresa sintética A" });

@@ -295,6 +295,9 @@ describe("provider integrity", () => {
     expect([...store.documents.keys()].filter((key) => key.startsWith("provider/"))).toHaveLength(
       1
     );
+    expect(
+      store.documents.get(`provider/${providerIdForIdentityHash(identityHash)}`)?.identityHash
+    ).toBe(identityHash);
   });
 
   it("preserves the attempt identity after commit when the server reread fails", async () => {

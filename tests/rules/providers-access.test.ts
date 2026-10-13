@@ -121,6 +121,16 @@ describe("providers collection authorization", () => {
         active: true,
       })
     );
+    await assertFails(
+      setDoc(doc(firestore, "providers/provider-unreserved"), {
+        id: "provider-unreserved",
+        cnpj: "12.345.678/0001-95",
+        taxIdStatus: "pending_verification",
+        active: false,
+        identityHash: "a".repeat(64),
+        importAttemptId: "synthetic-attempt-id-002",
+      })
+    );
 
     const attemptId = "synthetic-attempt-id-001";
     const identityHash = "a".repeat(64);
@@ -130,6 +140,7 @@ describe("providers collection authorization", () => {
       cnpj: "12.345.678/0001-95",
       taxIdStatus: "pending_verification",
       active: false,
+      identityHash,
       importAttemptId: attemptId,
     });
     batch.set(doc(firestore, `provider_tax_id_reservations/${identityHash}`), {
@@ -139,6 +150,23 @@ describe("providers collection authorization", () => {
       updatedAt: serverTimestamp(),
     });
     await assertSucceeds(batch.commit());
+
+    const mismatched = writeBatch(firestore);
+    mismatched.set(doc(firestore, "providers/provider-mismatched-reservation"), {
+      id: "provider-mismatched-reservation",
+      cnpj: "98.765.432/0001-10",
+      taxIdStatus: "pending_verification",
+      active: false,
+      identityHash: "b".repeat(64),
+      importAttemptId: "synthetic-attempt-id-003",
+    });
+    mismatched.set(doc(firestore, `provider_tax_id_reservations/${"b".repeat(64)}`), {
+      attemptId: "synthetic-attempt-id-004",
+      identityHash: "b".repeat(64),
+      providerId: "provider-mismatched-reservation",
+      updatedAt: serverTimestamp(),
+    });
+    await assertFails(mismatched.commit());
   });
 
   it("blocks browser fiscal verification, allows demotion, and protects legacy identity", async () => {
@@ -170,9 +198,15 @@ describe("providers collection authorization", () => {
         active: true,
       })
     );
-    await assertSucceeds(
+    await assertFails(
       updateDoc(doc(firestore, "providers/verified"), {
         cnpj: "98.765.432/0001-10",
+        taxIdStatus: "pending_verification",
+        active: false,
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(firestore, "providers/verified"), {
         taxIdStatus: "pending_verification",
         active: false,
       })

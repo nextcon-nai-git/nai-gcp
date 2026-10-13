@@ -678,6 +678,11 @@ export default function ProvidersManagement() {
           throw new Error("Este CPF/CNPJ já está vinculado a outro cadastro.");
         }
       }
+      if (editingProvider && submittedIdentifier !== previousIdentifier) {
+        throw new Error(
+          "O CPF/CNPJ não pode ser alterado em um cadastro existente. Cadastre outro prestador para reservar a nova identidade."
+        );
+      }
       const verifiedNameConflict = providers.find(
         (provider: ProviderItem) =>
           provider.id !== editingProvider?.id &&
