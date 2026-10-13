@@ -870,6 +870,11 @@ export default function HealthControl() {
                         A revisão é uma confirmação profissional do original. Nenhum exame, aptidão,
                         diagnóstico, CRM, assinatura ou data será criado ou alterado.
                       </p>
+                      <p className="text-sm text-amber-900">
+                        Se o original não identificar claramente o colaborador ou houver
+                        divergência, não confirme: a revisão fica pendente e o atendimento continua
+                        aberto.
+                      </p>
                       {asoOriginalUrl && (
                         <label className="flex items-start gap-3 text-sm">
                           <Checkbox
