@@ -47,14 +47,14 @@ export default function ClinicalEnginePage() {
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8 animate-in fade-in zoom-in-95">
       <div className="flex items-center gap-4 border-b pb-6">
-        <div className="p-4 bg-primary/10 rounded-2xl">
-          <Activity className="size-8 text-primary" />
+        <div className="p-4 bg-muted rounded-2xl">
+          <Activity className="size-8 text-foreground" />
         </div>
         <div>
-          <h1 className="text-3xl font-black text-[#001F3F] tracking-tight">
+          <h1 className="text-3xl font-black text-foreground tracking-tight">
             Conferência preliminar de dados clínicos
           </h1>
-          <p className="text-slate-500 font-medium">
+          <p className="text-muted-foreground font-medium">
             Valores informados e cálculos aritméticos para revisão por profissional habilitado.
           </p>
         </div>
@@ -72,11 +72,11 @@ export default function ClinicalEnginePage() {
         <div className="space-y-4">
           <label
             htmlFor="clinical-json"
-            className="flex items-center gap-2 text-[#001F3F] font-bold"
+            className="flex items-center gap-2 text-foreground font-bold"
           >
             <FileJson className="size-5" /> Dados informados (JSON)
           </label>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-muted-foreground">
             {inputSource === "example"
               ? "Exemplo fictício para conferência — sem paciente real."
               : "Entrada manual para conferência. Preserve os valores e o relato originais."}
@@ -95,7 +95,7 @@ export default function ClinicalEnginePage() {
           </Button>
           <textarea
             id="clinical-json"
-            className="w-full h-[500px] p-4 font-mono text-sm bg-slate-900 text-slate-100 rounded-2xl shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full h-[500px] p-4 font-mono text-sm bg-muted text-foreground rounded-2xl shadow-inner focus:outline-none focus:ring-2 focus:ring-ring"
             value={jsonInput}
             onChange={(event) => {
               setJsonInput(event.target.value);
@@ -105,48 +105,51 @@ export default function ClinicalEnginePage() {
             }}
           />
           {error && (
-            <p role="alert" className="text-red-500 font-bold text-sm bg-red-50 p-3 rounded-lg">
+            <p
+              role="alert"
+              className="text-destructive-foreground font-bold text-sm bg-destructive p-3 rounded-lg"
+            >
               {error}
             </p>
           )}
           <Button
             onClick={handleRunEngine}
-            className="w-full h-14 bg-primary text-white font-black text-lg gap-2 rounded-xl"
+            className="w-full h-14 bg-primary text-primary-foreground font-black text-lg gap-2 rounded-xl"
           >
             <Activity className="size-5" /> Conferir dados informados
           </Button>
         </div>
 
         <div className="space-y-4">
-          <h2 className="flex items-center gap-2 text-[#001F3F] font-bold">
+          <h2 className="flex items-center gap-2 text-foreground font-bold">
             <Activity className="size-5" /> Resumo preliminar
           </h2>
-          <div className="bg-slate-50 rounded-2xl p-6 min-h-[500px] border shadow-sm space-y-4 overflow-y-auto">
+          <div className="bg-muted/50 rounded-2xl p-6 min-h-[500px] border shadow-sm space-y-4 overflow-y-auto">
             {resultados === null ? (
-              <p className="text-slate-500 font-medium">
+              <p className="text-muted-foreground font-medium">
                 Nenhum resumo disponível. Informe os dados para conferência.
               </p>
             ) : (
               resultados.map((res) => (
                 <Card key={res.codigo} className="border-l-4 border-l-primary shadow-sm">
-                  <CardHeader className="py-3 px-4 bg-slate-100/50">
-                    <CardTitle className="text-sm font-black uppercase text-slate-700">
+                  <CardHeader className="py-3 px-4 bg-muted/50">
+                    <CardTitle className="text-sm font-black uppercase text-card-foreground">
                       {res.linha}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 space-y-3 text-sm">
-                    <p className="font-medium text-[#001F3F]">{res.escore}</p>
-                    <p className="text-slate-600">
+                    <p className="font-medium text-card-foreground">{res.escore}</p>
+                    <p className="text-muted-foreground">
                       {res.inputValidity === "VALID"
                         ? "Estrutura da entrada conferida; avaliação clínica pendente."
                         : "Entrada incompleta ou inválida; avaliação clínica pendente."}
                     </p>
-                    <p className="text-slate-700">{res.conduta}</p>
+                    <p className="text-card-foreground">{res.conduta}</p>
                     <details>
                       <summary className="cursor-pointer font-semibold">
                         Valores informados para esta linha
                       </summary>
-                      <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-slate-100 p-3 text-xs">
+                      <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-muted text-foreground p-3 text-xs">
                         {JSON.stringify(res.reportedData, null, 2)}
                       </pre>
                     </details>
