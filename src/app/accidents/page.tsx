@@ -14,10 +14,6 @@ import {
   ChevronRight,
   ShieldCheck,
   Clock,
-  FileCode,
-  Download,
-  Copy,
-  Check,
   AlertCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -31,178 +27,43 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, limit, collectionGroup } from "firebase/firestore";
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { collection, query, orderBy, limit, where } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { useSgi } from "@/contexts/sgi-context";
 import Link from "next/link";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { EsocialXmlService } from "@/services/esocial/xml-generator";
-
-interface CatStatusInfo {
-  requiresCat: boolean;
-  severity: "LEVE" | "GRAVE" | "FATAL";
-  hasLeave: boolean;
-  daysOfLeave: number;
-  label: string;
-  badgeClass: string;
-  isExpired: boolean;
-  isCritical: boolean;
-  deadlineTs?: number;
-}
-
-function getCatInfo(incident: any): CatStatusInfo {
-  const requiresCat =
-    incident.requiresCatS2210 ??
-    (incident.type?.toLowerCase().includes("acidente") ||
-      incident.description?.toLowerCase().includes("lesão") ||
-      incident.description?.toLowerCase().includes("lesao") ||
-      incident.description?.toLowerCase().includes("fratura") ||
-      incident.description?.toLowerCase().includes("queda") ||
-      incident.description?.toLowerCase().includes("choque") ||
-      incident.description?.toLowerCase().includes("óbito") ||
-      incident.description?.toLowerCase().includes("obito"));
-
-  const severity: "LEVE" | "GRAVE" | "FATAL" =
-    incident.severity ||
-    (incident.description?.toLowerCase().includes("óbito") ||
-    incident.description?.toLowerCase().includes("obito") ||
-    incident.description?.toLowerCase().includes("morte")
-      ? "FATAL"
-      : incident.description?.toLowerCase().includes("fratura") ||
-          incident.description?.toLowerCase().includes("grave") ||
-          incident.hasLeave
-        ? "GRAVE"
-        : "LEVE");
-
-  const hasLeave =
-    incident.hasLeave ??
-    (severity === "GRAVE" || incident.description?.toLowerCase().includes("afastamento"));
-  const daysOfLeave = incident.daysOfLeave ?? (hasLeave ? 15 : 0);
-
-  if (!requiresCat) {
-    return {
-      requiresCat: false,
-      severity,
-      hasLeave: false,
-      daysOfLeave: 0,
-      label: "Não Requer CAT",
-      badgeClass: "bg-slate-100 text-slate-500 border-slate-200",
-      isExpired: false,
-      isCritical: false,
-    };
-  }
-
-  if (incident.catStatus === "EMITIDA") {
-    return {
-      requiresCat: true,
-      severity,
-      hasLeave,
-      daysOfLeave,
-      label: "CAT S-2210 Emitida",
-      badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300",
-      isExpired: false,
-      isCritical: false,
-    };
-  }
-
-  // Prazo Legal: até o primeiro dia útil seguinte (Art. 22 Lei 8.213/91) ou imediato se óbito
-  const createdDate = incident.createdAt ? new Date(incident.createdAt) : new Date();
-  let deadlineTs = incident.catDeadlineTimestamp;
-  if (!deadlineTs) {
-    const isFatal = severity === "FATAL";
-    if (isFatal) {
-      deadlineTs = createdDate.getTime() + 4 * 3600 * 1000;
-    } else {
-      const d = new Date(createdDate);
-      const day = d.getDay();
-      const daysToAdd = day === 5 ? 3 : day === 6 ? 2 : 1;
-      d.setDate(d.getDate() + daysToAdd);
-      d.setHours(23, 59, 59, 999);
-      deadlineTs = d.getTime();
-    }
-  }
-
-  const now = Date.now();
-  const diffMs = deadlineTs - now;
-
-  if (diffMs <= 0) {
-    return {
-      requiresCat: true,
-      severity,
-      hasLeave,
-      daysOfLeave,
-      label: "EXPIRADO (Risco de Multa)",
-      badgeClass: "bg-red-600 text-white font-black animate-pulse border-red-700",
-      isExpired: true,
-      isCritical: true,
-      deadlineTs,
-    };
-  }
-
-  const hours = Math.floor(diffMs / (1000 * 60 * 60));
-  const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-
-  if (hours < 6 || severity === "FATAL") {
-    return {
-      requiresCat: true,
-      severity,
-      hasLeave,
-      daysOfLeave,
-      label: `Resta ${hours}h ${mins}m (Crítico)`,
-      badgeClass: "bg-red-100 text-red-700 border-red-300 font-black animate-pulse",
-      isExpired: false,
-      isCritical: true,
-      deadlineTs,
-    };
-  }
-
-  return {
-    requiresCat: true,
-    severity,
-    hasLeave,
-    daysOfLeave,
-    label: `Resta ${hours}h ${mins}m`,
-    badgeClass: "bg-amber-100 text-amber-800 border-amber-300 font-bold",
-    isExpired: false,
-    isCritical: false,
-    deadlineTs,
-  };
-}
+import { getCatInfo } from "@/lib/incidents/cat-status";
 
 export default function AccidentsCAT() {
-  const { user } = useUser();
   const db = useFirestore();
-  const { activeClientId } = useSgi();
-  const [selectedIncident, setSelectedIncident] = React.useState<any>(null);
-  const [xmlModalOpen, setXmlModalOpen] = React.useState(false);
-  const [generatedXml, setGeneratedXml] = React.useState<string>("");
-  const [copied, setCopied] = React.useState(false);
+  const { activeClientId, isGlobalStaff } = useSgi();
+  const [storedIncident, setSelectedIncident] = React.useState<any>(null);
+  const selectedIncident =
+    isGlobalStaff && (activeClientId === "all" || storedIncident?.companyId === activeClientId)
+      ? storedIncident
+      : null;
 
   const incidentsQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    if (activeClientId === "all") {
-      return query(collectionGroup(db, "incidents"), orderBy("createdAt", "desc"), limit(50));
-    }
-    return query(collection(db, "incidents"), orderBy("createdAt", "desc"), limit(50));
-  }, [db, activeClientId]);
+    if (!db || !isGlobalStaff || activeClientId === "unauthorized") return null;
+    return activeClientId === "all"
+      ? query(collection(db, "incidents"), orderBy("createdAt", "desc"), limit(50))
+      : query(
+          collection(db, "incidents"),
+          where("companyId", "==", activeClientId),
+          orderBy("createdAt", "desc"),
+          limit(50)
+        );
+  }, [db, activeClientId, isGlobalStaff]);
 
-  const { data: incidents, isLoading } = useCollection(incidentsQuery);
-
+  const { data: incidents, isLoading, error: incidentsError } = useCollection(incidentsQuery);
   const filteredIncidents = React.useMemo(() => {
-    if (!incidents) return [];
-    if (activeClientId && activeClientId !== "all" && activeClientId !== "unauthorized") {
-      return incidents.filter((i) => i.companyId === activeClientId);
-    }
-    return incidents;
-  }, [incidents, activeClientId]);
+    if (!isGlobalStaff || !incidents || activeClientId === "unauthorized") return [];
+    return activeClientId === "all"
+      ? incidents
+      : incidents.filter((item) => item.companyId === activeClientId);
+  }, [incidents, activeClientId, isGlobalStaff]);
 
   // Métricas regulatórias computadas
   const metrics = React.useMemo(() => {
@@ -212,57 +73,13 @@ export default function AccidentsCAT() {
 
     for (const inc of filteredIncidents) {
       const info = getCatInfo(inc);
-      if (inc.status === "ABERTO") openCount++;
+      if (["ABERTO", "PROTOCOLADO", "EM_ANALISE"].includes(inc.status)) openCount++;
       if (info.requiresCat && inc.catStatus !== "EMITIDA") pendingCatCount++;
       if (info.severity === "GRAVE" || info.severity === "FATAL" || info.hasLeave) criticalCount++;
     }
 
     return { openCount, pendingCatCount, criticalCount };
   }, [filteredIncidents]);
-
-  const handleOpenXml = (inc: any) => {
-    try {
-      const xml = EsocialXmlService.generateS2210({
-        id: `ID100000000000000${Date.now()}`.slice(0, 30),
-        cnpjEmpregador: inc.companyId || "12.345.678/0001-90",
-        cpfTrabalhador: "000.000.000-00",
-        dtAcid: inc.createdAt
-          ? new Date(inc.createdAt).toISOString().split("T")[0]
-          : new Date().toISOString().split("T")[0],
-        tpCat: inc.severity === "FATAL" ? 3 : 1,
-        iniciatCAT: 1,
-        tpAcid: 1,
-        afastamento: inc.hasLeave ?? true,
-        durTrat: inc.daysOfLeave || 15,
-        medicoNome: "Dra. Mariana Orth & Associados",
-        medicoCrm: "145892",
-        medicoUf: "SP",
-        dscLocal: inc.location || "Área Operacional",
-        obsCAT: inc.description || "Acidente de trabalho comunicado formalmente.",
-      });
-      setGeneratedXml(xml);
-      setXmlModalOpen(true);
-    } catch (err) {
-      console.error("Erro ao gerar XML da CAT S-2210:", err);
-    }
-  };
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(generatedXml);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const downloadXml = () => {
-    const blob = new Blob([generatedXml], { type: "application/xml;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `S2210_CAT_${selectedIncident?.id || "evento"}.xml`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -272,8 +89,8 @@ export default function AccidentsCAT() {
             Central de Incidentes & CAT
           </h1>
           <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest flex items-center gap-2">
-            <FileWarning className="size-3 text-red-500" /> Parecer Técnico de IA, Prazos da Lei
-            8.213/91 e eSocial S-2210.
+            <FileWarning className="size-3 text-red-500" /> Relatos registrados e análises
+            preliminares de IA para revisão da equipe responsável.
           </p>
         </div>
         <div className="flex gap-2">
@@ -312,15 +129,15 @@ export default function AccidentsCAT() {
             </div>
             <div>
               <p className="text-[10px] font-black uppercase text-red-600">
-                CAT S-2210 Pendente (Prazo Legal)
+                CAT pendente conforme registro
               </p>
               <h3 className="text-2xl font-black text-red-700">
-                {metrics.pendingCatCount} Requerem Envio
+                {metrics.pendingCatCount} Registros pendentes
               </h3>
             </div>
           </div>
           <Badge className="mt-4 bg-red-600 text-white border-none text-[8px] font-black uppercase w-fit">
-            Art. 22 Lei 8.213/91
+            Dados sujeitos a conferência
           </Badge>
         </Card>
 
@@ -355,12 +172,21 @@ export default function AccidentsCAT() {
               Fila Operacional de Ocorrências & Pareceres
             </CardTitle>
             <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-slate-400 text-left">
-              Auditoria neural de evidências e controle de prazo regulatório para emissão de CAT.
+              Análises de IA exigem revisão humana. Prazos e consequências clínicas não são
+              inferidos do relato.
             </CardDescription>
           </div>
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
-          {isLoading ? (
+          {!isGlobalStaff ? (
+            <p className="p-8 text-sm text-muted-foreground">
+              A central de incidentes está disponível à equipe interna autorizada.
+            </p>
+          ) : incidentsError ? (
+            <p role="alert" className="p-8 text-sm text-destructive">
+              Não foi possível carregar as ocorrências. Confira o acesso e tente novamente.
+            </p>
+          ) : isLoading ? (
             <div className="py-24 flex flex-col items-center justify-center gap-4 text-primary">
               <Loader2 className="size-12 animate-spin opacity-20" />
               <p className="text-[10px] font-black uppercase tracking-widest">
@@ -375,7 +201,7 @@ export default function AccidentsCAT() {
                   <TableHead>Local / Unidade</TableHead>
                   <TableHead className="text-center">Severidade</TableHead>
                   <TableHead className="text-center">Afastamento</TableHead>
-                  <TableHead className="text-center">Prazo Legal CAT S-2210</TableHead>
+                  <TableHead className="text-center">Situação CAT registrada</TableHead>
                   <TableHead className="text-center">Status Parecer</TableHead>
                   <TableHead className="pr-8 text-right"></TableHead>
                 </TableRow>
@@ -420,7 +246,7 @@ export default function AccidentsCAT() {
                                 : "bg-emerald-100 text-emerald-800 border-emerald-300"
                           )}
                         >
-                          {catInfo.severity}
+                          {catInfo.severity || "Não informada"}
                         </Badge>
                       </TableCell>
 
@@ -431,16 +257,19 @@ export default function AccidentsCAT() {
                             variant="outline"
                             className="text-[8px] font-bold uppercase bg-amber-50 text-amber-800 border-amber-300"
                           >
-                            Sim ({catInfo.daysOfLeave}d)
+                            Sim
+                            {catInfo.daysOfLeave !== null
+                              ? ` (${catInfo.daysOfLeave}d)`
+                              : " (duração não informada)"}
                           </Badge>
                         ) : (
                           <span className="text-[10px] text-slate-400 font-bold uppercase">
-                            Não
+                            {catInfo.hasLeave === false ? "Não" : "Não informado"}
                           </span>
                         )}
                       </TableCell>
 
-                      {/* Prazo Legal CAT S-2210 */}
+                      {/* Situação CAT registrada */}
                       <TableCell className="text-center">
                         <Badge
                           variant="outline"
@@ -466,7 +295,9 @@ export default function AccidentsCAT() {
                                 : "bg-emerald-100 text-emerald-700"
                           )}
                         >
-                          {inc.status === "ABERTO" ? "Pendente" : inc.status.replace("_", " ")}
+                          {inc.status === "ABERTO"
+                            ? "Pendente"
+                            : (inc.status || "Não informado").replaceAll("_", " ")}
                         </Badge>
                       </TableCell>
 
@@ -549,7 +380,7 @@ export default function AccidentsCAT() {
                             </div>
                             <div className="space-y-1">
                               <p className="text-[8px] font-black text-slate-400 uppercase">
-                                Data da Ocorrência
+                                Data do Registro
                               </p>
                               <p className="text-[10px] font-bold text-primary">
                                 {new Date(selectedIncident.createdAt).toLocaleString("pt-BR")}
@@ -575,7 +406,7 @@ export default function AccidentsCAT() {
                                   catInfo.requiresCat ? "text-red-600" : "text-emerald-600"
                                 }
                               />
-                              Parecer Regulatório eSocial S-2210
+                              Dados registrados para análise da CAT
                             </h4>
                             <Badge
                               className={
@@ -584,20 +415,23 @@ export default function AccidentsCAT() {
                                   : "bg-emerald-600 text-white font-black text-[8px] uppercase"
                               }
                             >
-                              {catInfo.requiresCat ? "CAT OBRIGATÓRIA" : "DISPENSADO"}
+                              {catInfo.requiresCat === null
+                                ? "A CONFIRMAR"
+                                : catInfo.requiresCat
+                                  ? "CAT INDICADA NO REGISTRO"
+                                  : "NÃO INDICADA NO REGISTRO"}
                             </Badge>
                           </div>
 
                           <div className="space-y-3">
                             <div className="p-3 bg-white rounded-xl border space-y-1">
                               <span className="text-[8px] font-black text-slate-400 uppercase">
-                                Prazo Legal Improrrogável (Lei 8.213/91 Art. 22)
+                                Prazo registrado (sujeito a validação)
                               </span>
                               <p className="text-xs font-bold text-red-700">
-                                {opinion?.esocialImpact?.deadlineCat ||
-                                  (catInfo.severity === "FATAL"
-                                    ? "Imediato (em caso de óbito)"
-                                    : "Até o primeiro dia útil seguinte ao acidente")}
+                                {catInfo.deadlineTs
+                                  ? new Date(catInfo.deadlineTs).toLocaleString("pt-BR")
+                                  : "Prazo a confirmar pela equipe responsável com a data real da ocorrência"}
                               </p>
                             </div>
 
@@ -607,7 +441,7 @@ export default function AccidentsCAT() {
                                   Severidade
                                 </span>
                                 <p className="text-xs font-black text-primary uppercase">
-                                  {catInfo.severity}
+                                  {catInfo.severity || "Não informada"}
                                 </p>
                               </div>
                               <div className="p-3 bg-white rounded-xl border">
@@ -615,21 +449,22 @@ export default function AccidentsCAT() {
                                   Afastamento
                                 </span>
                                 <p className="text-xs font-black text-primary uppercase">
-                                  {catInfo.hasLeave
-                                    ? `Sim (${catInfo.daysOfLeave} dias)`
-                                    : "Sem Afastamento"}
+                                  {catInfo.hasLeave === null
+                                    ? "Não informado"
+                                    : catInfo.hasLeave
+                                      ? catInfo.daysOfLeave !== null
+                                        ? `Sim (${catInfo.daysOfLeave} dias)`
+                                        : "Sim; duração não informada"
+                                      : "Sem afastamento informado"}
                                 </p>
                               </div>
                             </div>
 
-                            {catInfo.requiresCat && (
-                              <Button
-                                onClick={() => handleOpenXml(selectedIncident)}
-                                className="w-full bg-red-600 hover:bg-red-700 text-white font-black uppercase text-[10px] rounded-xl h-10 shadow-md gap-2 mt-2"
-                              >
-                                <FileCode className="size-4" /> Gerar XML S-2210 Oficial (eSocial)
-                              </Button>
-                            )}
+                            <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 p-3 rounded-xl">
+                              A geração e transmissão de CAT ainda dependem da validação do leiaute
+                              vigente, dos dados revisados da ocorrência e da integração de
+                              assinatura. Nenhum evento é emitido nesta tela.
+                            </p>
                           </div>
                         </Card>
 
@@ -637,12 +472,12 @@ export default function AccidentsCAT() {
                         {opinion?.extractedFacts && (
                           <Card className="border-none shadow-sm rounded-3xl p-6 bg-white space-y-3 text-left">
                             <h4 className="text-[10px] font-black uppercase text-blue-600 tracking-widest flex items-center gap-2">
-                              <Brain size={14} /> Fatos Técnicos Extraídos
+                              <Brain size={14} /> Informações apontadas pela IA — revisar
                             </h4>
                             <div className="space-y-2 text-xs text-slate-600">
                               <p>
                                 <strong className="text-slate-900 font-bold">Atividade:</strong>{" "}
-                                {opinion.extractedFacts.activity || "Operação padrão"}
+                                {opinion.extractedFacts.activity || "Não informada"}
                               </p>
                               <p>
                                 <strong className="text-slate-900 font-bold">Tipo de Lesão:</strong>{" "}
@@ -668,7 +503,7 @@ export default function AccidentsCAT() {
                             <Gavel size={64} />
                           </div>
                           <h4 className="text-[10px] font-black uppercase text-accent tracking-widest flex items-center gap-2 mb-4">
-                            <ShieldCheck size={16} /> Enquadramento em Normas Regulamentadoras
+                            <ShieldCheck size={16} /> Referências propostas pela IA — revisar
                           </h4>
 
                           <div className="space-y-4">
@@ -708,7 +543,7 @@ export default function AccidentsCAT() {
                           {opinion?.immutableDigest && (
                             <div className="mt-6 pt-4 border-t border-white/10">
                               <span className="text-[7px] font-mono uppercase text-white/40 block">
-                                Hash Imutável SHA-256 (Não-Repúdio):
+                                Resumo SHA-256 registrado para conferência:
                               </span>
                               <span className="text-[8px] font-mono text-accent break-all">
                                 {opinion.immutableDigest}
@@ -719,8 +554,8 @@ export default function AccidentsCAT() {
 
                         <Card className="border-none shadow-sm rounded-3xl p-6 bg-white space-y-3">
                           <h4 className="text-[10px] font-black uppercase text-primary tracking-widest flex items-center gap-2">
-                            <AlertCircle size={14} className="text-amber-500" /> Ações Imediatas
-                            Recomendadas
+                            <AlertCircle size={14} className="text-amber-500" /> Pendências para
+                            revisão responsável
                           </h4>
                           <ul className="space-y-2 text-xs text-slate-600">
                             <li className="flex items-start gap-2">
@@ -729,8 +564,8 @@ export default function AccidentsCAT() {
                                 className="text-emerald-500 shrink-0 mt-0.5"
                               />
                               <span>
-                                Emitir e assinar digitalmente o evento S-2210 no ambiente de SST
-                                antes do prazo limite.
+                                Confirmar a necessidade de CAT, a data real da ocorrência e o prazo
+                                aplicável com a equipe responsável.
                               </span>
                             </li>
                             <li className="flex items-start gap-2">
@@ -739,7 +574,8 @@ export default function AccidentsCAT() {
                                 className="text-emerald-500 shrink-0 mt-0.5"
                               />
                               <span>
-                                Vincular atestado médico com CID-10 e CRM do médico emitente.
+                                Conferir os documentos e as informações do profissional emitente,
+                                mantendo a identidade e os dados clínicos do documento original.
                               </span>
                             </li>
                             <li className="flex items-start gap-2">
@@ -760,7 +596,8 @@ export default function AccidentsCAT() {
 
                   <div className="p-8 bg-white border-t shrink-0 flex justify-between items-center">
                     <p className="text-[10px] font-bold uppercase text-slate-400 italic">
-                      "Integração contínua eSocial v_S_01_02_00 (CAT S-2210)."
+                      Análise preliminar. CAT eSocial sem emissão, assinatura ou transmissão nesta
+                      tela.
                     </p>
                     <Button
                       onClick={() => setSelectedIncident(null)}
@@ -772,47 +609,6 @@ export default function AccidentsCAT() {
                 </div>
               );
             })()}
-        </DialogContent>
-      </Dialog>
-
-      {/* DIALOG DE PREVIEW DO XML OFICIAL S-2210 */}
-      <Dialog open={xmlModalOpen} onOpenChange={setXmlModalOpen}>
-        <DialogContent className="max-w-3xl rounded-[2rem] border-none shadow-2xl p-6 bg-slate-900 text-white text-left">
-          <DialogHeader className="space-y-1">
-            <div className="flex items-center justify-between">
-              <Badge className="bg-red-500 text-white font-black uppercase text-[8px]">
-                Schema eSocial Oficial
-              </Badge>
-              <div className="flex gap-2">
-                <Button
-                  onClick={copyToClipboard}
-                  variant="outline"
-                  size="sm"
-                  className="border-white/20 text-slate-200 hover:text-white hover:bg-white/10 h-8 text-[10px] font-black uppercase gap-1"
-                >
-                  {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                  {copied ? "Copiado!" : "Copiar XML"}
-                </Button>
-                <Button
-                  onClick={downloadXml}
-                  size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-[10px] font-black uppercase gap-1"
-                >
-                  <Download size={12} /> Baixar .xml
-                </Button>
-              </div>
-            </div>
-            <DialogTitle className="text-lg font-black uppercase font-headline tracking-tight text-white">
-              XML do Evento S-2210 (Comunicação de Acidente de Trabalho)
-            </DialogTitle>
-            <DialogDescription className="text-xs text-white/50">
-              Conforme manual de orientação do eSocial v_S_01_02_00 com sanitização de campos.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="mt-4 bg-slate-950 p-4 rounded-xl border border-white/10 font-mono text-[11px] text-emerald-400 max-h-96 overflow-y-auto whitespace-pre">
-            {generatedXml}
-          </div>
         </DialogContent>
       </Dialog>
     </div>

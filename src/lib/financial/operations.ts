@@ -3,6 +3,7 @@ import { OmieExport } from "./omie-export";
 import { z } from "zod";
 import { isCalendarDate } from "./omie-dre";
 import { ErpSchema, erpCommands, applyErpCommand } from "./erp";
+import { financialLabel } from "./labels";
 
 const text = z.string().trim().min(1).max(180);
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
@@ -34,6 +35,7 @@ const Service = z.object({
   evidence: note,
   titleId: id.nullable(),
   billingMode: z.enum(["separate", "included"]),
+  voided: z.boolean().optional(),
 });
 const Title = z.object({
   id,
@@ -76,6 +78,7 @@ const BankRow = z.object({
   memo: text,
   settlementIds: z.array(id).max(100),
   transferPeer: id.nullable(),
+  voided: z.boolean().optional(),
 });
 const Statement = z.object({
   id,
@@ -198,11 +201,21 @@ export const FinanceCommandSchema = z.discriminatedUnion("action", [
     .object({
       ...common,
       action: z.literal("service"),
-      data: Service.omit({ id: true, titleId: true }),
+      data: Service.omit({ id: true, titleId: true, voided: true }),
     })
     .strict(),
   z.object({ ...common, action: z.literal("billService"), id, dueDate: date }).strict(),
-  z.object({ ...common, action: z.literal("recurring"), contractId: id, month }).strict(),
+  z.object({ ...common, action: z.literal("voidService"), id, reason: note }).strict(),
+  z
+    .object({
+      ...common,
+      action: z.literal("recurring"),
+      contractId: id,
+      month,
+      dueDate: date.optional(),
+      reason: note.optional(),
+    })
+    .strict(),
   z
     .object({
       ...common,
@@ -250,6 +263,7 @@ export const FinanceCommandSchema = z.discriminatedUnion("action", [
     })
     .strict(),
   z.object({ ...common, action: z.literal("unmatch"), id, reason: note }).strict(),
+  z.object({ ...common, action: z.literal("voidBank"), id, reason: note }).strict(),
   z.object({ ...common, action: z.literal("transfer"), id, peerId: id, reason: note }).strict(),
   z
     .object({ ...common, action: z.literal("statement"), data: Statement.omit({ id: true }) })
@@ -280,15 +294,33 @@ export function settlementCash(s: FinanceBook["settlements"][number]) {
     -s.withholdingCents,
   ]);
 }
-export function outstanding(book: FinanceBook, title: FinanceTitle) {
+export function principalByTitle(book: FinanceBook): Map<string, number> {
+  const totals = new Map<string, number>();
+  for (const s of book.settlements) {
+    if (!s.reversed)
+      totals.set(s.titleId, sumCents([totals.get(s.titleId) || 0, s.principalCents]));
+  }
+  return totals;
+}
+export function outstanding(
+  book: FinanceBook,
+  title: FinanceTitle,
+  principal?: ReadonlyMap<string, number>
+) {
   return (
     title.amountCents -
-    sumCents(
-      book.settlements
-        .filter((s) => s.titleId === title.id && !s.reversed)
-        .map((s) => s.principalCents)
-    )
+    (principal
+      ? principal.get(title.id) || 0
+      : sumCents(
+          book.settlements
+            .filter((s) => s.titleId === title.id && !s.reversed)
+            .map((s) => s.principalCents)
+        ))
   );
+}
+function adjacentMonth(period: string, offset: number) {
+  const [year, monthIndex] = period.split("-").map(Number);
+  return new Date(Date.UTC(year, monthIndex - 1 + offset, 1)).toISOString().slice(0, 7);
 }
 function unlocked(book: FinanceBook, period: string) {
   if (book.periods.some((p) => p.month === period && p.closed))
@@ -301,6 +333,25 @@ function titleFor(book: FinanceBook, key: string) {
   const t = one(book.titles, key);
   unlocked(book, t.competence);
   return t;
+}
+function billingParty(book: FinanceBook, contractId: string): string {
+  const contract = one(book.contracts, contractId);
+  const flow = book.contractFlows.find((f) => f.contractId === contractId);
+  if (!flow) return contract.client;
+  const partyId =
+    flow.migration?.partyId || book.erp.orders.find((o) => o.id === flow.orderId)?.partyId;
+  const party =
+    book.erp.parties.find((p) => p.id === partyId) ||
+    fail("Cliente vinculado ao contrato não encontrado.");
+  const normalized = (document: string) => document.replace(/[^a-z0-9]/gi, "").toUpperCase();
+  if (
+    !party.active ||
+    party.role === "supplier" ||
+    !normalized(party.document) ||
+    normalized(party.document) !== normalized(flow.customerDocument)
+  )
+    fail("Confira o cliente e o documento vinculados ao contrato antes de gerar a cobrança.");
+  return party.name;
 }
 function addTitle(book: FinanceBook, title: FinanceTitle) {
   unlocked(book, title.competence);
@@ -319,9 +370,13 @@ function addTitle(book: FinanceBook, title: FinanceTitle) {
 }
 export function closingIssues(book: FinanceBook, period: string): string[] {
   const issues: string[] = [];
+  const contractedOrders = new Set(book.contractFlows.map((f) => f.orderId));
   if (
     book.erp.orders.some(
-      (o) => o.competence === period && !["converted", "cancelled"].includes(o.status)
+      (o) =>
+        o.competence === period &&
+        !["converted", "cancelled"].includes(o.status) &&
+        !contractedOrders.has(o.id)
     )
   )
     issues.push("Existem pedidos sem conversão financeira ou cancelamento.");
@@ -333,13 +388,14 @@ export function closingIssues(book: FinanceBook, period: string): string[] {
     issues.push("Existem títulos sem aprovação ou cancelamento.");
   if (
     book.services.some(
-      (s) => s.date.startsWith(period) && !s.titleId && s.billingMode === "separate"
+      (s) => !s.voided && s.date.startsWith(period) && !s.titleId && s.billingMode === "separate"
     )
   )
     issues.push("Existem serviços realizados ainda não faturados.");
   const cash = book.settlements.filter((s) => !s.reversed && s.date.startsWith(period));
-  const rows = book.bank.filter((b) => b.date.startsWith(period));
-  if (cash.some((s) => !book.bank.some((b) => b.settlementIds.includes(s.id))))
+  const rows = book.bank.filter((b) => !b.voided && b.date.startsWith(period));
+  const matchedSettlements = new Set(rows.flatMap((b) => b.settlementIds));
+  if (cash.some((s) => !matchedSettlements.has(s.id)))
     issues.push("Existem baixas sem conciliação bancária.");
   if (rows.some((b) => !b.settlementIds.length && !b.transferPeer))
     issues.push("Existem movimentos de extrato sem conciliação.");
@@ -359,6 +415,24 @@ export function closingIssues(book: FinanceBook, period: string): string[] {
     );
     if (statement.openingCents + movement !== statement.closingCents)
       issues.push(`Saldo do extrato divergente: ${one(book.accounts, accountId).name}.`);
+    const previous = book.statements.find(
+      (s) => s.accountId === accountId && s.month === adjacentMonth(period, -1)
+    );
+    if (previous && previous.closingCents !== statement.openingCents)
+      issues.push(
+        `Saldo de abertura não corresponde ao encerramento do mês anterior: ${one(book.accounts, accountId).name}.`
+      );
+    const next = book.statements.find(
+      (s) => s.accountId === accountId && s.month === adjacentMonth(period, 1)
+    );
+    if (
+      next &&
+      book.periods.some((p) => p.month === next.month && p.closed) &&
+      next.openingCents !== statement.closingCents
+    )
+      issues.push(
+        `Saldo de encerramento diverge da abertura do mês seguinte já fechado: ${one(book.accounts, accountId).name}.`
+      );
   }
   return issues;
 }
@@ -406,7 +480,17 @@ export function applyFinanceCommand(
     );
   if (command.action === "editTitle") {
     const title = current.titles.find((t) => t.id === command.id);
-    if (title?.contractId && current.contractFlows.some((f) => f.contractId === title.contractId))
+    const managed = (contractId: string | null | undefined, competence: string) =>
+      current.contractFlows.some(
+        (f) =>
+          f.contractId === contractId &&
+          (!f.migration || competence >= f.migration.billingStartMonth)
+      );
+    if (
+      title?.kind === "receivable" &&
+      (managed(title.contractId, title.competence) ||
+        managed(command.data.contractId, command.data.competence))
+    )
       fail("Cobrança do fluxo integrado: cancele e revise a origem antes de gerar novamente.");
   }
   const contractId =
@@ -480,11 +564,26 @@ export function applyFinanceCommand(
       if (!one(book.contracts, command.data.contractId).active) fail("Contrato inativo.");
       sumCents([command.data.quantity * command.data.unitRevenueCents]);
       sumCents([command.data.quantity * command.data.unitCostCents]);
-      book.services.push({ ...command.data, id: key, titleId: null });
+      book.services.push({ ...command.data, id: key, titleId: null, voided: false });
       break;
+    case "voidService": {
+      const service = one(book.services, command.id);
+      unlocked(book, service.date.slice(0, 7));
+      if (service.voided) fail("Serviço já anulado.");
+      if (
+        service.titleId ||
+        book.titles.some((t) => t.sourceKey === `service:${service.id}` && t.status !== "cancelled")
+      )
+        fail("Cancele a cobrança do serviço antes de anular a produção.");
+      service.voided = true;
+      break;
+    }
     case "billService": {
       const s = one(book.services, command.id),
         c = one(book.contracts, s.contractId);
+      if (s.voided) fail("Serviço anulado não pode ser faturado.");
+      if (!c.active) fail("Contrato inativo.");
+      if (command.dueDate < s.date) fail("O vencimento não pode anteceder a execução do serviço.");
       if (s.billingMode === "included")
         fail("Serviço incluído na mensalidade não gera cobrança avulsa.");
       if (s.titleId) fail("Serviço já possui título de faturamento.");
@@ -492,7 +591,7 @@ export function applyFinanceCommand(
       addTitle(book, {
         id: key,
         kind: "receivable",
-        party: c.client,
+        party: billingParty(book, c.id),
         description: s.description,
         amountCents: s.quantity * s.unitRevenueCents,
         competence: s.date.slice(0, 7),
@@ -514,14 +613,23 @@ export function applyFinanceCommand(
     case "recurring": {
       const c = one(book.contracts, command.contractId);
       if (!c.active || c.monthlyCents <= 0) fail("Contrato sem mensalidade ativa.");
+      const contractualDueDate = `${command.month}-${String(c.dueDay).padStart(2, "0")}`;
+      const dueDate = command.dueDate || contractualDueDate;
+      if (dueDate !== contractualDueDate && !command.reason)
+        fail("Registre a justificativa do vencimento diferente da condição contratual.");
+      const contractFlow = book.contractFlows.find((f) => f.contractId === c.id);
+      if (contractFlow && dueDate < contractFlow.acceptedOn)
+        fail(
+          "O vencimento da primeira mensalidade não pode anteceder o aceite. Confira a condição contratual antes de gerar a cobrança."
+        );
       addTitle(book, {
         id: key,
         kind: "receivable",
-        party: c.client,
-        description: `${c.name} · ${command.month}`,
+        party: billingParty(book, c.id),
+        description: financialLabel(`${c.name} · ${command.month}`),
         amountCents: c.monthlyCents,
         competence: command.month,
-        dueDate: `${command.month}-${String(c.dueDay).padStart(2, "0")}`,
+        dueDate,
         category: "Mensalidades SST",
         center: c.center,
         contractId: c.id,
@@ -553,6 +661,13 @@ export function applyFinanceCommand(
       const t = titleFor(book, command.id);
       if (t.source === "order")
         fail("Título originado de pedido: cancele e registre um novo pedido corrigido.");
+      if (
+        t.source !== "manual" &&
+        (t.contractId !== command.data.contractId || t.competence !== command.data.competence)
+      )
+        fail(
+          "Contrato e competência pertencem à origem da cobrança. Cancele o título e corrija a origem antes de gerar novamente."
+        );
       if (!["draft", "rejected"].includes(t.status))
         fail("Somente rascunhos ou títulos devolvidos podem ser corrigidos.");
       unlocked(book, command.data.competence);
@@ -561,6 +676,12 @@ export function applyFinanceCommand(
       break;
     }
     case "installments": {
+      if (command.data.externalReference)
+        fail(
+          "Cada parcela exige sua própria referência Omie. Gere as parcelas sem referência e vincule cada título após a conferência."
+        );
+      if (`${command.data.sourceKey}/${command.count}`.length > 180)
+        fail("Use até 177 caracteres no identificador da origem para gerar parcelas.");
       if (command.data.amountCents < command.count)
         fail("Valor insuficiente para distribuir as parcelas em centavos.");
       const [year, monthIndex, day] = command.data.dueDate.split("-").map(Number);
@@ -573,7 +694,7 @@ export function applyFinanceCommand(
         addTitle(book, {
           ...command.data,
           id: `${key}_${i}`,
-          description: `${command.data.description} (${i + 1}/${command.count})`,
+          description: financialLabel(command.data.description, ` (${i + 1}/${command.count})`),
           amountCents:
             Math.floor(command.data.amountCents / command.count) +
             (i < command.data.amountCents % command.count ? 1 : 0),
@@ -653,7 +774,7 @@ export function applyFinanceCommand(
       for (const [index, r] of command.rows.entries()) {
         unlocked(book, r.date.slice(0, 7));
         const existing = book.bank.find(
-          (b) => b.accountId === command.accountId && b.bankId === r.bankId
+          (b) => !b.voided && b.accountId === command.accountId && b.bankId === r.bankId
         );
         if (existing) {
           if (
@@ -670,13 +791,24 @@ export function applyFinanceCommand(
           accountId: command.accountId,
           settlementIds: [],
           transferPeer: null,
+          voided: false,
         });
       }
+      break;
+    }
+    case "voidBank": {
+      const row = one(book.bank, command.id);
+      unlocked(book, row.date.slice(0, 7));
+      if (row.voided) fail("Movimento já anulado.");
+      if (row.settlementIds.length || row.transferPeer)
+        fail("Desfaça a conciliação antes de anular o movimento.");
+      row.voided = true;
       break;
     }
     case "match": {
       const b = one(book.bank, command.id);
       unlocked(book, b.date.slice(0, 7));
+      if (b.voided) fail("Movimento anulado não pode ser conciliado.");
       if (b.settlementIds.length || b.transferPeer) fail("Movimento já conciliado.");
       if (new Set(command.settlementIds).size !== command.settlementIds.length)
         fail("Baixa repetida na conciliação.");
@@ -718,6 +850,8 @@ export function applyFinanceCommand(
       unlocked(book, b.date.slice(0, 7));
       unlocked(book, p.date.slice(0, 7));
       if (
+        b.voided ||
+        p.voided ||
         b.accountId === p.accountId ||
         b.date !== p.date ||
         b.amountCents !== -p.amountCents ||
@@ -736,6 +870,18 @@ export function applyFinanceCommand(
     case "statement": {
       unlocked(book, command.data.month);
       one(book.accounts, command.data.accountId);
+      const next = book.statements.find(
+        (s) =>
+          s.accountId === command.data.accountId && s.month === adjacentMonth(command.data.month, 1)
+      );
+      if (
+        next &&
+        book.periods.some((p) => p.month === next.month && p.closed) &&
+        command.data.closingCents !== next.openingCents
+      )
+        fail(
+          "O encerramento deve preservar o saldo de abertura do mês seguinte já fechado. Reabra esse período para corrigir a sequência."
+        );
       const old = book.statements.find(
         (s) => s.accountId === command.data.accountId && s.month === command.data.month
       );
@@ -780,10 +926,12 @@ export function applyFinanceCommand(
     action: command.action,
     reason:
       "reason" in command
-        ? command.reason
+        ? command.reason || "Registro confirmado"
         : "evidence" in command
           ? command.evidence
-          : "Registro confirmado",
+          : command.action === "erpFollowUp"
+            ? command.data.note
+            : "Registro confirmado",
     version: book.version,
     details: JSON.stringify(command),
   });
@@ -791,8 +939,29 @@ export function applyFinanceCommand(
 }
 
 export function financeSummary(book: FinanceBook, period: string, today: string) {
+  const principal = principalByTitle(book);
+  const titlesById = new Map(book.titles.map((t) => [t.id, t]));
   const approved = book.titles.filter((t) => t.status === "approved");
   const competence = approved.filter((t) => t.competence === period);
+  const contractRevenue = new Map<string, number>();
+  const contractCost = new Map<string, number>();
+  const centerCost = new Map<string, number>();
+  const productionCost = new Map<string, number>();
+  const addAmount = (index: Map<string, number>, key: string, amount: number) =>
+    index.set(key, sumCents([index.get(key) || 0, amount]));
+  for (const title of competence) {
+    if (title.contractId)
+      addAmount(
+        title.kind === "receivable" ? contractRevenue : contractCost,
+        title.contractId,
+        title.amountCents
+      );
+    if (title.kind === "payable") addAmount(centerCost, title.center, title.amountCents);
+  }
+  for (const service of book.services) {
+    if (!service.voided && service.date.startsWith(period))
+      addAmount(productionCost, service.contractId, service.quantity * service.unitCostCents);
+  }
   const revenue = sumCents(
     competence.filter((t) => t.kind === "receivable").map((t) => t.amountCents)
   );
@@ -802,10 +971,15 @@ export function financeSummary(book: FinanceBook, period: string, today: string)
   const cash = book.settlements.filter((s) => !s.reversed && s.date.startsWith(period));
   const cashNet = sumCents(
     cash.map(
-      (s) => settlementCash(s) * (one(book.titles, s.titleId).kind === "receivable" ? 1 : -1)
+      (s) =>
+        settlementCash(s) *
+        ((titlesById.get(s.titleId) || fail("Título da baixa não encontrado.")).kind ===
+        "receivable"
+          ? 1
+          : -1)
     )
   );
-  const overdue = approved.filter((t) => t.dueDate < today && outstanding(book, t) > 0);
+  const overdue = approved.filter((t) => t.dueDate < today && outstanding(book, t, principal) > 0);
   return {
     revenue,
     expense,
@@ -813,39 +987,24 @@ export function financeSummary(book: FinanceBook, period: string, today: string)
     cashNet,
     overdue,
     unbilled: book.services.filter(
-      (s) => s.date.startsWith(period) && !s.titleId && s.billingMode === "separate"
+      (s) => !s.voided && s.date.startsWith(period) && !s.titleId && s.billingMode === "separate"
     ),
     budgets: book.budgets
       .filter((b) => b.month === period)
       .map((b) => {
-        const actual = sumCents(
-          competence
-            .filter((t) => t.kind === "payable" && t.center === b.center)
-            .map((t) => t.amountCents)
-        );
+        const actual = centerCost.get(b.center) || 0;
         return { ...b, actual, remaining: b.amountCents - actual };
       }),
     contracts: book.contracts.map((c) => {
-      const revenue = sumCents(
-        competence
-          .filter((t) => t.contractId === c.id && t.kind === "receivable")
-          .map((t) => t.amountCents)
-      );
-      const cost = sumCents(
-        competence
-          .filter((t) => t.contractId === c.id && t.kind === "payable")
-          .map((t) => t.amountCents)
-      );
-      const operationalCost = sumCents(
-        book.services
-          .filter((s) => s.contractId === c.id && s.date.startsWith(period))
-          .map((s) => s.quantity * s.unitCostCents)
-      );
+      const revenue = contractRevenue.get(c.id) || 0;
+      const cost = contractCost.get(c.id) || 0;
+      const operationalCost = productionCost.get(c.id) || 0;
       return { ...c, revenue, cost, operationalCost, contribution: revenue - cost };
     }),
   };
 }
 export function financeCsv(book: FinanceBook) {
+  const principal = principalByTitle(book);
   const cell = (v: unknown) => {
     const t = String(v ?? "");
     return `"${(/^[\s]*[=+@-]/.test(t) ? "'" + t : t).replaceAll('"', '""')}"`;
@@ -879,7 +1038,7 @@ export function financeCsv(book: FinanceBook) {
         t.center,
         t.contractId,
         t.amountCents,
-        outstanding(book, t),
+        outstanding(book, t, principal),
         t.status,
         t.externalReference,
       ]),

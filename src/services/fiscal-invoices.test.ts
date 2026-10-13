@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/services/omie-financial", () => ({ omieConnectorSession: m.session }));
 import { listFiscalInvoices } from "./fiscal-invoices";
 import type { AuthContext } from "@/lib/auth/auth-context";
+import { InvoiceQuerySchema } from "@/lib/financial/nfse";
 const admin = { uid: "admin", role: "SUPER_ADMIN", tenantId: null } as AuthContext;
 const query = { start: "2026-10-01", end: "2026-10-31", environment: "P", page: 1 };
 const fixture = () => ({
@@ -93,6 +94,54 @@ describe("fiscal provider boundary", () => {
     data.nfseEncontradas.push(data.nfseEncontradas[0]);
     data.nRegistros = 2;
     data.nTotRegistros = 2;
+    m.call.mockResolvedValue(data);
+    await expect(listFiscalInvoices(admin, query)).rejects.toMatchObject({ status: 503 });
+  });
+  it.each([
+    ["2025-01-01", "2026-01-01", true],
+    ["2025-01-01", "2026-01-02", false],
+    ["2024-02-29", "2025-02-28", true],
+    ["2024-02-29", "2025-03-01", false],
+    ["2023-03-01", "2024-03-01", true],
+    ["2023-03-01", "2024-03-02", false],
+  ])("limits %s through %s to twelve calendar months", (start, end, valid) => {
+    expect(InvoiceQuerySchema.safeParse({ ...query, start, end }).success).toBe(valid);
+  });
+  it.each([0, 1])("accepts a genuinely empty first page with %i reported pages", async (pages) => {
+    m.call.mockResolvedValue({
+      nPagina: 1,
+      nTotPaginas: pages,
+      nRegistros: 0,
+      nTotRegistros: 0,
+      nfseEncontradas: [],
+    });
+    expect((await listFiscalInvoices(admin, query)).invoices).toEqual([]);
+  });
+  it.each([
+    { nPagina: 3, nTotPaginas: 2, nTotRegistros: 25 },
+    { nPagina: 2, nTotPaginas: 0, nTotRegistros: 0 },
+    { nPagina: 1, nTotPaginas: 1, nTotRegistros: 10 },
+  ])("rejects an empty page inconsistent with provider totals %j", async (page) => {
+    m.call.mockResolvedValue({ ...page, nRegistros: 0, nfseEncontradas: [] });
+    await expect(listFiscalInvoices(admin, { ...query, page: page.nPagina })).rejects.toMatchObject(
+      { status: 503 }
+    );
+  });
+  it.each([
+    [1.005, 101],
+    [1.0049, 100],
+    [1.0051, 101],
+    [10.075, 1008],
+    [123.45, 12345],
+  ])("rounds decimal invoice %s exactly to %s cents", async (value, cents) => {
+    const data = fixture();
+    data.nfseEncontradas[0].Cabecalho.nValorNFSe = value;
+    m.call.mockResolvedValue(data);
+    expect((await listFiscalInvoices(admin, query)).invoices[0].amountCents).toBe(cents);
+  });
+  it("rejects unsupported precision without showing a rounded false amount", async () => {
+    const data = fixture();
+    data.nfseEncontradas[0].Cabecalho.nValorNFSe = 1.00001;
     m.call.mockResolvedValue(data);
     await expect(listFiscalInvoices(admin, query)).rejects.toMatchObject({ status: 503 });
   });

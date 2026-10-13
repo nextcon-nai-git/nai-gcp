@@ -8,6 +8,12 @@ A emissão pelo NAI, tanto via Omie quanto diretamente, permanece pendente.
 `src/services/fiscal-invoices.ts` conhece os campos do provedor. A credencial já
 conectada define a empresa. Cada nota retornada deve corresponder ao CNPJ,
 ambiente e período solicitados; divergências interrompem a consulta inteira.
+O limite de consulta é de 12 meses de calendário, com aniversário de 29 de
+fevereiro ajustado ao último dia de fevereiro no ano seguinte. Páginas vazias
+fora do total informado são rejeitadas; uma consulta sem resultados admite
+apenas a primeira página. Valores usam a conversão decimal de ponto fixo do
+Omie (até quatro casas) antes do arredondamento final para centavos, evitando
+erros binários como 1,005 ser exibido como 1,00.
 Não há persistência de notas, importação de histórico ou criação de recebíveis
 nesta versão. A interface não interpreta status F do ERP como autorização fiscal.
 

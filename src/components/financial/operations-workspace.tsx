@@ -20,6 +20,7 @@ import {
   financeSummary,
   financeCsv,
   outstanding,
+  principalByTitle,
   parseBrl,
   settlementCash,
   type FinanceBook,
@@ -164,7 +165,15 @@ export function FinanceOperationsWorkspace() {
         signal: AbortSignal.any([abort.signal, AbortSignal.timeout(45000)]),
         ...(payload ? { body: JSON.stringify(payload) } : {}),
       });
-      const data = await response.json();
+      if (seq !== active.current) return false;
+      // A proxy or middleware can reject access without returning JSON.
+      if (response.status === 401 || response.status === 403) {
+        pending.current = null;
+        setBook(null);
+        setForm(null);
+        setBankPreview(null);
+      }
+      const data = await response.json().catch(() => ({}));
       if (seq !== active.current) return false;
       if (!response.ok) {
         if (response.status < 500) pending.current = null;
@@ -191,6 +200,10 @@ export function FinanceOperationsWorkspace() {
     }
   }
   const today = brazilToday();
+  const principal = useMemo(
+    () => (book ? principalByTitle(book) : new Map<string, number>()),
+    [book]
+  );
   const summary = useMemo(
     () => (book ? financeSummary(book, period, today) : null),
     [book, period, today]
@@ -239,7 +252,11 @@ export function FinanceOperationsWorkspace() {
           optional: true,
         },
         { name: "sourceKey", label: "Identificador único da origem (NF, contrato ou documento)" },
-        { name: "externalReference", label: "Referência no Omie (opcional)", optional: true },
+        {
+          name: "externalReference",
+          label: "Referência no Omie (somente título único; vincule parcelas individualmente)",
+          optional: true,
+        },
         { name: "evidence", label: "Documento e evidência do lançamento", type: "textarea" },
       ],
       build: (f) => ({
@@ -514,7 +531,8 @@ export function FinanceOperationsWorkspace() {
                       (t) => t.status === "approved" && t.dueDate >= today && t.dueDate <= end
                     );
                     const total = list.reduce(
-                      (sum, t) => sum + outstanding(book, t) * (t.kind === "receivable" ? 1 : -1),
+                      (sum, t) =>
+                        sum + outstanding(book, t, principal) * (t.kind === "receivable" ? 1 : -1),
                       0
                     );
                     return (
@@ -623,7 +641,7 @@ export function FinanceOperationsWorkspace() {
                       <div>
                         <p className="text-lg font-semibold">{money(t.amountCents)}</p>
                         <p className="text-sm text-slate-300">
-                          Residual: {money(outstanding(book, t))}
+                          Residual: {money(outstanding(book, t, principal))}
                         </p>
                       </div>
                     </div>
@@ -636,72 +654,79 @@ export function FinanceOperationsWorkspace() {
                       </p>
                     )}
                     <div className="mt-4 flex flex-wrap gap-2">
-                      {t.source !== "order" && ["draft", "rejected"].includes(t.status) && (
-                        <Button
-                          variant="secondary"
-                          disabled={busy}
-                          onClick={() =>
-                            showForm({
-                              title: "Corrigir título",
-                              description:
-                                "A correção fica no histórico e continua sujeita a aprovação.",
-                              fields: [
-                                { name: "description", label: "Descrição", value: t.description },
-                                {
-                                  name: "amount",
-                                  label: "Valor (R$)",
-                                  value: (t.amountCents / 100).toFixed(2).replace(".", ","),
-                                },
-                                {
-                                  name: "competence",
-                                  label: "Competência",
-                                  type: "month",
-                                  value: t.competence,
-                                },
-                                {
-                                  name: "dueDate",
-                                  label: "Vencimento",
-                                  type: "date",
-                                  value: t.dueDate,
-                                },
-                                { name: "category", label: "Categoria", value: t.category },
-                                { name: "center", label: "Centro de custo", value: t.center },
-                                {
-                                  name: "contractId",
-                                  label: "Contrato",
-                                  optional: true,
-                                  options: [{ value: "", label: "Sem contrato" }, ...contracts],
-                                  value: t.contractId || "",
-                                },
-                                {
-                                  name: "evidence",
-                                  label: "Evidência",
-                                  type: "textarea",
-                                  value: t.evidence,
-                                },
-                                defaultReason,
-                              ],
-                              build: (f) => ({
-                                action: "editTitle",
-                                id: t.id,
-                                reason: value(f, "reason"),
-                                data: {
-                                  description: value(f, "description"),
-                                  amountCents: cash(f, "amount"),
-                                  competence: value(f, "competence"),
-                                  dueDate: value(f, "dueDate"),
-                                  category: value(f, "category"),
-                                  center: value(f, "center"),
-                                  contractId: value(f, "contractId") || null,
-                                  evidence: value(f, "evidence"),
-                                },
-                              }),
-                            })
-                          }
-                        >
-                          Corrigir rascunho
-                        </Button>
-                      )}
+                      {t.source !== "order" &&
+                        ["draft", "rejected"].includes(t.status) &&
+                        !book.contractFlows.some(
+                          (flow) =>
+                            t.kind === "receivable" &&
+                            flow.contractId === t.contractId &&
+                            (!flow.migration || t.competence >= flow.migration.billingStartMonth)
+                        ) && (
+                          <Button
+                            variant="secondary"
+                            disabled={busy}
+                            onClick={() =>
+                              showForm({
+                                title: "Corrigir título",
+                                description:
+                                  "A correção fica no histórico e continua sujeita a aprovação.",
+                                fields: [
+                                  { name: "description", label: "Descrição", value: t.description },
+                                  {
+                                    name: "amount",
+                                    label: "Valor (R$)",
+                                    value: (t.amountCents / 100).toFixed(2).replace(".", ","),
+                                  },
+                                  {
+                                    name: "competence",
+                                    label: "Competência",
+                                    type: "month",
+                                    value: t.competence,
+                                  },
+                                  {
+                                    name: "dueDate",
+                                    label: "Vencimento",
+                                    type: "date",
+                                    value: t.dueDate,
+                                  },
+                                  { name: "category", label: "Categoria", value: t.category },
+                                  { name: "center", label: "Centro de custo", value: t.center },
+                                  {
+                                    name: "contractId",
+                                    label: "Contrato",
+                                    optional: true,
+                                    options: [{ value: "", label: "Sem contrato" }, ...contracts],
+                                    value: t.contractId || "",
+                                  },
+                                  {
+                                    name: "evidence",
+                                    label: "Evidência",
+                                    type: "textarea",
+                                    value: t.evidence,
+                                  },
+                                  defaultReason,
+                                ],
+                                build: (f) => ({
+                                  action: "editTitle",
+                                  id: t.id,
+                                  reason: value(f, "reason"),
+                                  data: {
+                                    description: value(f, "description"),
+                                    amountCents: cash(f, "amount"),
+                                    competence: value(f, "competence"),
+                                    dueDate: value(f, "dueDate"),
+                                    category: value(f, "category"),
+                                    center: value(f, "center"),
+                                    contractId: value(f, "contractId") || null,
+                                    evidence: value(f, "evidence"),
+                                  },
+                                }),
+                              })
+                            }
+                          >
+                            Corrigir rascunho
+                          </Button>
+                        )}
                       {["draft", "rejected"].includes(t.status) && (
                         <Button
                           disabled={busy}
@@ -745,7 +770,7 @@ export function FinanceOperationsWorkspace() {
                           </Button>
                         </>
                       )}
-                      {t.status === "approved" && outstanding(book, t) > 0 && (
+                      {t.status === "approved" && outstanding(book, t, principal) > 0 && (
                         <Button
                           disabled={
                             busy ||
@@ -906,11 +931,25 @@ export function FinanceOperationsWorkspace() {
                             "Gera um título por contrato e competência. A repetição é bloqueada.",
                           fields: [
                             { name: "month", label: "Competência", type: "month", value: period },
+                            {
+                              name: "dueDate",
+                              label: "Vencimento excepcional (opcional)",
+                              type: "date",
+                              optional: true,
+                            },
+                            {
+                              name: "reason",
+                              label: "Justificativa se alterar o vencimento contratual",
+                              type: "textarea",
+                              optional: true,
+                            },
                           ],
                           build: (f) => ({
                             action: "recurring",
                             contractId: c.id,
                             month: value(f, "month"),
+                            ...(value(f, "dueDate") ? { dueDate: value(f, "dueDate") } : {}),
+                            ...(value(f, "reason") ? { reason: value(f, "reason") } : {}),
                           }),
                         })
                       }
@@ -1054,7 +1093,11 @@ export function FinanceOperationsWorkspace() {
                       {money(s.quantity * s.unitCostCents)} · diferença{" "}
                       {money(s.quantity * (s.unitRevenueCents - s.unitCostCents))}
                     </p>
-                    {s.billingMode === "included" ? (
+                    {s.voided ? (
+                      <p className="text-sm text-amber-200">
+                        Produção anulada. Registro preservado no histórico e excluído dos totais.
+                      </p>
+                    ) : s.billingMode === "included" ? (
                       <p className="text-sm text-cyan-300">
                         Incluído na mensalidade; custo disponível para análise do contrato.
                       </p>
@@ -1082,6 +1125,18 @@ export function FinanceOperationsWorkspace() {
                         }
                       >
                         Gerar faturamento
+                      </Button>
+                    )}
+                    {!s.voided && !s.titleId && (
+                      <Button
+                        className="mt-3"
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() =>
+                          reason("Anular produção incorreta", { action: "voidService", id: s.id })
+                        }
+                      >
+                        Anular registro de produção
                       </Button>
                     )}
                   </article>
@@ -1217,7 +1272,11 @@ export function FinanceOperationsWorkspace() {
                     <article key={b.id} className={card}>
                       <p className="text-xs text-cyan-300">
                         {book.accounts.find((a) => a.id === b.accountId)?.name} ·{" "}
-                        {matched ? "Conciliado" : "Pendente"}
+                        {b.voided
+                          ? "Anulado · preservado no histórico"
+                          : matched
+                            ? "Conciliado"
+                            : "Pendente"}
                       </p>
                       <h2 className="my-2 font-semibold">
                         {b.date} · {b.memo} · {money(b.amountCents)}
@@ -1227,7 +1286,12 @@ export function FinanceOperationsWorkspace() {
                         {b.transferPeer ? " · transferência interna, excluída do resultado" : ""}
                       </p>
                       <div className="flex flex-wrap gap-3">
-                        {matched ? (
+                        {b.voided ? (
+                          <p className="text-sm text-amber-200">
+                            Movimento excluído dos saldos. Importe o registro corrigido para
+                            conciliar.
+                          </p>
+                        ) : matched ? (
                           <Button
                             variant="secondary"
                             disabled={busy}
@@ -1285,6 +1349,7 @@ export function FinanceOperationsWorkspace() {
                                             p.date === b.date &&
                                             p.amountCents === -b.amountCents &&
                                             !p.transferPeer &&
+                                            !p.voided &&
                                             !p.settlementIds.length
                                         )
                                         .map((p) => ({
@@ -1304,6 +1369,18 @@ export function FinanceOperationsWorkspace() {
                               }
                             >
                               Transferência interna
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              disabled={busy}
+                              onClick={() =>
+                                reason("Anular movimento importado incorretamente", {
+                                  action: "voidBank",
+                                  id: b.id,
+                                })
+                              }
+                            >
+                              Anular movimento
                             </Button>
                           </>
                         )}

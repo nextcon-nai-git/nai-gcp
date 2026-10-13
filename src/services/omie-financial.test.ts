@@ -563,6 +563,36 @@ describe("Omie official DRE boundary", () => {
 });
 
 describe("verified native finance references", () => {
+  it.each(["timeout", "malformed", "incomplete"])(
+    "keeps a %s directory failure retryable instead of reporting a wrong party",
+    async (mode) => {
+      const { verifyOmieTitleReference } = await import("./omie-financial");
+      storage.data = JSON.stringify(saved);
+      fetchMock.mockResolvedValueOnce(
+        response({
+          codigo_lancamento_omie: 123,
+          valor_documento: 100,
+          data_vencimento: "10/10/2026",
+          codigo_cliente_fornecedor: 77,
+        })
+      );
+      if (mode === "timeout")
+        fetchMock.mockRejectedValueOnce(new DOMException("private", "TimeoutError"));
+      else
+        fetchMock.mockResolvedValueOnce(
+          response(
+            mode === "malformed" ? { invalid: "payload" } : { clientes_cadastro_resumido: [] }
+          )
+        );
+      await expect(
+        verifyOmieTitleReference(
+          admin,
+          { kind: "payable", amountCents: 10000, dueDate: "2026-10-10", party: "Cliente correto" },
+          "123"
+        )
+      ).rejects.toMatchObject({ status: mode === "timeout" ? 504 : 502 });
+    }
+  );
   it("uses only a read-only detail call and validates company party, amount and due date", async () => {
     const { verifyOmieTitleReference } = await import("./omie-financial");
     storage.data = JSON.stringify(saved);

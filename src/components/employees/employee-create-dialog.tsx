@@ -13,6 +13,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { isValidCpf } from "@/lib/cpf";
 
+export type EmployeeDraftValues = {
+  name: string;
+  cpf: string;
+  jobTitle: string;
+  birthDate?: string;
+  cnhCategory?: string;
+  cnhExpiration?: string;
+};
+
 export function EmployeeCreateDialog({
   open,
   onOpenChange,
@@ -20,6 +29,7 @@ export function EmployeeCreateDialog({
   companies,
   selectedCompany,
   onSaved,
+  initialValues,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -27,6 +37,7 @@ export function EmployeeCreateDialog({
   companies: Array<{ id: string; name?: string }>;
   selectedCompany: string;
   onSaved: () => void;
+  initialValues?: EmployeeDraftValues | null;
 }) {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -38,6 +49,11 @@ export function EmployeeCreateDialog({
     const cpf = String(values.get("cpf") || "").replace(/\D/g, "");
     const companyId = String(values.get("companyId") || "");
     const jobTitle = String(values.get("jobTitle") || "").trim();
+    const birthDate = String(values.get("birthDate") || "");
+    const cnhCategory = String(values.get("cnhCategory") || "")
+      .trim()
+      .toUpperCase();
+    const cnhExpiration = String(values.get("cnhExpiration") || "");
     if (
       name.length < 3 ||
       jobTitle.length < 2 ||
@@ -62,6 +78,9 @@ export function EmployeeCreateDialog({
           status: "active",
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
+          ...(birthDate ? { birthDate } : {}),
+          ...(cnhCategory ? { cnhCategory } : {}),
+          ...(cnhExpiration ? { cnhExpiration } : {}),
         });
       });
       onSaved();
@@ -90,17 +109,33 @@ export function EmployeeCreateDialog({
         <DialogHeader>
           <DialogTitle>Novo colaborador</DialogTitle>
           <DialogDescription>
-            O cadastro será confirmado após a gravação na unidade selecionada.
+            {initialValues
+              ? "Confira os dados extraídos, complete os campos pendentes e escolha a unidade antes de salvar."
+              : "O cadastro será confirmado após a gravação na unidade selecionada."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
           <div>
             <Label htmlFor="employee-name">Nome completo</Label>
-            <Input id="employee-name" name="name" required minLength={3} maxLength={180} />
+            <Input
+              id="employee-name"
+              name="name"
+              required
+              minLength={3}
+              maxLength={180}
+              defaultValue={initialValues?.name || ""}
+            />
           </div>
           <div>
             <Label htmlFor="employee-cpf">CPF</Label>
-            <Input id="employee-cpf" name="cpf" required inputMode="numeric" maxLength={14} />
+            <Input
+              id="employee-cpf"
+              name="cpf"
+              required
+              inputMode="numeric"
+              maxLength={14}
+              defaultValue={initialValues?.cpf || ""}
+            />
           </div>
           <div>
             <Label htmlFor="employee-company">Unidade</Label>
@@ -121,8 +156,46 @@ export function EmployeeCreateDialog({
           </div>
           <div>
             <Label htmlFor="employee-job">Cargo</Label>
-            <Input id="employee-job" name="jobTitle" required minLength={2} maxLength={160} />
+            <Input
+              id="employee-job"
+              name="jobTitle"
+              required
+              minLength={2}
+              maxLength={160}
+              defaultValue={initialValues?.jobTitle || ""}
+            />
           </div>
+          {initialValues && (
+            <>
+              <div>
+                <Label htmlFor="employee-birth">Data de nascimento documentada</Label>
+                <Input
+                  id="employee-birth"
+                  name="birthDate"
+                  type="date"
+                  defaultValue={initialValues.birthDate || ""}
+                />
+              </div>
+              <div>
+                <Label htmlFor="employee-cnh-category">Categoria da CNH documentada</Label>
+                <Input
+                  id="employee-cnh-category"
+                  name="cnhCategory"
+                  maxLength={3}
+                  defaultValue={initialValues.cnhCategory || ""}
+                />
+              </div>
+              <div>
+                <Label htmlFor="employee-cnh-expiration">Validade da CNH documentada</Label>
+                <Input
+                  id="employee-cnh-expiration"
+                  name="cnhExpiration"
+                  type="date"
+                  defaultValue={initialValues.cnhExpiration || ""}
+                />
+              </div>
+            </>
+          )}
           {error && (
             <p role="alert" className="text-destructive">
               {error}

@@ -7,6 +7,15 @@ import {
   type PgrPage,
 } from "./pgr-schema";
 
+/** A scanned page can be reviewed visually; a blank page elsewhere cannot excuse a false quote. */
+export function isNaiVisualEvidence(
+  evidence: { pagina: number; trecho: string },
+  pages: PgrPage[]
+) {
+  const page = pages.find((item) => item.numero === evidence.pagina);
+  return !!page && page.texto.trim().length < 40 && normalizePgrText(evidence.trecho).length >= 3;
+}
+
 /** Accept model discoveries only when the uploaded pages support the employer identity. */
 export function mergeNaiIdentity(
   base: PgrAnalysisOutput,
@@ -15,7 +24,9 @@ export function mergeNaiIdentity(
   visual: boolean
 ) {
   const proposed = model.pgrCardDetalhado;
-  const evidence = model.identidade.evidencias.filter((item) => evidenceIsInPages(item, pages));
+  const evidence = model.identidade.evidencias.filter(
+    (item) => evidenceIsInPages(item, pages) || (visual && isNaiVisualEvidence(item, pages))
+  );
   const supported = evidence.some((item) => {
     const quote = normalizePgrText(item.trecho);
     return (
@@ -32,26 +43,14 @@ export function mergeNaiIdentity(
   const useModel =
     base.identidade.status === "nao_identificada" &&
     model.identidade.status === "identificada" &&
-    (supported ||
-      (visual &&
-        model.identidade.evidencias.length > 0 &&
-        model.identidade.evidencias.every((item) =>
-          pages.some((page) => page.numero === item.pagina)
-        )));
-  const identity = useModel
-    ? { ...model.identidade, evidencias: visual ? model.identidade.evidencias : evidence }
-    : base.identidade;
+    supported;
+  const identity = useModel ? { ...model.identidade, evidencias: evidence } : base.identidade;
   const detail = useModel
     ? visual
       ? { ...proposed }
       : { ...base.pgrCardDetalhado, razaoSocial: proposed.razaoSocial, cnpj: proposed.cnpj }
     : { ...base.pgrCardDetalhado };
-  const identityText = normalizePgrText(
-    pages
-      .filter((page) => identity.evidencias.some((item) => item.pagina === page.numero))
-      .map((page) => page.texto)
-      .join("\n")
-  );
+  const identityText = normalizePgrText(identity.evidencias.map((item) => item.trecho).join("\n"));
   // A different CNPJ from the model must not contribute metadata from the issuer/provider.
   const sameEmployer = !!detail.cnpj && cleanPgrCnpj(detail.cnpj) === cleanPgrCnpj(proposed.cnpj);
   if (sameEmployer) {

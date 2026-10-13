@@ -1,196 +1,146 @@
 import { NextRequest, NextResponse } from "next/server";
+import { adminDb } from "@/lib/firebase-admin";
 import {
   requireApiKey,
   requireScope,
   requireClient,
   handleApiGuardError,
+  ApiGuardError,
 } from "@/lib/developer-api-guard";
-import { initializeApp, getApps, getApp } from "firebase/app";
+import { AuthError, handleAuthError } from "@/lib/auth/errors";
+import { limitedBytes, privateHeaders } from "@/lib/http/private-api";
 import {
-  getFirestore,
-  doc,
-  getDoc,
-  collection,
-  query,
-  where,
-  getDocs,
-  limit,
-} from "firebase/firestore";
-import { firebaseConfig } from "@/firebase/config";
-import { AccessCheckResponse } from "@/types/developer";
-import {
-  MaterializedAccessRecord,
+  accessToday,
+  isAccessDocumentId,
   syncMaterializedAccessRecord,
 } from "@/services/access-control/materialize-access";
 
-/**
- * ENDPOINT DE ULTRA-ALTA PERFORMANCE PARA CATRACAS & PORTARIAS (SLA < 100ms)
- *
- * Pipeline:
- * badgeCode / CPF
- *       ↓
- * 1 Documento Materializado: companies/{companyId}/access_index/{badgeCode}
- *       ↓
- * Decisão Instantânea em Memória (status == 'ACTIVE' && asoValid >= today && trainingValid >= today)
- *       ↓
- * < 100ms SLA
- */
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/** Authorize M2M access against the current employee record, never a stale cached decision. */
 export async function POST(req: NextRequest) {
-  const startTime = Date.now();
-
+  const start = Date.now();
   try {
-    // 1. Validação de Credencial M2M e Rate Limiting
     const authKey = await requireApiKey(req);
-
-    // 2. Validação de Escopo
     requireScope(authKey, "access_control:read");
-
-    const body = await req.json();
-    const { cpf, badgeCode, companyId } = body;
-
-    const rawBadge = (badgeCode || "").trim();
-    const cleanCpf = (cpf || "").replace(/\D/g, "");
-    const searchKey = rawBadge || cleanCpf;
-
-    if (!searchKey) {
-      return NextResponse.json(
-        {
-          error: "É necessário fornecer badgeCode ou cpf.",
-        },
-        { status: 400 }
+    let body: Record<string, unknown>;
+    try {
+      const input: unknown = JSON.parse((await limitedBytes(req, 8192)).toString("utf8"));
+      if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error();
+      body = input as Record<string, unknown>;
+    } catch (error) {
+      if (error instanceof AuthError) throw error;
+      throw new ApiGuardError("Solicitação JSON inválida.", 400);
+    }
+    if (
+      (body.badgeCode !== undefined && typeof body.badgeCode !== "string") ||
+      (body.cpf !== undefined && typeof body.cpf !== "string")
+    )
+      throw new ApiGuardError("Informe crachá ou CPF como texto.", 400);
+    const badge = typeof body.badgeCode === "string" ? body.badgeCode.trim() : "";
+    const cpf = typeof body.cpf === "string" ? body.cpf.replace(/\D/g, "") : "";
+    if ((!badge && !cpf) || (badge && !isAccessDocumentId(badge)) || (cpf && !/^\d{11}$/.test(cpf)))
+      throw new ApiGuardError("Informe um crachá válido ou CPF completo.", 400);
+    const companyId = body.companyId ?? authKey.clientId;
+    if (!isAccessDocumentId(companyId))
+      throw new ApiGuardError(
+        "Informe a empresa do atendimento. Chaves globais exigem companyId.",
+        400
       );
-    }
+    requireClient(authKey, companyId);
 
-    // 3. Validação de Tenant
-    if (companyId) {
-      requireClient(authKey, companyId);
-    }
-
-    const targetCompanyId = companyId || authKey.clientId;
-    const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    // 4. Leitura Direta de 1 Documento no Índice Materializado (O(1) Direct Key Lookup)
-    const indexRef = doc(db, "companies", targetCompanyId, "access_index", searchKey);
-    const indexSnap = await getDoc(indexRef);
-
-    let accessRecord: MaterializedAccessRecord | null = null;
-    let indexHit = true;
-
-    if (indexSnap.exists()) {
-      accessRecord = indexSnap.data() as MaterializedAccessRecord;
-    } else {
-      // Fallback sob demanda: Localiza o colaborador, calcula e materializa no índice para as próximas leituras
-      indexHit = false;
-      const empCollectionRef = collection(db, "companies", targetCompanyId, "employees");
-      let empQuery = query(empCollectionRef, where("cpf", "==", cleanCpf), limit(1));
-
-      if (rawBadge && !cleanCpf) {
-        empQuery = query(empCollectionRef, where("badgeCode", "==", rawBadge), limit(1));
-      }
-
-      const empSnap = await getDocs(empQuery);
-      if (empSnap.empty) {
-        const resp: AccessCheckResponse = {
-          allowed: false,
-          reason: "Colaborador não localizado no cadastro da empresa.",
-          timestamp: new Date().toISOString(),
-        };
-        return NextResponse.json(resp, {
-          headers: {
-            "X-Response-Time": `${Date.now() - startTime}ms`,
-            "X-NAI-Index-Hit": "MISS",
-          },
-        });
-      }
-
-      const empDoc = empSnap.docs[0];
-      const empData = { id: empDoc.id, ...empDoc.data() };
-      accessRecord = await syncMaterializedAccessRecord(targetCompanyId, empData as any);
-    }
-
-    // 5. Decisão Instantânea em Memória (< 1ms)
-    const today = new Date().toISOString().split("T")[0];
-
-    // Checagem de Status Cadastral
-    if (accessRecord.status !== "ACTIVE") {
-      return NextResponse.json(
-        {
-          allowed: false,
-          reason: "Acesso Bloqueado: Colaborador com cadastro inativo ou desligado.",
-          employeeName: accessRecord.employeeName,
-          asoStatus: "MISSING",
-          timestamp: new Date().toISOString(),
-        } as AccessCheckResponse,
+    const employees = adminDb.collection("companies").doc(companyId).collection("employees");
+    const formattedCpf = cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    const snapshot = await (
+      badge
+        ? employees.where("badgeCode", "==", badge)
+        : employees.where("cpf", "in", [cpf, formattedCpf])
+    )
+      .select(
+        "name",
+        "companyId",
+        "cpf",
+        "badgeCode",
+        "status",
+        "active",
+        "isArchived",
+        "isDeleted",
+        "fitnessStatus",
+        "nextAsoDate",
+        "requiredNrs",
+        "trainings",
+        "completedNrs"
+      )
+      .limit(2)
+      .get();
+    const respond = (data: Record<string, unknown>) =>
+      NextResponse.json(
+        { ...data, timestamp: new Date().toISOString() },
         {
           headers: {
-            "X-Response-Time": `${Date.now() - startTime}ms`,
-            "X-NAI-Index-Hit": indexHit ? "HIT_O1" : "WARMED",
+            ...privateHeaders,
+            "X-Response-Time": `${Date.now() - start}ms`,
+            "X-NAI-Index-Hit": "REVALIDATED",
           },
         }
       );
-    }
+    if (snapshot.size !== 1)
+      return respond({
+        allowed: false,
+        reason: snapshot.empty
+          ? "Colaborador não localizado no cadastro da empresa."
+          : "Identificação duplicada. Revise o cadastro antes de liberar o acesso.",
+      });
+    const employee = snapshot.docs[0];
+    const data = employee.data();
+    if (
+      (data.companyId && data.companyId !== companyId) ||
+      (badge && data.badgeCode !== badge) ||
+      (cpf && (typeof data.cpf !== "string" || data.cpf.replace(/\D/g, "") !== cpf))
+    )
+      return respond({
+        allowed: false,
+        reason: "Os identificadores informados não correspondem ao mesmo colaborador da empresa.",
+      });
 
-    // Checagem de Validade de ASO (NR-7)
-    if (!accessRecord.asoValidUntil || accessRecord.asoValidUntil < today) {
-      return NextResponse.json(
-        {
-          allowed: false,
-          reason: "ASO Vencido ou Inexistente. Acesso Bloqueado conforme PCMSO/NR-7.",
-          employeeName: accessRecord.employeeName,
-          asoStatus: accessRecord.asoValidUntil ? "EXPIRED" : "MISSING",
-          asoDueDate: accessRecord.asoValidUntil || null,
-          timestamp: new Date().toISOString(),
-        } as AccessCheckResponse,
-        {
-          headers: {
-            "X-Response-Time": `${Date.now() - startTime}ms`,
-            "X-NAI-Index-Hit": indexHit ? "HIT_O1" : "WARMED",
-          },
-        }
-      );
-    }
-
-    // Checagem de Validade de Treinamentos (NR-1 / NRs aplicáveis)
-    if (accessRecord.missingNrs && accessRecord.missingNrs.length > 0) {
-      return NextResponse.json(
-        {
-          allowed: false,
-          reason: `Treinamentos regulamentares pendentes ou vencidos: ${accessRecord.missingNrs.join(", ")}. Bloqueado conforme NR-1.`,
-          employeeName: accessRecord.employeeName,
-          asoStatus: "VALID",
-          asoDueDate: accessRecord.asoValidUntil,
-          missingNrs: accessRecord.missingNrs,
-          timestamp: new Date().toISOString(),
-        } as AccessCheckResponse,
-        {
-          headers: {
-            "X-Response-Time": `${Date.now() - startTime}ms`,
-            "X-NAI-Index-Hit": indexHit ? "HIT_O1" : "WARMED",
-          },
-        }
-      );
-    }
-
-    // 6. Autorização Concedida
-    const elapsed = Date.now() - startTime;
-    return NextResponse.json(
-      {
-        allowed: true,
-        reason: "Apto para trabalho. ASO e Treinamentos Regulamentares em conformidade.",
-        employeeName: accessRecord.employeeName,
+    const record = await syncMaterializedAccessRecord(companyId, { ...data, id: employee.id });
+    const shared = { employeeName: record.employeeName, asoDueDate: record.asoValidUntil };
+    if (record.status !== "ACTIVE")
+      return respond({
+        ...shared,
+        allowed: false,
+        reason: "Cadastro ou aptidão ocupacional não liberados. Solicite revisão ao responsável.",
+        asoStatus: "MISSING",
+      });
+    if (!record.asoValidUntil || record.asoValidUntil < accessToday())
+      return respond({
+        ...shared,
+        allowed: false,
+        reason: "Validade de ASO ausente, inválida ou vencida.",
+        asoStatus: record.asoValidUntil ? "EXPIRED" : "MISSING",
+      });
+    if (
+      record.missingNrs.length ||
+      (record.trainingValidUntil && record.trainingValidUntil < accessToday())
+    )
+      return respond({
+        ...shared,
+        allowed: false,
+        reason: "Treinamentos obrigatórios pendentes, inválidos ou vencidos.",
         asoStatus: "VALID",
-        asoDueDate: accessRecord.asoValidUntil,
-        timestamp: new Date().toISOString(),
-      } as AccessCheckResponse,
-      {
-        headers: {
-          "X-Response-Time": `${elapsed}ms`,
-          "X-NAI-Index-Hit": indexHit ? "HIT_O1" : "WARMED",
-        },
-      }
-    );
+        missingNrs: record.missingNrs,
+      });
+    return respond({
+      ...shared,
+      allowed: true,
+      reason: "Cadastro ativo, aptidão e prazos verificados no registro atual.",
+      asoStatus: "VALID",
+    });
   } catch (error) {
-    return handleApiGuardError(error);
+    const response =
+      error instanceof AuthError ? handleAuthError(error) : handleApiGuardError(error);
+    for (const [name, value] of Object.entries(privateHeaders)) response.headers.set(name, value);
+    return response;
   }
 }

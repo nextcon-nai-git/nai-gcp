@@ -29,7 +29,7 @@ export function DownloadAsoButton({
   return (
     <DynamicPDFDownloadLink
       document={<AsoDocument {...patientData} />}
-      fileName={`ASO_${patientData.patientName.replace(/\s+/g, "_")}.pdf`}
+      fileName={`Resumo_ASO_${patientData.patientName.replace(/\s+/g, "_")}.pdf`}
     >
       {({ loading }: any) => (
         <button
@@ -47,7 +47,7 @@ export function DownloadAsoButton({
           ) : (
             <CloudDownload className="size-3.5" />
           )}
-          {loading ? "Processando..." : "Baixar ASO"}
+          {loading ? "Processando..." : "Baixar resumo de ASO"}
         </button>
       )}
     </DynamicPDFDownloadLink>

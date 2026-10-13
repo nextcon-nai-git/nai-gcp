@@ -1,14 +1,10 @@
 /**
- * NextCon Intelligence (NAI) - eSocial XML Builder (v.S-1.2 / S-1.3 Compliance)
- *
- * Construtor oficial para eventos de Segurança e Saúde no Trabalho (SST):
- * - S-2220: Monitoramento da Saúde do Trabalhador (ASO / Exames Clínicos e Complementares)
- * - S-2240: Condições Ambientais do Trabalho - Fatores de Risco
- *
- * Cumpre a estrutura hierárquica e namespaces oficiais da Receita Federal e Ministério do Trabalho.
+ * eSocial drafts. S-2220 content follows S-1.3; a configured, verified signer and
+ * business-rule validation are still required before any transmission.
+ * Legacy S-2210/S-2240 generation stays unavailable pending current-layout validation.
  */
 
-import { logger } from "@/lib/logger";
+import { buildS2220Xml } from "./s2220";
 
 export type EsocialEvent = "S2210" | "S2220" | "S2240";
 
@@ -20,6 +16,7 @@ export interface EsocialIdeEmpregador {
 export interface EsocialIdeTrabalhador {
   cpfTrab: string;
   matricula?: string;
+  codCateg?: number;
 }
 
 export interface S2220ExamItem {
@@ -32,22 +29,23 @@ export interface S2220ExamItem {
 export interface S2220AsoData {
   dtAso: string;
   tpAso: 0 | 1 | 2 | 3 | 4 | 9; // 0: Admissional, 1: Periódico, 2: Retorno, 3: Mudança Função, 4: Monitoração Pontual, 9: Demissional
-  resAso: 1 | 2; // 1: Apto, 2: Inapto
-  exames?: S2220ExamItem[];
+  resAso?: 1 | 2; // 1: Apto, 2: Inapto
+  exames: S2220ExamItem[];
   medico: {
     nmMed: string;
     nrCrm: string;
     ufCrm: string;
   };
   medicoResp?: {
-    nmMed?: string;
-    nrCrm?: string;
-    ufCrm?: string;
+    nmMed: string;
+    nrCrm: string;
+    ufCrm: string;
+    cpfResp?: string;
   };
 }
 
 export interface S2220Payload {
-  id?: string;
+  id: string;
   ideEmpregador: EsocialIdeEmpregador;
   ideTrabalhador: EsocialIdeTrabalhador;
   aso: S2220AsoData;
@@ -157,244 +155,30 @@ export function escapeXml(unsafe: string): string {
 }
 
 export class EsocialXmlBuilder {
-  /**
-   * Constrói o XML oficial para o evento S-2210 (Comunicação de Acidente de Trabalho - CAT)
-   * Schema: http://www.esocial.gov.br/schema/evt/evtCat/v_S_01_02_00
-   */
   static buildS2210(data: S2210Payload): string {
-    const eventId =
-      data.id ||
-      `ID1${data.ideEmpregador.nrInsc.replace(/\D/g, "").padStart(14, "0")}${Date.now()}`;
-    const cleanCnpj = data.ideEmpregador.nrInsc.replace(/\D/g, "");
-    const cleanCpf = data.ideTrabalhador.cpfTrab.replace(/\D/g, "");
-
-    const cat = data.cat;
-    const endereco = cat.localAcidente.endereco;
-    const enderecoXml = endereco
-      ? `
-        <endereco>
-          <brasil>
-            ${endereco.tpLogr ? `<tpLogr>${escapeXml(endereco.tpLogr)}</tpLogr>` : ""}
-            <dscLogr>${escapeXml(endereco.dscLogr)}</dscLogr>
-            <nrLogr>${escapeXml(endereco.nrLogr)}</nrLogr>
-            ${endereco.complemento ? `<complemento>${escapeXml(endereco.complemento)}</complemento>` : ""}
-            <bairro>${escapeXml(endereco.bairro)}</bairro>
-            <cep>${escapeXml(endereco.cep.replace(/\D/g, ""))}</cep>
-            <codMunic>${escapeXml(endereco.codMunic)}</codMunic>
-            <uf>${escapeXml(endereco.uf)}</uf>
-          </brasil>
-        </endereco>`
-      : "";
-
-    const atestadoXml = cat.atestado
-      ? `
-      <atestado>
-        <dtAtendimento>${escapeXml(cat.atestado.dtAtendimento)}</dtAtendimento>
-        ${cat.atestado.hrAtendimento ? `<hrAtendimento>${escapeXml(cat.atestado.hrAtendimento.replace(":", ""))}</hrAtendimento>` : ""}
-        <indInternacao>${cat.atestado.indInternacao}</indInternacao>
-        <durTrat>${cat.atestado.durTrat}</durTrat>
-        <indAfast>${cat.atestado.indAfast}</indAfast>
-        ${cat.atestado.dscLesao ? `<dscLesao>${escapeXml(cat.atestado.dscLesao)}</dscLesao>` : ""}
-        <codCID>${escapeXml(cat.atestado.codCID)}</codCID>
-        <emitente>
-          <nmEmit>${escapeXml(cat.atestado.emitente.nmEmit)}</nmEmit>
-          <ideOC>${cat.atestado.emitente.ideOC}</ideOC>
-          <nrOC>${escapeXml(cat.atestado.emitente.nrOC.replace(/\D/g, ""))}</nrOC>
-          <ufOC>${escapeXml(cat.atestado.emitente.ufOC)}</ufOC>
-        </emitente>
-      </atestado>`
-      : "";
-
-    const catOrigemXml =
-      (cat.tpCat === 2 || cat.tpCat === 3) && cat.catOrigem
-        ? `
-      <catOrigem>
-        <nrRecCatOrig>${escapeXml(cat.catOrigem.nrRecCatOrig)}</nrRecCatOrig>
-      </catOrigem>`
-        : "";
-
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<eSocial xmlns="http://www.esocial.gov.br/schema/evt/evtCat/v_S_01_02_00">
-  <evtCat Id="${eventId}">
-    <ideEvento>
-      <indRetif>1</indRetif>
-      <tpAmb>2</tpAmb>
-      <procEmi>1</procEmi>
-      <verProc>NAI_SST_v4.0</verProc>
-    </ideEvento>
-    <ideEmpregador>
-      <tpInsc>${data.ideEmpregador.tpInsc}</tpInsc>
-      <nrInsc>${cleanCnpj}</nrInsc>
-    </ideEmpregador>
-    <ideTrabalhador>
-      <cpfTrab>${cleanCpf}</cpfTrab>
-      ${data.ideTrabalhador.matricula ? `<matricula>${escapeXml(data.ideTrabalhador.matricula)}</matricula>` : ""}
-    </ideTrabalhador>
-    <cat>
-      <dtAcid>${escapeXml(cat.dtAcid)}</dtAcid>
-      <tpCat>${cat.tpCat}</tpCat>
-      <iniciatCAT>${cat.iniciatCAT}</iniciatCAT>
-      ${cat.hrAcid ? `<hrAcid>${escapeXml(cat.hrAcid.replace(":", ""))}</hrAcid>` : ""}
-      ${cat.hrsTrabAntesAcid ? `<hrsTrabAntesAcid>${escapeXml(cat.hrsTrabAntesAcid.replace(":", ""))}</hrsTrabAntesAcid>` : ""}
-      <tpAcid>${cat.tpAcid}</tpAcid>
-      ${cat.codSitGeradora ? `<codSitGeradora>${escapeXml(cat.codSitGeradora)}</codSitGeradora>` : ""}
-      ${cat.obsCAT ? `<obsCAT>${escapeXml(cat.obsCAT)}</obsCAT>` : ""}
-      <localAcidente>
-        <tpLocal>${escapeXml(cat.localAcidente.tpLocal)}</tpLocal>
-        ${cat.localAcidente.dscLocal ? `<dscLocal>${escapeXml(cat.localAcidente.dscLocal)}</dscLocal>` : ""}
-        ${enderecoXml}
-      </localAcidente>
-      <parteAtingida>
-        <codParteAting>${escapeXml(cat.parteAtingida.codParteAting)}</codParteAting>
-        <lateralidade>${cat.parteAtingida.lateralidade}</lateralidade>
-      </parteAtingida>
-      <agenteCausador>
-        <codAgntCausador>${escapeXml(cat.agenteCausador.codAgntCausador)}</codAgntCausador>
-      </agenteCausador>
-      ${atestadoXml}
-      ${catOrigemXml}
-    </cat>
-  </evtCat>
-</eSocial>`.trim();
+    void data;
+    throw new Error(
+      "S-2210 indisponível: leiaute vigente e dados revisados da CAT ainda precisam ser validados. Nenhum XML foi emitido."
+    );
   }
-  /**
-   * Constrói o XML oficial para o evento S-2220 (Monitoramento da Saúde do Trabalhador)
-   * Schema: http://www.esocial.gov.br/schema/evt/evtMonit/v_S_01_02_00
-   */
+
+  /** Builds an unsigned S-2220 draft, never a signed or transmitted event. */
   static buildS2220(data: S2220Payload): string {
-    const eventId = data.id || `ID1${data.ideEmpregador.nrInsc.padStart(14, "0")}${Date.now()}`;
-    const cleanCnpj = data.ideEmpregador.nrInsc.replace(/\D/g, "");
-    const cleanCpf = data.ideTrabalhador.cpfTrab.replace(/\D/g, "");
-    const cleanCrm = data.aso.medico.nrCrm.replace(/\D/g, "");
-
-    const examesXml = (data.aso.exames || [])
-      .map(
-        (ex) => `
-          <exame>
-            <dtExm>${escapeXml(ex.dtExm)}</dtExm>
-            <procRealizado>${escapeXml(ex.procRealizado)}</procRealizado>
-            <ordExame>${ex.ordExame || 1}</ordExame>
-            ${ex.obsProc ? `<obsProc>${escapeXml(ex.obsProc)}</obsProc>` : ""}
-          </exame>`
-      )
-      .join("");
-
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<eSocial xmlns="http://www.esocial.gov.br/schema/evt/evtMonit/v_S_01_02_00">
-  <evtMonit Id="${eventId}">
-    <ideEvento>
-      <indRetif>1</indRetif>
-      <tpAmb>2</tpAmb>
-      <procEmi>1</procEmi>
-      <verProc>NAI_SST_v4.0</verProc>
-    </ideEvento>
-    <ideEmpregador>
-      <tpInsc>${data.ideEmpregador.tpInsc}</tpInsc>
-      <nrInsc>${cleanCnpj}</nrInsc>
-    </ideEmpregador>
-    <ideTrabalhador>
-      <cpfTrab>${cleanCpf}</cpfTrab>
-    </ideTrabalhador>
-    <exMed>
-      <tpExame>${data.aso.tpAso}</tpExame>
-      <aso>
-        <dtAso>${escapeXml(data.aso.dtAso)}</dtAso>
-        <resAso>${data.aso.resAso}</resAso>
-        <exame>${
-          examesXml
-            ? examesXml
-            : `
-          <exame>
-            <dtExm>${escapeXml(data.aso.dtAso)}</dtExm>
-            <procRealizado>0295</procRealizado>
-            <ordExame>1</ordExame>
-          </exame>`
-        }
-        </exame>
-        <medico>
-          <nmMed>${escapeXml(data.aso.medico.nmMed)}</nmMed>
-          <nrCRM>${cleanCrm}</nrCRM>
-          <ufCRM>${escapeXml(data.aso.medico.ufCrm)}</ufCRM>
-        </medico>
-      </aso>
-    </exMed>
-  </evtMonit>
-</eSocial>`.trim();
+    return buildS2220Xml(data);
   }
 
-  /**
-   * Constrói o XML oficial para o evento S-2240 (Condições Ambientais do Trabalho - Fatores de Risco)
-   * Schema: http://www.esocial.gov.br/schema/evt/evtExpRisco/v_S_01_02_00
-   */
   static buildS2240(data: S2240Payload): string {
-    const eventId = data.id || `ID1${data.ideEmpregador.nrInsc.padStart(14, "0")}${Date.now()}`;
-    const cleanCnpj = data.ideEmpregador.nrInsc.replace(/\D/g, "");
-    const cleanCpf = data.ideTrabalhador.cpfTrab.replace(/\D/g, "");
-    const cleanCpfResp = data.respReg.cpfResp.replace(/\D/g, "");
-
-    const riscosXml = data.fatRisco
-      .map(
-        (r) => `
-        <fatRisco>
-          <codFatRisco>${escapeXml(r.codFatRisco)}</codFatRisco>
-          ${r.dscFatRisco ? `<dscFatRisco>${escapeXml(r.dscFatRisco)}</dscFatRisco>` : ""}
-          <tpAval>${r.tpAval}</tpAval>
-          ${r.intConc ? `<intConc>${escapeXml(r.intConc)}</intConc>` : ""}
-          ${r.unMed ? `<unMed>${escapeXml(r.unMed)}</unMed>` : ""}
-          <epcEpi>
-            <utilizEPC>${r.utilizEPC ?? 0}</utilizEPC>
-            <utilizEPI>${r.utilizEPI ?? 0}</utilizEPI>
-            ${r.caEpi ? `<caEpi>${escapeXml(r.caEpi)}</caEpi>` : ""}
-          </epcEpi>
-        </fatRisco>`
-      )
-      .join("");
-
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<eSocial xmlns="http://www.esocial.gov.br/schema/evt/evtExpRisco/v_S_01_02_00">
-  <evtExpRisco Id="${eventId}">
-    <ideEvento>
-      <indRetif>1</indRetif>
-      <tpAmb>2</tpAmb>
-      <procEmi>1</procEmi>
-      <verProc>NAI_SST_v4.0</verProc>
-    </ideEvento>
-    <ideEmpregador>
-      <tpInsc>${data.ideEmpregador.tpInsc}</tpInsc>
-      <nrInsc>${cleanCnpj}</nrInsc>
-    </ideEmpregador>
-    <ideTrabalhador>
-      <cpfTrab>${cleanCpf}</cpfTrab>
-    </ideTrabalhador>
-    <infoExpRisco>
-      <dtIniCondic>${escapeXml(data.dtIniCondic)}</dtIniCondic>
-      <infoAmb>
-        <localAmb>${data.localAmb || 1}</localAmb>
-        <dscSetor>${escapeXml(data.dscSetor || "Setor Operacional")}</dscSetor>
-      </infoAmb>
-      <infoAtiv>
-        <dscAtivDes>${escapeXml(data.dscAtivDes || "Atividades laborais padrão")}</dscAtivDes>
-      </infoAtiv>
-      ${riscosXml}
-      <respReg>
-        <cpfResp>${cleanCpfResp}</cpfResp>
-        <ideOC>${data.respReg.ideOC}</ideOC>
-        <nrOC>${escapeXml(data.respReg.nrOC)}</nrOC>
-        <ufOC>${escapeXml(data.respReg.ufOC)}</ufOC>
-      </respReg>
-    </infoExpRisco>
-  </evtExpRisco>
-</eSocial>`.trim();
+    void data;
+    throw new Error(
+      "S-2240 indisponível: leiaute vigente e dados ambientais revisados ainda precisam ser validados. Nenhum XML foi emitido."
+    );
   }
 
-  /**
-   * Assina digitalmente o envelope XML com certificado A1/A3 (PKCS#7 / XMLDSig).
-   */
   static async signEvent(xml: string, certificateId: string): Promise<string> {
-    logger.audit("ESOCIAL_SIGN_EVENT", "Iniciando assinatura digital de lote XML eSocial", {
-      certificateId: certificateId ? `${certificateId.slice(0, 4)}****` : undefined,
-    });
-    // Em produção integrada com HSM/ICP-Brasil, o envelope recebe o nó <Signature>
-    return xml;
+    void xml;
+    void certificateId;
+    throw new Error(
+      "Assinatura eSocial indisponível: configure e valide um provedor e o certificado. Nenhum evento foi assinado ou transmitido."
+    );
   }
 }

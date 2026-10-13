@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<eSocial xmlns="http://www.esocial.gov.br/schema/evt/evtMonit/v_S_01_03_00">
+  <evtMonit Id="ID1123456780001902026101212345600001">
+    <ideEvento>
+      <indRetif>1</indRetif>
+      <tpAmb>2</tpAmb>
+      <procEmi>1</procEmi>
+      <verProc>NAI_SST_S1.3</verProc>
+    </ideEvento>
+    <ideEmpregador>
+      <tpInsc>1</tpInsc>
+      <nrInsc>12345678000190</nrInsc>
+    </ideEmpregador>
+    <ideVinculo>
+      <cpfTrab>12345678909</cpfTrab>
+      <matricula>SYNTHETIC-001</matricula>
+    </ideVinculo>
+    <exMedOcup>
+      <tpExameOcup>1</tpExameOcup>
+      <aso>
+        <dtAso>2026-10-10</dtAso>
+        <resAso>1</resAso>
+        
+        <exame>
+          <dtExm>2026-10-10</dtExm>
+          <procRealizado>0295</procRealizado>
+          
+          
+        </exame>
+        <exame>
+          <dtExm>2026-10-09</dtExm>
+          <procRealizado>0998</procRealizado>
+          <obsProc>Procedimento sintético &amp; revisão</obsProc>
+          <ordExame>2</ordExame>
+        </exame>
+        <medico>
+          <nmMed>Profissional Sintético</nmMed>
+          <nrCRM>12345</nrCRM>
+          <ufCRM>PR</ufCRM>
+        </medico>
+      </aso>
+      <respMonit>
+        
+        <nmResp>Coordenador Sintético</nmResp>
+        <nrCRM>54321</nrCRM>
+        <ufCRM>PR</ufCRM>
+      </respMonit>
+    </exMedOcup>
+  </evtMonit>
+</eSocial>

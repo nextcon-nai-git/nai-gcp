@@ -167,6 +167,11 @@ export function applySupplierCommand(
   const today = brazilToday(new Date(now));
   let a: SupplierApplication;
   if (c.action === "create") {
+    if (u.role !== "PROVIDER")
+      throw new AuthError(
+        "O processo deve ser criado pela conta do fornecedor. A equipe interna revisa os processos recebidos.",
+        403
+      );
     if (c.expectedVersion !== 0) fail("Nova solicitação deve iniciar na versão zero.");
     if (
       b.applications.some(

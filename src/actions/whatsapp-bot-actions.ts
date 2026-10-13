@@ -1,5 +1,5 @@
 "use server";
-import { requireAiAction, FINANCIAL_AI_ROLES } from "@/lib/auth/ai-action";
+import { requireAiAction, FINANCIAL_AI_ROLES, CLINICAL_AI_ROLES } from "@/lib/auth/ai-action";
 
 import {
   processWhatsappMessage,
@@ -40,7 +40,7 @@ export async function sendSimulatedProviderMediaMessage(
   },
   idToken?: string
 ) {
-  await requireAiAction(idToken, FINANCIAL_AI_ROLES, [input]);
+  await requireAiAction(idToken, CLINICAL_AI_ROLES, [input]);
 
   const { processProviderMediaMessage } = await import("@/ai/flows/whatsapp-agent-flow");
   return await processProviderMediaMessage(input);

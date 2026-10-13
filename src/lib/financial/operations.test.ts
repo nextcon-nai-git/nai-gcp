@@ -361,6 +361,255 @@ describe("financial controls", () => {
     });
     expect(financeCsv(b)).toContain("'=HYPERLINK(test)");
   });
+  it("requires a separate Omie reference for each installment", () => {
+    const b = emptyFinanceBook();
+    expect(() =>
+      run(b, { action: "installments", count: 2, data: { ...data, externalReference: "123" } })
+    ).toThrow(/Cada parcela/);
+    expect(b.titles).toEqual([]);
+  });
+  it("keeps long descriptions valid without truncating installment identity", () => {
+    const b = run(emptyFinanceBook(), {
+      action: "installments",
+      count: 36,
+      data: { ...data, description: "A".repeat(180) },
+    });
+    expect(b.titles[35].description).toHaveLength(180);
+    expect(b.titles[35].description).toMatch(/\(36\/36\)$/);
+    expect(() =>
+      run(emptyFinanceBook(), {
+        action: "installments",
+        count: 36,
+        data: { ...data, sourceKey: "x".repeat(180) },
+      })
+    ).toThrow(/identificador/);
+  });
+  it("prevents moving generated receivables away from their recurring origin", () => {
+    let b = run(emptyFinanceBook(), {
+      action: "contract",
+      data: {
+        name: "Contrato",
+        client: "Cliente",
+        center: "SST",
+        monthlyCents: 10000,
+        dueDay: 10,
+        active: true,
+      },
+    });
+    b = run(b, { action: "recurring", contractId: b.contracts[0].id, month: "2026-10" });
+    const t = b.titles[0];
+    const edit = {
+      description: t.description,
+      amountCents: t.amountCents,
+      competence: t.competence,
+      dueDate: t.dueDate,
+      category: t.category,
+      center: t.center,
+      contractId: t.contractId,
+      evidence: t.evidence,
+    };
+    for (const change of [{ competence: "2026-11" }, { contractId: null }]) {
+      expect(() =>
+        run(b, {
+          action: "editTitle",
+          id: t.id,
+          data: { ...edit, ...change },
+          reason: "Correção sintética",
+        })
+      ).toThrow(/origem/);
+    }
+    expect(
+      run(b, {
+        action: "editTitle",
+        id: t.id,
+        data: { ...edit, dueDate: "2026-10-20" },
+        reason: "Vencimento conferido",
+      }).titles[0].sourceKey
+    ).toBe(t.sourceKey);
+  });
+  it("keeps service annulment in the audit and removes its unbilled cost without deleting data", () => {
+    let b = run(emptyFinanceBook(), {
+      action: "contract",
+      data: {
+        name: "Contrato",
+        client: "Cliente",
+        center: "SST",
+        monthlyCents: 0,
+        dueDay: 10,
+        active: true,
+      },
+    });
+    b = run(b, {
+      action: "service",
+      data: {
+        contractId: b.contracts[0].id,
+        date: "2026-10-10",
+        description: "Exame lançado incorretamente",
+        supplier: "Clínica teste",
+        city: "Curitiba",
+        quantity: 2,
+        unitRevenueCents: 0,
+        unitCostCents: 5000,
+        billingMode: "separate",
+        evidence: "Medição sintética",
+      },
+    });
+    const id = b.services[0].id;
+    expect(closingIssues(b, "2026-10").join(" ")).toContain("serviços realizados");
+    b = run(b, { action: "voidService", id, reason: "Duplicidade de medição comprovada" });
+    expect(b.services).toHaveLength(1);
+    expect(b.services[0].voided).toBe(true);
+    expect(b.audit.at(-1)?.reason).toBe("Duplicidade de medição comprovada");
+    expect(closingIssues(b, "2026-10").join(" ")).not.toContain("serviços realizados");
+    expect(financeSummary(b, "2026-10", "2026-10-12").contracts[0].operationalCost).toBe(0);
+    expect(() => run(b, { action: "billService", id, dueDate: "2026-10-20" })).toThrow(/anulado/);
+    expect(() => run(b, { action: "voidService", id, reason: "Segunda tentativa" })).toThrow(
+      /já anulado/
+    );
+  });
+  it("requires cancelled billing before annulling production and prevents backdated service due dates", () => {
+    let b = run(emptyFinanceBook(), {
+      action: "contract",
+      data: {
+        name: "Contrato",
+        client: "Cliente",
+        center: "SST",
+        monthlyCents: 0,
+        dueDay: 10,
+        active: true,
+      },
+    });
+    b = run(b, {
+      action: "service",
+      data: {
+        contractId: b.contracts[0].id,
+        date: "2026-10-10",
+        description: "Serviço",
+        supplier: "Prestador",
+        city: "Curitiba",
+        quantity: 1,
+        unitRevenueCents: 10000,
+        unitCostCents: 5000,
+        billingMode: "separate",
+        evidence: "Medição sintética",
+      },
+    });
+    const id = b.services[0].id;
+    expect(() => run(b, { action: "billService", id, dueDate: "2026-10-09" })).toThrow(/anteceder/);
+    b = run(b, { action: "billService", id, dueDate: "2026-10-20" });
+    expect(() => run(b, { action: "voidService", id, reason: "Correção da medição" })).toThrow(
+      /Cancele a cobrança/
+    );
+    b = run(b, {
+      action: "review",
+      id: b.titles[0].id,
+      status: "cancelled",
+      reason: "Medição incorreta",
+    });
+    b = run(b, { action: "voidService", id, reason: "Medição incorreta" });
+    expect(b.titles[0].status).toBe("cancelled");
+    expect(b.services[0].voided).toBe(true);
+  });
+  it("annuls a wrong bank row and permits corrected reimport with the same bank ID", () => {
+    let b = base();
+    const rows = [
+      {
+        bankId: "stable-bank-id",
+        date: "2026-10-10",
+        amountCents: 1000,
+        memo: "Importação incorreta",
+      },
+    ];
+    b = run(b, { action: "bank", accountId: b.accounts[0].id, rows });
+    const oldId = b.bank[0].id;
+    b = run(b, { action: "voidBank", id: oldId, reason: "Valor digitado diferente do extrato" });
+    expect(closingIssues(b, "2026-10").join(" ")).not.toContain("movimentos de extrato");
+    expect(() => run(b, { action: "match", id: oldId, settlementIds: ["synthetic"] })).toThrow(
+      /anulado/
+    );
+    b = run(b, {
+      action: "bank",
+      accountId: b.accounts[0].id,
+      rows: [{ ...rows[0], amountCents: 2000, memo: "Extrato corrigido" }],
+    });
+    expect(b.bank).toHaveLength(2);
+    expect(b.bank[0]).toMatchObject({ voided: true, amountCents: 1000 });
+    expect(b.bank[1]).toMatchObject({ voided: false, amountCents: 2000 });
+    expect(b.audit.find((a) => a.action === "voidBank")?.reason).toContain("extrato");
+  });
+  it("cannot annul a reconciled bank row or alter a closed month", () => {
+    let b = settle(base());
+    b = run(b, {
+      action: "bank",
+      accountId: b.accounts[0].id,
+      rows: [
+        { bankId: "bank-void-test", date: "2026-10-10", amountCents: 4100, memo: "Recebimento" },
+      ],
+    });
+    b = run(b, { action: "match", id: b.bank[0].id, settlementIds: [b.settlements[0].id] });
+    expect(() =>
+      run(b, { action: "voidBank", id: b.bank[0].id, reason: "Correção sintética" })
+    ).toThrow(/Desfaça/);
+    b = run(b, { action: "unmatch", id: b.bank[0].id, reason: "Correção sintética" });
+    b.periods.push({
+      month: "2026-10",
+      closed: true,
+      evidence: "Teste de período fechado",
+      updatedBy: "approver",
+      updatedAt: at,
+    });
+    expect(() =>
+      run(b, { action: "voidBank", id: b.bank[0].id, reason: "Correção sintética" })
+    ).toThrow(/fechado/);
+  });
+  it("requires balance continuity and preserves the next closed month on a correction", () => {
+    let b = run(emptyFinanceBook(), { action: "account", name: "Banco sintético" });
+    const accountId = b.accounts[0].id;
+    b = run(b, {
+      action: "statement",
+      data: {
+        accountId,
+        month: "2026-09",
+        openingCents: 10000,
+        closingCents: 10000,
+        evidence: "Extrato setembro",
+      },
+    });
+    b = run(b, {
+      action: "statement",
+      data: {
+        accountId,
+        month: "2026-10",
+        openingCents: 12000,
+        closingCents: 12000,
+        evidence: "Extrato outubro",
+      },
+    });
+    expect(closingIssues(b, "2026-10").join(" ")).toContain("mês anterior");
+    b = run(b, {
+      action: "statement",
+      data: {
+        accountId,
+        month: "2026-10",
+        openingCents: 10000,
+        closingCents: 10000,
+        evidence: "Abertura corrigida",
+      },
+    });
+    b = run(b, { action: "period", month: "2026-10", close: true, evidence: "Saldos conferidos" });
+    expect(() =>
+      run(b, {
+        action: "statement",
+        data: {
+          accountId,
+          month: "2026-09",
+          openingCents: 9000,
+          closingCents: 9000,
+          evidence: "Correção anterior",
+        },
+      })
+    ).toThrow(/mês seguinte/);
+  });
 });
 
 it("returns cancelled service billing to the unbilled queue while preserving its cancelled title", () => {

@@ -1,5 +1,8 @@
 "use client";
-import { EmployeeCreateDialog } from "@/components/employees/employee-create-dialog";
+import {
+  EmployeeCreateDialog,
+  type EmployeeDraftValues,
+} from "@/components/employees/employee-create-dialog";
 import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
@@ -139,6 +142,7 @@ function EmployeesList() {
 
   const [searchTerm, setSearchTerm] = React.useState(queryFromUrl);
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
+  const [employeeDraft, setEmployeeDraft] = React.useState<EmployeeDraftValues | null>(null);
   const [isAiImportOpen, setIsAiImportOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [aiRawText, setAiRawText] = React.useState("");
@@ -369,7 +373,11 @@ function EmployeesList() {
       )}
       <EmployeeCreateDialog
         open={isCreateOpen}
-        onOpenChange={setIsCreateOpen}
+        onOpenChange={(value) => {
+          setIsCreateOpen(value);
+          if (!value) setEmployeeDraft(null);
+        }}
+        initialValues={employeeDraft}
         db={db}
         companies={companies || []}
         selectedCompany={activeClientId}
@@ -399,7 +407,10 @@ function EmployeesList() {
                 <Sparkles className="size-4 text-accent" /> Captura NAI (CNH/RG/ASO)
               </Button>
               <Button
-                onClick={() => setIsCreateOpen(true)}
+                onClick={() => {
+                  setEmployeeDraft(null);
+                  setIsCreateOpen(true);
+                }}
                 className="bg-primary text-white font-black uppercase text-[10px] tracking-widest h-12 px-8 rounded-xl shadow-lg gap-2"
               >
                 <UserPlus className="size-4 text-accent" /> Novo Colaborador
@@ -797,7 +808,7 @@ function EmployeesList() {
               </div>
               <div>
                 <DialogTitle className="text-2xl font-headline font-black uppercase">
-                  Pré-cadastro Neural (CNH / RG / ASO)
+                  Extrair dados de CNH ou RG
                 </DialogTitle>
                 <DialogDescription className="text-white/60 text-xs mt-1">
                   Cole ou envie o texto/dados do documento para extração automática via IA.
@@ -831,32 +842,19 @@ function EmployeesList() {
                     await getActionIdToken()
                   );
                   if (result.nomeCompleto) {
-                    const targetCompanyId =
-                      activeClientId !== "all" && activeClientId !== "unauthorized"
-                        ? activeClientId
-                        : companies?.[0]?.id || "emp_default";
-                    const cleanCpf = result.cpfCnpj.replace(/\D/g, "") || `cpf_${Date.now()}`;
-                    const formattedCpf =
-                      cleanCpf.length === 11
-                        ? cleanCpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")
-                        : result.cpfCnpj;
-
-                    await addDoc(collection(db, "companies", targetCompanyId, "employees"), {
+                    setEmployeeDraft({
                       name: result.nomeCompleto,
-                      cpf: formattedCpf,
-                      companyId: targetCompanyId,
-                      job_role: { title: result.cargoOuServico || "Não definido" },
-                      status: "active",
+                      cpf: result.cpfCnpj,
+                      jobTitle: result.cargoOuServico,
+                      birthDate: result.dataNascimentoOuEmissao,
                       cnhCategory: result.categoriaCnh,
                       cnhExpiration: result.dataValidade,
-                      birthDate: result.dataNascimentoOuEmissao,
-                      fitnessStatus: "Apto",
-                      createdAt: serverTimestamp(),
                     });
-
+                    setIsCreateOpen(true);
                     toast({
-                      title: "Pré-cadastro Realizado com Sucesso",
-                      description: `Colaborador ${result.nomeCompleto} (${result.categoriaCnh ? `CNH ${result.categoriaCnh}` : "Documento Processado"}) registrado.`,
+                      title: "Dados extraídos para revisão",
+                      description:
+                        "Confira os campos e selecione a unidade antes de salvar o colaborador.",
                     });
                     setIsAiImportOpen(false);
                     setAiRawText("");

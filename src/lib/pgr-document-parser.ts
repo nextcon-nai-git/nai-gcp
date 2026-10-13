@@ -17,7 +17,8 @@ const id = (value: string) =>
 const compact = (value: string) => value.replace(/\s+/g, " ").trim();
 export function evidenceIsInPages(evidence: { pagina: number; trecho: string }, pages: PgrPage[]) {
   const page = pages.find((p) => p.numero === evidence.pagina);
-  return !!page && normalizePgrText(page.texto).includes(normalizePgrText(evidence.trecho));
+  const quote = normalizePgrText(evidence.trecho);
+  return !!page && quote.length >= 3 && normalizePgrText(page.texto).includes(quote);
 }
 export function isPgrInventoryPage(text: string) {
   if (
@@ -61,6 +62,7 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
     page: number;
     quote: string;
     address: string;
+    context: string;
   }[] = [];
   for (const page of pages.slice(0, 12)) {
     const identityLabel =
@@ -113,8 +115,9 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
         name,
         cnpj: compact(cnpj),
         page: page.numero,
-        quote: compact(m[0]),
+        quote: compact(context).slice(0, 1200),
         address: compact(address),
+        context,
       });
     }
   }
@@ -128,7 +131,9 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
       const name = compact(match[1].replace(/^(?:raz[aã]o\s+social|empresa)\s*:\s*/i, ""));
       const block = page.texto
         .slice(match.index, (match.index || 0) + 1000)
-        .split(/(?:listagem|rela[çc][aã]o)\s+de\s+endere[çc]os|tomadoras?\s+de\s+servi[çc]os/i)[0];
+        .split(
+          /(?:listagem|rela[çc][aã]o)\s+de\s+endere[çc]os|tomadoras?\s+de\s+servi[çc]os|\n[ \t]*(?:empresa\s+(?:elaboradora|prestadora|contratada)|prestador[a]?|contratada|elaborad[oa]\s+por|respons[aá]vel\s+t[eé]cnico|m[eé]dico\s+(?:respons[aá]vel|examinador|coordenador))\s*[:\n]/i
+        )[0];
       const cnpj =
         block.match(
           /CNPJ\s*:?\s*(\d{2}[.\s]?\d{3}[.\s]?\d{3}\s*\/\s*\d{4}\s*-\s*\d{2}|\d{14})/i
@@ -145,13 +150,16 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
         page: page.numero,
         quote: compact(block).slice(0, 1200),
         address: compact(address),
+        context: block,
       });
     }
   }
   if (employerSections.length)
     identityCandidates.splice(0, identityCandidates.length, ...employerSections);
   const unique = [
-    ...new Map(identityCandidates.map((c) => [normalizePgrText(c.name) + c.cnpj, c])).values(),
+    ...new Map(
+      identityCandidates.map((c) => [normalizePgrText(c.name) + c.cnpj.replace(/\D/g, ""), c])
+    ).values(),
   ];
   const candidate = unique.length === 1 ? unique[0] : null;
   const allText = pages.map((p) => p.texto).join("\n");
@@ -219,6 +227,7 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
   ];
   const sectors = new Set<string>();
   const riskPages: PgrPage[] = pages.flatMap((page) => {
+    if (page.riscosTabela?.length) return [page];
     const headings = [
       ...page.texto.matchAll(/(?:^|\n)[ \t]*(?:GHE|GES)\s*:?\s*\d+\s*[-–][^\n]+/gi),
     ];
@@ -285,19 +294,21 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
     }
     if (risks.length >= 100) break;
   }
-  const cnae = allText.match(/\bCNAE(?:\s+Principal)?\s*:?\s*(\d[^\n]{0,159})/i)?.[1] || "";
-  const degree = allText.match(/Grau\s+de\s+Risco\s*:?\s*(?:Grau\s*)?0?([1-4])\b/i)?.[1];
+  const employerText = candidate?.context || "";
+  const cnae = employerText.match(/\bCNAE(?:\s+Principal)?\s*:?\s*(\d[^\n]{0,159})/i)?.[1] || "";
+  const degree = employerText.match(/Grau\s+de\s+Risco\s*:?\s*(?:Grau\s*)?0?([1-4])\b/i)?.[1];
   const documentedGhes = new Map<string, string>();
   for (const match of allText.matchAll(
     /(?:^|\n)[ \t]*(?:GHE|GES)[ \t]*(:?)[ \t]*(\d+)[ \t]*[-–][ \t]*([^\n]{2,160})/gi
   )) {
-    const previous = documentedGhes.get(match[2]);
+    const groupKey = match[2] + "|" + normalizePgrText(match[3]);
+    const previous = documentedGhes.get(groupKey);
     if (
       !previous ||
       (match[1] && !previous.startsWith("GHE:")) ||
       compact(match[0]).length < previous.length
     )
-      documentedGhes.set(match[2], compact(match[0]));
+      documentedGhes.set(groupKey, compact(match[0]));
   }
   const output: PgrAnalysisOutput = {
     pgrCardDetalhado: {

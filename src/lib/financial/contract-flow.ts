@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { isCalendarDate } from "./omie-dre";
 import type { FinanceBook } from "./operations";
+import { financialLabel } from "./labels";
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 const note = z.string().trim().min(3).max(1000);
 const month = z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/);
@@ -142,6 +143,7 @@ export function applyFlowCommand(
       book.services.some(
         (s) =>
           s.contractId === contract.id &&
+          !s.voided &&
           s.billingMode === "separate" &&
           !s.titleId &&
           s.date.slice(0, 7) < command.billingStartMonth
@@ -192,9 +194,12 @@ export function applyFlowCommand(
       !book.erp.centers.find((p) => p.id === order.centerId)?.active
     )
       fail("Os cadastros do pedido precisam estar ativos.");
+    const party = book.erp.parties.find((p) => p.id === order.partyId)!;
+    if (party.role === "supplier" || !party.document.replace(/[^a-z0-9]/gi, ""))
+      fail("Confira o documento e o perfil do cliente antes de criar o contrato.");
     book.contracts.push({
       id: command.requestId,
-      name: `Contrato · ${order.number}`,
+      name: financialLabel(`Contrato · ${order.number}`),
       client: order.partyName,
       center: order.centerName,
       monthlyCents: order.totalCents,
@@ -226,6 +231,7 @@ export function applyFlowCommand(
     const service =
       book.services.find((s) => s.id === command.serviceId && s.contractId === flow.contractId) ||
       fail("Serviço não pertence ao contrato.");
+    if (service.voided) fail("Serviço anulado não pode ser conferido.");
     if (!flowReady(flow)) fail("Conclua a implantação antes da conferência operacional.");
     if (service.titleId || flow.serviceReviews.some((r) => r.serviceId === service.id))
       fail("Serviço já conferido ou faturado.");
@@ -238,28 +244,55 @@ export function applyFlowCommand(
   }
 }
 export function contractFlowOverview(book: FinanceBook, month: string, today: string) {
+  const flows = new Map(book.contractFlows.map((f) => [f.contractId, f]));
+  const servicesByContract = new Map<string, FinanceBook["services"]>();
+  const titlesByContract = new Map<string, FinanceBook["titles"]>();
+  const titleContracts = new Map<string, string>();
+  for (const service of book.services) {
+    if (!service.voided && service.date.startsWith(month)) {
+      const rows = servicesByContract.get(service.contractId) || [];
+      rows.push(service);
+      servicesByContract.set(service.contractId, rows);
+    }
+  }
+  for (const title of book.titles) {
+    if (
+      title.contractId &&
+      title.kind === "receivable" &&
+      title.competence === month &&
+      title.status !== "cancelled"
+    ) {
+      const rows = titlesByContract.get(title.contractId) || [];
+      rows.push(title);
+      titlesByContract.set(title.contractId, rows);
+      titleContracts.set(title.id, title.contractId);
+    }
+  }
+  const settlements = new Map<string, { principal: number; cash: number }>();
+  for (const settlement of book.settlements) {
+    const contractId = titleContracts.get(settlement.titleId);
+    if (settlement.reversed || !contractId) continue;
+    const total = settlements.get(contractId) || { principal: 0, cash: 0 };
+    total.principal += settlement.principalCents;
+    total.cash +=
+      settlement.principalCents +
+      settlement.interestCents +
+      settlement.fineCents -
+      settlement.discountCents -
+      settlement.withholdingCents;
+    settlements.set(contractId, total);
+  }
   return book.contracts.map((contract) => {
-    const flow = book.contractFlows.find((f) => f.contractId === contract.id);
-    const services = book.services.filter(
-      (s) => s.contractId === contract.id && s.date.startsWith(month)
-    );
-    const titles = book.titles.filter(
-      (t) =>
-        t.contractId === contract.id &&
-        t.kind === "receivable" &&
-        t.competence === month &&
-        t.status !== "cancelled"
-    );
-    const settlements = book.settlements.filter(
-      (s) => !s.reversed && titles.some((t) => t.id === s.titleId)
-    );
-    const principal = settlements.reduce((n, s) => n + s.principalCents, 0);
+    const flow = flows.get(contract.id);
+    const services = servicesByContract.get(contract.id) || [];
+    const titles = titlesByContract.get(contract.id) || [];
+    const principal = settlements.get(contract.id)?.principal || 0;
     const billed = titles.reduce((n, t) => n + t.amountCents, 0);
-    const received = settlements.reduce(
-      (n, s) =>
-        n + s.principalCents + s.interestCents + s.fineCents - s.discountCents - s.withholdingCents,
-      0
-    );
+    const received = settlements.get(contract.id)?.cash || 0;
+    const monthEligible =
+      !flow ||
+      (month >= flow.acceptedOn.slice(0, 7) &&
+        (!flow.migration || month >= flow.migration.billingStartMonth));
     const blocked = !contract.active
       ? "Contrato inativo"
       : flow?.migration && month < flow.migration.billingStartMonth
@@ -285,7 +318,7 @@ export function contractFlowOverview(book: FinanceBook, month: string, today: st
       // Costs are operational estimates recorded per service, not actual paid expenses.
       recordedCost: services.reduce((n, s) => n + s.quantity * s.unitCostCents, 0),
       expectedRevenue:
-        contract.monthlyCents +
+        (contract.active && monthEligible ? contract.monthlyCents : 0) +
         services
           .filter((s) => s.billingMode === "separate")
           .reduce((n, s) => n + s.quantity * s.unitRevenueCents, 0),

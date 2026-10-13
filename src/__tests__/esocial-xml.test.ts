@@ -1,52 +1,40 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import { EsocialXmlService } from "@/services/esocial/xml-generator";
-
-describe("eSocial XML Service Unit Tests", () => {
-  it("deve gerar XML para o evento S-2210 (CAT) com sanitização de CNPJ/CPF", () => {
-    const xml = EsocialXmlService.generateS2210({
-      cnpjEmpregador: "12.345.678/0001-90",
-      cpfTrabalhador: "123.456.789-00",
-      dtAcid: "2026-08-20",
-      tpCat: "1",
-      iniciatCAT: "1",
-      tpLocal: "1",
-    });
-
+const fixture = JSON.parse(
+  readFileSync("tests/fixtures/esocial/s2220-reviewed-input.json", "utf8")
+);
+const flat = {
+  id: fixture.id,
+  cnpjEmpregador: fixture.ideEmpregador.nrInsc,
+  cpfTrabalhador: fixture.ideTrabalhador.cpfTrab,
+  matricula: fixture.ideTrabalhador.matricula,
+  dataAso: fixture.aso.dtAso,
+  tipoAso: "1",
+  resultadoAso: "1",
+  exames: fixture.aso.exames,
+  medicoNome: "Profissional & Sintético <Revisão>",
+  medicoCrm: "12345",
+  medicoUf: "PR",
+};
+describe("adaptação S-2220 sem inferência clínica", () => {
+  it("aceita dados explícitos do formato anterior com XML escapado", () => {
+    const xml = EsocialXmlService.generateS2220(flat);
+    expect(xml).toContain("Profissional &amp; Sintético &lt;Revisão&gt;");
     expect(xml).toContain("<nrInsc>12345678000190</nrInsc>");
-    expect(xml).toContain("<cpfTrab>12345678900</cpfTrab>");
-    expect(xml).toContain("<evtCat");
-    expect(xml).toContain("<dtAcid>2026-08-20</dtAcid>");
   });
-
-  it("deve gerar XML para S-2220 (ASO) escapando caracteres especiais XML", () => {
-    const xml = EsocialXmlService.generateS2220({
-      cnpjEmpregador: "12.345.678/0001-90",
-      cpfTrabalhador: "123.456.789-00",
-      dataAso: "2026-08-21",
-      tipoAso: "1",
-      resultadoAso: "1",
-      medicoNome: "Dr. João & Dra. Maria <Cardiologia>",
-      medicoCrm: "12345",
-      medicoUf: "SP",
-    });
-
-    expect(xml).toContain("Dr. João &amp; Dra. Maria &lt;Cardiologia&gt;");
-    expect(xml).toContain("<nrInsc>12345678000190</nrInsc>");
-    expect(xml).toContain("<evtMonit");
+  it.each([null, undefined, "", "desconhecido"])(
+    "não transforma tipo ausente %j em ASO admissional",
+    (tipoAso) => {
+      expect(() => EsocialXmlService.generateS2220({ ...flat, tipoAso })).toThrow();
+    }
+  );
+  it("não inventa exame clínico quando a lista não foi informada", () => {
+    expect(() => EsocialXmlService.generateS2220({ ...flat, exames: undefined })).toThrow();
   });
-
-  it("deve gerar XML para S-2240 (Agentes Nocivos)", () => {
-    const xml = EsocialXmlService.generateS2240({
-      cnpjEmpregador: "12345678000190",
-      cpfTrabalhador: "12345678900",
-      dataInicio: "2026-01-01",
-      ambienteNome: "Setor de Usinagem & Montagem",
-      ambienteDesc: "Ambiente com ruído contínuo > 85dB",
-      codigoAgente: "01.01.001",
-    });
-
-    expect(xml).toContain("<evtExpRisco");
-    expect(xml).toContain("Setor de Usinagem &amp; Montagem");
-    expect(xml).toContain("<codAgNoc>01.01.001</codAgNoc>");
+  it.each(["S2210", "S2240"] as const)("bloqueia %s até adequação do leiaute", (event) => {
+    expect(() =>
+      EsocialXmlService[event === "S2210" ? "generateS2210" : "generateS2240"]({})
+    ).toThrow("leiaute vigente");
   });
 });

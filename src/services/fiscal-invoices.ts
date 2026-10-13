@@ -5,6 +5,7 @@ import { requireFinancialAccess } from "@/lib/auth/financial-access";
 import { AuthError, badRequest } from "@/lib/auth/errors";
 import { InvoiceQuerySchema, type InvoiceQuery, type FiscalPage } from "@/lib/financial/nfse";
 import { omieConnectorSession } from "@/services/omie-financial";
+import { omieAmountUnits, omieUnitsToCents } from "@/lib/financial/omie-dre";
 
 // A provider boundary keeps Omie contracts out of the fiscal workspace.
 // A direct national adapter must be implemented and homologated before enabling it.
@@ -58,7 +59,9 @@ const omieReader: InvoiceReader = {
       data.nPagina !== query.page ||
       data.nRegistros !== data.nfseEncontradas.length ||
       data.nTotRegistros < data.nRegistros ||
-      (data.nRegistros > 0 && data.nTotPaginas < query.page)
+      (data.nTotRegistros === 0
+        ? query.page !== 1 || data.nRegistros !== 0 || data.nTotPaginas > 1
+        : data.nTotPaginas < query.page || data.nRegistros === 0)
     )
       throw invalid();
     const seen = new Set<number>();
@@ -77,12 +80,18 @@ const omieReader: InvoiceReader = {
       )
         throw invalid();
       seen.add(h.nCodNF);
+      let amountCents: number;
+      try {
+        amountCents = omieUnitsToCents(omieAmountUnits(h.nValorNFSe));
+      } catch {
+        throw invalid();
+      }
       return {
         id: `omie:${h.nCodNF}`,
         number: h.nNumeroNFSe,
         customer: h.cRazaoDestinatario,
         issuedOn,
-        amountCents: Math.round(h.nValorNFSe * 100),
+        amountCents,
         status: ({ C: "cancelled", F: "billed", N: "not_billed" } as const)[h.cStatusNFSe],
         issuerDocument: digits(h.cCNPJEmissor),
         issuerMunicipalRegistration: h.cIMEmissor,

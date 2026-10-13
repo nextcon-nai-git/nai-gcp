@@ -80,6 +80,22 @@ describe("Fila compartilhada por empresa", () => {
     expect(mock.sync).toHaveBeenCalledWith(true, "operator");
     expect(response.headers.get("cache-control")).toContain("no-store");
   });
+  it.each(["GET", "PATCH"])("nega %s a ADMIN de outra empresa", async (method) => {
+    mock.auth.mockResolvedValueOnce({
+      uid: "tenant-admin",
+      role: "ADMIN",
+      tenantId: "other-company",
+      servedCompanies: [],
+    });
+    const response =
+      method === "GET"
+        ? await GET(request("GET", "/queue"))
+        : await PATCH(request("PATCH", "/queue", { revision: "x", changes: [] }));
+    expect(response.status).toBe(403);
+    expect(mock.sync).not.toHaveBeenCalled();
+    expect(mock.snapshot).not.toHaveBeenCalled();
+    expect(mock.patch).not.toHaveBeenCalled();
+  });
   it("nega edição ao perfil de consulta e devolve conflito ao editor", async () => {
     mock.auth.mockResolvedValueOnce({
       uid: "doctor",

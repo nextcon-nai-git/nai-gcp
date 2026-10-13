@@ -13,6 +13,7 @@ type Overview = {
     description: string;
     amountCents: number;
     dueDate: string;
+    competence: string;
     externalReference: string;
   }[];
   exports: OmieExportRecord[];
@@ -41,6 +42,19 @@ const card = "rounded-xl border border-slate-700 bg-slate-900 p-5",
   field = "mt-2 block w-full rounded-lg border border-slate-600 bg-slate-950 p-3 text-white";
 const money = (c: number) =>
   (c / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+async function abortable<T>(task: Promise<T>, signal: AbortSignal): Promise<T> {
+  let cancel = () => {};
+  const cancellation = new Promise<never>((_resolve, reject) => {
+    cancel = () => reject(signal.reason);
+    if (signal.aborted) cancel();
+    else signal.addEventListener("abort", cancel, { once: true });
+  });
+  try {
+    return await Promise.race([task, cancellation]);
+  } finally {
+    signal.removeEventListener("abort", cancel);
+  }
+}
 export function OmieConnectorsWorkspace() {
   const { user } = useUser();
   const [overview, setOverview] = useState<Overview | null>(null),
@@ -52,39 +66,59 @@ export function OmieConnectorsWorkspace() {
   const [kind, setKind] = useState<ExportSelectionType["kind"]>("supplier"),
     [catalogKind, setCatalogKind] = useState("catalogParties");
   const epoch = useRef(0),
-    running = useRef(false);
+    running = useRef(false),
+    controller = useRef<AbortController | null>(null);
   useEffect(() => {
     epoch.current++;
+    controller.current?.abort();
     running.current = false;
     setOverview(null);
     setPreview(null);
     setCatalog(null);
     setBusy(false);
     setError("");
+    setNotice("");
     return () => {
       epoch.current++;
+      controller.current?.abort();
     };
   }, [user]);
   async function request(action?: string, data?: unknown) {
     if (!user || running.current) return;
-    const seq = epoch.current;
+    const seq = epoch.current,
+      abort = new AbortController();
+    controller.current = abort;
+    const timeout = setTimeout(
+      () => abort.abort(new Error("Tempo limite de comunicação excedido.")),
+      45000
+    );
     running.current = true;
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      const token = await user.getIdToken();
+      const token = await abortable(user.getIdToken(), abort.signal);
       if (seq !== epoch.current) return;
-      const r = await fetch("/api/financial/omie/connectors", {
-        method: action ? "POST" : "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          ...(action ? { "Content-Type": "application/json" } : {}),
-        },
-        body: action ? JSON.stringify({ action, data }) : undefined,
-        cache: "no-store",
-      });
-      const result = await r.json();
+      const r = await abortable(
+        fetch("/api/financial/omie/connectors", {
+          method: action ? "POST" : "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            ...(action ? { "Content-Type": "application/json" } : {}),
+          },
+          body: action ? JSON.stringify({ action, data }) : undefined,
+          cache: "no-store",
+          signal: abort.signal,
+        }),
+        abort.signal
+      );
+      if (seq !== epoch.current) return;
+      if (r.status === 401 || r.status === 403) {
+        setOverview(null);
+        setPreview(null);
+        setCatalog(null);
+      }
+      const result = await abortable(r.json(), abort.signal);
       if (seq !== epoch.current) return;
       if (!r.ok) throw new Error(result.error || "Consulta indisponível.");
       if (!action) {
@@ -103,9 +137,14 @@ export function OmieConnectorsWorkspace() {
         if (action === "execute") {
           setPreview(null);
           setOverview(null);
+          setError(
+            "Resposta do envio não confirmada. Atualize o painel e confira a reserva antes de continuar. " +
+              (e instanceof Error ? e.message : "Falha na comunicação.")
+          );
         }
       }
     } finally {
+      clearTimeout(timeout);
       if (seq === epoch.current) {
         running.current = false;
         setBusy(false);
@@ -119,7 +158,7 @@ export function OmieConnectorsWorkspace() {
             .filter((t) => t.kind === kind && !t.externalReference)
             .map((t) => ({
               id: t.id,
-              label: `${t.party} · ${money(t.amountCents)} · ${t.dueDate} · ${t.description}`,
+              label: `${t.party} · ${money(t.amountCents)} · competência ${t.competence} · vence ${t.dueDate} · ${t.description}`,
             }))
       ).filter((x) => !overview.exports.some((e) => e.sourceId === x.id))
     : [];
@@ -135,8 +174,32 @@ export function OmieConnectorsWorkspace() {
             partyCode: Number(f.get("partyCode")),
             categoryCode: String(f.get("categoryCode")),
             accountCode: Number(f.get("accountCode")),
+            issueDate: String(f.get("issueDate")),
           }
-        : {}),
+        : {
+            registration: {
+              ...Object.fromEntries(
+                ["address", "number", "district", "city", "zipCode"].map((key) => [
+                  key,
+                  String(f.get(key) || "").trim(),
+                ])
+              ),
+              state: String(f.get("state") || "")
+                .trim()
+                .toUpperCase(),
+              characteristics: String(f.get("characteristics") || "")
+                .split("\n")
+                .filter((line) => line.trim())
+                .map((line) => {
+                  const separator = line.indexOf("=");
+                  return {
+                    field: separator < 0 ? line : line.slice(0, separator),
+                    value: separator < 0 ? "" : line.slice(separator + 1),
+                  };
+                }),
+              requirementsReviewed: f.get("requirementsReviewed") === "on",
+            },
+          }),
     });
   }
   return (
@@ -318,7 +381,74 @@ export function OmieConnectorsWorkspace() {
                     />
                   </label>
                 ))}
+                <label className="md:col-span-3">
+                  Data de emissão do título
+                  <input
+                    name="issueDate"
+                    className={field}
+                    type="date"
+                    required
+                    disabled={busy}
+                    onChange={() => setPreview(null)}
+                  />
+                  <span className="mt-2 block text-sm text-slate-300">
+                    Informe a data real do documento, dentro da competência exibida. Se a emissão
+                    pertencer a outro mês, confira o lançamento de origem antes do envio.
+                  </span>
+                </label>
               </div>
+            )}
+            {kind === "supplier" && (
+              <fieldset className="space-y-4" disabled={busy}>
+                <legend className="mb-3 font-semibold">Dados cadastrais para o Omie</legend>
+                <div className="grid gap-4 md:grid-cols-3">
+                  {[
+                    ["address", "Logradouro", 60],
+                    ["number", "Número", 60],
+                    ["district", "Bairro", 60],
+                    ["city", "Município", 40],
+                    ["state", "UF", 2],
+                    ["zipCode", "CEP", 9],
+                  ].map(([name, label, maxLength]) => (
+                    <label key={String(name)}>
+                      {label}
+                      <input
+                        name={String(name)}
+                        className={field}
+                        required
+                        maxLength={Number(maxLength)}
+                        onChange={() => setPreview(null)}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <label className="block">
+                  Características exigidas no aplicativo Omie
+                  <textarea
+                    name="characteristics"
+                    className={field}
+                    rows={3}
+                    maxLength={3000}
+                    placeholder="Uma por linha: Nome da característica = Valor"
+                    onChange={() => setPreview(null)}
+                  />
+                  <span className="mt-2 block text-sm text-slate-300">
+                    Use os nomes já cadastrados no Omie. Deixe vazio apenas se nenhuma
+                    característica for exigida.
+                  </span>
+                </label>
+                <label className="flex items-start gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    name="requirementsReviewed"
+                    required
+                    className="mt-1"
+                    onChange={() => setPreview(null)}
+                  />
+                  Conferi as exigências em Configurações → Clientes e Fornecedores no aplicativo
+                  Omie conectado e preenchi o endereço e todas as características obrigatórias.
+                </label>
+              </fieldset>
             )}
             <Button disabled={busy || !available.length}>Gerar prévia</Button>
           </form>

@@ -393,7 +393,11 @@ export async function disconnectOmie(user: AuthContext) {
 }
 // Resolve only this page's distinct counterparties in one read-only request.
 // Official contract: https://app.omie.com.br/api/v1/geral/clientes/
-async function partyNames(credentials: Credentials, codes: number[]): Promise<Map<number, string>> {
+async function partyNames(
+  credentials: Credentials,
+  codes: number[],
+  strict = false
+): Promise<Map<number, string>> {
   const names = new Map<number, string>();
   const unique = [...new Set(codes)].filter((code) => Number.isSafeInteger(code) && code > 0);
   if (!unique.length) return names;
@@ -414,13 +418,18 @@ async function partyNames(credentials: Credentials, codes: number[]): Promise<Ma
       )
       .max(50)
       .safeParse(data.clientes_cadastro_resumido);
-    if (!result.success) return names;
+    if (!result.success) {
+      if (strict) throw unavailable();
+      return names;
+    }
     const requested = new Set(unique);
     for (const row of result.data) {
       const name = row.razao_social?.trim() || row.nome_fantasia?.trim();
       if (requested.has(row.codigo_cliente) && name) names.set(row.codigo_cliente, name);
     }
-  } catch {
+    if (strict && unique.some((code) => !names.has(code))) throw unavailable();
+  } catch (error) {
+    if (strict) throw error;
     // A missing name must not hide an otherwise valid financial title.
     // The UI explicitly identifies unresolved names; provider errors stay private.
   }
@@ -525,7 +534,7 @@ export async function verifyOmieTitleReference(
       "Título Omie divergente: confira identificador, valor original, vencimento e situação.",
       409
     );
-  const names = await partyNames(credentials, [r.codigo_cliente_fornecedor]);
+  const names = await partyNames(credentials, [r.codigo_cliente_fornecedor], true);
   const normalize = (v: string) =>
     v
       .normalize("NFD")

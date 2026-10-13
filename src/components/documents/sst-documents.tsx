@@ -87,10 +87,10 @@ export const SSTDocument = ({ data, company, type }: any) => (
       <View style={styles.header}>
         <Image src={company?.logoUrl || NEXTCON_LOGO} style={styles.logoClient} />
         <View style={styles.docInfo}>
-          <Text style={styles.docTitle}>{type}</Text>
+          <Text style={styles.docTitle}>{type} · Rascunho</Text>
           <Text style={styles.docSubtitle}>{company?.name || "Unidade Operacional"}</Text>
           <Text style={{ fontSize: 7, color: "#94a3b8" }}>
-            Emissão: {new Date().toLocaleDateString("pt-BR")}
+            Exportação do rascunho: {new Date().toLocaleDateString("pt-BR")}
           </Text>
         </View>
         <Image src={NEXTCON_LOGO} style={styles.logoNextcon} />
@@ -125,10 +125,10 @@ export const SSTDocument = ({ data, company, type }: any) => (
           <Text style={styles.sectionTitle}>Análise NAI Intelligence (IA)</Text>
         </View>
         <View style={styles.aiBox}>
-          <Text style={styles.aiTitle}>Insight Preditivo de Risco</Text>
+          <Text style={styles.aiTitle}>Análise pendente de revisão profissional</Text>
           <Text style={styles.aiText}>
             {data?.aiInsight ||
-              "Baseado nos Grupos Homogêneos de Exposição (GHE) analisados, o ambiente apresenta conformidade técnica de 94%. Recomenda-se vigilância ativa nos itens de proteção auditiva conforme NR-09."}
+              "Não há análise documental registrada. A identificação, os riscos, as evidências e as conclusões devem ser conferidos pelo profissional responsável antes da emissão do documento."}
           </Text>
         </View>
       </View>
@@ -137,11 +137,9 @@ export const SSTDocument = ({ data, company, type }: any) => (
       <View style={styles.signatureArea}>
         <View style={styles.signatureBlock}>
           <View style={styles.signatureLine} />
-          <Text style={styles.signerName}>Eng. Felipe Coneglian Della Bianca</Text>
-          <Text style={styles.signerRole}>Engenheiro de Segurança do Trabalho</Text>
-          <Text style={{ fontSize: 6, color: "#10B981" }}>
-            Assinado Digitalmente - NAI ID: 843929
-          </Text>
+          <Text style={styles.signerName}>Responsável técnico a identificar</Text>
+          <Text style={styles.signerRole}>Revisão e aprovação pendentes</Text>
+          <Text style={{ fontSize: 6, color: "#64748b" }}>Rascunho sem assinatura digital</Text>
         </View>
       </View>
 
