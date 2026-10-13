@@ -227,6 +227,7 @@ export async function reserveAndWriteProvider<Reference>({
         storedReservation?.attemptId !== attemptId ||
         storedReservation?.identityHash !== identityHash ||
         storedReservation?.providerId !== providerData.id ||
+        storedProvider?.identityHash !== identityHash ||
         storedProvider?.importAttemptId !== attemptId ||
         normalizeProviderIdentifier(String(storedProvider?.cnpj || "")) !==
           normalizeProviderIdentifier(identifier) ||
@@ -268,7 +269,7 @@ export async function reserveAndWriteProvider<Reference>({
       }
 
       transaction.set(reservationRef, reservation);
-      transaction.set(providerRef, providerData);
+      transaction.set(providerRef, { ...providerData, identityHash });
       return "created" as const;
     });
 

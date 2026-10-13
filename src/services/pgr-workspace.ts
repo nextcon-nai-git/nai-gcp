@@ -275,34 +275,23 @@ export async function savePgrDraft(
     });
   }
   return adminDb.runTransaction(async (tx) => {
-    const [
-      freshCompany,
-      existing,
-      clinical,
-      providerSnapshots,
-      linkSnapshots,
-      freshProviders,
-      companyIdentities,
-    ] = await Promise.all([
-      tx.get(companyRef),
-      tx.get(cardRef),
-      metadata.restricted ? tx.get(clinicalRef) : Promise.resolve(null),
-      Promise.all(
-        providers.map((provider) => tx.get(adminDb.collection("providers").doc(provider.id)))
-      ),
-      Promise.all(
-        providers.map((provider) =>
-          tx.get(companyRef.collection("provider_links").doc(provider.id))
-        )
-      ),
-      resolveImportProviders(
-        providers.map((provider) => provider.data),
-        tx
-      ),
-      params.createCompany
-        ? tx.get(adminDb.collection("companies").select("cnpj").limit(5001))
-        : Promise.resolve(null),
-    ]);
+    const [freshCompany, existing, clinical, providerSnapshots, linkSnapshots, companyIdentities] =
+      await Promise.all([
+        tx.get(companyRef),
+        tx.get(cardRef),
+        metadata.restricted ? tx.get(clinicalRef) : Promise.resolve(null),
+        Promise.all(
+          providers.map((provider) => tx.get(adminDb.collection("providers").doc(provider.id)))
+        ),
+        Promise.all(
+          providers.map((provider) =>
+            tx.get(companyRef.collection("provider_links").doc(provider.id))
+          )
+        ),
+        params.createCompany
+          ? tx.get(adminDb.collection("companies").select("cnpj").limit(5001))
+          : Promise.resolve(null),
+      ]);
     if (
       companyIdentities &&
       (companyIdentities.size === 5001 ||
@@ -332,6 +321,10 @@ export async function savePgrDraft(
         existing.data()!,
         clinical?.data()
       );
+    const freshProviders = await resolveImportProviders(
+      providers.map((provider) => provider.data),
+      tx
+    );
     if (freshProviders.some((provider, index) => provider.id !== providers[index].id))
       throw new AuthError(
         "Um cadastro de prestador foi atualizado durante a importação. Tente novamente para preservar o cadastro existente.",
@@ -524,7 +517,10 @@ async function resolveImportProviders(planned: ProviderPlan[], transaction?: Tra
   if (!planned.length) return [];
   // Existing IDs are not always CNPJs. Read only the registry identity fields,
   // preserving historical IDs and refusing to guess if the scan is incomplete.
-  const query = adminDb.collection("providers").select("cnpj", "name", "taxIdStatus").limit(5001);
+  const query = adminDb
+    .collection("providers")
+    .select("cnpj", "name", "taxIdStatus", "isDeleted")
+    .limit(5001);
   const registered = transaction ? await transaction.get(query) : await query.get();
   if (registered.size === 5001)
     throw new AuthError(
@@ -538,6 +534,11 @@ async function resolveImportProviders(planned: ProviderPlan[], transaction?: Tra
     if (matches.length > 1)
       throw new AuthError(
         "Há prestadores duplicados para um CNPJ identificado. Revise os cadastros ou desative o cadastro de prestadores nesta importação.",
+        409
+      );
+    if (matches.length === 1 && matches[0].data().isDeleted === true)
+      throw new AuthError(
+        "O prestador correspondente está arquivado. Restaure o cadastro antes de vinculá-lo à importação.",
         409
       );
     if (matches.length === 1 && !mayUseProviderAsFiscalIdentity(matches[0].data().taxIdStatus))

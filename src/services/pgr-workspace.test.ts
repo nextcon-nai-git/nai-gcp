@@ -245,6 +245,10 @@ describe("NAI importa: gravação e reimportação", () => {
     expect(entries(`${companyPath}/pgr_cards`)).toHaveLength(1);
     expect(entries(`${companyPath}/audit_logs`)).toHaveLength(1);
     expect(entries("providers")).toHaveLength(1);
+    expect(entries("providers")[0][1]).toMatchObject({
+      taxIdStatus: "pending_verification",
+      active: false,
+    });
     expect(memory.reads.some((path) => path.includes("/clinical_records/"))).toBe(false);
     const [taskPath, task] = entries(`${companyPath}/tasks`)[0];
     memory.records.set(taskPath, {
@@ -341,6 +345,18 @@ describe("NAI importa: gravação e reimportação", () => {
     const saved = await savePgrDraft(user, params, bytes);
     expect(saved.providerIds).toEqual(["legacy-provider"]);
     expect(memory.records.get("providers/legacy-provider")?.taxIdStatus).toBeUndefined();
+  });
+
+  it("não vincula prestador arquivado em nova importação", async () => {
+    memory.records.set("providers/archived-provider", {
+      name: "Prestador arquivado fictício",
+      cnpj: "12.345.678/0001-95",
+      isDeleted: true,
+    });
+
+    await expect(savePgrDraft(user, params, bytes)).rejects.toMatchObject({ status: 409 });
+    expect(memory.upload).not.toHaveBeenCalled();
+    expect(entries(`${companyPath}/pgr_cards`)).toHaveLength(0);
   });
 
   it("não cria duplicata se um prestador com ID legado surgir entre a prévia e a transação", async () => {

@@ -181,15 +181,34 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'updatedAt', 'crm', 'rqe', 'certificate_info']);
     }
 
-    function providerFiscalCreateIsValid() {
+    function providerFiscalCreateIsValid(providerId) {
       let data = request.resource.data;
-      return data.taxIdStatus == 'pending_verification' && data.active == false;
+      let reservation = getAfter(
+        /databases/$(database)/documents/provider_tax_id_reservations/$(data.identityHash)
+      ).data;
+      return data.taxIdStatus == 'pending_verification' && data.active == false &&
+        data.identityHash is string && data.identityHash.matches('[a-f0-9]{64}') &&
+        data.importAttemptId is string && data.importAttemptId.size() >= 16 &&
+        data.importAttemptId.size() <= 100 &&
+        reservation != null &&
+        reservation.providerId == providerId &&
+        reservation.identityHash == data.identityHash &&
+        reservation.attemptId == data.importAttemptId;
+    }
+
+    function providerFiscalIdentityIsUnchanged(current, next) {
+      return ((!('cnpj' in current) && (!('cnpj' in next) || next.cnpj == '')) ||
+          next.cnpj == current.cnpj) &&
+        ((!('identityHash' in current) && !('identityHash' in next)) ||
+          next.identityHash == current.identityHash) &&
+        ((!('importAttemptId' in current) && !('importAttemptId' in next)) ||
+          next.importAttemptId == current.importAttemptId);
     }
 
     function providerFiscalUpdateIsValid() {
       let current = resource.data;
       let next = request.resource.data;
-      return (
+      return providerFiscalIdentityIsUnchanged(current, next) && (
         ('taxIdStatus' in current &&
           current.taxIdStatus == 'pending_verification' &&
           next.taxIdStatus == 'pending_verification' &&
@@ -224,7 +243,9 @@ service cloud.firestore {
         data.attemptId is string && data.attemptId.size() >= 16 && data.attemptId.size() <= 100 &&
         data.identityHash is string && data.identityHash.matches('[a-f0-9]{64}') &&
         data.updatedAt == request.time &&
+        providerAfter != null &&
         providerAfter.importAttemptId == data.attemptId &&
+        providerAfter.identityHash == data.identityHash &&
         providerAfter.taxIdStatus == 'pending_verification' &&
         providerAfter.active == false;
     }
@@ -299,7 +320,7 @@ service cloud.firestore {
 
     match /providers/{providerId} {
       allow read: if isSignedIn() && isNextconOfficial();
-      allow create: if isSignedIn() && isNextconOfficial() && providerFiscalCreateIsValid();
+      allow create: if isSignedIn() && isNextconOfficial() && providerFiscalCreateIsValid(providerId);
       allow update: if isSignedIn() && isNextconOfficial() && providerFiscalUpdateIsValid();
       allow delete: if false;
     }

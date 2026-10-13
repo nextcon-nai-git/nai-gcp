@@ -188,9 +188,7 @@ describe("Private contract import rules and persistence", () => {
         true
       )
     ).rejects.toThrow(/cadastro de empresa existente/);
-    await expect(getDoc(doc(db("global"), "companies/new-company"))).resolves.toMatchObject({
-      exists: false,
-    });
+    expect((await getDoc(doc(db("global"), "companies/new-company"))).exists()).toBe(false);
     expect((await getDocs(collection(db("global"), "contract_import_sources"))).empty).toBe(true);
   });
 
