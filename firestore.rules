@@ -181,6 +181,54 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'updatedAt', 'crm', 'rqe', 'certificate_info']);
     }
 
+    function providerFiscalCreateIsValid() {
+      let data = request.resource.data;
+      return data.taxIdStatus == 'pending_verification' && data.active == false;
+    }
+
+    function providerFiscalUpdateIsValid() {
+      let current = resource.data;
+      let next = request.resource.data;
+      return (
+        ('taxIdStatus' in current &&
+          current.taxIdStatus == 'pending_verification' &&
+          next.taxIdStatus == 'pending_verification' &&
+          next.active == false) ||
+        ('taxIdStatus' in current &&
+          current.taxIdStatus == 'verified' &&
+          next.taxIdStatus == 'verified' &&
+          next.cnpj == current.cnpj) ||
+        ('taxIdStatus' in current &&
+          current.taxIdStatus == 'verified' &&
+          next.taxIdStatus == 'pending_verification' &&
+          next.active == false) ||
+        (!('taxIdStatus' in current) &&
+          next.taxIdStatus == 'pending_verification' &&
+          next.active == false) ||
+        (!('taxIdStatus' in current) &&
+          !('taxIdStatus' in next) &&
+          ((!('cnpj' in current) && (!('cnpj' in next) || next.cnpj == '')) ||
+            next.cnpj == current.cnpj) &&
+          (next.active == false ||
+            ('active' in current && current.active == true && next.active == true)))
+      );
+    }
+
+    function providerReservationCreateIsValid(providerId) {
+      let data = request.resource.data;
+      let providerAfter = getAfter(
+        /databases/$(database)/documents/providers/$(providerId)
+      ).data;
+      return data.keys().hasOnly(['attemptId', 'identityHash', 'providerId', 'updatedAt']) &&
+        data.providerId == providerId &&
+        data.attemptId is string && data.attemptId.size() >= 16 && data.attemptId.size() <= 100 &&
+        data.identityHash is string && data.identityHash.matches('[a-f0-9]{64}') &&
+        data.updatedAt == request.time &&
+        providerAfter.importAttemptId == data.attemptId &&
+        providerAfter.taxIdStatus == 'pending_verification' &&
+        providerAfter.active == false;
+    }
+
     match /companies/{companyId} {
       allow read: if isSignedIn() && (belongsToCompany(companyId) || isNextconOfficial() ||
         isAuthorizedDoctorForCompany(companyId));
@@ -247,6 +295,20 @@ service cloud.firestore {
       allow update: if (isSelf(userId) && userSelfManagedUpdateKeysAreValid()) || isSecurityAdmin() ||
         ((isNextconOfficial() || isCompanyAdmin(resource.data.companyId)) && userSelfManagedUpdateKeysAreValid());
       allow delete: if isSecurityAdmin();
+    }
+
+    match /providers/{providerId} {
+      allow read: if isSignedIn() && isNextconOfficial();
+      allow create: if isSignedIn() && isNextconOfficial() && providerFiscalCreateIsValid();
+      allow update: if isSignedIn() && isNextconOfficial() && providerFiscalUpdateIsValid();
+      allow delete: if false;
+    }
+
+    match /provider_tax_id_reservations/{reservationId} {
+      allow read: if isSignedIn() && isNextconOfficial();
+      allow create: if isSignedIn() && isNextconOfficial() &&
+        providerReservationCreateIsValid(request.resource.data.providerId);
+      allow update, delete: if false;
     }
 
     // Import drafts can contain unreviewed clinical text. Only authenticated
@@ -320,8 +382,8 @@ service cloud.firestore {
     }
 
     match /{rootCollection}/{document=**} {
-      allow read: if isSignedIn() && isNextconOfficial() && !(rootCollection in ['users', 'companies', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries']);
-      allow write: if isNextconOfficial() && !(rootCollection in ['users', 'companies', 'agendamentos', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'analisesPGR']);
+      allow read: if isSignedIn() && isNextconOfficial() && !(rootCollection in ['users', 'companies', 'providers', 'provider_tax_id_reservations', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries']);
+      allow write: if isNextconOfficial() && !(rootCollection in ['users', 'companies', 'providers', 'provider_tax_id_reservations', 'agendamentos', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'analisesPGR']);
     }
   }
 }

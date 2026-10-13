@@ -11,6 +11,7 @@ export interface UserAuthState {
   user: User | null;
   role: string | null;
   companyId: string | null;
+  tenantId?: string | null;
   servedCompanies?: string[];
   isUserLoading: boolean;
   userError: Error | null;
@@ -82,6 +83,7 @@ export function subscribeToUserSession(
               user,
               role: typeof profile?.role === "string" ? profile.role : null,
               companyId: typeof profile?.companyId === "string" ? profile.companyId : null,
+              tenantId: typeof profile?.tenantId === "string" ? profile.tenantId : null,
               servedCompanies: Array.isArray(profile?.servedCompanies)
                 ? profile.servedCompanies.filter((id: unknown) => typeof id === "string")
                 : [],
