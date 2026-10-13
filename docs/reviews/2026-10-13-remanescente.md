@@ -81,8 +81,12 @@ OpenTelemetry, Tailwind/braces e UUID transitivo; instalação completa reportou
 configuração atual; nenhuma atualização `--force` foi aplicada. O build passou
 com warnings de compilação/dependências preexistentes.
 
-Na execução anterior do PR #109, CI, Security e Firebase validation terminaram
-como `action_required`, sem jobs executados. Esse resultado não cobre este
-follow-up. Os resultados de CI, CodeQL e segurança para o SHA final ainda devem
-ser verificados; regras do Firebase também dependem do acesso ao download do
-emulador. A compilação local não substitui esses checks.
+Para o SHA final `600afdce1853c0a9f405197c768e3bba1a194848`, CI, Security e
+Firebase validation terminaram como `action_required`, cada uma com zero jobs;
+consulta dos logs não encontrou jobs com falha porque nenhum foi iniciado.
+`parallel_validation` reportou zero alertas CodeQL e nenhum comentário de review,
+mas a ferramenta de review sinalizou que seu executável não estava disponível,
+portanto não equivale a uma aprovação humana. A execução real desses workflows
+depende da aprovação externa. O PR #109 referencia `Refs #108` e mantém #108
+aberta. A compilação local não substitui os checks hospedados nem a homologação
+do emulador.
