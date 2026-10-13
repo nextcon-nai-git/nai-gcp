@@ -20,10 +20,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { useFirestore, useUser, useCollection, useMemoFirebase } from "@/firebase";
+import { useFirestore, useUser, useCollection, useMemoFirebase, useStorage } from "@/firebase";
 import { collection, query, orderBy, collectionGroup } from "firebase/firestore";
 import { analyzeContract, type ContractAnalysisOutput } from "@/ai/flows/contract-analysis-flow";
-import { hashContractFile, integrateAnalyzedContract } from "@/lib/contracts/integration";
+import {
+  ContractImportConfirmationPending,
+  hashContractFile,
+  integrateAnalyzedContract,
+  preserveContractSource,
+  type ContractSource,
+} from "@/lib/contracts/integration";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -42,12 +48,16 @@ interface QueueItem {
   status: "analyzing" | "completed" | "error" | "integrating" | "success";
   result?: ContractAnalysisOutput;
   error?: string;
-  sourceHash?: string;
+  source?: ContractSource;
+  companyId?: string;
+  sourceConfirmed?: boolean;
 }
 
 export default function ContractsManagement() {
   const { toast } = useToast();
   const db = useFirestore();
+  const storage = useStorage();
+  const { user } = useUser();
 
   const [queue, setQueue] = React.useState<QueueItem[]>([]);
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -66,6 +76,8 @@ export default function ContractsManagement() {
 
     try {
       const sourceHash = await hashContractFile(file);
+      const source = await preserveContractSource(storage, file, sourceHash);
+      setQueue((prev) => prev.map((item) => (item.id === id ? { ...item, source } : item)));
       const reader = new FileReader();
       const base64Promise = new Promise<string>((resolve) => {
         reader.onload = () => resolve(reader.result as string);
@@ -76,7 +88,7 @@ export default function ContractsManagement() {
       const analysis = await analyzeContract({ pdfDataUri: base64 }, await getActionIdToken());
       setQueue((prev) =>
         prev.map((item) =>
-          item.id === id ? { ...item, status: "completed", result: analysis, sourceHash } : item
+          item.id === id ? { ...item, status: "completed", result: analysis } : item
         )
       );
     } catch (error: any) {
@@ -96,24 +108,40 @@ export default function ContractsManagement() {
   };
 
   const handleIntegrateSgi = async (item: QueueItem) => {
-    if (!item.result || !item.sourceHash || !db) return;
+    if (!item.result || !item.source || !item.companyId || !item.sourceConfirmed || !db || !user)
+      return;
     setQueue((prev) => prev.map((q) => (q.id === item.id ? { ...q, status: "integrating" } : q)));
 
     try {
-      const { created } = await integrateAnalyzedContract(db, item.result, item.sourceHash);
+      const { created } = await integrateAnalyzedContract(
+        db,
+        storage,
+        item.result,
+        item.companyId,
+        item.source,
+        user.uid,
+        item.sourceConfirmed
+      );
 
       setQueue((prev) => prev.map((q) => (q.id === item.id ? { ...q, status: "success" } : q)));
       toast({
         title: created ? "SGI Integrado!" : "Contrato já integrado",
         description: created
-          ? `${item.result.clientInfo.name} cadastrada.`
-          : "Este arquivo já foi integrado; nenhum registro foi duplicado.",
+          ? `${item.result.clientInfo.name} vinculada ao cadastro existente.`
+          : "Este arquivo já está vinculado ao cadastro selecionado; nenhum registro foi duplicado.",
       });
-    } catch {
+    } catch (error) {
       setQueue((prev) =>
         prev.map((q) =>
           q.id === item.id
-            ? { ...q, status: "error", error: "Falha ao persistir a integração. Tente novamente." }
+            ? {
+                ...q,
+                status: "error",
+                error:
+                  error instanceof ContractImportConfirmationPending
+                    ? "Confirmação pendente: verifique novamente antes de repetir a integração."
+                    : "Falha ao persistir a integração. Confira o cadastro e tente novamente.",
+              }
             : q
         )
       );
@@ -185,16 +213,62 @@ export default function ContractsManagement() {
                       <p className="text-[9px] font-bold text-slate-400 uppercase">{item.status}</p>
                     </div>
                   </div>
-                  {(item.status === "completed" ||
-                    (item.status === "error" && item.result && item.sourceHash)) && (
-                    <Button
-                      size="sm"
-                      className="bg-primary text-white text-[9px] font-black uppercase rounded-xl h-9"
-                      onClick={() => handleIntegrateSgi(item)}
-                    >
-                      Integrar SGI
-                    </Button>
+                  {item.result && item.source && (
+                    <div className="w-full space-y-3 md:w-96">
+                      <label className="block space-y-1 text-left text-xs">
+                        <span>Identificador do cadastro existente</span>
+                        <Input
+                          value={item.companyId || ""}
+                          onChange={(event) =>
+                            setQueue((prev) =>
+                              prev.map((q) =>
+                                q.id === item.id
+                                  ? {
+                                      ...q,
+                                      companyId: event.target.value,
+                                      sourceConfirmed: false,
+                                    }
+                                  : q
+                              )
+                            )
+                          }
+                          placeholder="ID do documento em Empresas"
+                          aria-label={`Cadastro existente para ${item.fileName}`}
+                        />
+                      </label>
+                      <label className="flex items-start gap-2 text-left text-xs">
+                        <input
+                          type="checkbox"
+                          checked={item.sourceConfirmed || false}
+                          onChange={(event) =>
+                            setQueue((prev) =>
+                              prev.map((q) =>
+                                q.id === item.id
+                                  ? { ...q, sourceConfirmed: event.target.checked }
+                                  : q
+                              )
+                            )
+                          }
+                        />
+                        <span>
+                          Revisei os dados extraídos, confirmei o cadastro pelo CNPJ e revisei as
+                          sugestões de operação. Isso não confirma assinatura nem execução.
+                        </span>
+                      </label>
+                    </div>
                   )}
+                  {item.result &&
+                    item.source &&
+                    (item.status === "completed" || item.status === "error") && (
+                      <Button
+                        size="sm"
+                        className="bg-primary text-white text-[9px] font-black uppercase rounded-xl h-9"
+                        disabled={!item.companyId || !item.sourceConfirmed}
+                        onClick={() => handleIntegrateSgi(item)}
+                      >
+                        Integrar SGI
+                      </Button>
+                    )}
                   {item.status === "error" && (
                     <p role="alert" className="text-xs text-destructive">
                       {item.error}
