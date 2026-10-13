@@ -44,6 +44,10 @@ service firebase.storage {
         && request.resource.contentType.matches('application/pdf|image/.*');
     }
 
+    function isContractSourcePath(path) {
+      return path.matches('contract-sources/[a-f0-9]{64}');
+    }
+
     function hasClinicalAccess(companyId) {
       let user = getUserData();
       return isSignedIn() && user != null && (
@@ -93,8 +97,16 @@ service firebase.storage {
 
     match /internos_nextcon/{allPaths=**} {
       allow read: if isNextconOfficial();
-      allow create, update: if isNextconOfficial() && isSafeFile();
-      allow delete: if isNextconOfficial();
+      allow create, update: if isNextconOfficial() && !isContractSourcePath(allPaths) && isSafeFile();
+      allow delete: if isNextconOfficial() && !isContractSourcePath(allPaths);
+    }
+
+    match /internos_nextcon/contract-sources/{sourceFile} {
+      allow read: if isNextconOfficial();
+      allow create: if isNextconOfficial() && resource == null &&
+        sourceFile.matches('[a-f0-9]{64}') && isSafeFile() &&
+        request.resource.metadata.sourceSha256 == sourceFile;
+      allow update, delete: if false;
     }
 
     match /public/{allPaths=**} {
