@@ -96,6 +96,69 @@ service cloud.firestore {
         (name == 'risks' && documentId.matches('risk_.*'));
     }
 
+    function isClinicalAppointmentId(value) {
+      return value is string && value.matches('[^/]{1,128}') &&
+        !(value in ['all', 'unauthorized']);
+    }
+
+    // Called only after checking the complete ISO-shaped string.
+    function isClinicalCalendarDate(value) {
+      let year = int(value[0:4]);
+      let month = int(value[5:7]);
+      let day = int(value[8:10]);
+      let leapYear = year % 400 == 0 || (year % 4 == 0 && year % 100 != 0);
+      let daysInMonth = month == 2 ? (leapYear ? 29 : 28) :
+        (month in [4, 6, 9, 11] ? 30 : 31);
+      return day <= daysInMonth;
+    }
+
+    function clinicalAppointmentSubjectsMatch(companyId, data, creating) {
+      // Inspect the final atomic state: a batch must not remove or reassign
+      // the subjects while it creates or advances their appointment.
+      let company = getAfter(/databases/$(database)/documents/companies/$(companyId)).data;
+      let employee = getAfter(/databases/$(database)/documents/companies/$(companyId)/employees/$(data.colaborador_id)).data;
+      return company != null && employee != null &&
+        (!('isDeleted' in company) || company.isDeleted != true) &&
+        (!('isDeleted' in employee) || employee.isDeleted != true) &&
+        (!('companyId' in employee) || employee.companyId == null ||
+          employee.companyId == '' || employee.companyId == companyId) &&
+        (!creating || (company.name is string && company.name.size() > 0 &&
+          employee.name is string && employee.name.size() > 0 &&
+          data.companyName == company.name && data.colaborador_nome == employee.name));
+    }
+
+    function clinicalAppointmentCreateIsValid(companyId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['companyId', 'companyName', 'colaborador_id', 'colaborador_nome',
+          'data_hora', 'tipo', 'status', 'check_in_realizado', 'createdAt']) &&
+        isClinicalAppointmentId(companyId) && isClinicalAppointmentId(data.colaborador_id) &&
+        data.companyId == companyId && data.status == 'Agendado' &&
+        data.check_in_realizado == false && data.createdAt == request.time &&
+        data.tipo in ['Admissional', 'Periódico', 'Retorno ao Trabalho', 'Mudança de Riscos', 'Demissional'] &&
+        data.data_hora is string &&
+        data.data_hora.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:00') &&
+        isClinicalCalendarDate(data.data_hora) &&
+        clinicalAppointmentSubjectsMatch(companyId, data, true);
+    }
+
+    function clinicalAppointmentTransitionIsValid(companyId) {
+      let current = resource.data;
+      let next = request.resource.data;
+      let changed = next.diff(current).affectedKeys();
+      // Old fields remain readable and unchanged. Incomplete identity needs
+      // separate review; no client may repair it while advancing attendance.
+      return isClinicalAppointmentId(companyId) && isClinicalAppointmentId(current.colaborador_id) &&
+        (!('companyId' in current) || current.companyId == companyId) &&
+        clinicalAppointmentSubjectsMatch(companyId, current, false) &&
+        ((current.status == 'Agendado' && next.status == 'Em Espera' &&
+          changed.hasOnly(['status', 'check_in_realizado', 'check_in_at']) &&
+          next.check_in_realizado == true && next.check_in_at is string &&
+          next.check_in_at.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9][.][0-9]{3}Z') &&
+          isClinicalCalendarDate(next.check_in_at)) ||
+        (current.status == 'Em Espera' && next.status == 'Em Atendimento' &&
+          changed.hasOnly(['status'])));
+    }
+
     function userSelfManagedCreateKeysAreValid(userId) {
       return request.resource.data.keys().hasOnly(['id', 'email', 'name', 'updatedAt', 'crm', 'rqe', 'certificate_info'])
         && request.resource.data.id == userId
@@ -120,6 +183,16 @@ service cloud.firestore {
       allow list: if isNextconOfficial();
     }
 
+    match /companies/{companyId}/agendamentos/{appointmentId} {
+      allow create: if (isCompanyAdmin(companyId) || isNextconOfficial()) &&
+        clinicalAppointmentCreateIsValid(companyId);
+      allow update: if (isCompanyAdmin(companyId) || isNextconOfficial()) &&
+        clinicalAppointmentTransitionIsValid(companyId);
+      // No supported client writer completes or deletes clinical attendance.
+      // Reads, including legacy records, retain the company rule below.
+      allow delete: if false;
+    }
+
     match /companies/{companyId}/{subcollection}/{documentId}/{nested=**} {
       allow read: if isClinicalImportDocument(subcollection, documentId)
         ? hasClinicalImportAccess(companyId)
@@ -129,18 +202,21 @@ service cloud.firestore {
       // Import records are written by authenticated server handlers. Checking
       // both versions of sourceType also blocks changing/removing the marker to
       // bypass checklist, classification or clinical-review validation.
-      allow create: if !isServerManagedImportDocument(subcollection, documentId) &&
+      allow create: if subcollection != 'agendamentos' &&
+        !isServerManagedImportDocument(subcollection, documentId) &&
         !(isImportOperationalCollection(subcollection) && hasImportSource(request.resource.data)) &&
         (isClinicalCollection(subcollection)
           ? hasClinicalAccess(companyId)
           : isCompanyAdmin(companyId) || isNextconOfficial());
-      allow update: if !isServerManagedImportDocument(subcollection, documentId) &&
+      allow update: if subcollection != 'agendamentos' &&
+        !isServerManagedImportDocument(subcollection, documentId) &&
         !(isImportOperationalCollection(subcollection) &&
           (hasImportSource(resource.data) || hasImportSource(request.resource.data))) &&
         (isClinicalCollection(subcollection)
           ? hasClinicalAccess(companyId)
           : isCompanyAdmin(companyId) || isNextconOfficial());
-      allow delete: if !isServerManagedImportDocument(subcollection, documentId) &&
+      allow delete: if subcollection != 'agendamentos' &&
+        !isServerManagedImportDocument(subcollection, documentId) &&
         !(isImportOperationalCollection(subcollection) && hasImportSource(resource.data)) &&
         (isClinicalCollection(subcollection)
           ? isSecurityAdmin()
@@ -227,7 +303,7 @@ service cloud.firestore {
 
     match /{rootCollection}/{document=**} {
       allow read: if isSignedIn() && isNextconOfficial() && !(rootCollection in ['users', 'companies', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries']);
-      allow write: if isNextconOfficial() && !(rootCollection in ['users', 'companies', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'analisesPGR']);
+      allow write: if isNextconOfficial() && !(rootCollection in ['users', 'companies', 'agendamentos', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'analisesPGR']);
     }
   }
 }

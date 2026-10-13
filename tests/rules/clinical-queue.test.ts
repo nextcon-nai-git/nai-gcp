@@ -5,12 +5,13 @@ import {
   assertFails,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { doc, getDocs, writeBatch, updateDoc, type Firestore } from "firebase/firestore";
+import { doc, getDoc, getDocs, setDoc, writeBatch, type Firestore } from "firebase/firestore";
 import {
   clinicalQueuePage,
   clinicalQueueQuery,
   clinicalQueueToday,
 } from "../../src/services/clinical-queue";
+import { advanceClinicalAppointment } from "../../src/services/clinical-scheduling";
 
 let env: RulesTestEnvironment;
 const day = "2026-10-13";
@@ -29,9 +30,15 @@ beforeAll(async () => {
       tenantId: "queue-tenant-a",
     });
     for (const companyId of ["queue-tenant-a", "queue-tenant-b"]) {
+      batch.set(doc(db, "companies", companyId), { name: "Empresa sintética" });
+      batch.set(doc(db, "companies", companyId, "employees", "queue-worker"), {
+        companyId,
+        name: "Pessoa sintética",
+      });
       const put = (id: string, data: Record<string, unknown>) =>
         batch.set(doc(db, `companies/${companyId}/agendamentos/${id}`), {
           companyId,
+          colaborador_id: "queue-worker",
           colaborador_nome: "Pessoa sintética",
           ...data,
         });
@@ -101,14 +108,20 @@ describe("fila clínica real no emulador: recorte, expansão e tenant", () => {
   });
   it("um check-in sai da agenda e aparece na fila aberta sem duplicar ou perder o registro", async () => {
     const ref = doc(db(), "companies/queue-tenant-a/agendamentos/scheduled-000");
-    await updateDoc(ref, { status: "Em Espera" });
+    const original = (await getDoc(ref)).data()!;
+    await advanceClinicalAppointment(db(), "queue-tenant-a", "scheduled-000", "Em Espera");
     try {
       expect((await read("scheduled", 100)).map((record) => record.id)).not.toContain(
         "scheduled-000"
       );
       expect((await read("active", 100)).map((record) => record.id)).toContain("scheduled-000");
     } finally {
-      await updateDoc(ref, { status: "Agendado" });
+      await env.withSecurityRulesDisabled((ctx) =>
+        setDoc(
+          doc(ctx.firestore(), "companies/queue-tenant-a/agendamentos/scheduled-000"),
+          original
+        )
+      );
     }
   });
   it("não cria consulta para tenant global/ausente nem datas impossíveis", () => {
