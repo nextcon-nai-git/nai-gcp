@@ -259,6 +259,24 @@ describe("transições não aceitam conclusão, reversão ou mutações paralela
       await assertFails(setDoc(doc(db(uid), root, "active"), appointment({ status: "Concluído" })));
     }
   });
+  it("mantém revisão clínica e vínculo ASO fora das gravações diretas de clientes", async () => {
+    const store = db("schedule-doctor");
+    await assertFails(
+      setDoc(doc(store, "companies", companyId, "clinical_records", `import_${"a".repeat(64)}`), {
+        companyId,
+        documentType: "ASO",
+        clinicalReview: { status: "reviewed", employeeId: "worker-a" },
+      })
+    );
+    await assertFails(
+      updateDoc(doc(store, root, "active"), {
+        status: "Concluído",
+        clinicalRecordId: `import_${"a".repeat(64)}`,
+        completedAt: serverTimestamp(),
+        completedBy: "schedule-doctor",
+      })
+    );
+  });
   it("nega salto de etapa, repetição de check-in e reversão", async () => {
     await assertFails(updateDoc(doc(db(), root, "scheduled"), { status: "Em Atendimento" }));
     await assertFails(updateDoc(doc(db(), root, "waiting"), checkIn()));

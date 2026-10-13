@@ -351,6 +351,10 @@ export interface MedicalAppointment {
   tipo?: string;
   status?: string;
   nextExamDate?: string;
+  clinicalRecordId?: string;
+  asoSourceHash?: string;
+  completedBy?: string;
+  completedAt?: string | number | Date | { seconds: number; nanoseconds?: number };
 }
 
 export interface S2220Event {

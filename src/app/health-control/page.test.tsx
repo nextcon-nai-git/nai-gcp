@@ -3,7 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
 interface QueueTarget {
-  mode: "scheduled" | "active";
+  mode: "scheduled" | "active" | "completed";
   companyId: string;
   day: string;
   visibleLimit: number;
@@ -140,6 +140,18 @@ describe("fila clínica: data e expansão disponíveis na interface", () => {
     expect(rows("scheduled")).toBe(50);
     expect(container.textContent).not.toContain("company-a active");
     expect(section("active").textContent).toContain("company-b active");
+  });
+  it("preserva a retomada e não oferece conclusão clínica a perfil sem autorização", async () => {
+    await act(async () => root.render(<HealthControl />));
+    const resume = [...container.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("Retomar atendimento")
+    )!;
+    await act(async () => resume.click());
+    expect(document.body.textContent).toContain(
+      "A revisão e a conclusão exigem um médico atualmente autorizado"
+    );
+    expect(document.body.textContent).not.toContain("Vincular ASO e concluir");
+    expect(section("active").textContent).toContain("company-a active 0");
   });
   it("não apresenta busca parcial vazia como ausência total quando ainda há registros para carregar", async () => {
     await act(async () => root.render(<HealthControl />));
