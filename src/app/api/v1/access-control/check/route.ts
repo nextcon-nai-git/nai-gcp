@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import {
-  requireApiKey,
+  requireDeveloperPrincipal,
   requireScope,
   requireClient,
   handleApiGuardError,
@@ -22,8 +22,8 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   const start = Date.now();
   try {
-    const authKey = await requireApiKey(req);
-    requireScope(authKey, "access_control:read");
+    const principal = await requireDeveloperPrincipal(req);
+    requireScope(principal, "access_control:read");
     let body: Record<string, unknown>;
     try {
       const input: unknown = JSON.parse((await limitedBytes(req, 8192)).toString("utf8"));
@@ -42,13 +42,13 @@ export async function POST(req: NextRequest) {
     const cpf = typeof body.cpf === "string" ? body.cpf.replace(/\D/g, "") : "";
     if ((!badge && !cpf) || (badge && !isAccessDocumentId(badge)) || (cpf && !/^\d{11}$/.test(cpf)))
       throw new ApiGuardError("Informe um crachá válido ou CPF completo.", 400);
-    const companyId = body.companyId ?? authKey.clientId;
+    const companyId = body.companyId ?? principal.clientId;
     if (!isAccessDocumentId(companyId))
       throw new ApiGuardError(
         "Informe a empresa do atendimento. Chaves globais exigem companyId.",
         400
       );
-    requireClient(authKey, companyId);
+    requireClient(principal, companyId);
 
     const employees = adminDb.collection("companies").doc(companyId).collection("employees");
     const formattedCpf = cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");

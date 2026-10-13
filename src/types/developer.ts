@@ -15,6 +15,13 @@ export interface ApiKeyRecord {
   lastUsedAt?: string;
 }
 
+/** Authorization identity only. Credential material never leaves the verifier. */
+export interface DeveloperPrincipal {
+  readonly id: string;
+  readonly clientId: string;
+  readonly scopes: readonly string[];
+}
+
 export interface WebhookRecord {
   id: string;
   clientId: string;

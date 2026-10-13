@@ -4,7 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { z } from "zod";
 import { adminDb } from "@/lib/firebase-admin";
 import {
-  requireApiKey,
+  requireDeveloperPrincipal,
   requireScope,
   requireClient,
   handleApiGuardError,
@@ -46,8 +46,8 @@ const respond = (data: Record<string, unknown>, status = 200) =>
 /** Receive first; clinical and legal conclusions remain subject to professional review. */
 export async function POST(req: NextRequest) {
   try {
-    const authKey = await requireApiKey(req);
-    requireScope(authKey, "incidents:write");
+    const principal = await requireDeveloperPrincipal(req);
+    requireScope(principal, "incidents:write");
     let body: unknown;
     try {
       body = JSON.parse((await limitedBytes(req, 65536)).toString("utf8"));
@@ -59,10 +59,10 @@ export async function POST(req: NextRequest) {
     if (!parsed.success)
       throw new ApiGuardError("Confira empresa, tipo e descrição do incidente.", 400);
     const input = parsed.data;
-    const companyId = input.companyId ?? authKey.clientId;
+    const companyId = input.companyId ?? principal.clientId;
     if (!isAccessDocumentId(companyId))
       throw new ApiGuardError("Informe uma empresa válida. Chaves globais exigem companyId.", 400);
-    requireClient(authKey, companyId);
+    requireClient(principal, companyId);
     const idempotencyKey = req.headers.get("idempotency-key");
     if (idempotencyKey && !/^[A-Za-z0-9_-]{8,128}$/.test(idempotencyKey))
       throw new ApiGuardError(
@@ -75,7 +75,9 @@ export async function POST(req: NextRequest) {
     const incidentCollection = adminDb.collection("incidents");
     const ref = idempotencyKey
       ? incidentCollection.doc(
-          createHash("sha256").update(`${authKey.id}:${companyId}:${idempotencyKey}`).digest("hex")
+          createHash("sha256")
+            .update(`${principal.id}:${companyId}:${idempotencyKey}`)
+            .digest("hex")
         )
       : incidentCollection.doc();
     const created = await adminDb.runTransaction(async (tx) => {
@@ -83,7 +85,7 @@ export async function POST(req: NextRequest) {
       if (previous.exists) {
         if (
           previous.data()?.requestHash !== requestHash ||
-          previous.data()?.recordedByApiKey !== authKey.id
+          previous.data()?.recordedByApiKey !== principal.id
         )
           throw new ApiGuardError("Idempotency-Key já utilizada por outro conteúdo.", 409);
         return false;
@@ -97,9 +99,9 @@ export async function POST(req: NextRequest) {
         description: input.description,
         photoUrl: input.photoUrl || null,
         location: input.location || "Não informado",
-        reporterId: authKey.id,
+        reporterId: principal.id,
         reportedBy: input.reporterId || null,
-        recordedByApiKey: authKey.id,
+        recordedByApiKey: principal.id,
         requestHash,
         source: "API_M2M",
         status: "PROTOCOLADO",
@@ -144,7 +146,7 @@ export async function POST(req: NextRequest) {
         opinion: technicalOpinion,
         immutableDigest: opinion.immutableDigest,
         status: "PENDING_ENGINEER_REVIEW",
-        recordedByApiKey: authKey.id,
+        recordedByApiKey: principal.id,
         createdAt: new Date().toISOString(),
         serverTimestamp: FieldValue.serverTimestamp(),
       });

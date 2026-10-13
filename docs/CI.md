@@ -9,6 +9,13 @@
 - `.github/workflows/firebase-deploy.yml`: aviso de descontinuação; não publica o site.
 - O backend conectado do Firebase App Hosting publica o site a partir da `main`. Uma execução verde de CI não comprova rollout nem publicação de regras.
 
+Antes do merge, conferir o check **Code scanning results / CodeQL** do SHA final,
+além do job **Security / CodeQL**. O job pode concluir a análise e o envio do SARIF
+com sucesso enquanto o check separado reprova pelos alertas encontrados. Na revisão
+do PR #100, essa diferença revelou quatro alertas que exigiram diagnóstico antes
+da integração. O `npm audit` não bloqueante também precisa ser lido pelo resultado
+do comando, não apenas pela cor do job.
+
 ## Rodar localmente
 
 Usar Node 24, conforme `engines.node` e o ambiente de execução do backend `nai`.
@@ -23,7 +30,7 @@ npm run type-check
 npm run test:coverage
 npm run test:rules      # requer Java 21 no CI; projeto local demo-nai-security
 npm run build
-npm run ci             # todos os passos acima
+npm run ci             # formato, lint, tipos, cobertura e build; regras são executadas à parte
 ```
 
 ## Cobertura

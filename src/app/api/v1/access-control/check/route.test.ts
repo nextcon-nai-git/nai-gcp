@@ -30,7 +30,7 @@ vi.mock("@/lib/firebase-admin", () => {
 });
 vi.mock("@/lib/developer-api-guard", async (original) => ({
   ...(await original<typeof import("@/lib/developer-api-guard")>()),
-  requireApiKey: state.auth,
+  requireDeveloperPrincipal: state.auth,
 }));
 import { POST } from "./route";
 const request = (body: unknown) =>
@@ -78,6 +78,15 @@ describe("controle de acesso M2M", () => {
     expect(state.where).toHaveBeenCalledWith("cpf", "in", ["12345678909", "123.456.789-09"]);
     expect(state.commit).toHaveBeenCalledTimes(1);
     expect(result.response.headers.get("cache-control")).toContain("no-store");
+  });
+  it("preserva o endereço materializado do crachá após separar credenciais e identidade", async () => {
+    expect((await check()).body.allowed).toBe(true);
+    expect(state.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: "access_cards/d78346943f4eb35d07d02198f418875a7efcbb286d30e37dae9e1e096ac5460f",
+      }),
+      expect.objectContaining({ companyId: "company-a", badgeCode: "badge-a" })
+    );
   });
   it.each(["fired", "leave", "inactive", "terminated"])(
     "nega cadastro %s mesmo com ASO ainda vigente",

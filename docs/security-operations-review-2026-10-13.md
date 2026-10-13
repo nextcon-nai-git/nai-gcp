@@ -20,10 +20,12 @@ Revisão local do checkout NAI em `fix/comprehensive-review-20261012`, a partir 
 
 ## Evidências de validação
 
+- **50 testes aprovados em três suítes** no complemento de incidentes: engine, consumidor legado e API. O engine não gera gravidade, dias de afastamento, CAT ou prazo por palavras-chave nem durante falha do provedor. O relato integral e as sentenças originais preservam negações; perguntas e referências exigem trechos sustentados e ficam pendentes de conferência. Falha posterior à persistência preserva o identificador recebido. Campos clínicos/regulatórios `null` significam **não avaliados**, não ausência de ocorrência ou dispensa de obrigação. O digest é comparação de conteúdo, sem alegação de assinatura ou não repúdio.
+- **81 testes aprovados em seis arquivos** no complemento da fronteira M2M. O verificador consulta apenas empresa/escopos e retorna `DeveloperPrincipal` imutável com `docSnap.id` autoritativo; não devolve hash, prefixo, segredo ou propriedades extras. Testes verificam projeção, negação por empresa/escopo, ID armazenado divergente e preservação dos identificadores de idempotência/crachá. O resultado da nova análise CodeQL deve ser confirmado no SHA publicado; não houve supressão de regra.
 - **99 testes aprovados em 9 arquivos** no lote final focado: eSocial (serviço, construtor, API e bloqueios), situação de CAT, controle de acesso, contexto SGI e transações clínicas.
 - **15 testes aprovados** no endpoint M2M de incidentes, cobrindo recepção, análise pendente, idempotência, empresa/escopo, corpo inválido e falhas após persistência.
 - **79 testes aprovados** no lote anterior de AVP, isolamento de tenant e serviço clínico. Há sobreposição com o lote final; esses números não devem ser somados como cobertura única.
-- **76 testes aprovados em 7 arquivos** de regras Firestore/Storage nos emuladores, projeto sintético `demo-nai-security`. Nenhum deploy de regras.
+- **76 testes aprovados em 7 arquivos** de regras Firestore/Storage nos emuladores, projeto sintético `demo-nai-security`, nessa rodada local. A publicação posterior das regras e do índice da fila está registrada no relatório integral.
 - ESLint focado: zero erros; avisos de tipagem genérica e código preexistente permanecem. TypeScript e suíte completa são consolidados pela revisão principal após a atualização isolada de dependências.
 - Fixture S-2220 gerada pelo próprio construtor e conferida com `lxml` contra os três XSD originais, preservados em `tests/fixtures/esocial/s-1.3-20260701/`. O script `scripts/validate-esocial-s2220.py` exige que o único erro no envelope completo seja a ausência da assinatura XMLDSig. Não adiciona assinatura simulada.
 

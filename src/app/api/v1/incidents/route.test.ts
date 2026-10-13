@@ -33,7 +33,7 @@ vi.mock("@/lib/firebase-admin", () => {
 });
 vi.mock("@/lib/developer-api-guard", async (original) => ({
   ...(await original<typeof import("@/lib/developer-api-guard")>()),
-  requireApiKey: state.auth,
+  requireDeveloperPrincipal: state.auth,
 }));
 vi.mock("@/services/ai/incident-investigation-engine", () => ({
   analyzeIncidentWithNormativeGrounding: state.analyze,
@@ -99,6 +99,26 @@ describe("recebimento auditável de incidentes M2M", () => {
     expect((await second.json()).replayed).toBe(true);
     expect(state.records.size).toBe(1);
     expect(state.analyze).toHaveBeenCalledTimes(1);
+  });
+  it("preserva o ID idempotente existente ao receber apenas o principal", async () => {
+    await POST(request(body, "synthetic-request-123"));
+    expect(state.create.mock.calls[0][0]).toMatchObject({
+      path: "incidents/d5a364d1cc3635c36e5a180fcc40d63e504f889939e6f0fbdba94852e6dc59da",
+    });
+  });
+  it("a mesma solicitação de outra identidade mantém autoria e registro separados", async () => {
+    await POST(request(body, "synthetic-request-123"));
+    state.auth.mockResolvedValue({
+      id: "key-b",
+      clientId: "company-a",
+      scopes: ["incidents:write"],
+    });
+    expect((await POST(request(body, "synthetic-request-123"))).status).toBe(201);
+    expect(state.records.size).toBe(2);
+    expect([...state.records.values()].map((entry) => entry.recordedByApiKey).sort()).toEqual([
+      "key-a",
+      "key-b",
+    ]);
   });
   it("recusa reutilizar chave idempotente com outro conteúdo", async () => {
     await POST(request(body, "synthetic-request-123"));
