@@ -1529,23 +1529,23 @@ export default function ProvidersManagement() {
                                 placeholder="Ex: 27268-PR"
                                 className="h-12 bg-slate-50 border-none rounded-xl font-bold shadow-inner"
                               />
-                              <FormField
-                                control={form.control}
-                                name="rqe"
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel className="text-[10px] font-black uppercase text-slate-400 ml-1">
-                                      RQE (quando registrado)
-                                    </FormLabel>
-                                    <FormControl>
-                                      <Input
-                                        {...field}
-                                        className="h-12 bg-slate-50 border-none rounded-xl font-bold shadow-inner"
-                                      />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="rqe"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-[10px] font-black uppercase text-slate-400 ml-1">
+                              RQE (quando registrado)
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                className="h-12 bg-slate-50 border-none rounded-xl font-bold shadow-inner"
                               />
                             </FormControl>
                             <FormMessage />
