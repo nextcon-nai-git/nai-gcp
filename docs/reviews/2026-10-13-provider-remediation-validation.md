@@ -43,5 +43,11 @@
 - `npm audit --audit-level=high` reports 78 findings in the unchanged dependency
   tree (1 low, 59 moderate, 18 high). No dependency changes or audit fixes were
   made as part of this provider change.
-- Final GitHub checks, authenticated UI verification, merge, and publication
-  remain separate steps. No production data was read, changed, or cleaned up.
+- GitHub CI (`38351462327`), Security (`38351462384`), and Firebase validation
+  (`38351462226`) for commit `61d37b1` concluded `action_required` with zero
+  jobs; GitHub returned no failed-job logs. Those check steps did not execute.
+- CodeQL reported zero JavaScript alerts. The automated code-review backend was
+  unavailable because its `autofind` binary was missing, so no automated review
+  result is claimed.
+- Authenticated UI verification, merge, and publication remain separate steps.
+  No production data was read, changed, or cleaned up.
