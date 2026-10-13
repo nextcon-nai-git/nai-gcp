@@ -21,18 +21,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useUser, useCollection, useMemoFirebase } from "@/firebase";
-import {
-  collection,
-  query,
-  orderBy,
-  doc,
-  addDoc,
-  serverTimestamp,
-  setDoc,
-  collectionGroup,
-} from "firebase/firestore";
+import { collection, query, orderBy, collectionGroup } from "firebase/firestore";
 import { analyzeContract, type ContractAnalysisOutput } from "@/ai/flows/contract-analysis-flow";
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { hashContractFile, integrateAnalyzedContract } from "@/lib/contracts/integration";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -51,6 +42,7 @@ interface QueueItem {
   status: "analyzing" | "completed" | "error" | "integrating" | "success";
   result?: ContractAnalysisOutput;
   error?: string;
+  sourceHash?: string;
 }
 
 export default function ContractsManagement() {
@@ -73,6 +65,7 @@ export default function ContractsManagement() {
     setQueue((prev) => [...prev, { id, fileName: file.name, status: "analyzing" }]);
 
     try {
+      const sourceHash = await hashContractFile(file);
       const reader = new FileReader();
       const base64Promise = new Promise<string>((resolve) => {
         reader.onload = () => resolve(reader.result as string);
@@ -83,7 +76,7 @@ export default function ContractsManagement() {
       const analysis = await analyzeContract({ pdfDataUri: base64 }, await getActionIdToken());
       setQueue((prev) =>
         prev.map((item) =>
-          item.id === id ? { ...item, status: "completed", result: analysis } : item
+          item.id === id ? { ...item, status: "completed", result: analysis, sourceHash } : item
         )
       );
     } catch (error: any) {
@@ -103,61 +96,27 @@ export default function ContractsManagement() {
   };
 
   const handleIntegrateSgi = async (item: QueueItem) => {
-    if (!item.result || !db) return;
+    if (!item.result || !item.sourceHash || !db) return;
     setQueue((prev) => prev.map((q) => (q.id === item.id ? { ...q, status: "integrating" } : q)));
 
     try {
-      const result = item.result;
-      const companyId = result.clientInfo.cnpj.replace(/\D/g, "");
-      const companyRef = doc(db, "companies", companyId);
-
-      // Onboarding de Empresa
-      await setDoc(
-        companyRef,
-        {
-          id: companyId,
-          name: result.clientInfo.name.toUpperCase(),
-          cnpj: result.clientInfo.cnpj,
-          risk_degree: result.clientInfo.riskDegree,
-          address: result.clientInfo.address,
-          segment: result.clientInfo.segment,
-          active: true,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      // Registro do Contrato na subcoleção da empresa
-      await addDoc(collection(db, "companies", companyId, "contracts"), {
-        companyId,
-        companyName: result.clientInfo.name,
-        summary: result.summary,
-        clauses: result.clauses,
-        operationalTasks: result.operationalTasks,
-        createdAt: new Date().toISOString(),
-      });
-
-      // Injeção de Backlog no SGI (Subcoleção 'tasks')
-      const tasksRef = collection(db, "companies", companyId, "tasks");
-      for (const task of result.operationalTasks) {
-        await addDocumentNonBlocking(tasksRef, {
-          title: task.title,
-          description: task.description,
-          type: task.category,
-          status: "todo",
-          priority: "high",
-          companyId,
-          companyName: result.clientInfo.name,
-          progress: 0,
-          createdAt: new Date().toISOString(),
-          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        });
-      }
+      const { created } = await integrateAnalyzedContract(db, item.result, item.sourceHash);
 
       setQueue((prev) => prev.map((q) => (q.id === item.id ? { ...q, status: "success" } : q)));
-      toast({ title: "SGI Integrado!", description: `${result.clientInfo.name} cadastrada.` });
-    } catch (e) {
-      setQueue((prev) => prev.map((q) => (q.id === item.id ? { ...q, status: "completed" } : q)));
+      toast({
+        title: created ? "SGI Integrado!" : "Contrato já integrado",
+        description: created
+          ? `${item.result.clientInfo.name} cadastrada.`
+          : "Este arquivo já foi integrado; nenhum registro foi duplicado.",
+      });
+    } catch {
+      setQueue((prev) =>
+        prev.map((q) =>
+          q.id === item.id
+            ? { ...q, status: "error", error: "Falha ao persistir a integração. Tente novamente." }
+            : q
+        )
+      );
     }
   };
 
@@ -226,7 +185,8 @@ export default function ContractsManagement() {
                       <p className="text-[9px] font-bold text-slate-400 uppercase">{item.status}</p>
                     </div>
                   </div>
-                  {item.status === "completed" && (
+                  {(item.status === "completed" ||
+                    (item.status === "error" && item.result && item.sourceHash)) && (
                     <Button
                       size="sm"
                       className="bg-primary text-white text-[9px] font-black uppercase rounded-xl h-9"
@@ -234,6 +194,11 @@ export default function ContractsManagement() {
                     >
                       Integrar SGI
                     </Button>
+                  )}
+                  {item.status === "error" && (
+                    <p role="alert" className="text-xs text-destructive">
+                      {item.error}
+                    </p>
                   )}
                   {item.status === "success" && (
                     <CheckCircle2 className="text-emerald-500 size-6" />
