@@ -44,7 +44,11 @@ beforeAll(async () => {
         });
       // More historical rows than the old unfiltered query could display.
       for (let i = 0; i < 100; i++)
-        put(`history-${i}`, { status: "Concluído", data_hora: "2025-01-01T08:00:00" });
+        put(`history-${i}`, {
+          status: "Concluído",
+          data_hora: "2025-01-01T08:00:00",
+          completedAt: `2026-10-13T00:${String(i % 60).padStart(2, "0")}:00.000Z`,
+        });
       for (let i = 0; i < count; i++) {
         put(`scheduled-${String(i).padStart(3, "0")}`, {
           status: "Agendado",
@@ -65,7 +69,7 @@ afterAll(async () => {
 });
 // rules-unit-testing exposes the compat handle; the modular APIs unwrap it at runtime.
 const db = () => env.authenticatedContext("queue-admin-a").firestore() as unknown as Firestore;
-const read = async (mode: "scheduled" | "active", size = 50, selectedDay = day) => {
+const read = async (mode: "scheduled" | "active" | "completed", size = 50, selectedDay = day) => {
   const result = await getDocs(
     clinicalQueueQuery(db(), "queue-tenant-a", mode, selectedDay, size)!
   );
@@ -103,9 +107,22 @@ describe("fila clínica real no emulador: recorte, expansão e tenant", () => {
     expect(all.items.map((record) => record.id)).toContain("active-000");
     expect(await read("active", 100, "2099-01-01")).toEqual(all.items);
   });
-  it.each(["scheduled", "active"] as const)("nega consulta %s em outra empresa", async (mode) => {
-    await assertFails(getDocs(clinicalQueueQuery(db(), "queue-tenant-b", mode, day)!));
+  it("mostra o histórico concluído com expansão e vínculo restrito à empresa", async () => {
+    const first = clinicalQueuePage(await read("completed"), 50);
+    expect(first.items).toHaveLength(50);
+    expect(first.hasMore).toBe(true);
+    expect(first.items.every((record) => record.id.startsWith("history-"))).toBe(true);
+    const all = clinicalQueuePage(await read("completed", 100), 100);
+    expect(all.items).toHaveLength(100);
+    expect(all.hasMore).toBe(false);
+    expect(all.items.map((record) => record.id)).not.toContain("active-000");
   });
+  it.each(["scheduled", "active", "completed"] as const)(
+    "nega consulta %s em outra empresa",
+    async (mode) => {
+      await assertFails(getDocs(clinicalQueueQuery(db(), "queue-tenant-b", mode, day)!));
+    }
+  );
   it("um check-in sai da agenda e aparece na fila aberta sem duplicar ou perder o registro", async () => {
     const ref = doc(db(), "companies/queue-tenant-a/agendamentos/scheduled-000");
     const original = (await getDoc(ref)).data()!;
@@ -141,6 +158,22 @@ describe("fila clínica real no emulador: recorte, expansão e tenant", () => {
       fields: [
         { fieldPath: "status", order: "ASCENDING" },
         { fieldPath: "data_hora", order: "ASCENDING" },
+      ],
+    });
+    expect(config.indexes).toContainEqual({
+      collectionGroup: "agendamentos",
+      queryScope: "COLLECTION",
+      fields: [
+        { fieldPath: "status", order: "ASCENDING" },
+        { fieldPath: "completedAt", order: "DESCENDING" },
+      ],
+    });
+    expect(config.indexes).toContainEqual({
+      collectionGroup: "clinical_records",
+      queryScope: "COLLECTION",
+      fields: [
+        { fieldPath: "documentType", order: "ASCENDING" },
+        { fieldPath: "createdAt", order: "DESCENDING" },
       ],
     });
   });

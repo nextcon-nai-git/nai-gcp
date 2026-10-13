@@ -29,6 +29,16 @@ service cloud.firestore {
       return isSignedIn() && profile != null && profile.companyId == companyId;
     }
 
+    function isAuthorizedDoctorForCompany(companyId) {
+      let profile = getUserProfile();
+      return isSignedIn() && profile != null && profile.role == 'DOCTOR' && (
+        profile.companyId == companyId ||
+        ('tenantId' in profile && profile.tenantId == companyId) ||
+        ('servedCompanies' in profile && profile.servedCompanies is list &&
+          companyId in profile.servedCompanies)
+      );
+    }
+
     function isCompanyAdmin(companyId) {
       let profile = getUserProfile();
       return isSignedIn() && profile != null && profile.companyId == companyId && profile.role in ['SUPER_ADMIN', 'ADMIN', 'CLIENT_ADMIN'];
@@ -172,8 +182,14 @@ service cloud.firestore {
     }
 
     match /companies/{companyId} {
-      allow read: if isSignedIn() && (belongsToCompany(companyId) || isNextconOfficial());
+      allow read: if isSignedIn() && (belongsToCompany(companyId) || isNextconOfficial() ||
+        isAuthorizedDoctorForCompany(companyId));
       allow write: if isCompanyAdmin(companyId);
+    }
+
+    match /companies/{companyId}/employees/{employeeId} {
+      allow read: if belongsToCompany(companyId) || isNextconOfficial() ||
+        isAuthorizedDoctorForCompany(companyId);
     }
 
     // The dashboard aggregates operational tasks across companies. Collection
@@ -184,6 +200,8 @@ service cloud.firestore {
     }
 
     match /companies/{companyId}/agendamentos/{appointmentId} {
+      allow read: if belongsToCompany(companyId) || isNextconOfficial() ||
+        isAuthorizedDoctorForCompany(companyId);
       allow create: if (isCompanyAdmin(companyId) || isNextconOfficial()) &&
         clinicalAppointmentCreateIsValid(companyId);
       allow update: if (isCompanyAdmin(companyId) || isNextconOfficial()) &&

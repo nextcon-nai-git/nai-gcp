@@ -23,7 +23,7 @@ function dayBounds(day: string) {
 export function clinicalQueueQuery(
   db: Firestore,
   companyId: string,
-  mode: "scheduled" | "active",
+  mode: "scheduled" | "active" | "completed",
   day: string,
   visibleLimit = CLINICAL_QUEUE_PAGE_SIZE
 ) {
@@ -47,6 +47,13 @@ export function clinicalQueueQuery(
       limit(visibleLimit + 1)
     );
   }
+  if (mode === "completed")
+    return query(
+      appointments,
+      where("status", "==", "Concluído"),
+      orderBy("completedAt", "desc"),
+      limit(visibleLimit + 1)
+    );
   const bounds = dayBounds(day);
   if (!bounds) return null;
   return query(
