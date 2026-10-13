@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { FieldValue, type DocumentData } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { firebaseConfig } from "@/firebase/config";
@@ -16,8 +17,21 @@ type AsoLinkInput = AsoDocumentInput & {
   employeeId: string;
 };
 
-type AsoReviewInput = AsoLinkInput & { confirmedOriginal: true };
+type AsoReviewInput = AsoLinkInput & {
+  appointmentId: string;
+  appointmentSnapshot: AppointmentReviewSnapshot;
+  confirmedOriginal: true;
+};
 type AsoCompletionInput = AsoLinkInput & { appointmentId: string };
+type AppointmentReviewSnapshot = {
+  appointmentId: string;
+  companyId: string;
+  companyName: string;
+  employeeId: string;
+  employeeName: string;
+  type: string;
+  dateTime: string;
+};
 
 function requireId(value: string, label: string) {
   if (
@@ -99,18 +113,152 @@ function requireAsoRecord(
     );
 }
 
+async function verifyAsoOriginal(clinical: DocumentData, cardId: string) {
+  const recordedGeneration = String(clinical.storageGeneration || "");
+  if (
+    (recordedGeneration && !/^\d+$/.test(recordedGeneration)) ||
+    (clinical.storageSha256 != null && clinical.storageSha256 !== cardId)
+  )
+    throw new AuthError("A geração do original do ASO não está verificada.", 409);
+  try {
+    const bucket = getStorage().bucket(firebaseConfig.storageBucket);
+    const file = bucket.file(clinical.storagePath);
+    const [metadata] = await file.getMetadata();
+    const generation = recordedGeneration || String(metadata.generation || "");
+    const size = Number(metadata.size);
+    if (
+      !/^\d+$/.test(generation) ||
+      String(metadata.generation || "") !== generation ||
+      !Number.isSafeInteger(size) ||
+      size <= 0 ||
+      size > PGR_MAX_FILE_BYTES
+    )
+      throw new AuthError("O original do ASO está ausente ou foi substituído.", 409);
+    const [bytes] = await bucket.file(clinical.storagePath, { generation }).download();
+    const [currentMetadata] = await file.getMetadata();
+    if (
+      bytes.byteLength !== size ||
+      createHash("sha256").update(bytes).digest("hex") !== cardId ||
+      String(currentMetadata.generation || "") !== generation
+    )
+      throw new AuthError("A integridade ou a geração do original do ASO não confere.", 409);
+    return { bytes, generation };
+  } catch (error) {
+    if (error instanceof AuthError) throw error;
+    throw new AuthError(
+      "O original do ASO está ausente ou inacessível. A fila permanece aberta.",
+      409
+    );
+  }
+}
+
+function appointmentSnapshot(
+  appointment: DocumentData | undefined,
+  company: DocumentData | undefined,
+  employee: DocumentData | undefined,
+  input: AsoReviewInput | AsoCompletionInput
+): AppointmentReviewSnapshot {
+  const companyName = typeof company?.name === "string" ? company.name.trim() : "";
+  const employeeName = typeof employee?.name === "string" ? employee.name.trim() : "";
+  const appointmentCompanyName =
+    typeof appointment?.companyName === "string" ? appointment.companyName.trim() : "";
+  const appointmentEmployeeName =
+    typeof appointment?.colaborador_nome === "string" ? appointment.colaborador_nome.trim() : "";
+  const type = typeof appointment?.tipo === "string" ? appointment.tipo : "";
+  const dateTime = typeof appointment?.data_hora === "string" ? appointment.data_hora : "";
+  if (
+    appointment?.companyId !== input.companyId ||
+    appointment?.colaborador_id !== input.employeeId ||
+    !companyName ||
+    appointmentCompanyName !== companyName ||
+    !employeeName ||
+    appointmentEmployeeName !== employeeName ||
+    !type ||
+    !dateTime
+  )
+    throw new AuthError(
+      "Empresa, colaborador ou dados do atendimento não correspondem. A fila permanece aberta.",
+      409
+    );
+  return {
+    appointmentId: input.appointmentId,
+    companyId: input.companyId,
+    companyName,
+    employeeId: input.employeeId,
+    employeeName,
+    type,
+    dateTime,
+  };
+}
+
+function requireSameAppointmentSnapshot(
+  review: DocumentData | undefined,
+  snapshot: AppointmentReviewSnapshot,
+  storageGeneration: string
+) {
+  const reviewed = review?.appointmentSnapshot;
+  if (
+    review?.appointmentId !== snapshot.appointmentId ||
+    review?.storageGeneration !== storageGeneration ||
+    !reviewed ||
+    reviewed.appointmentId !== snapshot.appointmentId ||
+    reviewed.companyId !== snapshot.companyId ||
+    reviewed.companyName !== snapshot.companyName ||
+    reviewed.employeeId !== snapshot.employeeId ||
+    reviewed.employeeName !== snapshot.employeeName ||
+    reviewed.type !== snapshot.type ||
+    reviewed.dateTime !== snapshot.dateTime
+  )
+    throw new AuthError(
+      "A revisão pertence a outro agendamento ou os dados conferidos foram alterados. Revise novamente.",
+      409
+    );
+}
+
+function sameAppointmentSnapshot(
+  first: DocumentData | undefined,
+  second: AppointmentReviewSnapshot
+) {
+  return (
+    first?.appointmentId === second.appointmentId &&
+    first.companyId === second.companyId &&
+    first.companyName === second.companyName &&
+    first.employeeId === second.employeeId &&
+    first.employeeName === second.employeeName &&
+    first.type === second.type &&
+    first.dateTime === second.dateTime
+  );
+}
+
 export async function reviewClinicalAso(user: AuthContext, input: AsoReviewInput) {
   if (input.confirmedOriginal !== true)
     throw badRequest("Confirme a conferência da identidade no ASO original.");
+  requireId(input.appointmentId, "Agendamento");
+  requireCurrentDoctor(
+    (await adminDb.collection("users").doc(user.uid).get()).data(),
+    user,
+    input.companyId
+  );
   const { companyRef, employeeRef, cardRef, clinicalRef } = refs(input);
+  const appointmentRef = companyRef.collection("agendamentos").doc(input.appointmentId);
+  const [initialCard, initialClinical] = await Promise.all([cardRef.get(), clinicalRef.get()]);
+  if (!initialClinical.exists || !initialClinical.data())
+    throw new AuthError("ASO original não encontrado nesta empresa. A fila permanece aberta.", 409);
+  requireAsoRecord(initialCard.data(), initialClinical.data(), input);
+  const { generation: storageGeneration } = await verifyAsoOriginal(
+    initialClinical.data()!,
+    input.cardId
+  );
+  let reviewedSnapshot: AppointmentReviewSnapshot | undefined;
   await adminDb.runTransaction(async (tx) => {
     const profile = await tx.get(adminDb.collection("users").doc(user.uid));
     requireCurrentDoctor(profile.data(), user, input.companyId);
-    const [company, employee, card, clinical] = await Promise.all([
+    const [company, employee, card, clinical, appointment] = await Promise.all([
       tx.get(companyRef),
       tx.get(employeeRef),
       tx.get(cardRef),
       tx.get(clinicalRef),
+      tx.get(appointmentRef),
     ]);
     const companyData = company.data();
     const employeeData = employee.data();
@@ -125,6 +273,21 @@ export async function reviewClinicalAso(user: AuthContext, input: AsoReviewInput
     )
       throw new AuthError("Empresa ou colaborador não corresponde ao vínculo selecionado.", 409);
     requireAsoRecord(card.data(), clinical.data(), input);
+    const appointmentData = appointment.data();
+    if (!appointment.exists || appointmentData?.status !== "Em Atendimento")
+      throw new AuthError("O agendamento não está em atendimento. A fila permanece aberta.", 409);
+    const snapshot = appointmentSnapshot(appointmentData, companyData, employeeData, input);
+    if (!sameAppointmentSnapshot(input.appointmentSnapshot, snapshot))
+      throw new AuthError(
+        "Os dados do atendimento exibidos para a revisão foram alterados. Atualize a fila e confira novamente.",
+        409
+      );
+    reviewedSnapshot = snapshot;
+    if (
+      clinical.data()?.storageGeneration &&
+      clinical.data()?.storageGeneration !== storageGeneration
+    )
+      throw new AuthError("A geração do original mudou durante a revisão.", 409);
     const priorReview = clinical.data()?.clinicalReview;
     if (priorReview) {
       if (
@@ -133,7 +296,10 @@ export async function reviewClinicalAso(user: AuthContext, input: AsoReviewInput
         priorReview.companyId === input.companyId &&
         priorReview.employeeId === input.employeeId &&
         priorReview.sourceHash === input.cardId &&
-        priorReview.identityConfirmedFromOriginal === true
+        priorReview.identityConfirmedFromOriginal === true &&
+        priorReview.appointmentId === input.appointmentId &&
+        priorReview.storageGeneration === storageGeneration &&
+        sameAppointmentSnapshot(priorReview.appointmentSnapshot, snapshot)
       )
         return;
       throw new AuthError("Este ASO já possui uma revisão clínica vinculada.", 409);
@@ -141,6 +307,8 @@ export async function reviewClinicalAso(user: AuthContext, input: AsoReviewInput
     if (clinical.data()?.linkedAppointmentId)
       throw new AuthError("Este ASO já está vinculado a um atendimento.", 409);
     tx.update(clinicalRef, {
+      storageGeneration,
+      storageSha256: input.cardId,
       clinicalReview: {
         status: "reviewed",
         reviewerUid: user.uid,
@@ -148,6 +316,9 @@ export async function reviewClinicalAso(user: AuthContext, input: AsoReviewInput
         companyId: input.companyId,
         employeeId: input.employeeId,
         sourceHash: input.cardId,
+        appointmentId: input.appointmentId,
+        appointmentSnapshot: snapshot,
+        storageGeneration,
         identityConfirmedFromOriginal: input.confirmedOriginal,
       },
     });
@@ -162,6 +333,11 @@ export async function reviewClinicalAso(user: AuthContext, input: AsoReviewInput
     review.companyId !== input.companyId ||
     review.employeeId !== input.employeeId ||
     review.sourceHash !== input.cardId ||
+    review.appointmentId !== input.appointmentId ||
+    review.storageGeneration !== storageGeneration ||
+    !review.appointmentSnapshot ||
+    !reviewedSnapshot ||
+    !sameAppointmentSnapshot(review.appointmentSnapshot, reviewedSnapshot) ||
     review.identityConfirmedFromOriginal !== true ||
     !review.reviewedAt
   )
@@ -192,17 +368,7 @@ export async function readClinicalAsoOriginal(user: AuthContext, input: AsoDocum
     webp: "image/webp",
   }[extension];
   if (!mime) throw badRequest("Formato do original do ASO inválido.");
-  const file = getStorage().bucket(firebaseConfig.storageBucket).file(storagePath);
-  const [metadata] = await file.getMetadata();
-  if (
-    !Number.isSafeInteger(Number(metadata.size)) ||
-    Number(metadata.size) <= 0 ||
-    Number(metadata.size) > PGR_MAX_FILE_BYTES
-  )
-    throw new AuthError("O original do ASO está indisponível ou excede o limite permitido.", 404);
-  const [bytes] = await file.download();
-  if (bytes.byteLength !== Number(metadata.size))
-    throw new AuthError("A leitura do original do ASO não foi confirmada.", 503);
+  const { bytes } = await verifyAsoOriginal(clinical.data()!, input.cardId);
   return { bytes, mime };
 }
 
@@ -216,6 +382,20 @@ export async function completeClinicalAppointmentWithAso(
   const auditRef = clinicalRef
     .collection("attendance_audit")
     .doc(`appointment_${input.appointmentId}`);
+
+  requireCurrentDoctor(
+    (await adminDb.collection("users").doc(user.uid).get()).data(),
+    user,
+    input.companyId
+  );
+  const [cardBefore, clinicalBefore] = await Promise.all([cardRef.get(), clinicalRef.get()]);
+  if (!clinicalBefore.exists || !clinicalBefore.data())
+    throw new AuthError("ASO ou agendamento não encontrado. A fila permanece aberta.", 409);
+  requireAsoRecord(cardBefore.data(), clinicalBefore.data(), input);
+  const { generation: storageGeneration } = await verifyAsoOriginal(
+    clinicalBefore.data()!,
+    input.cardId
+  );
 
   await adminDb.runTransaction(async (tx) => {
     const profile = await tx.get(adminDb.collection("users").doc(user.uid));
@@ -262,6 +442,11 @@ export async function completeClinicalAppointmentWithAso(
         "Este ASO ainda não possui revisão clínica vinculada a este colaborador.",
         409
       );
+
+    if (clinicalData.storageGeneration !== storageGeneration)
+      throw new AuthError("A geração do original mudou durante a conclusão.", 409);
+    const snapshot = appointmentSnapshot(appointmentData, companyData, employeeData, input);
+    requireSameAppointmentSnapshot(review, snapshot, storageGeneration);
 
     const alreadyLinked =
       clinicalData.linkedAppointmentId === input.appointmentId &&

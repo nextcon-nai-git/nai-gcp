@@ -237,13 +237,42 @@ export async function savePgrDraft(
       : []
   );
   const providerIds = providers.map((provider) => provider.id);
-  const file = getStorage().bucket(firebaseConfig.storageBucket).file(storagePath);
+  const bucket = getStorage().bucket(firebaseConfig.storageBucket);
+  const file = bucket.file(storagePath);
   // Upload deve existir antes de qualquer confirmação de cards ou documento salvo.
-  await file.save(Buffer.from(bytes), {
-    resumable: false,
-    contentType: data.mime,
-    metadata: { metadata: { sourceHash: data.sourceHash } },
-  });
+  let storageGeneration = "";
+  if (metadata.restricted) {
+    try {
+      await file.save(Buffer.from(bytes), {
+        resumable: false,
+        contentType: data.mime,
+        metadata: { metadata: { sourceHash: data.sourceHash } },
+        preconditionOpts: { ifGenerationMatch: 0 },
+      });
+    } catch (error) {
+      const [existingMetadata] = await file.getMetadata();
+      const generation = String(existingMetadata.generation || "");
+      if (!/^\d+$/.test(generation)) throw error;
+      const [existingBytes] = await bucket.file(storagePath, { generation }).download();
+      if (createHash("sha256").update(existingBytes).digest("hex") !== data.sourceHash) throw error;
+    }
+    const [storedMetadata] = await file.getMetadata();
+    storageGeneration = String(storedMetadata.generation || "");
+    const [storedBytes] = await bucket
+      .file(storagePath, { generation: storageGeneration })
+      .download();
+    if (
+      !/^\d+$/.test(storageGeneration) ||
+      createHash("sha256").update(storedBytes).digest("hex") !== data.sourceHash
+    )
+      throw new AuthError("O original não pôde ser preservado com integridade verificável.", 503);
+  } else {
+    await file.save(Buffer.from(bytes), {
+      resumable: false,
+      contentType: data.mime,
+      metadata: { metadata: { sourceHash: data.sourceHash } },
+    });
+  }
   return adminDb.runTransaction(async (tx) => {
     const [
       freshCompany,
@@ -361,6 +390,8 @@ export async function savePgrDraft(
         fileName: data.fileName,
         mime: data.mime,
         storagePath,
+        storageGeneration,
+        storageSha256: data.sourceHash,
       });
       tx.create(cardRef, {
         ...commonRecord,

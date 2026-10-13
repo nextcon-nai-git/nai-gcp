@@ -16,6 +16,16 @@ const Input = z.discriminatedUnion("action", [
     companyId: z.string().min(1).max(128),
     cardId: z.string().regex(/^[a-f0-9]{64}$/),
     employeeId: z.string().min(1).max(128),
+    appointmentId: z.string().min(1).max(128),
+    appointmentSnapshot: z.object({
+      appointmentId: z.string().min(1).max(128),
+      companyId: z.string().min(1).max(128),
+      companyName: z.string().min(1).max(256),
+      employeeId: z.string().min(1).max(128),
+      employeeName: z.string().min(1).max(256),
+      type: z.string().min(1).max(128),
+      dateTime: z.string().min(1).max(128),
+    }),
     confirmedOriginal: z.literal(true),
   }),
   z.object({

@@ -9,12 +9,17 @@ import {
 import {
   deleteDoc,
   deleteField,
+  collection,
   doc,
+  getDocs,
   getDoc,
+  orderBy,
+  query,
   serverTimestamp,
   setDoc,
   Timestamp,
   updateDoc,
+  where,
   writeBatch,
   type Firestore,
 } from "firebase/firestore";
@@ -91,6 +96,12 @@ beforeEach(async () => {
         tenantId: tenant === "nextcon" ? null : tenant,
       });
     }
+    batch.set(doc(store, "users/schedule-served-doctor"), {
+      role: "DOCTOR",
+      companyId: "schedule-b",
+      tenantId: "schedule-b",
+      servedCompanies: [companyId],
+    });
     batch.set(doc(store, "companies", companyId), { name: "Empresa sintética A" });
     batch.set(doc(store, "companies/schedule-b"), { name: "Empresa sintética B" });
     batch.set(doc(store, "companies", companyId, "employees", "worker-a"), {
@@ -133,6 +144,23 @@ afterAll(async () => {
 });
 
 describe("escritores ativos de agendamento sob as regras reais", () => {
+  it("permite ao médico externo ler somente a empresa servida, colaboradores e atendimentos", async () => {
+    const store = db("schedule-served-doctor");
+    await assertSucceeds(getDoc(doc(store, "companies", companyId)));
+    await assertSucceeds(
+      getDocs(query(collection(store, "companies"), where("__name__", "in", [companyId])))
+    );
+    await assertSucceeds(getDoc(doc(store, "companies", companyId, "employees", "worker-a")));
+    await assertSucceeds(
+      getDocs(query(collection(store, "companies", companyId, "employees"), orderBy("name", "asc")))
+    );
+    await assertSucceeds(getDoc(doc(store, root, "active")));
+    await assertSucceeds(getDocs(query(collection(store, root), orderBy("data_hora"))));
+    await assertFails(getDoc(doc(store, "companies", "schedule-b")));
+    await assertFails(getDoc(doc(store, "companies/schedule-b/employees/worker-b")));
+    await assertFails(updateDoc(doc(store, root, "active"), { status: "Concluído" }));
+  });
+
   it.each(allowedUsers)("preserva criação, check-in e início pelo serviço para %s", async (uid) => {
     const store = db(uid);
     const result = await createClinicalAppointment(store, input);

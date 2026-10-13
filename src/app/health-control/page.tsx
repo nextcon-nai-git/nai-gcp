@@ -51,24 +51,37 @@ import {
   clinicalQueueQuery,
   clinicalQueueToday,
 } from "@/services/clinical-queue";
+import { ClinicalAsoRequestScope } from "@/services/clinical-aso-request-scope";
 
 type ImportedAso = {
   id: string;
   sourceHash?: string;
   companyId?: string;
   fileName?: string;
+  storageGeneration?: string;
   clinicalReview?: {
     status?: string;
     companyId?: string;
     employeeId?: string;
     sourceHash?: string;
     identityConfirmedFromOriginal?: boolean;
+    appointmentId?: string;
+    storageGeneration?: string;
+    appointmentSnapshot?: {
+      appointmentId?: string;
+      companyId?: string;
+      companyName?: string;
+      employeeId?: string;
+      employeeName?: string;
+      type?: string;
+      dateTime?: string;
+    };
   };
 };
 
 export default function HealthControl() {
   const { toast } = useToast();
-  const { role, user, companyId: userCompanyId } = useUser();
+  const { role, user, companyId: userCompanyId, servedCompanies, isUserLoading } = useUser();
   const db = useFirestore();
   const { activeClientId, isGlobalStaff, authorizedCompanies } = useSgi();
 
@@ -114,7 +127,6 @@ export default function HealthControl() {
     selectedAppointment?.companyId === activeClientId && activeClientId !== "unauthorized"
       ? selectedAppointment
       : null;
-
   const [isAsoFormOpen, setIsAsoFormOpen] = React.useState(false);
 
   const [isScheduleOpen, setIsScheduleOpen] = React.useState(false);
@@ -124,17 +136,77 @@ export default function HealthControl() {
   const [busyAppointmentId, setBusyAppointmentId] = React.useState<string | null>(null);
   const [selectedAsoCardId, setSelectedAsoCardId] = React.useState("");
   const [confirmedOriginal, setConfirmedOriginal] = React.useState(false);
+  const [confirmedOriginalGeneration, setConfirmedOriginalGeneration] = React.useState(-1);
   const [reviewedAsoCardId, setReviewedAsoCardId] = React.useState("");
+  const [reviewedAsoGeneration, setReviewedAsoGeneration] = React.useState(-1);
   const [asoMutation, setAsoMutation] = React.useState<"review" | "complete" | null>(null);
   const [asoOriginalUrl, setAsoOriginalUrl] = React.useState("");
+  const [asoOriginalScope, setAsoOriginalScope] = React.useState("");
   const [loadingAsoOriginal, setLoadingAsoOriginal] = React.useState(false);
   const originalRequest = React.useRef<AbortController | null>(null);
+  const mutationRequest = React.useRef<AbortController | null>(null);
+  const [scopeGeneration] = React.useState(() => new ClinicalAsoRequestScope());
+  const [asoPage, setAsoPage] = React.useState({ scope: "", size: CLINICAL_QUEUE_PAGE_SIZE });
   React.useEffect(
     () => () => {
       if (asoOriginalUrl) URL.revokeObjectURL(asoOriginalUrl);
     },
     [asoOriginalUrl]
   );
+
+  const asoContextKey = JSON.stringify([
+    user?.uid || "",
+    role || "",
+    userCompanyId || "",
+    [...(servedCompanies || [])].sort(),
+    isUserLoading,
+    activeClientId,
+    selectedApptForSign?.companyId || "",
+    selectedApptForSign?.id || "",
+    selectedApptForSign?.colaborador_id || "",
+    selectedApptForSign?.tipo || "",
+    selectedApptForSign?.data_hora || "",
+  ]);
+  const asoAuthScopeKey = JSON.stringify([
+    user?.uid || "",
+    role || "",
+    userCompanyId || "",
+    [...(servedCompanies || [])].sort(),
+    isUserLoading,
+    activeClientId,
+  ]);
+  const asoScopeKey = JSON.stringify([asoContextKey, selectedAsoCardId]);
+  const currentScopeGeneration = scopeGeneration.update(asoScopeKey);
+  const isConfirmedOriginal =
+    confirmedOriginal && confirmedOriginalGeneration === currentScopeGeneration;
+  const asoPageScope = `${asoContextKey}`;
+  const visibleAsoLimit = asoPage.scope === asoPageScope ? asoPage.size : CLINICAL_QUEUE_PAGE_SIZE;
+  const loadMoreAsos = () =>
+    setAsoPage({ scope: asoPageScope, size: visibleAsoLimit + CLINICAL_QUEUE_PAGE_SIZE });
+
+  React.useEffect(() => {
+    originalRequest.current?.abort();
+    mutationRequest.current?.abort();
+    originalRequest.current = null;
+    mutationRequest.current = null;
+    setSelectedAsoCardId("");
+    setConfirmedOriginal(false);
+    setConfirmedOriginalGeneration(-1);
+    setReviewedAsoCardId("");
+    setReviewedAsoGeneration(-1);
+    setAsoMutation(null);
+    setAsoOriginalUrl("");
+    setAsoOriginalScope("");
+    setLoadingAsoOriginal(false);
+    return () => {
+      originalRequest.current?.abort();
+      mutationRequest.current?.abort();
+    };
+  }, [asoContextKey]);
+  React.useEffect(() => {
+    setIsAsoFormOpen(false);
+    setSelectedApptForSign(null);
+  }, [asoAuthScopeKey]);
 
   const [newAppt, setNewAppt] = React.useState({
     employeeId: "",
@@ -178,13 +250,15 @@ export default function HealthControl() {
       collection(db, "companies", selectedApptForSign.companyId, "clinical_records"),
       where("documentType", "==", "ASO"),
       orderBy("createdAt", "desc"),
-      limit(CLINICAL_QUEUE_PAGE_SIZE)
+      limit(visibleAsoLimit + 1)
     );
-  }, [db, role, selectedApptForSign?.companyId]);
+  }, [db, role, selectedApptForSign?.companyId, visibleAsoLimit]);
   const scheduledQueue = useCollection<MedicalAppointment>(scheduledQuery);
   const activeQueue = useCollection<MedicalAppointment>(activeQuery);
   const completedQueue = useCollection<MedicalAppointment>(completedQuery);
   const importedAsos = useCollection<ImportedAso>(importedAsosQuery);
+  const visibleAsos = (importedAsos.data || []).slice(0, visibleAsoLimit);
+  const hasMoreAsos = (importedAsos.data?.length || 0) > visibleAsoLimit;
   const queueSections = [
     {
       id: "active" as const,
@@ -276,6 +350,7 @@ export default function HealthControl() {
 
   const openAsoWorkflow = (appointment: MedicalAppointment) => {
     originalRequest.current?.abort();
+    mutationRequest.current?.abort();
     setSelectedApptForSign(appointment);
     setSelectedAsoCardId("");
     setConfirmedOriginal(false);
@@ -285,20 +360,37 @@ export default function HealthControl() {
     setIsAsoFormOpen(true);
   };
 
-  const selectedAso = importedAsos.data?.find((record) => record.sourceHash === selectedAsoCardId);
+  const selectedAso = visibleAsos.find((record) => record.sourceHash === selectedAsoCardId);
   const asoReviewMatchesAppointment =
     !!selectedAso?.clinicalReview &&
     selectedAso.clinicalReview.status === "reviewed" &&
     selectedAso.clinicalReview.companyId === selectedApptForSign?.companyId &&
     selectedAso.clinicalReview.employeeId === selectedApptForSign?.colaborador_id &&
     selectedAso.clinicalReview.sourceHash === selectedAsoCardId &&
+    selectedAso.clinicalReview.appointmentId === selectedApptForSign?.id &&
+    selectedAso.clinicalReview.appointmentSnapshot?.appointmentId === selectedApptForSign?.id &&
+    selectedAso.clinicalReview.appointmentSnapshot?.companyId === selectedApptForSign?.companyId &&
+    selectedAso.clinicalReview.appointmentSnapshot?.companyName ===
+      selectedApptForSign?.companyName?.trim() &&
+    selectedAso.clinicalReview.appointmentSnapshot?.employeeId ===
+      selectedApptForSign?.colaborador_id &&
+    selectedAso.clinicalReview.appointmentSnapshot?.employeeName ===
+      selectedApptForSign?.colaborador_nome?.trim() &&
+    selectedAso.clinicalReview.appointmentSnapshot?.type === selectedApptForSign?.tipo &&
+    selectedAso.clinicalReview.appointmentSnapshot?.dateTime === selectedApptForSign?.data_hora &&
+    selectedAso.clinicalReview.storageGeneration === selectedAso.storageGeneration &&
     selectedAso.clinicalReview.identityConfirmedFromOriginal === true;
   const hasConfirmedAsoReview =
-    !!selectedAsoCardId && (asoReviewMatchesAppointment || reviewedAsoCardId === selectedAsoCardId);
+    !!selectedAsoCardId &&
+    (asoReviewMatchesAppointment ||
+      (reviewedAsoCardId === selectedAsoCardId &&
+        reviewedAsoGeneration === currentScopeGeneration));
 
   const loadAsoOriginal = async () => {
     if (!user || !selectedApptForSign?.companyId || !selectedAsoCardId || loadingAsoOriginal)
       return;
+    const requestGeneration = currentScopeGeneration;
+    const isCurrentRequest = () => scopeGeneration.isCurrent(requestGeneration);
     const controller = new AbortController();
     originalRequest.current?.abort();
     originalRequest.current = controller;
@@ -314,15 +406,19 @@ export default function HealthControl() {
         cache: "no-store",
         signal: controller.signal,
       });
+      if (!isCurrentRequest() || controller.signal.aborted) return;
       if (!response.ok) {
         const result = await response.json();
         throw new Error(result.error || "Não foi possível carregar o original do ASO.");
       }
       const url = URL.createObjectURL(await response.blob());
-      if (controller.signal.aborted) URL.revokeObjectURL(url);
-      else setAsoOriginalUrl(url);
+      if (!isCurrentRequest() || controller.signal.aborted) URL.revokeObjectURL(url);
+      else {
+        setAsoOriginalUrl(url);
+        setAsoOriginalScope(asoScopeKey);
+      }
     } catch (error) {
-      if (!controller.signal.aborted)
+      if (isCurrentRequest() && !controller.signal.aborted)
         toast({
           variant: "destructive",
           title: "Original não disponível",
@@ -330,7 +426,7 @@ export default function HealthControl() {
             error instanceof Error ? error.message : "Confira o acesso e tente novamente.",
         });
     } finally {
-      if (originalRequest.current === controller) {
+      if (isCurrentRequest() && originalRequest.current === controller) {
         originalRequest.current = null;
         setLoadingAsoOriginal(false);
       }
@@ -339,26 +435,51 @@ export default function HealthControl() {
 
   const mutateAso = async (action: "review" | "complete") => {
     if (!user || !selectedApptForSign || !selectedAsoCardId || asoMutation) return;
-    if (action === "review" && !confirmedOriginal) return;
+    if (action === "review" && !isConfirmedOriginal) return;
+    const requestGeneration = currentScopeGeneration;
+    const isCurrentRequest = () => scopeGeneration.isCurrent(requestGeneration);
+    const controller = new AbortController();
+    mutationRequest.current?.abort();
+    mutationRequest.current = controller;
     setAsoMutation(action);
     try {
+      const headers = await pgrRequestHeaders(user, true);
+      if (!isCurrentRequest() || controller.signal.aborted) return;
       const response = await fetch("/api/clinical/aso", {
         method: "POST",
-        headers: await pgrRequestHeaders(user, true),
+        headers,
+        signal: controller.signal,
         body: JSON.stringify({
           action,
           companyId: selectedApptForSign.companyId,
           cardId: selectedAsoCardId,
           employeeId: selectedApptForSign.colaborador_id,
           ...(action === "review"
-            ? { confirmedOriginal: true }
+            ? {
+                confirmedOriginal: true,
+                appointmentId: selectedApptForSign.id,
+                appointmentSnapshot: {
+                  appointmentId: selectedApptForSign.id,
+                  companyId: selectedApptForSign.companyId,
+                  companyName: selectedApptForSign.companyName?.trim() || "",
+                  employeeId: selectedApptForSign.colaborador_id,
+                  employeeName: selectedApptForSign.colaborador_nome?.trim() || "",
+                  type: selectedApptForSign.tipo || "",
+                  dateTime: selectedApptForSign.data_hora || "",
+                },
+              }
             : { appointmentId: selectedApptForSign.id }),
         }),
       });
+      if (!isCurrentRequest() || controller.signal.aborted) return;
       const result = await response.json();
+      if (!isCurrentRequest() || controller.signal.aborted) return;
       if (!response.ok) throw new Error(result.error || "Não foi possível confirmar o vínculo.");
+      if (result.status !== (action === "review" ? "reviewed" : "completed"))
+        throw new Error("A persistência do vínculo não foi confirmada.");
       if (action === "review") {
         setReviewedAsoCardId(selectedAsoCardId);
+        setReviewedAsoGeneration(requestGeneration);
         toast({
           title: "Revisão clínica registrada",
           description: "A revisão foi persistida com a autoria profissional e o vínculo conferido.",
@@ -372,16 +493,20 @@ export default function HealthControl() {
         setAsoOriginalUrl("");
       }
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: action === "review" ? "Revisão não confirmada" : "Vínculo não confirmado",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Não foi possível confirmar o vínculo. Atualize a fila antes de tentar novamente.",
-      });
+      if (isCurrentRequest() && !controller.signal.aborted)
+        toast({
+          variant: "destructive",
+          title: action === "review" ? "Revisão não confirmada" : "Vínculo não confirmado",
+          description:
+            error instanceof Error
+              ? error.message
+              : "Não foi possível confirmar o vínculo. Atualize a fila antes de tentar novamente.",
+        });
     } finally {
-      setAsoMutation(null);
+      if (isCurrentRequest() && mutationRequest.current === controller) {
+        mutationRequest.current = null;
+        setAsoMutation(null);
+      }
     }
   };
 
@@ -788,15 +913,21 @@ export default function HealthControl() {
           setIsAsoFormOpen(open);
           if (!open) {
             originalRequest.current?.abort();
+            mutationRequest.current?.abort();
             setLoadingAsoOriginal(false);
             setAsoOriginalUrl("");
+            setAsoOriginalScope("");
+            setAsoMutation(null);
           }
         }}
       >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Revisar ASO e concluir atendimento</DialogTitle>
-            <DialogDescription>{selectedApptForSign?.colaborador_nome}</DialogDescription>
+            <DialogDescription>
+              {selectedApptForSign?.colaborador_nome} · {selectedApptForSign?.tipo} ·{" "}
+              {selectedApptForSign?.data_hora}
+            </DialogDescription>
           </DialogHeader>
           <p className="text-sm text-slate-600">
             Selecione o ASO importado para esta empresa e confira o documento original contra o
@@ -811,18 +942,23 @@ export default function HealthControl() {
                   value={selectedAsoCardId}
                   onValueChange={(value) => {
                     originalRequest.current?.abort();
+                    mutationRequest.current?.abort();
                     setSelectedAsoCardId(value);
                     setConfirmedOriginal(false);
+                    setConfirmedOriginalGeneration(-1);
                     setReviewedAsoCardId("");
+                    setReviewedAsoGeneration(-1);
                     setAsoOriginalUrl("");
+                    setAsoOriginalScope("");
                     setLoadingAsoOriginal(false);
+                    setAsoMutation(null);
                   }}
                 >
                   <SelectTrigger id="clinical-aso-document">
                     <SelectValue placeholder="Selecione o documento revisado" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(importedAsos.data || [])
+                    {visibleAsos
                       .filter(
                         (record) =>
                           record.companyId === selectedApptForSign?.companyId &&
@@ -841,6 +977,21 @@ export default function HealthControl() {
                   Não foi possível consultar os ASOs desta empresa. O atendimento permanece aberto.
                 </p>
               )}
+              {hasMoreAsos && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+                  <p className="text-sm text-muted-foreground">
+                    Há mais ASOs nesta empresa. A lista mostra os {visibleAsoLimit} mais recentes
+                    carregados; carregue mais para localizar documentos anteriores.
+                  </p>
+                  <Button
+                    variant="outline"
+                    disabled={importedAsos.isLoading}
+                    onClick={loadMoreAsos}
+                  >
+                    Carregar mais ASOs
+                  </Button>
+                </div>
+              )}
               {selectedAso && !hasConfirmedAsoReview && (
                 <>
                   {selectedAso.clinicalReview?.status === "reviewed" ? (
@@ -858,7 +1009,7 @@ export default function HealthControl() {
                         >
                           {loadingAsoOriginal ? "Carregando original…" : "Carregar ASO original"}
                         </Button>
-                        {asoOriginalUrl && (
+                        {asoOriginalUrl && asoOriginalScope === asoScopeKey && (
                           <Button asChild variant="link">
                             <a href={asoOriginalUrl} target="_blank" rel="noreferrer">
                               Abrir original para conferência
@@ -878,19 +1029,32 @@ export default function HealthControl() {
                       {asoOriginalUrl && (
                         <label className="flex items-start gap-3 text-sm">
                           <Checkbox
-                            checked={confirmedOriginal}
-                            onCheckedChange={(checked) => setConfirmedOriginal(checked === true)}
+                            checked={isConfirmedOriginal}
+                            onCheckedChange={(checked) => {
+                              setConfirmedOriginal(checked === true);
+                              setConfirmedOriginalGeneration(
+                                checked === true ? currentScopeGeneration : -1
+                              );
+                            }}
                             disabled={asoMutation !== null}
                           />
                           <span>
                             Como médico responsável, conferi no ASO original a empresa, a identidade
-                            do colaborador, o tipo e a data deste atendimento.
+                            do colaborador e o vínculo específico com o atendimento{" "}
+                            {selectedApptForSign?.id} ({selectedApptForSign?.tipo},{" "}
+                            {selectedApptForSign?.data_hora}). Esta revisão não se aplica a outro
+                            atendimento.
                           </span>
                         </label>
                       )}
                       <Button
                         onClick={() => void mutateAso("review")}
-                        disabled={!asoOriginalUrl || !confirmedOriginal || asoMutation !== null}
+                        disabled={
+                          !asoOriginalUrl ||
+                          asoOriginalScope !== asoScopeKey ||
+                          !isConfirmedOriginal ||
+                          asoMutation !== null
+                        }
                       >
                         {asoMutation === "review"
                           ? "Registrando revisão…"

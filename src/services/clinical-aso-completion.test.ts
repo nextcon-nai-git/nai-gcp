@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 import { parsePgrDocumentPages } from "@/lib/pgr-document-parser";
 import type { AuthContext } from "@/lib/auth/auth-context";
 
@@ -10,6 +11,10 @@ const state = vi.hoisted(() => ({
   failReadback: false,
   storagePath: "",
   storageBytes: new Uint8Array([1, 2, 3]),
+  storageGeneration: "17",
+  storageExists: true,
+  storageMetadataReads: 0,
+  replaceDuringRead: false,
 }));
 
 vi.mock("firebase-admin/firestore", () => ({
@@ -18,11 +23,25 @@ vi.mock("firebase-admin/firestore", () => ({
 vi.mock("firebase-admin/storage", () => ({
   getStorage: () => ({
     bucket: (name: string) => ({
-      file: (path: string) => {
+      file: (path: string, options?: { generation?: string }) => {
         state.storagePath = `${name}/${path}`;
         return {
-          getMetadata: async () => [{ size: state.storageBytes.byteLength }],
-          download: async () => [Buffer.from(state.storageBytes)],
+          getMetadata: async () => {
+            if (!state.storageExists) throw new Error("object not found");
+            state.storageMetadataReads += 1;
+            const generation = state.storageGeneration;
+            if (state.replaceDuringRead && state.storageMetadataReads === 1)
+              state.storageGeneration = "18";
+            return [{ size: state.storageBytes.byteLength, generation }];
+          },
+          download: async () => {
+            if (
+              !state.storageExists ||
+              (options?.generation && options.generation !== state.storageGeneration)
+            )
+              throw new Error("generation not found");
+            return [Buffer.from(state.storageBytes)];
+          },
         };
       },
     }),
@@ -41,7 +60,10 @@ vi.mock("@/lib/firebase-admin", () => {
     id: path.split("/").at(-1),
     collection: (name: string) => collection(`${path}/${name}`),
     get: async () => {
-      if (state.failReadback) {
+      if (
+        state.failReadback &&
+        [...state.records.values()].some((record) => record.linkedAppointmentId)
+      ) {
         state.failReadback = false;
         throw new Error("readback failed");
       }
@@ -101,7 +123,9 @@ import {
 const companyId = "company-a";
 const employeeId = "employee-a";
 const appointmentId = "appointment-a";
-const cardId = "a".repeat(64);
+const cardId = createHash("sha256")
+  .update(new Uint8Array([1, 2, 3]))
+  .digest("hex");
 const companyPath = `companies/${companyId}`;
 const cardPath = `${companyPath}/pgr_cards/${cardId}`;
 const clinicalPath = `${companyPath}/clinical_records/import_${cardId}`;
@@ -137,6 +161,10 @@ function seed() {
   state.failReadback = false;
   state.storagePath = "";
   state.storageBytes = new Uint8Array([1, 2, 3]);
+  state.storageGeneration = "17";
+  state.storageExists = true;
+  state.storageMetadataReads = 0;
+  state.replaceDuringRead = false;
   state.transactionQueue = Promise.resolve();
   state.records.set("users/synthetic-doctor", {
     role: "DOCTOR",
@@ -157,10 +185,16 @@ function seed() {
     restricted: true,
     analysis: asoAnalysis(),
     storagePath: `clientes/${companyId}/prontuarios/importacoes/${cardId}.pdf`,
+    storageGeneration: "17",
+    storageSha256: cardId,
   });
   state.records.set(appointmentPath, {
     companyId,
+    companyName: "Empresa sintética",
     colaborador_id: employeeId,
+    colaborador_nome: "Pessoa sintética",
+    tipo: "Periódico",
+    data_hora: "2026-10-13T08:00:00",
     status: "Em Atendimento",
   });
 }
@@ -169,6 +203,16 @@ const reviewInput = {
   companyId,
   cardId,
   employeeId,
+  appointmentId,
+  appointmentSnapshot: {
+    appointmentId,
+    companyId,
+    companyName: "Empresa sintética",
+    employeeId,
+    employeeName: "Pessoa sintética",
+    type: "Periódico",
+    dateTime: "2026-10-13T08:00:00",
+  },
   confirmedOriginal: true as const,
 };
 const completeInput = { ...reviewInput, appointmentId };
@@ -222,6 +266,22 @@ describe("vínculo clínico de ASO à fila", () => {
     });
   });
 
+  it("verifica imports legados por bytes e registra a geração ao revisar", async () => {
+    const clinical = state.records.get(clinicalPath)!;
+    delete clinical.storageGeneration;
+    delete clinical.storageSha256;
+    state.records.set(clinicalPath, clinical);
+    await expect(readClinicalAsoOriginal(user, { companyId, cardId })).resolves.toMatchObject({
+      bytes: Buffer.from([1, 2, 3]),
+    });
+    await reviewClinicalAso(user, reviewInput);
+    expect(state.records.get(clinicalPath)).toMatchObject({
+      storageGeneration: "17",
+      storageSha256: cardId,
+    });
+    await completeClinicalAppointmentWithAso(user, completeInput);
+  });
+
   it("não conclui sem revisão clínica registrada", async () => {
     await expect(completeClinicalAppointmentWithAso(user, completeInput)).rejects.toThrow(
       "ainda não possui revisão clínica"
@@ -246,6 +306,15 @@ describe("vínculo clínico de ASO à fila", () => {
     });
     await expect(reviewClinicalAso(user, reviewInput)).rejects.toThrow("atualmente autorizado");
     expect(state.records.get(clinicalPath)?.clinicalReview).toBeUndefined();
+  });
+
+  it("autoriza médico externo apenas pela empresa explicitamente servida", async () => {
+    state.records.set("users/synthetic-doctor", {
+      role: "DOCTOR",
+      companyId: "company-home",
+      servedCompanies: [companyId],
+    });
+    await expect(reviewClinicalAso(user, reviewInput)).resolves.toEqual({ status: "reviewed" });
   });
 
   it("recusa documento associado a outra empresa", async () => {
@@ -273,6 +342,19 @@ describe("vínculo clínico de ASO à fila", () => {
     expect(state.records.get(clinicalPath)?.clinicalReview).toBeUndefined();
   });
 
+  it("recusa revisão se o atendimento mudou desde o snapshot exibido ao médico", async () => {
+    await expect(
+      reviewClinicalAso(user, {
+        ...reviewInput,
+        appointmentSnapshot: {
+          ...reviewInput.appointmentSnapshot,
+          dateTime: "2026-10-14T08:00:00",
+        },
+      })
+    ).rejects.toThrow("exibidos para a revisão foram alterados");
+    expect(state.records.get(clinicalPath)?.clinicalReview).toBeUndefined();
+  });
+
   it("torna a revisão idempotente para o mesmo profissional e identidade", async () => {
     await expect(reviewClinicalAso(user, reviewInput)).resolves.toEqual({ status: "reviewed" });
     await expect(reviewClinicalAso(user, reviewInput)).resolves.toEqual({ status: "reviewed" });
@@ -285,9 +367,9 @@ describe("vínculo clínico de ASO à fila", () => {
   it("recusa colaborador incorreto no agendamento", async () => {
     await reviewClinicalAso(user, reviewInput);
     state.records.set(appointmentPath, {
+      ...state.records.get(appointmentPath),
       companyId,
       colaborador_id: "employee-b",
-      status: "Em Atendimento",
     });
     await expect(completeClinicalAppointmentWithAso(user, completeInput)).rejects.toThrow(
       "não correspondem"
@@ -298,6 +380,7 @@ describe("vínculo clínico de ASO à fila", () => {
   it("mantém atendimento cancelado ou incompatível aberto sem gravar vínculo", async () => {
     await reviewClinicalAso(user, reviewInput);
     state.records.set(appointmentPath, {
+      ...state.records.get(appointmentPath),
       companyId,
       colaborador_id: employeeId,
       status: "Cancelado",
@@ -307,6 +390,73 @@ describe("vínculo clínico de ASO à fila", () => {
     );
     expect(state.records.get(clinicalPath)?.linkedAppointmentId).toBeUndefined();
     expect(state.records.has(auditPath)).toBe(false);
+  });
+
+  it("não reutiliza revisão em outro atendimento do mesmo colaborador", async () => {
+    await reviewClinicalAso(user, reviewInput);
+    const otherAppointmentId = "appointment-b";
+    const otherAppointmentPath = `${companyPath}/agendamentos/${otherAppointmentId}`;
+    state.records.set(otherAppointmentPath, {
+      ...state.records.get(appointmentPath),
+      tipo: "Demissional",
+      data_hora: "2026-10-14T09:00:00",
+    });
+    await expect(
+      completeClinicalAppointmentWithAso(user, {
+        ...completeInput,
+        appointmentId: otherAppointmentId,
+      })
+    ).rejects.toThrow("pertence a outro agendamento");
+    expect(state.records.get(otherAppointmentPath)?.status).toBe("Em Atendimento");
+    expect(
+      state.records.has(`${clinicalPath}/attendance_audit/appointment_${otherAppointmentId}`)
+    ).toBe(false);
+  });
+
+  it.each([
+    ["tipo", "Demissional"],
+    ["data_hora", "2026-10-14T09:00:00"],
+  ] as const)("recusa mudança concorrente de %s após a revisão", async (field, value) => {
+    await reviewClinicalAso(user, reviewInput);
+    state.records.set(appointmentPath, {
+      ...state.records.get(appointmentPath),
+      [field]: value,
+    });
+    await expect(completeClinicalAppointmentWithAso(user, completeInput)).rejects.toThrow(
+      "dados conferidos foram alterados"
+    );
+    expect(state.records.get(appointmentPath)?.status).toBe("Em Atendimento");
+    expect(state.records.has(auditPath)).toBe(false);
+  });
+
+  it("recusa original ausente ou com bytes diferentes do sourceHash", async () => {
+    state.storageExists = false;
+    await expect(reviewClinicalAso(user, reviewInput)).rejects.toThrow();
+    state.storageExists = true;
+    state.storageBytes = new Uint8Array([3, 2, 1]);
+    await expect(reviewClinicalAso(user, reviewInput)).rejects.toThrow("integridade ou a geração");
+    expect(state.records.get(clinicalPath)?.clinicalReview).toBeUndefined();
+  });
+
+  it("recusa geração substituída antes da revisão ou durante a leitura do original", async () => {
+    state.storageGeneration = "18";
+    await expect(reviewClinicalAso(user, reviewInput)).rejects.toThrow(
+      "ausente ou foi substituído"
+    );
+    state.storageGeneration = "17";
+    state.storageMetadataReads = 0;
+    state.replaceDuringRead = true;
+    await expect(readClinicalAsoOriginal(user, { companyId, cardId })).rejects.toThrow();
+    expect(state.records.get(clinicalPath)?.clinicalReview).toBeUndefined();
+  });
+
+  it("recusa uma geração alterada entre revisão e conclusão", async () => {
+    await reviewClinicalAso(user, reviewInput);
+    state.storageGeneration = "18";
+    await expect(completeClinicalAppointmentWithAso(user, completeInput)).rejects.toThrow(
+      "ausente ou foi substituído"
+    );
+    expect(state.records.get(appointmentPath)?.status).toBe("Em Atendimento");
   });
 
   it("permite retry idempotente sem duplicar o evento de auditoria", async () => {

@@ -31,6 +31,7 @@ const memory = vi.hoisted(() => {
   const records = new Map<string, Data>();
   const reads: string[] = [];
   const uploadPaths: string[] = [];
+  let storedBytes = Buffer.alloc(0);
   let nextId = 0;
   let tail = Promise.resolve();
   const upload = vi.fn();
@@ -140,12 +141,17 @@ const memory = vi.hoisted(() => {
     reads,
     uploadPaths,
     upload,
+    getStoredBytes: () => Buffer.from(storedBytes),
+    setStoredBytes: (value: Buffer) => {
+      storedBytes = Buffer.from(value);
+    },
     analyze,
     db: { collection, runTransaction: transaction },
     reset: () => {
       records.clear();
       reads.length = 0;
       uploadPaths.length = 0;
+      storedBytes = Buffer.alloc(0);
       nextId = 0;
       tail = Promise.resolve();
     },
@@ -168,6 +174,8 @@ vi.mock("firebase-admin/storage", () => ({
           memory.uploadPaths.push(path);
           return memory.upload(...args);
         },
+        getMetadata: async () => [{ generation: "21", size: memory.getStoredBytes().byteLength }],
+        download: async () => [memory.getStoredBytes()],
       }),
     }),
   }),
@@ -210,7 +218,9 @@ function entries(prefix: string) {
 }
 beforeEach(() => {
   memory.reset();
-  memory.upload.mockReset().mockResolvedValue(undefined);
+  memory.upload.mockReset().mockImplementation(async (uploaded: Buffer) => {
+    memory.setStoredBytes(uploaded);
+  });
   memory.analyze.mockReset();
   memory.records.set(companyPath, { ...IMPORT_TEST_COMPANY, reviewed: true });
   seed();
@@ -393,6 +403,10 @@ describe("NAI importa: privacidade clínica", () => {
     expect(memory.records.get(`${companyPath}/clinical_records/import_${hash}`)?.analysis).toEqual(
       analysis
     );
+    expect(memory.records.get(`${companyPath}/clinical_records/import_${hash}`)).toMatchObject({
+      storageGeneration: "21",
+      storageSha256: hash,
+    });
     expect(memory.uploadPaths).toEqual([
       `clientes/${IMPORT_TEST_COMPANY.id}/prontuarios/importacoes/${hash}.pdf`,
     ]);

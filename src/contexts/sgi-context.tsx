@@ -36,6 +36,7 @@ export function SgiProvider({ children }: { children: React.ReactNode }) {
 
   const roleUpper = (role || "").toUpperCase();
   const isProvider = roleUpper === "PROVIDER";
+  const isDoctor = roleUpper === "DOCTOR";
 
   const allowedForProvider = React.useMemo(() => {
     if (Array.isArray(servedCompanies) && servedCompanies.length > 0) {
@@ -46,6 +47,10 @@ export function SgiProvider({ children }: { children: React.ReactNode }) {
     }
     return [];
   }, [servedCompanies, companyId]);
+  const allowedForDoctor = React.useMemo(
+    () => [...new Set([...(servedCompanies || []), ...(companyId ? [companyId] : [])])],
+    [servedCompanies, companyId]
+  );
 
   // Determina se o usuário é do Time Central Nextcon / Super Admin (Sem amarras a uma única empresa)
   const isGlobalStaff = React.useMemo(() => {
@@ -72,7 +77,10 @@ export function SgiProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem("nai_active_client_id", id);
           } catch (_) {}
         }
-      } else if (isProvider && allowedForProvider.includes(id)) {
+      } else if (
+        (isProvider && allowedForProvider.includes(id)) ||
+        (isDoctor && allowedForDoctor.includes(id))
+      ) {
         setActiveClientIdState(id);
         if (typeof window !== "undefined") {
           try {
@@ -83,7 +91,15 @@ export function SgiProvider({ children }: { children: React.ReactNode }) {
         setActiveClientIdState(id);
       }
     },
-    [isGlobalStaff, companyId, isProvider, allowedForProvider, roleUpper]
+    [
+      isGlobalStaff,
+      companyId,
+      isProvider,
+      isDoctor,
+      allowedForProvider,
+      allowedForDoctor,
+      roleUpper,
+    ]
   );
 
   // Derive the visible tenant in the same render as the permissions. Waiting
@@ -96,9 +112,13 @@ export function SgiProvider({ children }: { children: React.ReactNode }) {
         ? allowedForProvider.includes(activeClientId)
           ? activeClientId
           : allowedForProvider[0] || "unauthorized"
-        : roleUpper && roleUpper !== "GUEST" && companyId
-          ? companyId
-          : "unauthorized";
+        : isDoctor
+          ? allowedForDoctor.includes(activeClientId)
+            ? activeClientId
+            : allowedForDoctor[0] || "unauthorized"
+          : roleUpper && roleUpper !== "GUEST" && companyId
+            ? companyId
+            : "unauthorized";
 
   const value = React.useMemo(
     () => ({
@@ -108,7 +128,7 @@ export function SgiProvider({ children }: { children: React.ReactNode }) {
       isStaff: isAnyStaff,
       isGlobalStaff,
       isAuthorizedProvider: isProvider,
-      authorizedCompanies: allowedForProvider,
+      authorizedCompanies: isDoctor ? allowedForDoctor : allowedForProvider,
       isLoading: isUserLoading,
     }),
     [
@@ -118,7 +138,9 @@ export function SgiProvider({ children }: { children: React.ReactNode }) {
       companyId,
       isAnyStaff,
       isProvider,
+      isDoctor,
       allowedForProvider,
+      allowedForDoctor,
       isUserLoading,
     ]
   );

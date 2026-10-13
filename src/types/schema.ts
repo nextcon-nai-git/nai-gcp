@@ -341,6 +341,7 @@ export interface MedicalAppointment {
   colaborador_id?: string;
   colaborador_nome?: string;
   companyId?: string;
+  companyName?: string;
   doctorName?: string;
   crm?: string;
   asoType?:
