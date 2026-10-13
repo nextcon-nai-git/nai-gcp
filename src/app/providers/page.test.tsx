@@ -21,7 +21,16 @@ const mocks = vi.hoisted(() => ({
   activeClientId: "all" as string,
   collection: {
     data: [{ id: "provider-private", name: "Prestador Fictício Confidencial" }] as
-      { id: string; name: string }[] | null,
+      | {
+          id: string;
+          name: string;
+          profession?: string;
+          type?: string;
+          councilNumber?: string;
+          rqe?: string;
+          servedCompanies?: string[];
+        }[]
+      | null,
     isLoading: false,
     error: null as Error | null,
   },
@@ -59,6 +68,16 @@ import ProvidersManagement from "./page";
 
 let root: Root;
 let container: HTMLDivElement;
+
+async function changeInput(name: string, value: string) {
+  const input = document.body.querySelector<HTMLInputElement>(`input[name="${name}"]`);
+  expect(input).not.toBeNull();
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
+    input?.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  return input;
+}
 
 beforeEach(() => {
   (
@@ -152,5 +171,77 @@ describe("providers page authorization state", () => {
     expect(retryButton).toBeDefined();
     await act(async () => retryButton?.click());
     expect(mocks.useCollection.mock.calls.length).toBeGreaterThan(callsBeforeRetry);
+  });
+});
+
+describe("provider council fields", () => {
+  it("opens the new provider form with independent council and RQE fields", async () => {
+    mocks.session.isUserLoading = false;
+    await act(async () => root.render(<ProvidersManagement />));
+
+    const createButton = [...container.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("Novo Credenciamento")
+    );
+    expect(createButton).toBeDefined();
+    await act(async () => createButton?.click());
+
+    expect(document.body.querySelector('input[name="councilNumber"]')).not.toBeNull();
+    expect(document.body.querySelector('input[name="rqe"]')).not.toBeNull();
+
+    const councilNumber = await changeInput("councilNumber", "CRM fictício novo");
+    const rqe = await changeInput("rqe", "RQE fictício novo");
+    await changeInput("email", "e-mail inválido");
+    await act(async () =>
+      document.body.querySelector<HTMLButtonElement>('form button[type="submit"]')?.click()
+    );
+
+    expect(document.body.textContent).toContain("E-mail inválido");
+    expect(councilNumber?.value).toBe("CRM fictício novo");
+    expect(rqe?.value).toBe("RQE fictício novo");
+  });
+
+  it("opens an existing provider with its separate council and RQE values", async () => {
+    mocks.session.isUserLoading = false;
+    mocks.collection = {
+      data: [
+        {
+          id: "provider-fake",
+          name: "Prestador Fictício",
+          profession: "Médico",
+          type: "DOCTOR",
+          councilNumber: "CRM fictício",
+          rqe: "RQE fictício",
+          servedCompanies: [],
+        },
+      ],
+      isLoading: false,
+      error: null,
+    };
+    await act(async () => root.render(<ProvidersManagement />));
+
+    const providerRow = [...container.querySelectorAll("tr")].find((row) =>
+      row.textContent?.includes("Prestador Fictício")
+    );
+    const providerButton = providerRow?.querySelector("button");
+    expect(providerButton).toBeDefined();
+    await act(async () => providerButton?.click());
+
+    expect(
+      document.body.querySelector<HTMLInputElement>('input[name="councilNumber"]')?.value
+    ).toBe("CRM fictício");
+    expect(document.body.querySelector<HTMLInputElement>('input[name="rqe"]')?.value).toBe(
+      "RQE fictício"
+    );
+
+    const councilNumber = await changeInput("councilNumber", "CRM fictício atualizado");
+    const rqe = await changeInput("rqe", "RQE fictício atualizado");
+    await changeInput("email", "e-mail inválido");
+    await act(async () =>
+      document.body.querySelector<HTMLButtonElement>('form button[type="submit"]')?.click()
+    );
+
+    expect(document.body.textContent).toContain("E-mail inválido");
+    expect(councilNumber?.value).toBe("CRM fictício atualizado");
+    expect(rqe?.value).toBe("RQE fictício atualizado");
   });
 });
