@@ -185,9 +185,13 @@ service cloud.firestore {
         isCompanyAdmin(request.resource.data.companyId) ||
         isHealthProfessionalForCompany(request.resource.data.companyId)
       );
-      allow update, delete: if isSignedIn() && (
+      allow update: if isSignedIn() && (
         isNextconOfficial() ||
-        isCompanyAdmin(resource.data.companyId)
+        (isCompanyAdmin(resource.data.companyId) &&
+          request.resource.data.companyId == resource.data.companyId)
+      );
+      allow delete: if isSignedIn() && (
+        isNextconOfficial() || isCompanyAdmin(resource.data.companyId)
       );
     }
 
@@ -206,7 +210,10 @@ service cloud.firestore {
         isCompanyAdmin(request.resource.data.companyId) ||
         isHealthProfessionalForCompany(request.resource.data.companyId)
       );
-      allow update, delete: if isSignedIn() && (isNextconOfficial() || isCompanyAdmin(resource.data.companyId));
+      allow update: if isSignedIn() && (isNextconOfficial() ||
+        (isCompanyAdmin(resource.data.companyId) &&
+          request.resource.data.companyId == resource.data.companyId));
+      allow delete: if isSignedIn() && (isNextconOfficial() || isCompanyAdmin(resource.data.companyId));
     }
 
     match /analisesPGR/{docId} {

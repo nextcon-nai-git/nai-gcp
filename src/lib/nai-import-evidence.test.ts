@@ -3,6 +3,79 @@ import { parsePgrDocumentPages } from "./pgr-document-parser";
 import { mergeNaiIdentity } from "./nai-import-evidence";
 
 describe("NAI importa: tabelas de identificação e dados com evidência", () => {
+  it("não usa CNAE ou grau de risco do prestador no cadastro do empregador", () => {
+    const pages = [
+      {
+        numero: 1,
+        texto:
+          "Empresa elaboradora: PRESTADORA SINTÉTICA\nCNPJ: 44.337.647/0001-89\nCNAE: 86.30-5-03\nGrau de Risco: 3\nCliente: EMPREGADORA SINTÉTICA\nCNPJ: 43.776.491/0001-70\nCNAE: 71.19-7-04\nGrau de Risco: 1",
+      },
+    ];
+    const result = parsePgrDocumentPages(pages);
+    expect(result.pgrCardDetalhado).toMatchObject({
+      razaoSocial: "EMPREGADORA SINTÉTICA",
+      cnpj: "43.776.491/0001-70",
+      cnae: "71.19-7-04",
+      grauDeRisco: 1,
+    });
+    const model = structuredClone(result);
+    model.pgrCardDetalhado.cnae = "86.30-5-03";
+    model.pgrCardDetalhado.enderecoCompleto = "ENDEREÇO DO PRESTADOR";
+    expect(mergeNaiIdentity(result, model, pages, false).detail.cnae).toBe("71.19-7-04");
+  });
+
+  it("empregador sem CNPJ não herda o CNPJ da elaboradora no bloco seguinte", () => {
+    const result = parsePgrDocumentPages([
+      {
+        numero: 1,
+        texto:
+          "Identificação da empresa\nRazão Social: EMPREGADORA SINTÉTICA\nEmpresa elaboradora: PRESTADORA SINTÉTICA\nCNPJ: 44.337.647/0001-89",
+      },
+    ]);
+    expect(result.pgrCardDetalhado.razaoSocial).toBe("EMPREGADORA SINTÉTICA");
+    expect(result.pgrCardDetalhado.cnpj).toBe("");
+  });
+
+  it("não cria ambiguidade quando o mesmo CNPJ reaparece com pontuação diferente", () => {
+    const result = parsePgrDocumentPages([
+      { numero: 1, texto: "Razão Social: EMPREGADORA SINTÉTICA\nCNPJ: 43.776.491/0001-70" },
+      { numero: 2, texto: "Razão Social: EMPREGADORA SINTÉTICA\nCNPJ: 43776491000170" },
+    ]);
+    expect(result.identidade.status).toBe("identificada");
+  });
+
+  it("mantém grupos com o mesmo número e descrições diferentes", () => {
+    const result = parsePgrDocumentPages([
+      { numero: 1, texto: "GHE: 01 - Produção da Unidade A\nGHE: 01 - Produção da Unidade B" },
+    ]);
+    expect(result.pgrCardDetalhado.ghesIdentificados).toEqual([
+      "GHE: 01 - Produção da Unidade A",
+      "GHE: 01 - Produção da Unidade B",
+    ]);
+  });
+
+  it("página escaneada não dispensa evidência de identidade numa página textual diferente", () => {
+    const pages = [
+      { numero: 1, texto: "PGR\nPrograma de Gerenciamento de Riscos\nIdentificação incompleta" },
+      { numero: 2, texto: "" },
+    ];
+    const base = parsePgrDocumentPages(pages);
+    const model = structuredClone(base);
+    model.pgrCardDetalhado.razaoSocial = "EMPREGADORA INVENTADA";
+    model.pgrCardDetalhado.cnpj = "43.776.491/0001-70";
+    model.identidade = {
+      status: "identificada",
+      aviso: "Conferir",
+      evidencias: [
+        { pagina: 1, trecho: "Razão Social: EMPREGADORA INVENTADA CNPJ: 43.776.491/0001-70" },
+      ],
+    };
+    expect(mergeNaiIdentity(base, model, pages, true).identity.status).toBe("nao_identificada");
+    model.identidade.evidencias[0].pagina = 2;
+    expect(mergeNaiIdentity(base, model, pages, true).identity.status).toBe("identificada");
+    model.identidade.evidencias[0].pagina = 3;
+    expect(mergeNaiIdentity(base, model, pages, true).identity.status).toBe("nao_identificada");
+  });
   it("lê campos sem dois-pontos, rodapé antes do corpo e não confunde clientes citados com empregador", () => {
     const pages = [
       {

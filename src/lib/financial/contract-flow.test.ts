@@ -5,6 +5,7 @@ import {
   emptyFinanceBook,
   FinanceBookSchema,
   FinanceCommandSchema,
+  closingIssues,
   type FinanceBook,
 } from "./operations";
 import { contractFlowOverview } from "./contract-flow";
@@ -120,6 +121,91 @@ const service = (b: FinanceBook, extra = {}) =>
     },
   });
 describe("contract to cash", () => {
+  it("does not leave an approved order blocking closing after its contract was created", () => {
+    const b = contract();
+    expect(b.erp.orders[0].status).toBe("approved");
+    expect(closingIssues(b, "2026-10").join(" ")).not.toContain("pedidos sem conversão");
+    expect(closingIssues(proposal(), "2026-10").join(" ")).toContain("pedidos sem conversão");
+  });
+  it("prevents attaching a manual receivable by edit while allowing genuine payable correction", () => {
+    let b = contract();
+    const manual = {
+      kind: "receivable",
+      party: "Cliente sintético",
+      description: "Cobrança manual",
+      amountCents: 10000,
+      competence: "2026-10",
+      dueDate: "2026-10-20",
+      category: "SST",
+      center: "SST",
+      contractId: null,
+      sourceKey: "manual-edit",
+      externalReference: "",
+      evidence: "Documento sintético",
+    };
+    b = run(b, { action: "title", data: manual });
+    const edit = {
+      description: manual.description,
+      amountCents: 9000,
+      competence: manual.competence,
+      dueDate: manual.dueDate,
+      category: manual.category,
+      center: manual.center,
+      contractId: b.contracts[0].id,
+      evidence: manual.evidence,
+    };
+    expect(() =>
+      run(b, {
+        action: "editTitle",
+        id: b.titles[0].id,
+        data: edit,
+        reason: "Tentativa de associação",
+      })
+    ).toThrow(/fluxo integrado/);
+    b = run(b, {
+      action: "title",
+      data: { ...manual, kind: "payable", sourceKey: "cost-edit", contractId: b.contracts[0].id },
+    });
+    const corrected = run(b, {
+      action: "editTitle",
+      id: b.titles[1].id,
+      data: edit,
+      reason: "Correção da despesa",
+    });
+    expect(corrected.titles[1].amountCents).toBe(9000);
+  });
+  it("requires an evidenced first due date after acceptance and never forecasts a month before acceptance", () => {
+    let b = contract({
+      acceptedOn: "2026-10-12",
+      implementationDue: "2026-10-20",
+      dueDay: 5,
+      billingRequiresReadiness: false,
+    });
+    const cmd = { action: "recurring", contractId: b.contracts[0].id, month: "2026-10" };
+    expect(() => run(b, cmd)).toThrow(/anteceder o aceite/);
+    expect(() => run(b, { ...cmd, dueDate: "2026-10-15" })).toThrow(/justificativa/);
+    expect(() => run(b, { ...cmd, dueDate: "2026-10-10", reason: "Exceção solicitada" })).toThrow(
+      /anteceder o aceite/
+    );
+    b = run(b, { ...cmd, dueDate: "2026-10-15", reason: "Primeiro vencimento conforme aceite" });
+    expect(b.titles[0].dueDate).toBe("2026-10-15");
+    expect(b.audit.at(-1)?.reason).toContain("Primeiro vencimento");
+    expect(contractFlowOverview(b, "2026-09", "2026-10-12")[0].expectedRevenue).toBe(0);
+    expect(contractFlowOverview(b, "2026-10", "2026-10-12")[0].expectedRevenue).toBe(10000);
+  });
+  it("handles a maximum-length approved order number without losing its original identity", () => {
+    const b = proposal();
+    b.erp.orders[0].number = "P".repeat(180);
+    const next = run(b, create(b));
+    expect(next.contracts[0].name).toHaveLength(180);
+    expect(next.erp.orders[0].number).toBe("P".repeat(180));
+    const billed = run(ready(next), {
+      action: "recurring",
+      contractId: next.contracts[0].id,
+      month: "2026-10",
+    });
+    expect(billed.titles[0].description.length).toBeLessThanOrEqual(180);
+  });
   it("preserves old books without silently enrolling existing contracts", () => {
     const old = { ...emptyFinanceBook(), contractFlows: undefined };
     expect(FinanceBookSchema.parse(old).contractFlows).toEqual([]);
@@ -346,6 +432,65 @@ describe("existing contract enrollment", () => {
     existingBillingReviewed: true,
     monthlyPriceConfirmed: true,
     ...extra,
+  });
+  it("keeps historical drafts editable before cutover while rejecting a move into the managed period", () => {
+    let b = legacy();
+    b = run(b, { action: "recurring", contractId: b.contracts[0].id, month: "2026-09" });
+    b = run(b, enroll(b));
+    const t = b.titles[0];
+    const edit = {
+      description: t.description,
+      amountCents: 9000,
+      competence: t.competence,
+      dueDate: "2026-10-25",
+      category: t.category,
+      center: t.center,
+      contractId: t.contractId,
+      evidence: t.evidence,
+    };
+    b = run(b, {
+      action: "editTitle",
+      id: t.id,
+      data: edit,
+      reason: "Correção de rascunho histórico",
+    });
+    expect(b.titles[0].amountCents).toBe(9000);
+    expect(() =>
+      run(b, {
+        action: "editTitle",
+        id: t.id,
+        data: { ...edit, competence: "2026-10" },
+        reason: "Mover competência",
+      })
+    ).toThrow(/fluxo integrado/);
+  });
+  it("uses the explicitly selected customer for new monthly and service charges without rewriting history", () => {
+    let b = legacy();
+    b.contracts[0].client = "Nome legado abreviado";
+    b = run(b, { action: "recurring", contractId: b.contracts[0].id, month: "2026-09" });
+    b = ready(run(b, enroll(b)));
+    b.erp.parties[0].name = "Nome atual do cliente sintético";
+    b = run(b, { action: "recurring", contractId: b.contracts[0].id, month: "2026-10" });
+    expect(b.titles[0].party).toBe("Nome legado abreviado");
+    expect(b.titles[1].party).toBe("Nome atual do cliente sintético");
+    b = service(b);
+    b = run(
+      b,
+      {
+        action: "flowReviewService",
+        contractId: b.contracts[0].id,
+        serviceId: b.services[0].id,
+        evidence: "Execução conferida",
+      },
+      "reviewer"
+    );
+    b = run(b, { action: "billService", id: b.services[0].id, dueDate: "2026-10-20" });
+    expect(b.titles[2].party).toBe("Nome atual do cliente sintético");
+    expect(contractFlowOverview(b, "2026-09", "2026-10-12")[0].expectedRevenue).toBe(0);
+    b.erp.parties[0].document = "98765432000100";
+    expect(() =>
+      run(b, { action: "recurring", contractId: b.contracts[0].id, month: "2026-11" })
+    ).toThrow(/documento/);
   });
   it("preserves contracts, historic titles, services and settlements without creating an order", () => {
     let b = legacy();

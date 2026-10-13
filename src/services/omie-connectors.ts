@@ -8,6 +8,7 @@ import { FinanceBookSchema, emptyFinanceBook } from "@/lib/financial/operations"
 import { SupplierBook, qualificationCurrent } from "@/lib/suppliers/qualification";
 import {
   OmieExport,
+  ExportReference,
   ExportSelection,
   omieIntegrationKey,
   matchesOmieExport,
@@ -20,6 +21,11 @@ import { readPrivate, writePrivate } from "./private-json-store";
 const financePath = "financial-operations/v1/nextcon.json",
   supplierPath = "supplier-qualification/v1/book.json";
 const digest = (s: string) => createHash("sha256").update(s).digest("hex");
+function integrationKey(kind: string, sourceId: string) {
+  const key = omieIntegrationKey(kind, sourceId);
+  // Omie permits 60 characters; retain existing keys and map longer legacy IDs deterministically.
+  return key.length <= 60 ? key : omieIntegrationKey(kind, digest(sourceId).slice(0, 40));
+}
 function conflict(s: string): never {
   throw new AuthError(s, 409);
 }
@@ -48,6 +54,7 @@ export async function connectorOverview(u: AuthContext) {
         description: t.description,
         amountCents: t.amountCents,
         dueDate: t.dueDate,
+        competence: t.competence,
         externalReference: t.externalReference,
       })),
     exports: [...s.finance.value.omieExports, ...s.suppliers.value.omieExports],
@@ -83,6 +90,13 @@ export async function connectorCatalog(u: AuthContext, input: unknown) {
   if (page.pagina !== q.page)
     throw new AuthError("Página retornada pelo Omie diverge da solicitação.", 502);
   const rows = z.array(z.record(z.unknown())).max(50).parse(raw[key]);
+  if (
+    page.total_de_registros < rows.length ||
+    (page.total_de_registros === 0
+      ? q.page !== 1 || rows.length !== 0 || page.total_de_paginas > 1
+      : page.total_de_paginas < q.page || rows.length === 0)
+  )
+    throw new AuthError("Página retornada pelo Omie diverge da solicitação.", 502);
   return {
     kind: q.kind,
     page: page.pagina,
@@ -120,7 +134,7 @@ async function prepare(u: AuthContext, input: unknown) {
     s = await sources(),
     session = await omieConnectorSession(u);
   const { kind, sourceId } = selection;
-  const key = omieIntegrationKey(kind, sourceId);
+  const key = integrationKey(kind, sourceId);
   const old = (kind === "supplier" ? s.suppliers.value : s.finance.value).omieExports.find(
     (e) => e.sourceId === sourceId
   );
@@ -131,6 +145,7 @@ async function prepare(u: AuthContext, input: unknown) {
   let payload: Record<string, unknown>;
   let sourceVersion: number;
   if (kind === "supplier") {
+    const registration = selection.registration;
     const a = s.suppliers.value.applications.find((a) => a.id === sourceId);
     if (!a || !qualificationCurrent(a, brazilToday()))
       conflict("Fornecedor sem homologação vigente.");
@@ -144,6 +159,16 @@ async function prepare(u: AuthContext, input: unknown) {
       cnpj_cpf: normalizeDocument(a.profile.document),
       email: a.profile.email,
       tags: [{ tag: "Fornecedor" }],
+      endereco: registration.address,
+      endereco_numero: registration.number,
+      bairro: registration.district,
+      cidade: registration.city,
+      estado: registration.state,
+      cep: registration.zipCode.replace(/\D/g, ""),
+      caracteristicas: registration.characteristics.map((c) => ({
+        campo: c.field,
+        conteudo: c.value,
+      })),
     };
     sourceVersion = a.version;
   } else {
@@ -155,8 +180,10 @@ async function prepare(u: AuthContext, input: unknown) {
     if (t.dueDate < brazilToday()) conflict("O envio exige vencimento atual ou futuro.");
     if (s.finance.value.periods.some((p) => p.month === t.competence && p.closed))
       conflict("Competência fechada.");
-    if (!selection.partyCode || !selection.categoryCode || !selection.accountCode)
-      throw badRequest("Selecione cliente/fornecedor, categoria e conta do Omie.");
+    if (selection.issueDate.slice(0, 7) !== t.competence || selection.issueDate > brazilToday())
+      throw badRequest(
+        "Informe uma data de emissão já ocorrida e na mesma competência do título. Confira a origem se a data real pertencer a outro período."
+      );
     const party = await session.call("partyDetail", { codigo_cliente_omie: selection.partyCode });
     const norm = (v: unknown) =>
       String(v || "")
@@ -165,10 +192,36 @@ async function prepare(u: AuthContext, input: unknown) {
         .trim()
         .replace(/\s+/g, " ")
         .toUpperCase();
+    const flow =
+      t.kind === "receivable" && t.contractId
+        ? s.finance.value.contractFlows.find(
+            (f) =>
+              f.contractId === t.contractId &&
+              (!f.migration || t.competence >= f.migration.billingStartMonth)
+          )
+        : undefined;
+    const partyId =
+      flow?.migration?.partyId ||
+      (flow?.orderId
+        ? s.finance.value.erp.orders.find((o) => o.id === flow.orderId)?.partyId
+        : undefined);
+    const customer = partyId
+      ? s.finance.value.erp.parties.find((p) => p.id === partyId)
+      : undefined;
+    if (flow && (!customer?.active || customer.role === "supplier" || !customer.document.trim()))
+      conflict("Cliente do contrato sem cadastro ativo e documento conferido.");
+    const expectedDocument = flow ? normalizeDocument(flow.customerDocument) : "";
+    if (flow && (!expectedDocument || normalizeDocument(customer!.document) !== expectedDocument))
+      conflict(
+        "Documento do cliente mudou desde o aceite. Confira o vínculo do contrato antes de exportar."
+      );
     if (
       party.codigo_cliente_omie !== selection.partyCode ||
       party.inativo === "S" ||
-      norm(party.razao_social) !== norm(t.party)
+      (flow
+        ? typeof party.cnpj_cpf !== "string" ||
+          normalizeDocument(party.cnpj_cpf) !== expectedDocument
+        : norm(party.razao_social) !== norm(t.party))
     )
       conflict("Cliente/fornecedor selecionado não corresponde ao nome do título ou está inativo.");
     const category = await session.call("categoryDetail", { codigo: selection.categoryCode });
@@ -185,17 +238,19 @@ async function prepare(u: AuthContext, input: unknown) {
       codigo_lancamento_integracao: key,
       codigo_cliente_fornecedor: selection.partyCode,
       data_vencimento: toOmieDate(t.dueDate),
+      data_emissao: toOmieDate(selection.issueDate),
       valor_documento: t.amountCents / 100,
       codigo_categoria: selection.categoryCode,
       data_previsao: toOmieDate(t.dueDate),
       id_conta_corrente: selection.accountCode,
       observacao: `NAI: ${t.description}`,
-      ...(kind === "payable" ? { baixar_documento: "N", conciliar_documento: "N" } : {}),
+      baixar_documento: "N",
+      conciliar_documento: "N",
     };
     sourceVersion = s.finance.value.version;
   }
   const hash = digest(JSON.stringify({ selection, payload, sourceVersion, scope: session.scope }));
-  return { selection, payload, hash, session, s };
+  return { selection, payload, hash, session, s, key };
 }
 export async function previewConnectorExport(u: AuthContext, input: unknown) {
   const p = await prepare(u, input);
@@ -218,7 +273,7 @@ export async function executeConnectorExport(u: AuthContext, input: unknown) {
   const record = OmieExport.parse({
     sourceId: p.selection.sourceId,
     kind: p.selection.kind,
-    key: omieIntegrationKey(p.selection.kind, p.selection.sourceId),
+    key: p.key,
     scope: p.session.scope,
     company: p.session.company,
     hash: p.hash,
@@ -260,10 +315,7 @@ export async function executeConnectorExport(u: AuthContext, input: unknown) {
 }
 export async function reconcileConnectorExport(u: AuthContext, input: unknown) {
   requireFinancialAccess(u);
-  const selection = z
-    .object({ kind: ExportSelection.shape.kind, sourceId: z.string().uuid() })
-    .strict()
-    .parse(input);
+  const selection = ExportReference.parse(input);
   const s = await sources(),
     state = selection.kind === "supplier" ? s.suppliers : s.finance;
   const record = state.value.omieExports.find(

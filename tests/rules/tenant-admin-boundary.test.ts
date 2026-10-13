@@ -6,7 +6,7 @@ import {
   assertSucceeds,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getBytes } from "firebase/storage";
 let env: RulesTestEnvironment;
 beforeAll(async () => {
@@ -37,6 +37,11 @@ beforeAll(async () => {
         { contentType: "application/pdf" }
       );
     }
+    for (const root of ["documents", "relatorios_sst"])
+      await setDoc(doc(ctx.firestore(), `${root}/tenant-owned`), {
+        companyId: "tenant-a",
+        name: "Documento sintético",
+      });
   });
 });
 afterAll(async () => {
@@ -67,6 +72,14 @@ describe("tenant administration does not imply global access", () => {
       getBytes(ref(ctx.storage(), "clientes/tenant-b/colaboradores/synthetic/test.pdf"))
     );
   });
+  it.each(["documents", "relatorios_sst"])(
+    "does not let a tenant admin move %s into another tenant",
+    async (root) => {
+      const db = env.authenticatedContext("tenant-admin").firestore();
+      await assertSucceeds(updateDoc(doc(db, `${root}/tenant-owned`), { name: "Revisado" }));
+      await assertFails(updateDoc(doc(db, `${root}/tenant-owned`), { companyId: "tenant-b" }));
+    }
+  );
   it.each(["tenant-doctor", "tenant-admin", "internal-admin"])(
     "denies direct legacy job creation for %s",
     async (uid) => {

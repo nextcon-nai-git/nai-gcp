@@ -1,4 +1,10 @@
-import { outstanding, settlementCash, sumCents, type FinanceBook } from "./operations";
+import {
+  outstanding,
+  principalByTitle,
+  settlementCash,
+  sumCents,
+  type FinanceBook,
+} from "./operations";
 import { isCalendarDate } from "./omie-dre";
 
 /** Current residual snapshot, not a retroactive balance. Dates are UTC calendar dates only. */
@@ -6,6 +12,13 @@ export function erpReports(book: FinanceBook, month: string, today: string) {
   if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(month) || !isCalendarDate(today))
     throw new Error("Período inválido.");
   const approved = book.titles.filter((t) => t.status === "approved");
+  const principal = principalByTitle(book);
+  const titlesById = new Map(book.titles.map((t) => [t.id, t]));
+  const followUps = new Map<string, FinanceBook["erp"]["followUps"][number]>();
+  for (const followUp of book.erp.followUps) {
+    const previous = followUps.get(followUp.titleId);
+    if (!previous || followUp.date >= previous.date) followUps.set(followUp.titleId, followUp);
+  }
   const aging = [
     "A vencer",
     "Vence hoje",
@@ -15,20 +28,13 @@ export function erpReports(book: FinanceBook, month: string, today: string) {
     "Mais de 90 dias",
   ].map((label) => ({ label, receivable: 0, payable: 0, count: 0 }));
   const receivables = approved
-    .filter((t) => t.kind === "receivable" && outstanding(book, t) > 0)
+    .filter((t) => t.kind === "receivable" && outstanding(book, t, principal) > 0)
     .map((t) => {
-      const followUp = book.erp.followUps
-        .filter((f) => f.titleId === t.id)
-        .sort(
-          (a, b) =>
-            b.date.localeCompare(a.date) ||
-            book.erp.followUps.indexOf(b) - book.erp.followUps.indexOf(a)
-        )[0];
-      return { ...t, residual: outstanding(book, t), followUp };
+      return { ...t, residual: outstanding(book, t, principal), followUp: followUps.get(t.id) };
     })
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   for (const t of approved) {
-    const residual = outstanding(book, t);
+    const residual = outstanding(book, t, principal);
     if (residual <= 0) continue;
     const days = Math.round(
       (Date.parse(today + "T00:00:00Z") - Date.parse(t.dueDate + "T00:00:00Z")) / 86400000
@@ -51,7 +57,7 @@ export function erpReports(book: FinanceBook, month: string, today: string) {
   }
   const cash = new Map<string, { date: string; in: number; out: number }>();
   for (const s of book.settlements.filter((s) => !s.reversed && s.date.startsWith(month))) {
-    const title = book.titles.find((t) => t.id === s.titleId);
+    const title = titlesById.get(s.titleId);
     if (!title) throw new Error("Baixa sem título de origem.");
     const row = cash.get(s.date) || { date: s.date, in: 0, out: 0 };
     const side = title.kind === "receivable" ? "in" : "out";

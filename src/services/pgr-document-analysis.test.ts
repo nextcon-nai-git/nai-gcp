@@ -14,6 +14,26 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("IA PGR com limites", () => {
+  it("preserva agentes distintos da mesma categoria e GHE quando a IA omite um deles", async () => {
+    const source =
+      "PGR\nRazão Social: EMPRESA SINTÉTICA\nCNPJ: 43.776.491/0001-70\nGHE: 01 - Produção\nTrabalhadores expostos a ruído e calor no processo industrial.";
+    const output = parsePgrDocumentPages([{ numero: 1, texto: source }]);
+    expect(output.riscosIdentificados.map((risk) => risk.agente)).toEqual(["Ruído", "Calor"]);
+    output.riscosIdentificados = output.riscosIdentificados.filter(
+      (risk) => risk.agente === "Ruído"
+    );
+    output.acoesCategorizadas = [];
+    mocks.generate.mockResolvedValue({ output });
+
+    const result = await analyzePgrDocument({ pdfDataUri: source });
+
+    expect(result.riscosIdentificados.map((risk) => risk.agente)).toEqual(["Ruído", "Calor"]);
+    expect(result.pgrCardDetalhado.totalRiscosMapeados).toBe(2);
+    const heat = result.riscosIdentificados.find((risk) => risk.agente === "Calor")!;
+    expect(
+      result.acoesCategorizadas.some((action) => action.riscosRelacionados.includes(heat.id))
+    ).toBe(true);
+  });
   it("não aceita AVP retornado pela IA contra a identificação do PDF", async () => {
     const output = parsePgrDocumentPages([{ numero: 1, texto: text }]);
     output.pgrCardDetalhado.razaoSocial = "AVP";
@@ -39,6 +59,21 @@ describe("IA PGR com limites", () => {
     mocks.generate.mockResolvedValue({ output });
     const a = await analyzePgrDocument({ pdfDataUri: text });
     expect(a.riscosIdentificados.some((r) => r.agente === "Benzeno")).toBe(false);
+  });
+  it("não aceita espaços em branco como evidência documental", async () => {
+    const output = parsePgrDocumentPages([{ numero: 1, texto: text }]);
+    output.riscosIdentificados = [
+      {
+        ...output.riscosIdentificados[0],
+        id: "fake",
+        agente: "Benzeno",
+        categoria: "quimico",
+        evidencia: { pagina: 1, trecho: "   " },
+      },
+    ];
+    mocks.generate.mockResolvedValueOnce({ output });
+    const result = await analyzePgrDocument({ pdfDataUri: text });
+    expect(result.riscosIdentificados.some((risk) => risk.agente === "Benzeno")).toBe(false);
   });
   it("falha da IA preserva cliente e marca somente extração documental", async () => {
     mocks.generate.mockRejectedValue(new Error("Unavailable"));
@@ -89,6 +124,53 @@ describe("IA PGR com limites", () => {
 });
 
 describe("NAI importa: análise real do especialista e controle clínico", () => {
+  it("anexo escaneado não autoriza riscos e ações com citações falsas em páginas textuais ou inexistentes", async () => {
+    const pages = [
+      { numero: 1, texto: text },
+      { numero: 2, texto: "" },
+    ];
+    mocks.readPages.mockResolvedValue(pages);
+    const output = parsePgrDocumentPages(pages);
+    const fakeRisk = {
+      ...output.riscosIdentificados[0],
+      agente: "Benzeno",
+      categoria: "quimico" as const,
+      evidencia: { pagina: 1, trecho: "Exposição a benzeno não presente nesta página." },
+    };
+    output.riscosIdentificados = [
+      fakeRisk,
+      {
+        ...fakeRisk,
+        id: "missing-page",
+        evidencia: { pagina: 3, trecho: "Trecho em página inexistente" },
+      },
+    ];
+    output.acoesCategorizadas = [
+      {
+        ...output.acoesCategorizadas[0],
+        id: "fake-action",
+        fundamento: "documento",
+        titulo: "Ação com evidência falsa",
+        evidencia: { pagina: 1, trecho: "Trocar todos os equipamentos amanhã." },
+      },
+    ];
+    mocks.generate
+      .mockResolvedValueOnce({
+        output: {
+          tipo: "PGR",
+          statusClassificacao: "identificado",
+          contemDadosClinicosIndividuais: false,
+        },
+      })
+      .mockResolvedValueOnce({ output });
+    const result = await analyzePgrDocument({ pdfDataUri: "data:application/pdf;base64,aGVsbG8=" });
+    expect(result.analiseAgente?.status).toBe("concluida");
+    expect(result.riscosIdentificados.some((risk) => risk.agente === "Benzeno")).toBe(false);
+    expect(
+      result.acoesCategorizadas.some((action) => action.titulo === "Ação com evidência falsa")
+    ).toBe(false);
+    expect(result.riscosIdentificados.some((risk) => risk.agente === "Ruído")).toBe(true);
+  });
   it("envia também o PDF textual original para a IA conferir tabelas e colunas", async () => {
     mocks.readPages.mockResolvedValue([{ numero: 1, texto: text }]);
     mocks.generate

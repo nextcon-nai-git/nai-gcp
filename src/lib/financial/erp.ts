@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { isCalendarDate } from "./omie-dre";
 import type { FinanceBook, FinanceTitle } from "./operations";
+import { financialLabel } from "./labels";
 
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 const text = z.string().trim().min(1).max(180);
@@ -244,8 +245,8 @@ export function applyErpCommand(
       const order = {
         ...command.data,
         partyName: p.name,
-        categoryName: `${c.code} · ${c.name}`,
-        centerName: `${center.code} · ${center.name}`,
+        categoryName: financialLabel(`${c.code} · ${c.name}`),
+        centerName: financialLabel(`${center.code} · ${center.name}`),
         totalCents: total,
         status: "draft" as const,
         createdBy: actor,
@@ -288,7 +289,7 @@ export function applyErpCommand(
         id: command.requestId,
         kind: o.kind === "sale" ? "receivable" : "payable",
         party: o.partyName,
-        description: `${o.kind === "sale" ? "Venda" : "Compra"} · ${o.number}`,
+        description: financialLabel(`${o.kind === "sale" ? "Venda" : "Compra"} · ${o.number}`),
         amountCents: o.totalCents,
         competence: o.competence,
         dueDate: o.dueDate,

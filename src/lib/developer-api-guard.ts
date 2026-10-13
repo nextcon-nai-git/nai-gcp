@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
-import { ApiKeyRecord } from "@/types/developer";
+import type { DeveloperPrincipal } from "@/types/developer";
 
 export const VALID_DEVELOPER_SCOPES = [
   "*",
@@ -92,10 +92,10 @@ export function generateApiKey(): { rawKey: string; keyHash: string; keyPrefix: 
 }
 
 /**
- * 1. requireApiKey(req)
- * Extrai, valida hash SHA-256, aplica rate limit e registra trilha de auditoria.
+ * Verify the credential, then return only a validated authorization identity.
+ * Stored hashes, credential prefixes and unrelated metadata are not fetched.
  */
-export async function requireApiKey(req: NextRequest): Promise<ApiKeyRecord> {
+export async function requireDeveloperPrincipal(req: NextRequest): Promise<DeveloperPrincipal> {
   const authHeader = req.headers.get("authorization") || "";
   const customKeyHeader = req.headers.get("x-api-key") || req.headers.get("x-nai-api-key") || "";
 
@@ -119,6 +119,7 @@ export async function requireApiKey(req: NextRequest): Promise<ApiKeyRecord> {
     .collection("api_keys")
     .where("keyHash", "==", keyHash)
     .where("active", "==", true)
+    .select("clientId", "scopes")
     .limit(1)
     .get();
   if (snap.empty) {
@@ -126,19 +127,25 @@ export async function requireApiKey(req: NextRequest): Promise<ApiKeyRecord> {
   }
 
   const docSnap = snap.docs[0];
-  const keyRecord = { id: docSnap.id, ...docSnap.data() } as ApiKeyRecord;
+  const stored = docSnap.data();
 
   if (
-    typeof keyRecord.clientId !== "string" ||
-    !keyRecord.clientId.trim() ||
-    !Array.isArray(keyRecord.scopes) ||
-    keyRecord.scopes.some((scope) => typeof scope !== "string")
+    typeof stored.clientId !== "string" ||
+    !stored.clientId.trim() ||
+    !Array.isArray(stored.scopes) ||
+    stored.scopes.some((scope: unknown) => typeof scope !== "string")
   ) {
     throw new ApiGuardError("Credencial de API sem vínculo ou escopos válidos.", 401);
   }
 
-  // Rate Limiting
-  const rateLimit = checkRateLimit(keyRecord.id);
+  const principal: DeveloperPrincipal = Object.freeze({
+    id: docSnap.id,
+    clientId: stored.clientId,
+    scopes: Object.freeze([...stored.scopes]),
+  });
+
+  // Snapshot identity remains authoritative even if a stored document has an id field.
+  const rateLimit = checkRateLimit(principal.id);
   if (!rateLimit.allowed) {
     throw new ApiGuardError(
       `Limite de taxa excedido (120 req/min). Tente novamente em ${Math.ceil(rateLimit.resetMs / 1000)}s.`,
@@ -158,9 +165,8 @@ export async function requireApiKey(req: NextRequest): Promise<ApiKeyRecord> {
   adminDb
     .collection("developer_api_logs")
     .add({
-      keyId: keyRecord.id,
-      keyPrefix: keyRecord.keyPrefix,
-      clientId: keyRecord.clientId,
+      keyId: principal.id,
+      clientId: principal.clientId,
       endpoint: req.nextUrl.pathname,
       method: req.method,
       ip: req.headers.get("x-forwarded-for") || "127.0.0.1",
@@ -168,22 +174,27 @@ export async function requireApiKey(req: NextRequest): Promise<ApiKeyRecord> {
     })
     .catch(() => {});
 
-  return keyRecord;
+  return principal;
+}
+
+/** @deprecated Use requireDeveloperPrincipal. This alias no longer returns a credential record. */
+export async function requireApiKey(req: NextRequest): Promise<DeveloperPrincipal> {
+  return requireDeveloperPrincipal(req);
 }
 
 /**
  * 2. requireScope(authKey, scope)
  * Garante que a chave possua o escopo necessário para a operação.
  */
-export function requireScope(authKey: ApiKeyRecord, scope: DeveloperScope): void {
-  if (!authKey || !Array.isArray(authKey.scopes)) {
+export function requireScope(principal: DeveloperPrincipal, scope: DeveloperScope): void {
+  if (!principal || !Array.isArray(principal.scopes)) {
     throw new ApiGuardError("Estrutura de credencial de API corrompida.", 401);
   }
 
-  const hasScope = authKey.scopes.includes("*") || authKey.scopes.includes(scope);
+  const hasScope = principal.scopes.includes("*") || principal.scopes.includes(scope);
   if (!hasScope) {
     throw new ApiGuardError(
-      `Escopo insuficiente. Esta operação requer '${scope}', sua chave possui [${authKey.scopes.join(", ")}].`,
+      `Escopo insuficiente. Esta operação requer '${scope}', sua chave possui [${principal.scopes.join(", ")}].`,
       403
     );
   }
@@ -193,18 +204,18 @@ export function requireScope(authKey: ApiKeyRecord, scope: DeveloperScope): void
  * 3. requireClient(authKey, companyId)
  * Garante que a chave pertença estritamente à empresa/tenant solicitado (Zero Cross-Tenant Leak).
  */
-export function requireClient(authKey: ApiKeyRecord, companyId: string): void {
-  if (!authKey) {
+export function requireClient(principal: DeveloperPrincipal, companyId: string): void {
+  if (!principal) {
     throw new ApiGuardError("Credencial de API não autenticada.", 401);
   }
 
-  if (authKey.clientId === "GLOBAL" || authKey.clientId === "ALL_TENANTS") {
+  if (principal.clientId === "GLOBAL" || principal.clientId === "ALL_TENANTS") {
     return; // Chave master administrativa
   }
 
-  if (!companyId || authKey.clientId !== companyId) {
+  if (!companyId || principal.clientId !== companyId) {
     throw new ApiGuardError(
-      `Isolamento Tenant: A chave de API vinculada ao clientId '${authKey.clientId}' não tem autorização para acessar dados da empresa '${companyId}'.`,
+      `Isolamento Tenant: A chave de API vinculada ao clientId '${principal.clientId}' não tem autorização para acessar dados da empresa '${companyId}'.`,
       403
     );
   }
@@ -221,18 +232,18 @@ export async function authenticateApiKeyRequest(
   status: number;
   error?: string;
   clientId?: string;
-  keyRecord?: ApiKeyRecord;
+  keyRecord?: DeveloperPrincipal;
 }> {
   try {
-    const keyRecord = await requireApiKey(req);
+    const principal = await requireDeveloperPrincipal(req);
     if (requiredScope) {
-      requireScope(keyRecord, requiredScope);
+      requireScope(principal, requiredScope);
     }
     return {
       success: true,
       status: 200,
-      clientId: keyRecord.clientId,
-      keyRecord,
+      clientId: principal.clientId,
+      keyRecord: principal,
     };
   } catch (err) {
     if (err instanceof ApiGuardError) {

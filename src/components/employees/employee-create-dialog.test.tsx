@@ -69,4 +69,54 @@ it("confirms success only after persistence and preserves the company", async ()
     job_role: { title: "Assistente" },
     status: "active",
   });
+  expect(mock.set.mock.calls[0][1]).not.toHaveProperty("fitnessStatus");
+});
+
+it("OCR prefill waits for review, requires an explicit company, and never grants fitness", async () => {
+  const saved = vi.fn();
+  await act(async () =>
+    root.render(
+      <EmployeeCreateDialog
+        open
+        onOpenChange={vi.fn()}
+        db={{} as never}
+        companies={[{ id: "synthetic-company", name: "Synthetic company" }]}
+        selectedCompany="all"
+        onSaved={saved}
+        initialValues={{
+          name: "Pessoa sintética",
+          cpf: "52998224725",
+          jobTitle: "Assistente",
+          birthDate: "1988-05-15",
+          cnhCategory: "B",
+          cnhExpiration: "2028-10-15",
+        }}
+      />
+    )
+  );
+  expect((document.getElementById("employee-name") as HTMLInputElement).value).toBe(
+    "Pessoa sintética"
+  );
+  expect((document.getElementById("employee-company") as HTMLSelectElement).value).toBe("");
+  expect(mock.transaction).not.toHaveBeenCalled();
+  await act(async () => {
+    document
+      .querySelector("form")!
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  });
+  expect(mock.transaction).not.toHaveBeenCalled();
+  (document.getElementById("employee-company") as HTMLSelectElement).value = "synthetic-company";
+  await act(async () => {
+    document
+      .querySelector("form")!
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  });
+  expect(saved).toHaveBeenCalledOnce();
+  expect(mock.set.mock.calls[0][1]).toMatchObject({
+    companyId: "synthetic-company",
+    birthDate: "1988-05-15",
+    cnhCategory: "B",
+    cnhExpiration: "2028-10-15",
+  });
+  expect(mock.set.mock.calls[0][1]).not.toHaveProperty("fitnessStatus");
 });

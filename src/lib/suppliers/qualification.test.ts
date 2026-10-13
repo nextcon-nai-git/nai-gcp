@@ -67,6 +67,13 @@ function fixture() {
   return run(b, { action: "submit", id: app.id });
 }
 describe("supplier qualification boundaries", () => {
+  it("rejects reviewer-owned creation before reserving the supplier document", () => {
+    const before = initial();
+    expect(() => run(before, { action: "create", profile }, admin)).toThrow("conta do fornecedor");
+    expect(before.applications).toEqual([]);
+    const created = run(before, { action: "create", profile });
+    expect(created.applications[0].owner).toBe(user.uid);
+  });
   it("isolates owners and strips internal audit identities", () => {
     const b = fixture();
     expect(supplierView(b, { ...user, uid: "other" }, "2026-10-12").applications).toEqual([]);

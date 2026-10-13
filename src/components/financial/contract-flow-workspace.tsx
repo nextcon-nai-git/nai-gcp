@@ -355,11 +355,33 @@ export function ContractFlowWorkspace({
                     showForm({
                       title: "Gerar mensalidade em rascunho",
                       description: `${row.contract.client} · ${period} · ${money(row.contract.monthlyCents)}. Gera um título sujeito à aprovação financeira. Não emite nota nem envia cobrança ao cliente. Confira no Omie se esta competência já foi cobrada antes de continuar.`,
-                      fields: [],
-                      build: () => ({
+                      fields: [
+                        {
+                          name: "dueDate",
+                          label: "Vencimento",
+                          type: "date",
+                          value:
+                            row.flow &&
+                            `${period}-${String(row.contract.dueDay).padStart(2, "0")}` <
+                              row.flow.acceptedOn
+                              ? row.flow.acceptedOn
+                              : `${period}-${String(row.contract.dueDay).padStart(2, "0")}`,
+                        },
+                        {
+                          name: "reason",
+                          label: "Justificativa se alterar o vencimento contratual",
+                          type: "textarea",
+                          optional: true,
+                        },
+                      ],
+                      build: (f) => ({
                         action: "recurring",
                         contractId: row.contract.id,
                         month: period,
+                        dueDate: String(f.get("dueDate") || ""),
+                        ...(String(f.get("reason") || "").trim()
+                          ? { reason: String(f.get("reason")).trim() }
+                          : {}),
                       }),
                     })
                   }

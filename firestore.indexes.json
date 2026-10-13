@@ -171,6 +171,20 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "agendamentos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data_hora",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [

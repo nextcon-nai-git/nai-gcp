@@ -1,6 +1,39 @@
 import { expect, it } from "vitest";
 import { withPgrRiskCards } from "./pgr-risk-cards";
 import { parsePgrDocumentPages } from "./pgr-document-parser";
+it("lê todas as fichas da mesma página preservando GHE, controles e classificação de cada ficha", () => {
+  const pages = [
+    {
+      numero: 1,
+      texto:
+        "GHE: 01 - Produção\nPerigo/Fator de Risco Ruído Grupo Físico\nDescrição Exposição aos motores\nPrevenção e controle Protetor auditivo\nAvaliação de risco\nNível de Risco Moderado\nAções necessárias Conferir\nPerigo/Fator de Risco Calor Grupo Físico\nDescrição Trabalho junto ao forno\nPrevenção e controle Ventilação\nAvaliação de risco\nNível de Risco Alto\nAções necessárias Revisar\nGHE: 02 - Transporte\nPerigo/Fator de Risco Colisão Grupo Acidentes\nDescrição Condução de veículos\nAvaliação de risco\nNível de Risco Alto",
+    },
+  ];
+  const result = parsePgrDocumentPages(pages);
+  expect(
+    result.riscosIdentificados.map((risk) => [
+      risk.agente,
+      risk.setorGhe,
+      risk.classificacaoOriginal,
+      risk.controlesDocumentados,
+    ])
+  ).toEqual([
+    ["Ruído", "GHE: 01 - Produção", "Moderado", ["Protetor auditivo"]],
+    ["Calor", "GHE: 01 - Produção", "Alto", ["Ventilação"]],
+    ["Colisão", "GHE: 02 - Transporte", "Alto", []],
+  ]);
+});
+
+it("uma ficha incompleta não torna a extração parcial autoritativa para a página inteira", () => {
+  const pages = withPgrRiskCards([
+    {
+      numero: 1,
+      texto:
+        "GHE: 01 - Produção\nPerigo/Fator de Risco Ruído Grupo Físico\nDescrição Operação dos motores\nAvaliação de risco\nNível de Risco Moderado\nPerigo/Fator de Risco Calor\nDescrição Operação junto ao forno",
+    },
+  ]);
+  expect(pages[0].riscosTabela).toBeUndefined();
+});
 it("preserva perigo, grupo herdado, classificação e controles da ficha vertical", () => {
   const pages = withPgrRiskCards([
     { numero: 1, texto: "GES 02 - HIDROMETRIA\nDescrição do ambiente" },

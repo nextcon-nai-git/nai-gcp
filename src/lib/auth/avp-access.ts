@@ -2,8 +2,11 @@ import type { AuthContext } from "./auth-context";
 import { forbidden } from "./errors";
 
 export function requireAvpAccess(user: AuthContext) {
+  // ADMIN is also used for tenant administrators; only an unscoped internal
+  // administrator may access AVP without an explicit company relationship.
+  const internalAdmin = user.role === "SUPER_ADMIN" || (user.role === "ADMIN" && !user.tenantId);
   if (
-    !["SUPER_ADMIN", "ADMIN"].includes(user.role) &&
+    !internalAdmin &&
     user.tenantId !== "GRUPO_AVP" &&
     !user.servedCompanies.includes("GRUPO_AVP")
   )

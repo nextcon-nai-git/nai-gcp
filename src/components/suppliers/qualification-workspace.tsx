@@ -159,42 +159,50 @@ export function SupplierQualificationWorkspace() {
               Conectores Omie e envio de fornecedores homologados →
             </Link>
           )}
-          <details className={card}>
-            <summary className="cursor-pointer font-semibold">
-              Cadastrar meu processo de fornecedor
-            </summary>
-            <p className="my-3 text-sm text-slate-300">
-              O cadastro ficará vinculado à conta conectada. A equipe definirá os documentos
-              exigidos.
+          {!view.admin && (
+            <details className={card}>
+              <summary className="cursor-pointer font-semibold">
+                Cadastrar meu processo de fornecedor
+              </summary>
+              <p className="my-3 text-sm text-slate-300">
+                O cadastro ficará vinculado à conta conectada. A equipe definirá os documentos
+                exigidos.
+              </p>
+              <form onSubmit={(e) => profile(e)} className="grid gap-3 md:grid-cols-2">
+                {["name", "document", "email", "phone", "services", "city"].map((k, i) => (
+                  <label className="text-sm" key={k}>
+                    {
+                      [
+                        "Razão social / nome",
+                        "CNPJ ou CPF",
+                        "E-mail",
+                        "Telefone",
+                        "Serviços fornecidos",
+                        "Cidade / UF",
+                      ][i]
+                    }
+                    <input
+                      className={input}
+                      name={k}
+                      type={k === "email" ? "email" : "text"}
+                      required={k !== "phone"}
+                      maxLength={k === "services" ? 1000 : 180}
+                      disabled={busy}
+                    />
+                  </label>
+                ))}
+                <Button type="submit" disabled={busy}>
+                  Criar processo
+                </Button>
+              </form>
+            </details>
+          )}
+          {view.admin && (
+            <p className="text-sm text-slate-300">
+              Cada fornecedor inicia seu processo pela própria conta de fornecedor. Selecione abaixo
+              um processo recebido para definir requisitos e revisar documentos.
             </p>
-            <form onSubmit={(e) => profile(e)} className="grid gap-3 md:grid-cols-2">
-              {["name", "document", "email", "phone", "services", "city"].map((k, i) => (
-                <label className="text-sm" key={k}>
-                  {
-                    [
-                      "Razão social / nome",
-                      "CNPJ ou CPF",
-                      "E-mail",
-                      "Telefone",
-                      "Serviços fornecidos",
-                      "Cidade / UF",
-                    ][i]
-                  }
-                  <input
-                    className={input}
-                    name={k}
-                    type={k === "email" ? "email" : "text"}
-                    required={k !== "phone"}
-                    maxLength={k === "services" ? 1000 : 180}
-                    disabled={busy}
-                  />
-                </label>
-              ))}
-              <Button type="submit" disabled={busy}>
-                Criar processo
-              </Button>
-            </form>
-          </details>
+          )}
           <div className="grid gap-6 xl:grid-cols-[300px_1fr]">
             <aside className="space-y-3">
               <label className="text-sm">

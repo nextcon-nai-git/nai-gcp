@@ -32,7 +32,7 @@ import {
 } from "@/lib/pgr-agent-prompts";
 import { forbidden } from "@/lib/auth/errors";
 import { readPgrPdfPages } from "./pgr-pdf-text";
-import { mergeNaiIdentity } from "@/lib/nai-import-evidence";
+import { isNaiVisualEvidence, mergeNaiIdentity } from "@/lib/nai-import-evidence";
 
 export type PgrAnalysisInput = {
   pdfDataUri: string;
@@ -64,8 +64,13 @@ function validatedProviders(
       provider.cnpj.replace(/\D/g, "") === companyCnpj.replace(/\D/g, "")
     )
       return false;
-    if (isVisual) return true;
-    if (!provider.evidencias.every((evidence) => evidenceIsInPages(evidence, pages))) return false;
+    if (
+      !provider.evidencias.every(
+        (evidence) =>
+          evidenceIsInPages(evidence, pages) || (isVisual && isNaiVisualEvidence(evidence, pages))
+      )
+    )
+      return false;
     const evidence = normalizePgrText(provider.evidencias.map((item) => item.trecho).join(" "));
     if (
       !/\b(?:prestador|prestadora|contratada|elaboradora|elaborado por|elaborada por|responsavel tecnico|medico responsavel|medico examinador|medico coordenador|clinica)\b/.test(
@@ -273,7 +278,7 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
       )
       .filter(
         (risk) =>
-          isVisual ||
+          (isVisual && isNaiVisualEvidence(risk.evidencia, pages)) ||
           isPgrExposureEvidence(risk.evidencia, pages) ||
           (isErgonomic &&
             ["ergonomico", "psicossocial"].includes(risk.categoria) &&
@@ -286,7 +291,7 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
             ))
       )
       .map((risk) => {
-        if (isVisual) return risk;
+        if (isVisual && isNaiVisualEvidence(risk.evidencia, pages)) return risk;
         const page = normalizePgrText(
           pages.find((p) => p.numero === risk.evidencia.pagina)?.texto || ""
         );
@@ -310,6 +315,7 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
               !validated.some(
                 (risk) =>
                   risk.categoria === baseRisk.categoria &&
+                  normalizePgrText(risk.agente) === normalizePgrText(baseRisk.agente) &&
                   ((risk.setorGhe &&
                     normalizePgrText(risk.setorGhe) === normalizePgrText(baseRisk.setorGhe)) ||
                     (!risk.setorGhe &&
@@ -342,7 +348,9 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
         (action) =>
           !action.id.startsWith("agent_") &&
           (action.fundamento !== "documento" ||
-            (!!action.evidencia && (isVisual || evidenceIsInPages(action.evidencia, pages))))
+            (!!action.evidencia &&
+              ((isVisual && isNaiVisualEvidence(action.evidencia, pages)) ||
+                evidenceIsInPages(action.evidencia, pages))))
       )
       .map((action) => ({
         ...action,
@@ -355,12 +363,14 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
           .map((id) => riskIds.get(id))
           .filter((id): id is string => !!id),
         evidencia:
-          action.evidencia && (isVisual || evidenceIsInPages(action.evidencia, pages))
+          action.evidencia &&
+          ((isVisual && isNaiVisualEvidence(action.evidencia, pages)) ||
+            evidenceIsInPages(action.evidencia, pages))
             ? action.evidencia
             : null,
         prazoDocumentado:
           action.prazoDocumentado &&
-          (isVisual ||
+          ((!!action.evidencia && isVisual && isNaiVisualEvidence(action.evidencia, pages)) ||
             (!!action.evidencia &&
               normalizePgrText(action.evidencia.trecho).includes(
                 normalizePgrText(action.prazoDocumentado)

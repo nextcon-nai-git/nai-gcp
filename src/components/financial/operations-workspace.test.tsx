@@ -87,4 +87,28 @@ describe("financial operations UI", () => {
     expect(container.textContent).toContain("Entre com seu perfil");
     expect(container.textContent).not.toContain("Resultado gerencial");
   });
+  it("clears a previously loaded ledger when financial access is revoked", async () => {
+    mocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify(emptyFinanceBook())));
+    await render();
+    await act(async () => button("Abrir controle").click());
+    expect(container.textContent).toContain("Resultado gerencial registrado");
+    mocks.fetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "Acesso financeiro revogado" }), { status: 403 })
+    );
+    await act(async () => button("Atualizar dados").click());
+    expect(container.textContent).toContain("Acesso financeiro revogado");
+    expect(container.textContent).not.toContain("Resultado gerencial registrado");
+    expect(button("Exportar acervo")).toBeUndefined();
+  });
+  it("clears finance data even when a revoked session receives a non-JSON denial", async () => {
+    mocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify(emptyFinanceBook())));
+    await render();
+    await act(async () => button("Abrir controle").click());
+    expect(container.textContent).toContain("Resultado gerencial registrado");
+    mocks.fetch.mockResolvedValueOnce(new Response("Denied", { status: 403 }));
+    await act(async () => button("Atualizar dados").click());
+    expect(container.querySelector('[role="alert"]')).not.toBeNull();
+    expect(container.textContent).not.toContain("Resultado gerencial registrado");
+    expect(button("Exportar acervo")).toBeUndefined();
+  });
 });

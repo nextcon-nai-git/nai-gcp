@@ -1,129 +1,115 @@
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { processSesmtAgentRequest } from "@/ai/flows/sesmt-agents-flow";
 import { processMultidisciplinarySstRequest } from "@/ai/flows/multidisciplinary-sst-agent-flow";
 import { processAsoSchedulerKitRequest } from "@/ai/flows/aso-scheduler-kit-agent-flow";
-import { SESMT_AGENTS_CONFIG, AgentRole } from "@/ai/sesmt-agents-config";
+import { SESMT_AGENTS_CONFIG, type AgentRole } from "@/ai/sesmt-agents-config";
 
-describe("Suíte Completa de Testes dos 7 Agentes IA do SESMT", () => {
-  it("1. Deve testar o Agente Multidisciplinar Mestre (Prompt Mestre 5 em 1)", async () => {
-    const res = await processMultidisciplinarySstRequest({
-      userPrompt:
-        "Operador de centro de usinagem relatando fadiga muscular nos ombros e exposição a neblina de óleo solúvel.",
-      companyContext: { companyName: "Metalúrgica NAI", industrySector: "Industrial" },
-    });
+const mock = vi.hoisted(() => ({ generate: vi.fn() }));
+vi.mock("@/ai/genkit", () => ({ ai: { generate: mock.generate } }));
 
-    expect(res).toBeDefined();
-    expect(res.resumo_executivo).toBeTruthy();
-    expect(res.analise_engenharia_seguranca.perigos.length).toBeGreaterThan(0);
-    expect(res.analise_tecnico_seguranca.acoes_imediatas.length).toBeGreaterThan(0);
-    expect(res.analise_medico_trabalho.relacao_ocupacional).toBeDefined();
-    expect(res.analise_enfermagem_trabalho.conduta_sugerida.length).toBeGreaterThan(0);
-    expect(res.analise_ergonomica.recomendacoes.length).toBeGreaterThan(0);
-    expect(res.analise_integrada.consensos.length).toBeGreaterThan(0);
-    expect(res.plano_de_acao.length).toBeGreaterThan(0);
+const roles: AgentRole[] = [
+  "engenheiro_seguranca",
+  "tecnico_seguranca",
+  "enfermeiro_trabalho",
+  "ergonomista",
+  "medico_trabalho",
+  "junta_sesmt",
+];
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  mock.generate.mockRejectedValue(new Error("Provider unavailable with private details"));
+});
+
+describe("Indisponibilidade dos agentes de SST sem conclusões fabricadas", () => {
+  it("não devolve parecer multidisciplinar genérico quando a IA falha", async () => {
+    await expect(
+      processMultidisciplinarySstRequest({ userPrompt: "Caso sintético sem documentos." })
+    ).rejects.toThrow("Nenhum parecer");
   });
 
-  it("2. Deve testar o Agente Agendador de ASO & Kit para Clínicas Parceiras", async () => {
-    const res = await processAsoSchedulerKitRequest({
-      userPrompt:
-        "Agendamento de exame admissional para Soldador com exposição a ruído e fumos metálicos.",
-      workerData: {
-        name: "João Silva",
-        cpf: "111.222.333-44",
-        roleTitle: "Soldador",
-        examType: "ADMISSIONAL",
-      },
-    });
-
-    expect(res).toBeDefined();
-    expect(res.resumo_agendamento).toBeTruthy();
-    expect(res.tipo_aso).toBe("ADMISSIONAL");
-    expect(res.exames_complementares.length).toBeGreaterThan(0);
-    expect(res.kit_clinica.numero_guia).toBeTruthy();
+  it("não inventa kit de ASO quando a IA falha", async () => {
+    await expect(
+      processAsoSchedulerKitRequest({
+        userPrompt: "Solicitação de ASO sem protocolo médico anexado.",
+        workerData: { name: "Pessoa sintética", roleTitle: "Soldador" },
+      })
+    ).rejects.toThrow("nenhum exame");
   });
 
-  it("3. Deve testar o Agente Engenheiro de Segurança do Trabalho", async () => {
-    const res = await processSesmtAgentRequest({
-      agentRole: "engenheiro_seguranca",
-      userPrompt:
-        "Como dimensionar EPCs e exaustão localizada para cabine de pintura industrial segundo a NR-09 e NR-15?",
-    });
-
-    expect(res).toBeDefined();
-    expect(res.agentRole).toBe("engenheiro_seguranca");
-    expect(res.agentTitle).toContain("Engenheiro");
-    expect(res.analysis).toBeTruthy();
-    expect(res.actionItems.length).toBeGreaterThan(0);
+  it.each(roles)("%s informa indisponibilidade em vez de simular análise", async (agentRole) => {
+    await expect(
+      processSesmtAgentRequest({ agentRole, userPrompt: "Caso sintético sem evidência." })
+    ).rejects.toThrow("Nenhuma conclusão técnica, conduta ou lista de ações foi gerada");
   });
 
-  it("4. Deve testar o Agente Técnico em Segurança do Trabalho", async () => {
-    const res = await processSesmtAgentRequest({
-      agentRole: "tecnico_seguranca",
-      userPrompt: "Quais os itens de checagem diária para andaimes tubulares fachadeiros na NR-18?",
-    });
+  it.each(roles)(
+    "%s preserva o papel correto e uma resposta validada sem inventar ações",
+    async (agentRole) => {
+      mock.generate.mockResolvedValueOnce({
+        output: {
+          agentRole: "papel retornado indevidamente pelo modelo",
+          agentTitle: "Título retornado pelo modelo",
+          analysis: "EVIDÊNCIA INSUFICIENTE: faltam documentos do caso para revisão profissional.",
+          actionItems: [],
+          relevantStandards: [],
+        },
+      });
+      const result = await processSesmtAgentRequest({
+        agentRole,
+        userPrompt: "Caso sintético sem evidência.",
+      });
+      expect(result.agentRole).toBe(SESMT_AGENTS_CONFIG[agentRole].role);
+      expect(result.agentTitle).toBe(SESMT_AGENTS_CONFIG[agentRole].title);
+      expect(result.actionItems).toEqual([]);
+      expect(result.relevantStandards).toEqual([]);
+      expect(result.warningAlert).toBeUndefined();
+    }
+  );
 
-    expect(res).toBeDefined();
-    expect(res.agentRole).toBe("tecnico_seguranca");
-    expect(res.agentTitle).toContain("Técnico");
-    expect(res.analysis).toBeTruthy();
-    expect(res.actionItems.length).toBeGreaterThan(0);
-  });
-
-  it("5. Deve testar o Agente Enfermeiro do Trabalho", async () => {
-    const res = await processSesmtAgentRequest({
-      agentRole: "enfermeiro_trabalho",
-      userPrompt:
-        "Qual o protocolo de triagem para trabalhador com sintomas febris e desidratação no canteiro de obras?",
-    });
-
-    expect(res).toBeDefined();
-    expect(res.agentRole).toBe("enfermeiro_trabalho");
-    expect(res.agentTitle).toContain("Enfermeiro");
-    expect(res.analysis).toBeTruthy();
-    expect(res.actionItems.length).toBeGreaterThan(0);
-  });
-
-  it("6. Deve testar o Agente Ergonomista", async () => {
-    const res = await processSesmtAgentRequest({
-      agentRole: "ergonomista",
-      userPrompt:
-        "Quais os requisitos de altura da mesa, regulagem da cadeira e descanso de pé para operadores de suporte técnico (NR-17)?",
-    });
-
-    expect(res).toBeDefined();
-    expect(res.agentRole).toBe("ergonomista");
-    expect(res.agentTitle).toContain("Ergonomista");
-    expect(res.analysis).toBeTruthy();
-    expect(res.actionItems.length).toBeGreaterThan(0);
-  });
-
-  it("7. Deve testar o Agente Médico do Trabalho", async () => {
-    const res = await processSesmtAgentRequest({
+  it.each([
+    null,
+    {},
+    { analysis: "Resposta parcial não validada" },
+    {
       agentRole: "medico_trabalho",
-      userPrompt:
-        "Quais os exames auditivos e peridiocidade recomendada no PCMSO para exposição a ruído contínuo de 87 dBA?",
-    });
-
-    expect(res).toBeDefined();
-    expect(res.agentRole).toBe("medico_trabalho");
-    expect(res.agentTitle).toContain("Médico");
-    expect(res.analysis).toBeTruthy();
-    expect(res.actionItems.length).toBeGreaterThan(0);
+      agentTitle: "Médico",
+      analysis: "   ",
+      actionItems: [],
+      relevantStandards: [],
+    },
+  ])("não aceita saída incompleta do provedor: %j", async (output) => {
+    mock.generate.mockResolvedValueOnce({ output });
+    await expect(
+      processSesmtAgentRequest({ agentRole: "medico_trabalho", userPrompt: "Caso sintético." })
+    ).rejects.toThrow("está indisponível");
   });
 
-  it("8. Deve validar se os agentes estão devidamente configurados no mapa de metadados", () => {
-    const roles: AgentRole[] = [
-      "engenheiro_seguranca",
-      "tecnico_seguranca",
-      "enfermeiro_trabalho",
-      "ergonomista",
-      "medico_trabalho",
-      "junta_sesmt",
-    ];
+  it("cancela o processamento excedido e informa indisponibilidade", async () => {
+    vi.useFakeTimers();
+    let signal: AbortSignal | undefined;
+    mock.generate.mockImplementationOnce((options: { abortSignal: AbortSignal }) => {
+      signal = options.abortSignal;
+      return new Promise(() => {});
+    });
+    try {
+      const pending = processSesmtAgentRequest({
+        agentRole: "medico_trabalho",
+        userPrompt: "Caso sintético.",
+      });
+      const rejection = expect(pending).rejects.toThrow("está indisponível");
+      await vi.advanceTimersByTimeAsync(45000);
+      await rejection;
+      expect(signal?.aborted).toBe(true);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
+  it("mantém os metadados configurados para cada agente", () => {
     roles.forEach((role) => {
       const config = SESMT_AGENTS_CONFIG[role];
-      expect(config).toBeDefined();
       expect(config.title).toBeTruthy();
       expect(config.avatar).toBeTruthy();
       expect(config.badge).toBeTruthy();

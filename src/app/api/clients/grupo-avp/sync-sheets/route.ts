@@ -5,7 +5,9 @@ import {
   mergeSpreadsheetData,
 } from "@/lib/avp-sheet-importer";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { AuthError, forbidden, handleAuthError } from "@/lib/auth/errors";
+import { requireAvpAccess } from "@/lib/auth/avp-access";
+import { AuthError, handleAuthError } from "@/lib/auth/errors";
+import { limitedBytes } from "@/lib/http/private-api";
 import type { GrupoAvpAso } from "@/lib/grupo-avp-asos-data";
 
 export const dynamic = "force-dynamic";
@@ -13,16 +15,19 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuth(req);
-    if (
-      !["SUPER_ADMIN", "ADMIN"].includes(user.role) &&
-      user.tenantId !== "GRUPO_AVP" &&
-      !user.servedCompanies.includes("GRUPO_AVP")
-    ) {
-      throw forbidden("Seu perfil não possui acesso ao Grupo AVP.");
-    }
+    requireAvpAccess(user);
     if (Number(req.headers.get("content-length")) > 5_000_000)
       return NextResponse.json({ error: "Fila excede o limite de importação." }, { status: 413 });
-    const body = await req.json();
+    let body: Record<string, unknown>;
+    try {
+      const input: unknown = JSON.parse((await limitedBytes(req, 5_000_000)).toString("utf8"));
+      if (!input || typeof input !== "object" || Array.isArray(input))
+        return NextResponse.json({ error: "Solicitação inválida." }, { status: 400 });
+      body = input as Record<string, unknown>;
+    } catch (error) {
+      if (error instanceof AuthError) throw error;
+      return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
+    }
     if (typeof body.sheetUrl !== "string")
       return NextResponse.json({ error: "Informe o link da planilha." }, { status: 400 });
     const { csvUrl, error } = formatGoogleSheetsCsvUrl(body.sheetUrl);

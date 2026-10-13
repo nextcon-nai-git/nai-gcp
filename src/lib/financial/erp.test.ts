@@ -75,6 +75,32 @@ function converted(kind: "sale" | "purchase" = "sale") {
   return b;
 }
 describe("ERP financeiro integrado", () => {
+  it("bounds generated labels while preserving maximum-length source names and order numbers", () => {
+    const initial = setup();
+    let b = initial.b;
+    b.erp.categories[0].name = "Categoria ".repeat(18);
+    b.erp.centers[0].code = "C".repeat(180);
+    b.erp.centers[0].name = "N".repeat(180);
+    b = run(b, {
+      action: "erpOrder",
+      id: null,
+      data: { ...initial.data, number: "P".repeat(180) },
+      reason: "Identificadores completos",
+    });
+    const id = b.erp.orders[0].id;
+    expect(b.erp.orders[0].centerName.length).toBeLessThanOrEqual(180);
+    expect(b.erp.orders[0].categoryName.length).toBeLessThanOrEqual(180);
+    expect(b.erp.centers[0].name).toBe("N".repeat(180));
+    b = run(b, { action: "erpReviewOrder", id, status: "submitted", reason: "Conferência" });
+    b = run(
+      b,
+      { action: "erpReviewOrder", id, status: "approved", reason: "Aprovado" },
+      "reviewer"
+    );
+    b = run(b, { action: "erpConvertOrder", id, reason: "Origem conferida" });
+    expect(b.titles[0].description).toHaveLength(180);
+    expect(b.erp.orders[0].number).toBe("P".repeat(180));
+  });
   it("reads the deployed schema without losing history and defaults the new module", () => {
     const legacy: Partial<FinanceBook> = emptyFinanceBook();
     delete legacy.erp;
@@ -268,6 +294,15 @@ describe("ERP financeiro integrado", () => {
       note: "Promessa sintética",
     };
     b = run(b, { action: "erpFollowUp", data: follow });
+    expect(b.audit.at(-1)?.reason).toBe("Promessa sintética");
+    b = run(b, {
+      action: "erpFollowUp",
+      data: { ...follow, note: "Última promessa no mesmo dia" },
+    });
+    b = run(b, {
+      action: "erpFollowUp",
+      data: { ...follow, date: "2026-10-11", note: "Contato histórico adicionado depois" },
+    });
     expect(() =>
       run(b, { action: "erpFollowUp", data: { ...follow, nextDate: "2026-10-01" } })
     ).toThrow("anteceder");
@@ -276,6 +311,7 @@ describe("ERP financeiro integrado", () => {
     expect(r.cash).toEqual([{ date: "2026-10-11", in: 3070, out: 0 }]);
     expect(r.revenue).toBe(9998);
     expect(r.receivables[0].followUp?.outcome).toBe("promise");
+    expect(r.receivables[0].followUp?.note).toBe("Última promessa no mesmo dia");
     expect(b.settlements).toHaveLength(1);
   });
   it("protects report exports against spreadsheet formulas", () => {

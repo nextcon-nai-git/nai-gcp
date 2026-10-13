@@ -16,10 +16,14 @@ export const InvoiceQuerySchema = z
     page: z.number().int().min(1).max(10000).default(1),
   })
   .strict()
-  .refine(
-    (q) => q.start <= q.end && Date.parse(q.end) - Date.parse(q.start) <= 366 * 86400000,
-    "Selecione um período de até 12 meses"
-  );
+  .refine((q) => {
+    const limit = new Date(q.start + "T00:00:00Z");
+    const month = limit.getUTCMonth();
+    limit.setUTCFullYear(limit.getUTCFullYear() + 1);
+    // An anniversary of February 29 falls on February 28 in a non-leap year.
+    if (limit.getUTCMonth() !== month) limit.setUTCDate(0);
+    return q.start <= q.end && Date.parse(q.end) <= limit.getTime();
+  }, "Selecione um período de até 12 meses");
 export type InvoiceQuery = z.infer<typeof InvoiceQuerySchema>;
 export type FiscalInvoice = {
   id: string;
