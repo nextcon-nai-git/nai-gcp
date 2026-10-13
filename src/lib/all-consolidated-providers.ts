@@ -31,14 +31,18 @@ export interface ConsolidatedProvider {
   servedCompanies?: string[];
   category?: string;
   legacyId?: string;
-  nfseData?: unknown;
-  boletoData?: unknown;
-  financialHistory?: unknown;
+  nfseData?: any;
+  boletoData?: any;
+  financialHistory?: any;
 }
 
 /**
- * Compatibility boundary for the former local provider fallback.
- * An unavailable or empty database is not evidence of an operational record.
+ * Compatibility boundary for the provider screen's former local fallback.
+ *
+ * An empty, loading or unavailable database is not evidence of a provider's
+ * identity, registration, contract, company scope, location or assessment.
+ * Never substitute embedded records or inferred defaults for persisted data.
+ * This function does not read, delete or rewrite existing database records.
  *
  * @deprecated Read providers from the authenticated, authorized data source.
  */

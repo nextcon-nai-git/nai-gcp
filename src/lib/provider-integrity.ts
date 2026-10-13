@@ -5,6 +5,16 @@ export function isProviderCsvSizeAllowed(size: number): boolean {
   return Number.isFinite(size) && size >= 0 && size <= MAX_PROVIDER_CSV_BYTES;
 }
 
+export function canKeepProviderActive(
+  taxIdStatus: string | undefined,
+  wasAlreadyActive: boolean,
+  identifierUnchanged: boolean
+): boolean {
+  if (!identifierUnchanged) return false;
+  if (taxIdStatus === "verified") return true;
+  return taxIdStatus === undefined && wasAlreadyActive;
+}
+
 export const PROVIDER_TYPES = [
   "CLINIC",
   "LAB",

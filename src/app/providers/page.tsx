@@ -120,6 +120,7 @@ import Papa from "papaparse";
 import { useSgi } from "@/contexts/sgi-context";
 import { generateProviderInviteMessage } from "@/lib/domain-config";
 import {
+  canKeepProviderActive,
   isProviderAssociatedWithCompany,
   isProviderCsvSizeAllowed,
   isValidProviderIdentifier,
@@ -589,7 +590,15 @@ export default function ProvidersManagement() {
   };
 
   async function handleSave(values: ProviderFormValues) {
-    if (!db || !storage || !isGlobalAdmin || !providers || providersError) return;
+    if (!db || !storage || !isGlobalAdmin) return;
+    if (!providers || providersError) {
+      toast({
+        variant: "destructive",
+        title: "Dados indisponíveis",
+        description: "Aguarde uma leitura autorizada dos prestadores antes de salvar.",
+      });
+      return;
+    }
     setIsSubmitting(true);
 
     try {
@@ -652,16 +661,14 @@ export default function ProvidersManagement() {
       }
 
       const taxIdStatus =
-        editingProvider?.taxIdStatus === "verified" && !identityChanged && !!submittedIdentifier
-          ? "verified"
-          : "pending_verification";
-      const active = taxIdStatus === "verified" ? values.active : false;
+        !editingProvider || identityChanged ? "pending_verification" : editingProvider.taxIdStatus;
+      const active = taxIdStatus === "pending_verification" ? false : (values.active ?? false);
       const data: Record<string, unknown> = {
         ...values,
         cnpj: values.cnpj || "",
         taxIdType: submittedIdentifier
-          ? editingProvider?.taxIdStatus === "verified" && !identityChanged
-            ? editingProvider.taxIdType || (submittedIdentifier.length === 11 ? "CPF" : "CNPJ")
+          ? !identityChanged && editingProvider?.taxIdType
+            ? editingProvider.taxIdType
             : submittedIdentifier.length === 11
               ? "CPF"
               : "CNPJ"
@@ -670,9 +677,9 @@ export default function ProvidersManagement() {
         contractUrl: finalContractUrl,
         photoUrl: finalPhotoUrl,
         councilCardUrl: finalCouncilCardUrl,
-        taxIdStatus,
         updatedAt: serverTimestamp(),
       };
+      if (taxIdStatus) data.taxIdStatus = taxIdStatus;
       for (const [key, value] of Object.entries(data)) {
         if (value === undefined) delete data[key];
       }
@@ -697,8 +704,13 @@ export default function ProvidersManagement() {
 
       toast({
         title: "Registro Protocolado",
-        description:
-          "Cadastro profissional gravado e relido. A identificação fiscal permanece pendente até confirmação independente; acesso e permissões são provisionados separadamente.",
+        description: `Cadastro profissional gravado e relido. ${
+          taxIdStatus === "verified"
+            ? "A identificação fiscal verificada foi preservada."
+            : taxIdStatus === "pending_verification"
+              ? "A identificação fiscal permanece pendente até confirmação independente."
+              : "Os dados fiscais legados foram preservados sem alteração de status."
+        } Acesso e permissões são provisionados separadamente.`,
       });
       setIsCreateOpen(false);
       setEditingProvider(null);
@@ -1763,9 +1775,11 @@ export default function ProvidersManagement() {
                           .toUpperCase();
                         if (
                           assessment.active &&
-                          (editingProvider.taxIdStatus !== "verified" ||
-                            !currentIdentifier ||
-                            currentIdentifier !== verifiedIdentifier)
+                          !canKeepProviderActive(
+                            editingProvider.taxIdStatus,
+                            editingProvider.active === true,
+                            currentIdentifier === verifiedIdentifier
+                          )
                         ) {
                           throw new Error(
                             "Não é possível ativar o prestador sem identificação fiscal confirmada."

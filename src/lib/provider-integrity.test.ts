@@ -6,6 +6,7 @@ vi.mock("@/lib/real-data", () => {
 
 import { getConsolidatedProviders } from "./all-consolidated-providers";
 import {
+  canKeepProviderActive,
   isProviderAssociatedWithCompany,
   isProviderCsvSizeAllowed,
   isValidProviderIdentifier,
@@ -131,6 +132,14 @@ describe("provider integrity", () => {
     expect(
       isProviderAssociatedWithCompany({ id: "linked", servedCompanies: ["company-a"] }, "company-a")
     ).toBe(true);
+  });
+
+  it("prevents activation while fiscal identity is pending without disabling a legacy active record", () => {
+    expect(canKeepProviderActive("pending_verification", false, true)).toBe(false);
+    expect(canKeepProviderActive("verified", false, true)).toBe(true);
+    expect(canKeepProviderActive("verified", true, false)).toBe(false);
+    expect(canKeepProviderActive(undefined, true, true)).toBe(true);
+    expect(canKeepProviderActive(undefined, false, true)).toBe(false);
   });
 
   it("confirms a provider write only after a matching reread", async () => {
