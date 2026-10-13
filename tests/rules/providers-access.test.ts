@@ -6,7 +6,16 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  writeBatch,
+} from "firebase/firestore";
 
 let env: RulesTestEnvironment;
 
@@ -33,6 +42,12 @@ beforeEach(async () => {
         servedCompanies,
       });
     }
+    await setDoc(doc(context.firestore(), "users/tenant-admin"), {
+      id: "tenant-admin",
+      role: "ADMIN",
+      companyId: "nextcon",
+      tenantId: "company-a",
+    });
 
     await setDoc(doc(context.firestore(), "companies/company-a"), { name: "Empresa sintética A" });
     await setDoc(doc(context.firestore(), "companies/company-b"), { name: "Empresa sintética B" });
@@ -84,5 +99,93 @@ describe("providers collection authorization", () => {
     await assertFails(getDoc(doc(db("company-a-admin"), "companies/company-b")));
     await assertSucceeds(getDoc(doc(db("company-b-admin"), "companies/company-b")));
     await assertFails(getDoc(doc(db("company-b-admin"), "companies/company-a")));
+  });
+
+  it("does not treat an admin with an explicit tenant as internal staff", async () => {
+    await assertFails(getDocs(collection(db("tenant-admin"), "providers")));
+  });
+
+  it("allows only inactive pending provider creation and a matching atomic reservation", async () => {
+    const firestore = db("internal-admin");
+    await assertFails(
+      setDoc(doc(firestore, "providers/provider-active"), {
+        id: "provider-active",
+        taxIdStatus: "pending_verification",
+        active: true,
+      })
+    );
+    await assertFails(
+      setDoc(doc(firestore, "providers/provider-verified"), {
+        id: "provider-verified",
+        taxIdStatus: "verified",
+        active: true,
+      })
+    );
+
+    const attemptId = "synthetic-attempt-id-001";
+    const identityHash = "a".repeat(64);
+    const batch = writeBatch(firestore);
+    batch.set(doc(firestore, "providers/provider-pending"), {
+      id: "provider-pending",
+      cnpj: "12.345.678/0001-95",
+      taxIdStatus: "pending_verification",
+      active: false,
+      importAttemptId: attemptId,
+    });
+    batch.set(doc(firestore, `provider_tax_id_reservations/${identityHash}`), {
+      attemptId,
+      identityHash,
+      providerId: "provider-pending",
+      updatedAt: serverTimestamp(),
+    });
+    await assertSucceeds(batch.commit());
+  });
+
+  it("blocks browser fiscal verification, allows demotion, and protects legacy identity", async () => {
+    const firestore = db("internal-admin");
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "providers/pending"), {
+        cnpj: "12.345.678/0001-95",
+        taxIdStatus: "pending_verification",
+        active: false,
+      });
+      await setDoc(doc(context.firestore(), "providers/verified"), {
+        cnpj: "12.345.678/0001-95",
+        taxIdStatus: "verified",
+        active: true,
+      });
+      await setDoc(doc(context.firestore(), "providers/legacy"), {
+        cnpj: "12.345.678/0001-95",
+        active: true,
+      });
+      await setDoc(doc(context.firestore(), "providers/legacy-without-tax-id"), {
+        name: "Prestador legado sem documento fiscal",
+        active: true,
+      });
+    });
+
+    await assertFails(
+      updateDoc(doc(firestore, "providers/pending"), {
+        taxIdStatus: "verified",
+        active: true,
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(firestore, "providers/verified"), {
+        cnpj: "98.765.432/0001-10",
+        taxIdStatus: "pending_verification",
+        active: false,
+      })
+    );
+    await assertFails(
+      updateDoc(doc(firestore, "providers/legacy"), {
+        cnpj: "98.765.432/0001-10",
+        active: true,
+      })
+    );
+    await assertSucceeds(updateDoc(doc(firestore, "providers/legacy"), { active: false }));
+    await assertSucceeds(
+      updateDoc(doc(firestore, "providers/legacy-without-tax-id"), { active: false })
+    );
   });
 });

@@ -98,16 +98,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore, useCollection, useMemoFirebase, useStorage } from "@/firebase";
-import {
-  collection,
-  query,
-  orderBy,
-  doc,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-  getDoc,
-} from "firebase/firestore";
+import { collection, query, orderBy, doc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -121,13 +112,18 @@ import { useSgi } from "@/contexts/sgi-context";
 import { generateProviderInviteMessage } from "@/lib/domain-config";
 import {
   canKeepProviderActive,
+  createFirestoreProviderConditionalWriteStore,
+  createFirestoreProviderReservationStore,
+  hashProviderIdentifier,
   isProviderAssociatedWithCompany,
   isProviderCsvSizeAllowed,
   isValidProviderIdentifier,
   MAX_PROVIDER_CSV_BYTES,
   normalizeProviderName,
   previewProviderCsvRows,
-  writeAndConfirmProvider,
+  providerIdForIdentityHash,
+  reserveAndWriteProvider,
+  updateProviderIfCurrent,
   type ProviderCsvPreviewRow,
 } from "@/lib/provider-integrity";
 
@@ -164,6 +160,12 @@ export interface ProviderItem extends Partial<ProviderFormValues>, Record<string
   aiContractAnalysis?: Record<string, unknown>;
 }
 
+type ProviderCsvImportResult = {
+  rowNumber: number;
+  status: "confirmed" | "duplicate" | "not_committed" | "committed_unconfirmed" | "outcome_unknown";
+  message?: string;
+};
+
 function RatingStars({
   rating,
   onChange,
@@ -197,7 +199,7 @@ function RatingStars({
 
 export default function ProvidersManagement() {
   const { toast } = useToast();
-  const { user, role, companyId, isUserLoading, userError } = useUser();
+  const { user, role, companyId, tenantId, isUserLoading, userError } = useUser();
   const db = useFirestore();
   const storage = useStorage();
   const { activeClientId } = useSgi();
@@ -218,10 +220,11 @@ export default function ProvidersManagement() {
   const importedCsvIdentities = React.useRef<
     Map<string, { name: string; cnpj: string; taxIdStatus: string }>
   >(new Map());
+  const manualProviderAttempts = React.useRef(new Map<string, string>());
   const [csvPreview, setCsvPreview] = React.useState<{
     rows: ProviderCsvPreviewRow[];
     errors: string[];
-    results?: { rowNumber: number; saved: boolean; message?: string }[];
+    results?: ProviderCsvImportResult[];
   } | null>(null);
   const [isAiAnalyzing, setIsAiAnalyzing] = React.useState(false);
 
@@ -232,8 +235,10 @@ export default function ProvidersManagement() {
   const isGlobalAdmin = React.useMemo(
     () =>
       role === "SUPER_ADMIN" ||
-      (role === "ADMIN" && (!companyId || companyId === "" || companyId === "nextcon")),
-    [role, companyId]
+      (["ADMIN", "OPERATIONS"].includes(role || "") &&
+        (tenantId == null || tenantId === "") &&
+        (companyId == null || companyId === "" || companyId === "nextcon")),
+    [role, companyId, tenantId]
   );
 
   const [providerQueryVersion, setProviderQueryVersion] = React.useState(0);
@@ -258,18 +263,20 @@ export default function ProvidersManagement() {
 
     try {
       const providerRef = doc(db, "providers", provider.id);
-      await writeAndConfirmProvider(
-        () =>
-          updateDoc(providerRef, {
-            active: false,
-            isDeleted: true,
-            archivedAt: serverTimestamp(),
-            archivedBy: user?.uid || null,
-            updatedAt: serverTimestamp(),
-          }),
-        () => getDoc(providerRef),
-        { isDeleted: true, active: false }
-      );
+      await updateProviderIfCurrent({
+        store: createFirestoreProviderConditionalWriteStore(db),
+        reference: providerRef,
+        expected: provider,
+        update: {
+          active: false,
+          isDeleted: true,
+          archivedAt: serverTimestamp(),
+          archivedBy: user?.uid || null,
+          updatedAt: serverTimestamp(),
+          revision: Number(provider.revision || 0) + 1,
+        },
+        verify: { isDeleted: true, active: false },
+      });
       toast({
         title: "Cadastro Arquivado",
         description: `${provider.name || "Prestador"} foi arquivado após confirmação da gravação.`,
@@ -295,9 +302,11 @@ export default function ProvidersManagement() {
 
   const filteredProviders = React.useMemo(() => {
     const term = searchTerm.toLowerCase();
+    const companyScope =
+      isGlobalAdmin && activeClientId === "unauthorized" ? "all" : activeClientId;
     return activeProvidersList
       .filter((p: ProviderItem) => {
-        if (!isProviderAssociatedWithCompany(p, activeClientId)) return false;
+        if (!isProviderAssociatedWithCompany(p, companyScope)) return false;
         return (
           (p.name || p.displayName || "").toLowerCase().includes(term) ||
           (p.cnpj || "").includes(term) ||
@@ -312,7 +321,7 @@ export default function ProvidersManagement() {
         if (!aHasPhoto && bHasPhoto) return 1;
         return (a.name || a.displayName || "").localeCompare(b.name || b.displayName || "");
       });
-  }, [activeProvidersList, searchTerm, activeClientId]);
+  }, [activeProvidersList, searchTerm, activeClientId, isGlobalAdmin]);
 
   React.useLayoutEffect(() => {
     setEditingProvider(null);
@@ -323,6 +332,7 @@ export default function ProvidersManagement() {
     setCsvPreview(null);
     setSearchTerm("");
     importedCsvIdentities.current.clear();
+    manualProviderAttempts.current.clear();
   }, [user?.uid, companyId, role, activeClientId]);
 
   const form = useForm<ProviderFormValues>({
@@ -453,15 +463,11 @@ export default function ProvidersManagement() {
           description: "Os dados do contrato foram extraídos com sucesso.",
         });
       }
-    } catch (error: any) {
-      console.error("AI Analysis Error:", error);
-      const isForbidden = error.message?.includes("403") || error.message?.includes("API key");
+    } catch {
       toast({
         variant: "destructive",
-        title: isForbidden ? "Erro de Credencial (IA)" : "Falha na Análise",
-        description: isForbidden
-          ? "Sua chave Gemini foi invalidada por vazamento. Atualize o GEMINI_API_KEY."
-          : "A NAI não conseguiu interpretar o documento.",
+        title: "Falha na Análise",
+        description: "Não foi possível concluir a análise. Tente novamente ou contate o suporte.",
       });
     } finally {
       setIsAiAnalyzing(false);
@@ -506,7 +512,9 @@ export default function ProvidersManagement() {
         );
         if (result.data.length === 0) parseErrors.push("O CSV não contém linhas para importar.");
         setCsvPreview({
-          rows: preview.rows,
+          rows: preview.rows.map((row) =>
+            row.record ? { ...row, attemptId: crypto.randomUUID() } : row
+          ),
           errors: [...preview.errors, ...parseErrors],
         });
         setIsImportingCsv(false);
@@ -523,68 +531,116 @@ export default function ProvidersManagement() {
   const confirmCsvImport = async () => {
     if (!db || !isGlobalAdmin || !providers || !csvPreview || csvPreview.errors.length > 0) return;
     setIsImportingCsv(true);
-    const knownIdentifiers = new Set([
-      ...providers.map((provider: ProviderItem) =>
-        (provider.cnpj || "").replace(/[^a-z\d]/gi, "").toUpperCase()
-      ),
-      ...importedCsvIdentities.current.keys(),
-    ]);
-    const results: { rowNumber: number; saved: boolean; message?: string }[] = [];
+    const previousResults = new Map<number, ProviderCsvImportResult>(
+      (csvPreview.results || []).map((result) => [result.rowNumber, result])
+    );
+    const results: ProviderCsvImportResult[] = [];
+    const store = createFirestoreProviderReservationStore(db);
 
     for (const row of csvPreview.rows) {
-      if (!row.record) {
-        results.push({ rowNumber: row.rowNumber, saved: false, message: row.errors.join(" ") });
+      const previous = previousResults.get(row.rowNumber);
+      if (
+        previous &&
+        (previous.status === "confirmed" ||
+          previous.status === "duplicate" ||
+          (previous.status !== "not_committed" &&
+            previous.status !== "committed_unconfirmed" &&
+            previous.status !== "outcome_unknown"))
+      ) {
+        results.push(previous);
         continue;
       }
-      if (knownIdentifiers.has(row.record.cnpj)) {
+      if (!row.record) {
+        if (previous) results.push(previous);
+        else
+          results.push({
+            rowNumber: row.rowNumber,
+            status: "not_committed",
+            message: row.errors.join(" "),
+          });
+        continue;
+      }
+      if (!row.attemptId) {
         results.push({
           rowNumber: row.rowNumber,
-          saved: false,
-          message: "Documento já cadastrado; nenhum dado foi alterado.",
+          status: "not_committed",
+          message: "Intento sem identificador. Reabra a prévia para gerar uma nova chave.",
         });
         continue;
       }
 
-      const providerRef = doc(collection(db, "providers"));
+      const identityHash = await hashProviderIdentifier(row.record.cnpj);
+      const providerId = providerIdForIdentityHash(identityHash);
+      const providerRef = doc(db, "providers", providerId);
+      const reservationRef = doc(db, "provider_tax_id_reservations", identityHash);
+      const legacyProviderRefs = providers
+        .filter(
+          (provider: ProviderItem) =>
+            (provider.cnpj || "").replace(/[^a-z\d]/gi, "").toUpperCase() === row.record?.cnpj ||
+            (provider.taxIdStatus === "verified" &&
+              normalizeProviderName(provider.name || "") ===
+                normalizeProviderName(row.record?.name || ""))
+        )
+        .map((provider: ProviderItem) => doc(db, "providers", provider.id));
       const providerData = {
         ...row.record,
-        id: providerRef.id,
+        id: providerId,
         taxIdStatus: "pending_verification",
         active: false,
         isDeleted: false,
+        importAttemptId: row.attemptId,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         version: "3.3",
+        revision: 1,
       };
-      try {
-        await writeAndConfirmProvider(
-          () => setDoc(providerRef, providerData),
-          () => getDoc(providerRef),
-          { cnpj: row.record.cnpj, name: row.record.name }
-        );
-        knownIdentifiers.add(row.record.cnpj);
+      const outcome = await reserveAndWriteProvider({
+        store,
+        reservationRef,
+        providerRef,
+        legacyProviderRefs,
+        attemptId: row.attemptId,
+        identifier: row.record.cnpj,
+        identityHash,
+        providerData,
+      });
+      if (outcome.status === "confirmed") {
         importedCsvIdentities.current.set(row.record.cnpj, {
           name: row.record.name,
           cnpj: row.record.cnpj,
           taxIdStatus: "pending_verification",
         });
-        results.push({ rowNumber: row.rowNumber, saved: true });
-      } catch (error) {
-        results.push({
-          rowNumber: row.rowNumber,
-          saved: false,
-          message: error instanceof Error ? error.message : "Falha de gravação.",
-        });
       }
+      results.push({
+        rowNumber: row.rowNumber,
+        status: outcome.status,
+        message:
+          outcome.status === "duplicate"
+            ? "Documento reservado por outro cadastro ou já existente; nenhum cadastro foi sobrescrito."
+            : outcome.status === "not_committed"
+              ? "A transação não foi gravada. O mesmo intento pode ser tentado novamente."
+              : outcome.status === "committed_unconfirmed"
+                ? "A gravação foi confirmada pela transação, mas a releitura do servidor falhou. Repita o mesmo intento para confirmar."
+                : outcome.status === "outcome_unknown"
+                  ? "O resultado do commit é desconhecido. Repita o mesmo intento; não será criado outro documento."
+                  : undefined,
+      });
     }
 
     setCsvPreview({ ...csvPreview, results });
-    const saved = results.filter((result) => result.saved).length;
-    const failed = results.length - saved;
+    const saved = results.filter((result) => result.status === "confirmed").length;
+    const unresolved = results.filter(
+      (result) => result.status === "committed_unconfirmed" || result.status === "outcome_unknown"
+    ).length;
+    const failed = results.length - saved - unresolved;
     toast({
-      variant: failed > 0 ? "destructive" : "default",
-      title: failed > 0 ? "Importação parcial" : "Importação confirmada",
-      description: `${saved} registros confirmados por leitura; ${failed} linhas não gravadas. Nenhuma conta de acesso foi criada.`,
+      variant: failed > 0 || unresolved > 0 ? "destructive" : "default",
+      title: unresolved
+        ? "Confirmação pendente"
+        : failed > 0
+          ? "Importação parcial"
+          : "Importação confirmada",
+      description: `${saved} linhas confirmadas por releitura do servidor; ${unresolved} commits sem confirmação; ${failed} não gravadas. Nenhuma conta de acesso foi criada.`,
     });
     setIsImportingCsv(false);
   };
@@ -633,7 +689,16 @@ export default function ProvidersManagement() {
         throw new Error("O nome conflita com um cadastro fiscal verificado.");
       }
 
-      const providerId = editingProvider?.id || doc(collection(db, "providers")).id;
+      const createAttemptKey = submittedIdentifier || `draft:${normalizeProviderName(values.name)}`;
+      let createAttemptId = manualProviderAttempts.current.get(createAttemptKey);
+      if (!editingProvider && !createAttemptId) {
+        createAttemptId = crypto.randomUUID();
+        manualProviderAttempts.current.set(createAttemptKey, createAttemptId);
+      }
+      const identityHash = submittedIdentifier
+        ? await hashProviderIdentifier(submittedIdentifier)
+        : await hashProviderIdentifier(`draft-${createAttemptId}`);
+      const providerId = editingProvider?.id || providerIdForIdentityHash(identityHash);
       let finalContractUrl = values.contractUrl;
       let finalPhotoUrl = values.photoUrl;
       let finalCouncilCardUrl = values.councilCardUrl;
@@ -660,9 +725,6 @@ export default function ProvidersManagement() {
         finalCouncilCardUrl = await getDownloadURL(snap.ref);
       }
 
-      const taxIdStatus =
-        !editingProvider || identityChanged ? "pending_verification" : editingProvider.taxIdStatus;
-      const active = taxIdStatus === "pending_verification" ? false : (values.active ?? false);
       const data: Record<string, unknown> = {
         ...values,
         cnpj: values.cnpj || "",
@@ -673,34 +735,97 @@ export default function ProvidersManagement() {
               ? "CPF"
               : "CNPJ"
           : undefined,
-        active,
         contractUrl: finalContractUrl,
         photoUrl: finalPhotoUrl,
         councilCardUrl: finalCouncilCardUrl,
-        updatedAt: serverTimestamp(),
       };
-      if (taxIdStatus) data.taxIdStatus = taxIdStatus;
       for (const [key, value] of Object.entries(data)) {
         if (value === undefined) delete data[key];
       }
 
       const providerRef = doc(db, "providers", providerId);
-      const payload = {
-        ...data,
-        id: providerId,
-        ...(editingProvider
-          ? {}
-          : { createdAt: serverTimestamp(), isDeleted: false, version: "3.3" }),
-      };
-      await writeAndConfirmProvider(
-        () => (editingProvider ? updateDoc(providerRef, payload) : setDoc(providerRef, payload)),
-        () => getDoc(providerRef),
-        {
-          name: values.name,
-          cnpj: values.cnpj || "",
-          active,
+      let taxIdStatus: string | undefined;
+      let active = false;
+      if (editingProvider) {
+        taxIdStatus = identityChanged
+          ? "pending_verification"
+          : (editingProvider.taxIdStatus as string | undefined);
+        active =
+          taxIdStatus === "pending_verification"
+            ? false
+            : canKeepProviderActive(taxIdStatus, editingProvider.active === true, !identityChanged)
+              ? (values.active ?? editingProvider.active === true)
+              : false;
+        await updateProviderIfCurrent({
+          store: createFirestoreProviderConditionalWriteStore(db),
+          reference: providerRef,
+          expected: editingProvider,
+          update: {
+            ...data,
+            active,
+            ...(taxIdStatus ? { taxIdStatus } : {}),
+            updatedAt: serverTimestamp(),
+            revision: Number(editingProvider.revision || 0) + 1,
+          },
+          verify: {
+            name: values.name,
+            cnpj: values.cnpj || "",
+            active,
+            taxIdStatus,
+          },
+        });
+      } else {
+        const providerData = {
+          ...data,
+          id: providerId,
+          active: false,
+          taxIdStatus: "pending_verification",
+          ...(submittedIdentifier
+            ? { taxIdType: submittedIdentifier.length === 11 ? "CPF" : "CNPJ" }
+            : {}),
+          importAttemptId: createAttemptId,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          isDeleted: false,
+          version: "3.3",
+          revision: 1,
+        };
+        const store = createFirestoreProviderReservationStore(db);
+        const reservationRef = doc(db, "provider_tax_id_reservations", identityHash);
+        const legacyProviderRefs = providers
+          .filter(
+            (provider: ProviderItem) =>
+              (!!submittedIdentifier &&
+                (provider.cnpj || "").replace(/[^a-z\d]/gi, "").toUpperCase() ===
+                  submittedIdentifier) ||
+              (provider.taxIdStatus === "verified" &&
+                normalizeProviderName(provider.name || "") === normalizeProviderName(values.name))
+          )
+          .map((provider: ProviderItem) => doc(db, "providers", provider.id));
+        const outcome = await reserveAndWriteProvider({
+          store,
+          reservationRef,
+          providerRef,
+          legacyProviderRefs,
+          attemptId: createAttemptId!,
+          identifier: submittedIdentifier,
+          identityHash,
+          providerData,
+        });
+        if (outcome.status !== "confirmed") {
+          const detail =
+            outcome.status === "duplicate"
+              ? "Este documento já existe ou está reservado por outra sessão."
+              : outcome.status === "not_committed"
+                ? "A transação não foi gravada; repita o mesmo intento."
+                : outcome.status === "committed_unconfirmed"
+                  ? "A gravação ocorreu, mas a releitura do servidor falhou. Repita o mesmo intento para confirmar."
+                  : "O resultado do commit é desconhecido. Repita o mesmo intento; não criaremos outro documento.";
+          throw new Error(detail);
         }
-      );
+        taxIdStatus = "pending_verification";
+        active = false;
+      }
 
       toast({
         title: "Registro Protocolado",
@@ -714,6 +839,7 @@ export default function ProvidersManagement() {
       });
       setIsCreateOpen(false);
       setEditingProvider(null);
+      manualProviderAttempts.current.delete(createAttemptKey);
       form.reset();
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro na Gravação", description: e.message });
@@ -889,10 +1015,14 @@ export default function ProvidersManagement() {
                       <span>{row.record?.name || "—"}</span>
                       <span>{row.record?.cnpj || "—"}</span>
                       <span
-                        className={result?.saved ? "text-emerald-700" : "text-muted-foreground"}
+                        className={
+                          result?.status === "confirmed"
+                            ? "text-emerald-700"
+                            : "text-muted-foreground"
+                        }
                       >
                         {result
-                          ? result.saved
+                          ? result.status === "confirmed"
                             ? "Gravado e confirmado por leitura"
                             : result.message || "Falha na gravação"
                           : row.errors.length
@@ -925,6 +1055,17 @@ export default function ProvidersManagement() {
                 >
                   {isImportingCsv && <Loader2 className="mr-2 size-4 animate-spin" />}
                   Confirmar gravação dos válidos
+                </Button>
+              )}
+              {csvPreview.results?.some(
+                (result) =>
+                  result.status === "not_committed" ||
+                  result.status === "committed_unconfirmed" ||
+                  result.status === "outcome_unknown"
+              ) && (
+                <Button type="button" onClick={confirmCsvImport} disabled={isImportingCsv}>
+                  {isImportingCsv && <Loader2 className="mr-2 size-4 animate-spin" />}
+                  Repetir tentativas incertas
                 </Button>
               )}
             </div>
@@ -1786,17 +1927,38 @@ export default function ProvidersManagement() {
                           );
                         }
                         const providerRef = doc(db, "providers", editingProvider.id);
-                        await writeAndConfirmProvider(
-                          () =>
-                            updateDoc(providerRef, {
-                              ...assessment,
-                              updatedAt: serverTimestamp(),
-                              ratingUpdatedAt: serverTimestamp(),
-                              ratingUpdatedBy: user.uid,
-                            }),
-                          () => getDoc(providerRef),
-                          { active: assessment.active, rating: assessment.rating }
-                        );
+                        const submittedIdentifier = (form.getValues("cnpj") || "")
+                          .replace(/[^a-z\d]/gi, "")
+                          .toUpperCase();
+                        if (
+                          assessment.active &&
+                          (!canKeepProviderActive(
+                            editingProvider.taxIdStatus,
+                            editingProvider.active === true,
+                            currentIdentifier === submittedIdentifier
+                          ) ||
+                            currentIdentifier !== submittedIdentifier)
+                        ) {
+                          throw new Error(
+                            "Não é possível ativar o prestador sem identificação fiscal confirmada."
+                          );
+                        }
+                        await updateProviderIfCurrent({
+                          store: createFirestoreProviderConditionalWriteStore(db),
+                          reference: providerRef,
+                          expected: editingProvider,
+                          update: {
+                            ...assessment,
+                            updatedAt: serverTimestamp(),
+                            ratingUpdatedAt: serverTimestamp(),
+                            ratingUpdatedBy: user.uid,
+                            revision: Number(editingProvider.revision || 0) + 1,
+                          },
+                          verify: {
+                            active: assessment.active,
+                            rating: assessment.rating,
+                          },
+                        });
                         form.setValue("active", assessment.active);
                         form.setValue("rating", assessment.rating);
                       }}

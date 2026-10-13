@@ -7,13 +7,18 @@ vi.mock("@/lib/real-data", () => {
 import { getConsolidatedProviders } from "./all-consolidated-providers";
 import {
   canKeepProviderActive,
+  hashProviderIdentifier,
   isProviderAssociatedWithCompany,
   isProviderCsvSizeAllowed,
+  mayUseProviderAsFiscalIdentity,
   isValidProviderIdentifier,
   MAX_PROVIDER_CSV_BYTES,
   MAX_PROVIDER_CSV_ROWS,
+  providerIdForIdentityHash,
+  providerSnapshotIsCurrent,
   previewProviderCsvRows,
-  writeAndConfirmProvider,
+  reserveAndWriteProvider,
+  updateProviderIfCurrent,
 } from "./provider-integrity";
 
 function fakeCpf(seed: number): string {
@@ -28,6 +33,140 @@ function fakeCpf(seed: number): string {
   };
   const first = digit(base);
   return `${base}${first}${digit(`${base}${first}`)}`;
+}
+
+interface MemorySnapshot {
+  exists(): boolean;
+  data(): Record<string, unknown> | undefined;
+}
+
+class MemoryProviderStore {
+  documents = new Map<string, Record<string, unknown>>();
+  setCalls = 0;
+  failNextProviderRead = false;
+  failNextReservationRead = false;
+  failNextTransaction = false;
+  private transactionQueue = Promise.resolve();
+
+  async runTransaction<T>(
+    callback: (transaction: {
+      get: (reference: string) => Promise<MemorySnapshot>;
+      set: (reference: string, data: Record<string, unknown>) => void;
+    }) => Promise<T>
+  ): Promise<T> {
+    let release!: () => void;
+    const previous = this.transactionQueue;
+    this.transactionQueue = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    const staged = new Map<string, Record<string, unknown>>();
+    try {
+      if (this.failNextTransaction) {
+        this.failNextTransaction = false;
+        throw new Error("synthetic transaction failure");
+      }
+      const result = await callback({
+        get: async (reference) => this.snapshot(this.documents.get(reference)),
+        set: (reference, data) => {
+          staged.set(reference, data);
+          this.setCalls += 1;
+        },
+      });
+      for (const [reference, data] of staged) this.documents.set(reference, data);
+      return result;
+    } finally {
+      release();
+    }
+  }
+
+  async getFromServer(reference: string): Promise<MemorySnapshot> {
+    if (reference.startsWith("provider/") && this.failNextProviderRead) {
+      this.failNextProviderRead = false;
+      throw new Error("read unavailable");
+    }
+    if (reference.startsWith("reservation/") && this.failNextReservationRead) {
+      this.failNextReservationRead = false;
+      throw new Error("read unavailable");
+    }
+    return this.snapshot(this.documents.get(reference));
+  }
+
+  private snapshot(data: Record<string, unknown> | undefined): MemorySnapshot {
+    return {
+      exists: () => data !== undefined,
+      data: () => data,
+    };
+  }
+}
+
+class MemoryConditionalWriteStore {
+  documents = new Map<string, Record<string, unknown>>();
+  private transactionQueue = Promise.resolve();
+
+  async runTransaction<T>(
+    callback: (transaction: {
+      get: (reference: string) => Promise<MemorySnapshot>;
+      update: (reference: string, data: Record<string, unknown>) => void;
+    }) => Promise<T>
+  ): Promise<T> {
+    const previous = this.transactionQueue;
+    let release!: () => void;
+    this.transactionQueue = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    const staged = new Map<string, Record<string, unknown>>();
+    try {
+      const result = await callback({
+        get: async (reference) => this.snapshot(this.documents.get(reference)),
+        update: (reference, data) => staged.set(reference, data),
+      });
+      for (const [reference, update] of staged) {
+        this.documents.set(reference, { ...this.documents.get(reference), ...update });
+      }
+      return result;
+    } finally {
+      release();
+    }
+  }
+
+  async getFromServer(reference: string): Promise<MemorySnapshot> {
+    return this.snapshot(this.documents.get(reference));
+  }
+
+  private snapshot(data: Record<string, unknown> | undefined): MemorySnapshot {
+    return {
+      exists: () => data !== undefined,
+      data: () => data,
+    };
+  }
+}
+
+function reservedWrite(
+  store: MemoryProviderStore,
+  attemptId: string,
+  identifier: string,
+  identityHash: string
+) {
+  const providerId = providerIdForIdentityHash(identityHash);
+  return reserveAndWriteProvider({
+    store,
+    reservationRef: `reservation/${identityHash}`,
+    providerRef: `provider/${providerId}`,
+    legacyProviderRefs: ["provider/legacy-candidate-id"],
+    attemptId,
+    identifier,
+    identityHash,
+    providerData: {
+      id: providerId,
+      cnpj: identifier,
+      name: "PRESTADOR FICTÍCIO",
+      taxIdStatus: "pending_verification",
+      active: false,
+      importAttemptId: attemptId,
+    },
+  });
 }
 
 describe("provider integrity", () => {
@@ -142,39 +281,147 @@ describe("provider integrity", () => {
     expect(canKeepProviderActive(undefined, false, true)).toBe(false);
   });
 
-  it("confirms a provider write only after a matching reread", async () => {
-    const write = vi.fn().mockResolvedValue(undefined);
-    const read = vi.fn().mockResolvedValue({
-      exists: () => true,
-      data: () => ({ isDeleted: true, active: false }),
-    });
+  it("serializes competing sessions using a shared identity reservation", async () => {
+    const store = new MemoryProviderStore();
+    const identifier = fakeCpf(606);
+    const identityHash = await hashProviderIdentifier(identifier);
+
+    const results = await Promise.all([
+      reservedWrite(store, "session-a-attempt", identifier, identityHash),
+      reservedWrite(store, "session-b-attempt", identifier, identityHash),
+    ]);
+
+    expect(results.map(({ status }) => status).sort()).toEqual(["confirmed", "duplicate"]);
+    expect([...store.documents.keys()].filter((key) => key.startsWith("provider/"))).toHaveLength(
+      1
+    );
+  });
+
+  it("preserves the attempt identity after commit when the server reread fails", async () => {
+    const store = new MemoryProviderStore();
+    const identifier = fakeCpf(707);
+    const identityHash = await hashProviderIdentifier(identifier);
+    store.failNextProviderRead = true;
+
+    const first = await reservedWrite(store, "stable-attempt", identifier, identityHash);
+    const retry = await reservedWrite(store, "stable-attempt", identifier, identityHash);
+
+    expect(first.status).toBe("committed_unconfirmed");
+    expect(retry.status).toBe("confirmed");
+    expect(store.setCalls).toBe(2);
+    expect(store.documents.get(`reservation/${identityHash}`)?.attemptId).toBe("stable-attempt");
+  });
+
+  it("reports a confirmed pre-commit failure separately and keeps successful CSV rows", async () => {
+    const store = new MemoryProviderStore();
+    const firstIdentifier = fakeCpf(717);
+    const firstHash = await hashProviderIdentifier(firstIdentifier);
+    const first = await reservedWrite(store, "row-one-attempt", firstIdentifier, firstHash);
+
+    const secondIdentifier = fakeCpf(718);
+    const secondHash = await hashProviderIdentifier(secondIdentifier);
+    store.failNextTransaction = true;
+    const second = await reservedWrite(store, "row-two-attempt", secondIdentifier, secondHash);
+
+    expect(first.status).toBe("confirmed");
+    expect(second.status).toBe("not_committed");
+    expect([...store.documents.keys()].filter((key) => key.startsWith("provider/"))).toHaveLength(
+      1
+    );
+    expect([...store.documents.keys()].some((key) => key.startsWith("users/"))).toBe(false);
+  });
+
+  it("keeps unknown commit outcomes distinct from a confirmed pre-commit failure", async () => {
+    const store = new MemoryProviderStore();
+    const identifier = fakeCpf(808);
+    const identityHash = await hashProviderIdentifier(identifier);
+    store.runTransaction = async () => {
+      store.failNextReservationRead = true;
+      throw new Error("transaction acknowledgment unavailable");
+    };
 
     await expect(
-      writeAndConfirmProvider(write, read, { isDeleted: true, active: false })
-    ).resolves.toMatchObject({ isDeleted: true, active: false });
-    expect(write).toHaveBeenCalledOnce();
-    expect(read).toHaveBeenCalledOnce();
+      reservedWrite(store, "unknown-attempt", identifier, identityHash)
+    ).resolves.toMatchObject({ status: "outcome_unknown" });
   });
 
-  it("does not read or report success when a provider write fails", async () => {
-    const write = vi.fn().mockRejectedValue(new Error("write denied"));
-    const read = vi.fn();
+  it("recognizes unchanged, archived, and fiscally verified snapshot state", () => {
+    const original = {
+      id: "legacy-fake",
+      cnpj: "123",
+      taxIdStatus: "verified",
+      active: true,
+      isDeleted: false,
+      revision: 4,
+    };
 
-    await expect(writeAndConfirmProvider(write, read, { isDeleted: true })).rejects.toThrow(
-      "write denied"
-    );
-    expect(read).not.toHaveBeenCalled();
+    expect(providerSnapshotIsCurrent(original, { ...original })).toBe(true);
+    expect(providerSnapshotIsCurrent(original, { ...original, isDeleted: true })).toBe(false);
+    expect(
+      providerSnapshotIsCurrent(original, { ...original, taxIdStatus: "pending_verification" })
+    ).toBe(false);
+    expect(mayUseProviderAsFiscalIdentity("pending_verification")).toBe(false);
+    expect(mayUseProviderAsFiscalIdentity("verified")).toBe(true);
+    expect(mayUseProviderAsFiscalIdentity(undefined)).toBe(true);
   });
 
-  it("rejects a provider write whose reread does not match", async () => {
-    const write = vi.fn().mockResolvedValue(undefined);
-    const read = vi.fn().mockResolvedValue({
-      exists: () => true,
-      data: () => ({ isDeleted: false }),
+  it("allows only one stale-snapshot archive across concurrent sessions", async () => {
+    const store = new MemoryConditionalWriteStore();
+    const original = {
+      id: "provider-fake",
+      name: "Prestador Fictício",
+      cnpj: "123",
+      active: true,
+      isDeleted: false,
+      revision: 2,
+    };
+    store.documents.set("provider-fake", { ...original });
+
+    const attempt = () =>
+      updateProviderIfCurrent({
+        store,
+        reference: "provider-fake",
+        expected: original,
+        update: { active: false, isDeleted: true, revision: 3 },
+        verify: { active: false, isDeleted: true },
+      });
+    const results = await Promise.allSettled([attempt(), attempt()]);
+
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+    expect(store.documents.get("provider-fake")).toMatchObject({
+      active: false,
+      isDeleted: true,
+      revision: 3,
     });
+  });
 
-    await expect(writeAndConfirmProvider(write, read, { isDeleted: true })).rejects.toThrow(
-      "A gravação não pôde ser confirmada por nova leitura."
-    );
+  it("does not overwrite a fiscal identity changed after the edit snapshot", async () => {
+    const store = new MemoryConditionalWriteStore();
+    const original = {
+      id: "provider-fake",
+      name: "Prestador Fictício",
+      cnpj: "123",
+      taxIdStatus: "verified",
+      active: true,
+      revision: 2,
+    };
+    const verifiedByAnotherSession = {
+      ...original,
+      cnpj: "456",
+      revision: 3,
+    };
+    store.documents.set("provider-fake", verifiedByAnotherSession);
+
+    await expect(
+      updateProviderIfCurrent({
+        store,
+        reference: "provider-fake",
+        expected: original,
+        update: { cnpj: "789", taxIdStatus: "pending_verification", active: false },
+        verify: { cnpj: "789" },
+      })
+    ).rejects.toThrow("O cadastro mudou em outra sessão.");
+    expect(store.documents.get("provider-fake")).toEqual(verifiedByAnotherSession);
   });
 });

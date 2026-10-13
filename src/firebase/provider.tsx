@@ -44,6 +44,7 @@ export interface UserHookResult {
   user: User | null;
   role: string | null;
   companyId: string | null;
+  tenantId: string | null;
   isUserLoading: boolean;
   userError: Error | null;
 }
@@ -112,6 +113,7 @@ export const useFirebase = (): FirebaseServicesAndUser => {
     user: context.user,
     role: context.role,
     companyId: context.companyId,
+    tenantId: context.tenantId || null,
     servedCompanies: context.servedCompanies || [],
     isUserLoading: context.isUserLoading,
     userError: context.userError,
@@ -130,11 +132,13 @@ export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T {
 }
 
 export const useUser = (): UserHookResult => {
-  const { user, role, companyId, servedCompanies, isUserLoading, userError } = useFirebase();
+  const { user, role, companyId, tenantId, servedCompanies, isUserLoading, userError } =
+    useFirebase();
   return {
     user,
     role,
     companyId,
+    tenantId: tenantId || null,
     servedCompanies: servedCompanies || [],
     isUserLoading,
     userError,

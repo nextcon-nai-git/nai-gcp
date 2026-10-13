@@ -36,6 +36,7 @@ import {
   isRestrictedPgrDocumentType,
 } from "@/lib/pgr-save-plan";
 import { STORAGE_PATHS } from "@/lib/storage-paths";
+import { mayUseProviderAsFiscalIdentity } from "@/lib/provider-integrity";
 import { analyzePgrDocument } from "./pgr-document-analysis";
 
 export async function getPgrCompanies(user: AuthContext): Promise<PgrCompany[]> {
@@ -492,7 +493,7 @@ async function resolveImportProviders(planned: ProviderPlan[], transaction?: Tra
   if (!planned.length) return [];
   // Existing IDs are not always CNPJs. Read only the registry identity fields,
   // preserving historical IDs and refusing to guess if the scan is incomplete.
-  const query = adminDb.collection("providers").select("cnpj", "name").limit(5001);
+  const query = adminDb.collection("providers").select("cnpj", "name", "taxIdStatus").limit(5001);
   const registered = transaction ? await transaction.get(query) : await query.get();
   if (registered.size === 5001)
     throw new AuthError(
@@ -506,6 +507,11 @@ async function resolveImportProviders(planned: ProviderPlan[], transaction?: Tra
     if (matches.length > 1)
       throw new AuthError(
         "Há prestadores duplicados para um CNPJ identificado. Revise os cadastros ou desative o cadastro de prestadores nesta importação.",
+        409
+      );
+    if (matches.length === 1 && !mayUseProviderAsFiscalIdentity(matches[0].data().taxIdStatus))
+      throw new AuthError(
+        "O prestador correspondente tem identificação fiscal pendente. Confirme o documento antes de vinculá-lo à importação.",
         409
       );
     return { id: matches[0]?.id || provider.id, data: provider, existed: matches.length === 1 };

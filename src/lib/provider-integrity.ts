@@ -1,3 +1,12 @@
+import {
+  getDocFromServer,
+  runTransaction,
+  type DocumentData,
+  type DocumentReference,
+  type Firestore,
+  type UpdateData,
+} from "firebase/firestore";
+
 export const MAX_PROVIDER_CSV_BYTES = 1_000_000;
 export const MAX_PROVIDER_CSV_ROWS = 500;
 
@@ -44,6 +53,7 @@ export interface ProviderCsvRecord {
 
 export interface ProviderCsvPreviewRow {
   rowNumber: number;
+  attemptId?: string;
   record?: ProviderCsvRecord;
   errors: string[];
 }
@@ -55,31 +65,263 @@ export interface ExistingProviderIdentity {
   taxIdStatus?: string;
 }
 
+export function normalizeProviderIdentifier(value: string): string {
+  return value.replace(/[^a-z\d]/gi, "").toUpperCase();
+}
+
+export async function hashProviderIdentifier(value: string): Promise<string> {
+  const normalized = normalizeProviderIdentifier(value);
+  const bytes = new TextEncoder().encode(normalized);
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export function providerIdForIdentityHash(hash: string): string {
+  return `fiscal_${hash}`;
+}
+
 interface ProviderSnapshot {
   exists(): boolean;
   data(): Record<string, unknown> | undefined;
 }
 
-export async function writeAndConfirmProvider(
-  write: () => Promise<void>,
-  read: () => Promise<ProviderSnapshot>,
-  expected: Record<string, unknown>
-): Promise<Record<string, unknown>> {
-  await write();
-  const snapshot = await read();
-  const data = snapshot.data();
-  if (
-    !snapshot.exists() ||
-    !data ||
-    Object.entries(expected).some(([key, value]) => data[key] !== value)
-  ) {
-    throw new Error("A gravação não pôde ser confirmada por nova leitura.");
-  }
-  return data;
+export interface ReservationTransaction<Reference> {
+  get(reference: Reference): Promise<ProviderSnapshot>;
+  set(reference: Reference, data: Record<string, unknown>): void;
 }
 
-export function normalizeProviderIdentifier(value: string): string {
-  return value.replace(/[^a-z\d]/gi, "").toUpperCase();
+export interface ProviderReservationStore<Reference> {
+  runTransaction<T>(
+    update: (transaction: ReservationTransaction<Reference>) => Promise<T>
+  ): Promise<T>;
+  getFromServer(reference: Reference): Promise<ProviderSnapshot>;
+}
+
+export interface ProviderConditionalWriteTransaction<Reference> {
+  get(reference: Reference): Promise<ProviderSnapshot>;
+  update(reference: Reference, data: Record<string, unknown>): void;
+}
+
+export interface ProviderConditionalWriteStore<Reference> {
+  runTransaction<T>(
+    update: (transaction: ProviderConditionalWriteTransaction<Reference>) => Promise<T>
+  ): Promise<T>;
+  getFromServer(reference: Reference): Promise<ProviderSnapshot>;
+}
+
+export function createFirestoreProviderConditionalWriteStore(
+  db: Firestore
+): ProviderConditionalWriteStore<DocumentReference<DocumentData>> {
+  return {
+    runTransaction: (callback) =>
+      runTransaction(db, (transaction) =>
+        callback({
+          get: (reference) => transaction.get(reference),
+          update: (reference, data) =>
+            transaction.update(reference, data as UpdateData<DocumentData>),
+        })
+      ),
+    getFromServer: getDocFromServer,
+  };
+}
+
+export async function updateProviderIfCurrent<Reference>({
+  store,
+  reference,
+  expected,
+  update,
+  verify,
+}: {
+  store: ProviderConditionalWriteStore<Reference>;
+  reference: Reference;
+  expected: Record<string, unknown>;
+  update: Record<string, unknown>;
+  verify: Record<string, unknown>;
+}): Promise<void> {
+  await store.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(reference);
+    if (!snapshot.exists()) throw new Error("O cadastro não existe mais. Atualize a listagem.");
+    const current = {
+      ...snapshot.data(),
+      ...(typeof expected.id === "string" ? { id: expected.id } : {}),
+    };
+    if (!providerSnapshotIsCurrent(expected, current)) {
+      throw new Error("O cadastro mudou em outra sessão. Atualize antes de salvar.");
+    }
+    transaction.update(reference, update);
+  });
+
+  const persisted = await store.getFromServer(reference);
+  const persistedData = persisted.data();
+  if (
+    !persisted.exists() ||
+    !persistedData ||
+    Object.entries(verify).some(([key, value]) => persistedData[key] !== value)
+  ) {
+    throw new Error("A atualização foi enviada, mas não pôde ser confirmada no servidor.");
+  }
+}
+
+export function createFirestoreProviderReservationStore(
+  db: Firestore
+): ProviderReservationStore<DocumentReference<DocumentData>> {
+  return {
+    runTransaction: (callback) =>
+      runTransaction(db, (transaction) =>
+        callback({
+          get: (reference) => transaction.get(reference),
+          set: (reference, data) => transaction.set(reference, data),
+        })
+      ),
+    getFromServer: getDocFromServer,
+  };
+}
+
+export type ReservedProviderWriteResult =
+  | { status: "confirmed" }
+  | { status: "duplicate" }
+  | { status: "not_committed" }
+  | { status: "committed_unconfirmed" }
+  | { status: "outcome_unknown" };
+
+export async function reserveAndWriteProvider<Reference>({
+  store,
+  reservationRef,
+  providerRef,
+  legacyProviderRefs,
+  attemptId,
+  identifier,
+  identityHash,
+  providerData,
+}: {
+  store: ProviderReservationStore<Reference>;
+  reservationRef: Reference;
+  providerRef: Reference;
+  legacyProviderRefs: Reference[];
+  attemptId: string;
+  identifier: string;
+  identityHash: string;
+  providerData: Record<string, unknown>;
+}): Promise<ReservedProviderWriteResult> {
+  const reservation = {
+    attemptId,
+    identityHash,
+    providerId: providerData.id,
+    updatedAt: providerData.updatedAt,
+  };
+
+  const confirmCommittedReservation = async (): Promise<ReservedProviderWriteResult> => {
+    try {
+      const [reservationSnapshot, providerSnapshot] = await Promise.all([
+        store.getFromServer(reservationRef),
+        store.getFromServer(providerRef),
+      ]);
+      const storedReservation = reservationSnapshot.data();
+      const storedProvider = providerSnapshot.data();
+      const expectedProviderFields = Object.entries(providerData).filter(
+        ([key]) => key !== "createdAt" && key !== "updatedAt"
+      );
+      if (
+        !reservationSnapshot.exists() ||
+        !providerSnapshot.exists() ||
+        storedReservation?.attemptId !== attemptId ||
+        storedReservation?.identityHash !== identityHash ||
+        storedReservation?.providerId !== providerData.id ||
+        storedProvider?.importAttemptId !== attemptId ||
+        normalizeProviderIdentifier(String(storedProvider?.cnpj || "")) !==
+          normalizeProviderIdentifier(identifier) ||
+        expectedProviderFields.some(
+          ([key, value]) =>
+            JSON.stringify(comparableProviderData(storedProvider?.[key])) !==
+            JSON.stringify(comparableProviderData(value))
+        )
+      ) {
+        return { status: "committed_unconfirmed" };
+      }
+      return { status: "confirmed" };
+    } catch {
+      return { status: "committed_unconfirmed" };
+    }
+  };
+
+  try {
+    const result = await store.runTransaction(async (transaction) => {
+      const reservationSnapshot = await transaction.get(reservationRef);
+      if (reservationSnapshot.exists()) {
+        const storedReservation = reservationSnapshot.data();
+        if (
+          storedReservation?.attemptId !== attemptId ||
+          storedReservation?.identityHash !== identityHash ||
+          storedReservation?.providerId !== providerData.id
+        ) {
+          return "duplicate" as const;
+        }
+        return "same_attempt" as const;
+      }
+
+      const references = [...new Set([providerRef, ...legacyProviderRefs])];
+      const existingSnapshots = await Promise.all(
+        references.map((reference) => transaction.get(reference))
+      );
+      if (existingSnapshots.some((snapshot) => snapshot.exists())) {
+        return "duplicate" as const;
+      }
+
+      transaction.set(reservationRef, reservation);
+      transaction.set(providerRef, providerData);
+      return "created" as const;
+    });
+
+    if (result === "duplicate") return { status: "duplicate" };
+    return confirmCommittedReservation();
+  } catch {
+    try {
+      const snapshot = await store.getFromServer(reservationRef);
+      if (!snapshot.exists()) return { status: "not_committed" };
+      const storedReservation = snapshot.data();
+      if (
+        storedReservation?.attemptId === attemptId &&
+        storedReservation?.identityHash === identityHash &&
+        storedReservation?.providerId === providerData.id
+      ) {
+        return { status: "committed_unconfirmed" };
+      }
+      return { status: "duplicate" };
+    } catch {
+      return { status: "outcome_unknown" };
+    }
+  }
+}
+
+function comparableProviderData(value: unknown): unknown {
+  if (value && typeof value === "object" && "toMillis" in value) {
+    const timestamp = value as { toMillis?: () => number };
+    if (typeof timestamp.toMillis === "function") return { timestamp: timestamp.toMillis() };
+  }
+  if (value instanceof Date) return { timestamp: value.getTime() };
+  if (Array.isArray(value)) return value.map(comparableProviderData);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, entry]) => [key, comparableProviderData(entry)])
+    );
+  }
+  return value;
+}
+
+export function providerSnapshotIsCurrent(
+  expected: Record<string, unknown>,
+  current: Record<string, unknown>
+): boolean {
+  return (
+    JSON.stringify(comparableProviderData(expected)) ===
+    JSON.stringify(comparableProviderData(current))
+  );
+}
+
+export function mayUseProviderAsFiscalIdentity(taxIdStatus: unknown): boolean {
+  return taxIdStatus === undefined || taxIdStatus === "verified";
 }
 
 function checkDigit(sum: number): number {

@@ -311,6 +311,28 @@ describe("NAI importa: gravação e reimportação", () => {
     expect((await savePgrDraft(user, params, bytes)).alreadySaved).toBe(false);
   });
 
+  it("não consome identidade fiscal explicitamente pendente, mas mantém compatibilidade legada", async () => {
+    memory.records.set("providers/pending-provider", {
+      name: "Prestador pendente fictício",
+      cnpj: "12.345.678/0001-95",
+      taxIdStatus: "pending_verification",
+      active: false,
+    });
+    await expect(savePgrDraft(user, params, bytes)).rejects.toMatchObject({ status: 409 });
+    expect(memory.upload).not.toHaveBeenCalled();
+    expect(entries(`${companyPath}/pgr_cards`)).toHaveLength(0);
+
+    memory.records.delete("providers/pending-provider");
+    memory.records.set("providers/legacy-provider", {
+      name: "Prestador legado fictício",
+      cnpj: "12.345.678/0001-95",
+      active: false,
+    });
+    const saved = await savePgrDraft(user, params, bytes);
+    expect(saved.providerIds).toEqual(["legacy-provider"]);
+    expect(memory.records.get("providers/legacy-provider")?.taxIdStatus).toBeUndefined();
+  });
+
   it("não cria duplicata se um prestador com ID legado surgir entre a prévia e a transação", async () => {
     memory.upload.mockImplementationOnce(async () => {
       memory.records.set("providers/concurrent-legacy", {
