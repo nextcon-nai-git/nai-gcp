@@ -70,3 +70,9 @@ gerou as rotas do app, com warnings de módulos opcionais OpenTelemetry
 (`winston-transport`, Jaeger) e dependência crítica dinâmica. CI, CodeQL e
 workflow de segurança devem ser conferidos no SHA final do PR; compilação local
 não substitui esses checks.
+
+Na revisão final, parallel validation não encontrou comentários de código e o
+CodeQL reportou zero alertas JavaScript. Os workflows CI, Security e Firebase
+validation do PR #109 para o SHA `2887ce8` terminaram como `action_required`,
+com zero jobs; não há resultado de CI hospedado até que a aprovação externa
+necessária seja concedida.
