@@ -189,6 +189,7 @@ const NAV_MODULES: NavModule[] = [
       { title: "Notas fiscais", icon: FileText, href: "/financial/notas-fiscais" },
       { title: "Conectores Omie", icon: BarChart3, href: "/financial/omie/conectores" },
       { title: "ERP financeiro", icon: BarChart3, href: "/financial/operacoes" },
+      { title: "Central de Contratos e Produção", icon: ClipboardCheck, href: "/production" },
       {
         title: "Ações financeiras",
         icon: ClipboardCheck,

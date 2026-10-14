@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import React, { useState, useEffect } from "react";
 import { useSgi } from "@/contexts/sgi-context";
@@ -171,6 +172,12 @@ export default function AgentesIaPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-10">
       <div className="max-w-7xl mx-auto space-y-8">
+        <Link
+          href="/production"
+          className="block rounded-lg border border-slate-700 p-4 text-cyan-300"
+        >
+          Agentes da Central: NAI Comercial, NAI Operacional e NAI Faturamento →
+        </Link>
         {/* Header Bar */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-800 pb-6">
           <div>
