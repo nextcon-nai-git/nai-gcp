@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
@@ -150,6 +151,11 @@ export default function ContractsManagement() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+      <Button asChild variant="outline">
+        <Link href="/production">
+          Central de Contratos e Produção · nove cards, instruções e agentes IA
+        </Link>
+      </Button>
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
         <div>
           <h1 className="text-3xl font-headline font-black text-primary uppercase">
