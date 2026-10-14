@@ -62,6 +62,7 @@ import {
   where,
   setDoc,
   serverTimestamp,
+  runTransaction,
 } from "firebase/firestore";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -70,6 +71,7 @@ import { cn } from "@/lib/utils";
 import { useSgi } from "@/contexts/sgi-context";
 import { enriquecerDadosEmpresa } from "@/actions/company-enrichment";
 import { REAL_COMPANIES } from "@/lib/real-data";
+import { getActionIdToken } from "@/lib/auth/action-token";
 import { sortCompaniesByName } from "@/lib/company-order";
 
 const companySchema = z.object({
@@ -322,9 +324,39 @@ export default function ClientsManagement() {
         ...(!editingCompany ? { createdAt: serverTimestamp() } : {}),
       };
 
-      if (!db) throw new Error("Conexão indisponível. Os dados não foram salvos.");
-      const companyRef = doc(db, "companies", targetId);
-      await setDoc(companyRef, data, { merge: true });
+      if ((role === "SUPER_ADMIN" || role === "ADMIN") && !userCompanyId) {
+        const response = await fetch("/api/admin/company-master", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${await getActionIdToken()}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ...values,
+            id: targetId,
+            risk_degree: Number(values.risk_degree),
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok || result.saved !== true)
+          throw new Error(result.error || "Não foi possível confirmar o cadastro.");
+      } else {
+        if (!db) throw new Error("Conexão indisponível. Os dados não foram salvos.");
+        const companyRef = doc(db, "companies", targetId);
+        await runTransaction(db, async (tx) => {
+          const current = await tx.get(companyRef);
+          tx.set(
+            companyRef,
+            {
+              ...data,
+              ...(!current.exists() || !current.data().createdAt
+                ? { createdAt: serverTimestamp() }
+                : {}),
+            },
+            { merge: true }
+          );
+        });
+      }
 
       // Sincronização imediata no LocalStorage para que o TopNav e a tela reflitam instantaneamente
       if (typeof window !== "undefined") {
