@@ -20,19 +20,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { useFirestore, useUser, useCollection, useMemoFirebase } from "@/firebase";
-import {
-  collection,
-  query,
-  orderBy,
-  doc,
-  addDoc,
-  serverTimestamp,
-  setDoc,
-  collectionGroup,
-} from "firebase/firestore";
+import { useFirestore, useUser, useCollection, useMemoFirebase, useStorage } from "@/firebase";
+import { collection, query, orderBy, collectionGroup } from "firebase/firestore";
 import { analyzeContract, type ContractAnalysisOutput } from "@/ai/flows/contract-analysis-flow";
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import {
+  ContractImportConfirmationPending,
+  hashContractFile,
+  integrateAnalyzedContract,
+  preserveContractSource,
+  type ContractSource,
+} from "@/lib/contracts/integration";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -51,11 +48,16 @@ interface QueueItem {
   status: "analyzing" | "completed" | "error" | "integrating" | "success";
   result?: ContractAnalysisOutput;
   error?: string;
+  source?: ContractSource;
+  companyId?: string;
+  sourceConfirmed?: boolean;
 }
 
 export default function ContractsManagement() {
   const { toast } = useToast();
   const db = useFirestore();
+  const storage = useStorage();
+  const { user } = useUser();
 
   const [queue, setQueue] = React.useState<QueueItem[]>([]);
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -73,6 +75,9 @@ export default function ContractsManagement() {
     setQueue((prev) => [...prev, { id, fileName: file.name, status: "analyzing" }]);
 
     try {
+      const sourceHash = await hashContractFile(file);
+      const source = await preserveContractSource(storage, file, sourceHash);
+      setQueue((prev) => prev.map((item) => (item.id === id ? { ...item, source } : item)));
       const reader = new FileReader();
       const base64Promise = new Promise<string>((resolve) => {
         reader.onload = () => resolve(reader.result as string);
@@ -103,61 +108,43 @@ export default function ContractsManagement() {
   };
 
   const handleIntegrateSgi = async (item: QueueItem) => {
-    if (!item.result || !db) return;
+    if (!item.result || !item.source || !item.companyId || !item.sourceConfirmed || !db || !user)
+      return;
     setQueue((prev) => prev.map((q) => (q.id === item.id ? { ...q, status: "integrating" } : q)));
 
     try {
-      const result = item.result;
-      const companyId = result.clientInfo.cnpj.replace(/\D/g, "");
-      const companyRef = doc(db, "companies", companyId);
-
-      // Onboarding de Empresa
-      await setDoc(
-        companyRef,
-        {
-          id: companyId,
-          name: result.clientInfo.name.toUpperCase(),
-          cnpj: result.clientInfo.cnpj,
-          risk_degree: result.clientInfo.riskDegree,
-          address: result.clientInfo.address,
-          segment: result.clientInfo.segment,
-          active: true,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
+      const { created } = await integrateAnalyzedContract(
+        db,
+        storage,
+        item.result,
+        item.companyId,
+        item.source,
+        user.uid,
+        item.sourceConfirmed
       );
 
-      // Registro do Contrato na subcoleção da empresa
-      await addDoc(collection(db, "companies", companyId, "contracts"), {
-        companyId,
-        companyName: result.clientInfo.name,
-        summary: result.summary,
-        clauses: result.clauses,
-        operationalTasks: result.operationalTasks,
-        createdAt: new Date().toISOString(),
-      });
-
-      // Injeção de Backlog no SGI (Subcoleção 'tasks')
-      const tasksRef = collection(db, "companies", companyId, "tasks");
-      for (const task of result.operationalTasks) {
-        await addDocumentNonBlocking(tasksRef, {
-          title: task.title,
-          description: task.description,
-          type: task.category,
-          status: "todo",
-          priority: "high",
-          companyId,
-          companyName: result.clientInfo.name,
-          progress: 0,
-          createdAt: new Date().toISOString(),
-          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        });
-      }
-
       setQueue((prev) => prev.map((q) => (q.id === item.id ? { ...q, status: "success" } : q)));
-      toast({ title: "SGI Integrado!", description: `${result.clientInfo.name} cadastrada.` });
-    } catch (e) {
-      setQueue((prev) => prev.map((q) => (q.id === item.id ? { ...q, status: "completed" } : q)));
+      toast({
+        title: created ? "SGI Integrado!" : "Contrato já integrado",
+        description: created
+          ? `${item.result.clientInfo.name} vinculada ao cadastro existente.`
+          : "Este arquivo já está vinculado ao cadastro selecionado; nenhum registro foi duplicado.",
+      });
+    } catch (error) {
+      setQueue((prev) =>
+        prev.map((q) =>
+          q.id === item.id
+            ? {
+                ...q,
+                status: "error",
+                error:
+                  error instanceof ContractImportConfirmationPending
+                    ? "Confirmação pendente: verifique novamente antes de repetir a integração."
+                    : "Falha ao persistir a integração. Confira o cadastro e tente novamente.",
+              }
+            : q
+        )
+      );
     }
   };
 
@@ -226,14 +213,66 @@ export default function ContractsManagement() {
                       <p className="text-[9px] font-bold text-slate-400 uppercase">{item.status}</p>
                     </div>
                   </div>
-                  {item.status === "completed" && (
-                    <Button
-                      size="sm"
-                      className="bg-primary text-white text-[9px] font-black uppercase rounded-xl h-9"
-                      onClick={() => handleIntegrateSgi(item)}
-                    >
-                      Integrar SGI
-                    </Button>
+                  {item.result && item.source && (
+                    <div className="w-full space-y-3 md:w-96">
+                      <label className="block space-y-1 text-left text-xs">
+                        <span>Identificador do cadastro existente</span>
+                        <Input
+                          value={item.companyId || ""}
+                          onChange={(event) =>
+                            setQueue((prev) =>
+                              prev.map((q) =>
+                                q.id === item.id
+                                  ? {
+                                      ...q,
+                                      companyId: event.target.value,
+                                      sourceConfirmed: false,
+                                    }
+                                  : q
+                              )
+                            )
+                          }
+                          placeholder="ID do documento em Empresas"
+                          aria-label={`Cadastro existente para ${item.fileName}`}
+                        />
+                      </label>
+                      <label className="flex items-start gap-2 text-left text-xs">
+                        <input
+                          type="checkbox"
+                          checked={item.sourceConfirmed || false}
+                          onChange={(event) =>
+                            setQueue((prev) =>
+                              prev.map((q) =>
+                                q.id === item.id
+                                  ? { ...q, sourceConfirmed: event.target.checked }
+                                  : q
+                              )
+                            )
+                          }
+                        />
+                        <span>
+                          Revisei os dados extraídos, confirmei o cadastro pelo CNPJ e revisei as
+                          sugestões de operação. Isso não confirma assinatura nem execução.
+                        </span>
+                      </label>
+                    </div>
+                  )}
+                  {item.result &&
+                    item.source &&
+                    (item.status === "completed" || item.status === "error") && (
+                      <Button
+                        size="sm"
+                        className="bg-primary text-white text-[9px] font-black uppercase rounded-xl h-9"
+                        disabled={!item.companyId || !item.sourceConfirmed}
+                        onClick={() => handleIntegrateSgi(item)}
+                      >
+                        Integrar SGI
+                      </Button>
+                    )}
+                  {item.status === "error" && (
+                    <p role="alert" className="text-xs text-destructive">
+                      {item.error}
+                    </p>
                   )}
                   {item.status === "success" && (
                     <CheckCircle2 className="text-emerald-500 size-6" />

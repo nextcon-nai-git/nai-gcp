@@ -19,6 +19,9 @@ export async function GET(request: NextRequest) {
     );
   } catch (e) {
     if (e instanceof AuthError) return handleAuthError(e);
-    return NextResponse.json({ error: "Não foi possível consultar os PGRs." }, { status: 503 });
+    return NextResponse.json(
+      { error: "Não foi possível consultar as importações." },
+      { status: 503 }
+    );
   }
 }

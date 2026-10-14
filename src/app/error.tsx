@@ -52,16 +52,9 @@ export default function Error({
         <p className="text-muted-foreground text-sm leading-relaxed font-medium">
           {isPermissionError
             ? "Seu perfil está aguardando a sincronização final das permissões multi-tenant ou há uma falha na regra de segurança."
-            : "Ocorreu um erro inesperado ao processar esta visualização. Nossa inteligência operacional já foi notificada."}
+            : "Ocorreu um erro inesperado ao processar esta visualização. Tente novamente ou informe o módulo ao suporte."}
         </p>
       </div>
-
-      {isPermissionError && error?.message && (
-        <div className="bg-slate-50 p-4 rounded-xl text-[10px] font-mono text-left overflow-auto max-w-lg w-full border border-slate-200 opacity-70 shadow-inner">
-          <p className="font-bold text-slate-400 uppercase mb-1">Diagnóstico NAI:</p>
-          <pre className="whitespace-pre-wrap">{error.message}</pre>
-        </div>
-      )}
 
       <div className="flex flex-col sm:flex-row gap-3">
         <Button

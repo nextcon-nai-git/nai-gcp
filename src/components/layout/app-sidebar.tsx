@@ -91,9 +91,21 @@ interface NavModule {
 
 const NAV_MODULES: NavModule[] = [
   {
+    label: "FORNECEDORES",
+    icon: ClipboardCheck,
+    items: [
+      {
+        title: "Homologação de fornecedores",
+        icon: ClipboardCheck,
+        href: "/suppliers/qualification",
+      },
+    ],
+  },
+  {
     label: "PAINEL EXECUTIVO",
     icon: Zap,
     items: [
+      { title: "NAI importa", icon: FileSearch, href: "/nai-importa", badge: "IA" },
       { title: "Central do Cliente", icon: LifeBuoy, href: "/client-center", badge: "Novo" },
       { title: "Grupo AVP · Mapa e fila", icon: MapPin, href: "/clients/grupo-avp" },
       { title: "Agendamento de ASO", icon: CalendarDays, href: "/aso-scheduler" },
@@ -144,7 +156,7 @@ const NAV_MODULES: NavModule[] = [
         badgeColor: "bg-blue-500/20 text-blue-400 border-blue-500/30",
       },
       {
-        title: "Auditoria PGR (Upload)",
+        title: "Importações de documentos",
         icon: HardHat,
         href: "/risk-management/pgr-analysis",
         badge: "Auto",
@@ -174,6 +186,21 @@ const NAV_MODULES: NavModule[] = [
     icon: Database,
     items: [
       { title: "Financeiro", icon: BarChart3, href: "/financial" },
+      { title: "Notas fiscais", icon: FileText, href: "/financial/notas-fiscais" },
+      { title: "Conectores Omie", icon: BarChart3, href: "/financial/omie/conectores" },
+      { title: "ERP financeiro", icon: BarChart3, href: "/financial/operacoes" },
+      {
+        title: "Ações financeiras",
+        icon: ClipboardCheck,
+        href: "/financial/actions",
+        parentHref: "/financial",
+      },
+      {
+        title: "DRE pelo Omie",
+        icon: BarChart3,
+        href: "/financial/omie/dre",
+        parentHref: "/financial",
+      },
       {
         title: "Balanço 2025",
         icon: FileSpreadsheet,
@@ -322,8 +349,18 @@ export function AppSidebar() {
   const filteredModules = React.useMemo(() => {
     const query = normalizeNavigationSearch(filterText);
     return NAV_MODULES.map((module) => {
-      if (isEngineeringProvider && module.label !== "OPERACIONAL — ENGENHARIA") return null;
-      if (isHealthProvider && module.label !== "OPERACIONAL — SAÚDE") return null;
+      if (
+        isEngineeringProvider &&
+        module.label !== "OPERACIONAL — ENGENHARIA" &&
+        module.label !== "FORNECEDORES"
+      )
+        return null;
+      if (
+        isHealthProvider &&
+        module.label !== "OPERACIONAL — SAÚDE" &&
+        module.label !== "FORNECEDORES"
+      )
+        return null;
 
       if (!query) return module;
 

@@ -3,7 +3,7 @@ import "server-only";
 import { FieldValue, type DocumentReference } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase-admin";
 import { ApiGuardError, requireClient } from "@/lib/developer-api-guard";
-import type { ApiKeyRecord } from "@/types/developer";
+import type { DeveloperPrincipal } from "@/types/developer";
 import { WebhookRecord, WebhookEvent } from "@/types/developer";
 import { postWebhook } from "./post-webhook";
 import { validateWebhookTargetUrl } from "@/lib/webhook-security-guard";
@@ -286,7 +286,7 @@ async function handleDeliveryFailure(
  */
 export async function replayWebhookDelivery(
   deliveryId: string,
-  authKey: ApiKeyRecord
+  authKey: DeveloperPrincipal
 ): Promise<{ success: boolean; message: string }> {
   const db = adminDb;
 

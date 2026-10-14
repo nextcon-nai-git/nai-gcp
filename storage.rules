@@ -11,9 +11,17 @@ service firebase.storage {
         : null;
     }
 
+    function isInternalStaff(user) {
+      return user != null && (
+        user.role == 'SUPER_ADMIN' ||
+        (user.role in ['ADMIN', 'OPERATIONS'] &&
+          (!('tenantId' in user) || user.tenantId == null || user.tenantId == '') &&
+          (!('companyId' in user) || user.companyId == null || user.companyId in ['', 'nextcon']))
+      );
+    }
+
     function isNextconOfficial() {
-      let user = getUserData();
-      return isSignedIn() && user != null && user.role in ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'];
+      return isSignedIn() && isInternalStaff(getUserData());
     }
 
     function belongsToCompany(companyId) {
@@ -39,28 +47,64 @@ service firebase.storage {
     function hasClinicalAccess(companyId) {
       let user = getUserData();
       return isSignedIn() && user != null && (
-        user.role in ['SUPER_ADMIN', 'ADMIN'] ||
+        user.role == 'SUPER_ADMIN' ||
+        (user.role == 'ADMIN' && (isInternalStaff(user) ||
+          user.companyId == companyId ||
+          ('servedCompanies' in user && user.servedCompanies is list && companyId in user.servedCompanies))) ||
         (user.role in ['DOCTOR', 'NURSE', 'HEALTH_PROFESSIONAL', 'PROVIDER'] &&
           (user.companyId == companyId || ('servedCompanies' in user && user.servedCompanies is list && companyId in user.servedCompanies)))
       );
     }
 
-    match /clientes/{companyId}/{category}/{allPaths=**} {
-      allow read: if category == 'colaboradores' || category == 'prontuarios'
-        ? hasClinicalAccess(companyId)
-        : isSignedIn() && (isNextconOfficial() || belongsToCompany(companyId));
-      allow create, update: if (category == 'colaboradores' || category == 'prontuarios'
-        ? hasClinicalAccess(companyId)
-        : isSignedIn() && (isNextconOfficial() || isCompanyAdmin(companyId) || isHealthProfessionalForCompany(companyId))) && isSafeFile();
-      allow delete: if category == 'colaboradores' || category == 'prontuarios'
-        ? isSignedIn() && getUserData().role == 'SUPER_ADMIN'
-        : isSignedIn() && (isNextconOfficial() || isCompanyAdmin(companyId));
+    function isClinicalImport(category, folderOrFile) {
+      return category == 'prontuarios' && folderOrFile == 'importacoes';
     }
 
-    match /internos_nextcon/{allPaths=**} {
+    function hasClinicalImportAccess(companyId) {
+      let user = getUserData();
+      let tenantId = user != null && 'tenantId' in user && user.tenantId is string
+        ? user.tenantId
+        : user != null && 'companyId' in user && user.companyId is string
+          ? user.companyId
+          : '';
+      return isSignedIn() && user != null && (
+        user.role == 'SUPER_ADMIN' ||
+        (user.role == 'ADMIN' && tenantId == '') ||
+        (user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'HEALTH_PROFESSIONAL'] &&
+          (tenantId == companyId || ('servedCompanies' in user && user.servedCompanies is list && companyId in user.servedCompanies)))
+      );
+    }
+
+    match /clientes/{companyId}/{category}/{folderOrFile}/{allPaths=**} {
+      allow read: if isClinicalImport(category, folderOrFile)
+        ? hasClinicalImportAccess(companyId)
+        : category == 'colaboradores' || category == 'prontuarios'
+          ? hasClinicalAccess(companyId)
+          : isSignedIn() && (isNextconOfficial() || belongsToCompany(companyId));
+      allow create, update: if !isClinicalImport(category, folderOrFile) &&
+        (category == 'colaboradores' || category == 'prontuarios'
+          ? hasClinicalAccess(companyId)
+          : isSignedIn() && (isNextconOfficial() || isCompanyAdmin(companyId) || isHealthProfessionalForCompany(companyId))) && isSafeFile();
+      allow delete: if !isClinicalImport(category, folderOrFile) &&
+        (category == 'colaboradores' || category == 'prontuarios'
+          ? isSignedIn() && getUserData().role == 'SUPER_ADMIN'
+          : isSignedIn() && (isNextconOfficial() || isCompanyAdmin(companyId)));
+    }
+
+    match /internos_nextcon/{folder}/{allPaths=**} {
       allow read: if isNextconOfficial();
-      allow create, update: if isNextconOfficial() && isSafeFile();
-      allow delete: if isNextconOfficial();
+      // Recursive wildcards are paths, not strings. Reserve this entire
+      // namespace so the general rule cannot overwrite a contract source.
+      allow create, update: if isNextconOfficial() && folder != 'contract-sources' && isSafeFile();
+      allow delete: if isNextconOfficial() && folder != 'contract-sources';
+    }
+
+    match /internos_nextcon/contract-sources/{sourceFile} {
+      allow read: if isNextconOfficial();
+      allow create: if isNextconOfficial() && resource == null &&
+        sourceFile.matches('[a-f0-9]{64}') && isSafeFile() &&
+        request.resource.metadata.sourceSha256 == sourceFile;
+      allow update, delete: if false;
     }
 
     match /public/{allPaths=**} {

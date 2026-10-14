@@ -63,9 +63,7 @@ beforeEach(async () => {
     },
   ]);
   await adminDb
-    .collection("users")
-    .doc(user.uid)
-    .collection("pgr_analysis_drafts")
+    .collection("nai_importa_drafts")
     .doc(draftId)
     .set({
       analysis,
@@ -167,6 +165,8 @@ describe("PGR: persistência real, vínculo e repetição", () => {
         body: JSON.stringify({ companyId: "legacy-cetesb", taskId: first.id, patch }),
       });
     expect((await patchTask(request({ status: "done" }))).status).toBe(409);
+    expect((await patchTask(request({ status: "done", checklist: [] }))).status).toBe(409);
+    expect((await patchTask(request({ checklist: [] }))).status).toBe(409);
     expect((await first.ref.get()).data()?.status).toBe("todo");
     expect((await patchTask(request({ companyId: "avp" }))).status).toBe(422);
     expect((await first.ref.get()).data()?.companyId).toBe("legacy-cetesb");
@@ -178,5 +178,77 @@ describe("PGR: persistência real, vínculo e repetição", () => {
     expect(updated?.status).toBe("done");
     expect(updated?.progress).toBe(100);
     expect(updated?.modifiedBy).toBe(user.uid);
+    expect(
+      (
+        await patchTask(
+          request({
+            checklist: checklist.map((item: Record<string, unknown>) => ({
+              ...item,
+              checked: false,
+            })),
+          })
+        )
+      ).status
+    ).toBe(409);
+    expect((await first.ref.get()).data()?.progress).toBe(100);
+    expect(
+      (
+        await patchTask(
+          request({
+            checklist: checklist.map((item: Record<string, unknown>) => ({
+              ...item,
+              text: "Outro requisito",
+            })),
+          })
+        )
+      ).status
+    ).toBe(409);
+    expect(
+      (
+        await patchTask(
+          request({
+            status: "doing",
+            checklist: checklist.map((item: Record<string, unknown>) => ({
+              ...item,
+              checked: false,
+            })),
+          })
+        )
+      ).status
+    ).toBe(200);
+  });
+  it("card clínico mantém texto administrativo e só perfil clínico conclui a revisão", async () => {
+    await savePgrDraft(user, params, bytes);
+    const first = (await company().collection("tasks").get()).docs[0];
+    await first.ref.update({ restricted: true, documentType: "ASO" });
+    const request = (patch: Record<string, unknown>) =>
+      new NextRequest("https://nai.local/api/pgr/tasks", {
+        method: "PATCH",
+        body: JSON.stringify({ companyId: "legacy-cetesb", taskId: first.id, patch }),
+      });
+    const checklist = first
+      .data()
+      .checklist.map((item: Record<string, unknown>) => ({ ...item, checked: true }));
+    expect((await patchTask(request({ status: "done", checklist }))).status).toBe(403);
+    expect((await patchTask(request({ title: "Nome do paciente e diagnóstico" }))).status).toBe(
+      409
+    );
+    expect((await patchTask(request({ lastComment: "Informação clínica sintética" }))).status).toBe(
+      409
+    );
+    expect(
+      (
+        await patchTask(
+          request({
+            checklist: [...checklist, { text: "Nova informação clínica", checked: false }],
+          })
+        )
+      ).status
+    ).toBe(409);
+    expect(
+      (await patchTask(request({ status: "review", priority: "high", checklist }))).status
+    ).toBe(200);
+    expect((await first.ref.get()).data()?.title).toBe(first.data().title);
+    expect((await patchTask(request({ dueDate: "2026-02-30" }))).status).toBe(400);
   });
 });

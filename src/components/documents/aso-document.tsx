@@ -43,11 +43,18 @@ const styles = StyleSheet.create({
   signatureText: { fontSize: 9, color: "#1e293b" },
 });
 
-export const AsoDocument = ({ patientName, companyName, status, type }: any) => (
+export type AsoDocumentProps = {
+  patientName: string;
+  companyName?: string;
+  status?: string;
+  type?: string;
+};
+
+export const AsoDocument = ({ patientName, companyName, status, type }: AsoDocumentProps) => (
   <Document>
     <Page size="A4" style={styles.page}>
       <View style={styles.header}>
-        <Text style={styles.title}>Atestado de Saúde Ocupacional (ASO)</Text>
+        <Text style={styles.title}>Resumo de registro de ASO</Text>
         <Text style={{ fontSize: 9, color: "#64748b", marginTop: 5 }}>
           NEXTCON SAÚDE EMPRESARIAL - INTELIGÊNCIA NAI
         </Text>
@@ -58,10 +65,10 @@ export const AsoDocument = ({ patientName, companyName, status, type }: any) => 
         <Text style={styles.value}>{patientName?.toUpperCase()}</Text>
 
         <Text style={styles.label}>Empresa Contratante</Text>
-        <Text style={styles.value}>{companyName || "UNIDADE OPERACIONAL"}</Text>
+        <Text style={styles.value}>{companyName || "Não informada"}</Text>
 
         <Text style={styles.label}>Tipo de Exame</Text>
-        <Text style={styles.value}>{type || "Periódico"}</Text>
+        <Text style={styles.value}>{type || "Não informado"}</Text>
       </View>
 
       <View
@@ -69,29 +76,29 @@ export const AsoDocument = ({ patientName, companyName, status, type }: any) => 
           marginVertical: 20,
           padding: 15,
           borderLeftWidth: 4,
-          borderLeftColor: "#10B981",
-          backgroundColor: "#f0fdf4",
+          borderLeftColor: "#64748b",
+          backgroundColor: "#f8fafc",
         }}
       >
-        <Text style={{ fontSize: 12, fontWeight: "bold", color: "#065f46" }}>
-          RESULTADO: {status?.toUpperCase()}
+        <Text style={{ fontSize: 12, fontWeight: "bold", color: "#334155" }}>
+          RESULTADO INFORMADO NO CADASTRO: {status?.toUpperCase() || "NÃO INFORMADO"}
         </Text>
-        <Text style={{ fontSize: 9, color: "#047857", marginTop: 5 }}>
-          O trabalhador encontra-se apto para o exercício de suas funções conforme os riscos
-          ocupacionais mapeados no PGR.
+        <Text style={{ fontSize: 9, color: "#475569", marginTop: 5 }}>
+          Confira a conclusão do médico no ASO original. Este resumo não define aptidão e não
+          substitui o documento emitido pelo médico responsável.
         </Text>
       </View>
 
       <View style={styles.signatureArea}>
-        <Text style={styles.signatureText}>Assinado Digitalmente via Plataforma Nextcon</Text>
+        <Text style={styles.signatureText}>Resumo para conferência documental</Text>
         <Text style={{ fontSize: 7, color: "#94a3b8", marginTop: 2 }}>
-          Protocolo ICP-Brasil PAdES Ready
+          A assinatura do ASO original não é reproduzida ou validada neste resumo.
         </Text>
       </View>
 
       <Text style={styles.footer}>
-        Documento gerado em {new Date().toLocaleDateString("pt-BR")} - Validade Jurídica amparada
-        pela NR-07 e MP 2.200-2/2001.
+        Resumo exportado em {new Date().toLocaleDateString("pt-BR")} · Consulte o ASO original no
+        ambiente clínico autorizado.
       </Text>
     </Page>
   </Document>

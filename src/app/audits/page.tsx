@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { getActionIdToken } from "@/lib/auth/action-token";
 import {
   Layers,
   Plus,
@@ -55,7 +56,16 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase";
-import { collection, query, orderBy, doc, where, collectionGroup } from "firebase/firestore";
+import {
+  collection,
+  query,
+  orderBy,
+  doc,
+  where,
+  collectionGroup,
+  addDoc,
+  updateDoc,
+} from "firebase/firestore";
 import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { cn } from "@/lib/utils";
 import { useSgi } from "@/contexts/sgi-context";
@@ -79,7 +89,7 @@ export default function IsoAuditsElite() {
   const { toast } = useToast();
   const { user, role, companyId: userCompanyId } = useUser();
   const db = useFirestore();
-  const { activeClientId } = useSgi();
+  const { activeClientId, isGlobalStaff } = useSgi();
 
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
   const [executingAudit, setExecutingAudit] = React.useState<any | null>(null);
@@ -93,21 +103,70 @@ export default function IsoAuditsElite() {
   }, [db, user]);
   const { data: profile } = useDoc(profileRef);
 
-  const isGlobalAdmin = React.useMemo(
-    () => ["SUPER_ADMIN", "ADMIN", "ENGINEER"].includes(role || ""),
-    [role]
+  const isGlobalAdmin = isGlobalStaff;
+  const [audits, setAudits] = React.useState<any[]>([]);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [loadError, setLoadError] = React.useState("");
+  const [reload, setReload] = React.useState(0);
+  const [truncated, setTruncated] = React.useState(false);
+  React.useEffect(() => {
+    if (!user || !activeClientId || activeClientId === "unauthorized") return;
+    const controller = new AbortController();
+    setIsLoading(true);
+    setAudits([]);
+    setLoadError("");
+    void (async () => {
+      try {
+        const token = await getActionIdToken();
+        const response = await fetch(`/api/audits?company=${encodeURIComponent(activeClientId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error("unavailable");
+        const data = await response.json();
+        if (!controller.signal.aborted) {
+          setAudits(data.audits);
+          setTruncated(data.truncated);
+        }
+      } catch {
+        if (!controller.signal.aborted)
+          setLoadError(
+            "Não foi possível carregar as auditorias. Confira seu acesso ou tente novamente."
+          );
+      } finally {
+        if (!controller.signal.aborted) setIsLoading(false);
+      }
+    })();
+    return () => controller.abort();
+  }, [user, activeClientId, reload]);
+  const completed = audits.filter((a) => a.status === "finished");
+  const evaluated = completed.flatMap((a) =>
+    (ISO_CHECKLISTS[a.scope]?.items || []).map((item) => a.results?.[item.id] === true)
   );
-
-  const auditsQuery = useMemoFirebase(() => {
-    if (!db || activeClientId === "unauthorized" || !activeClientId) return null;
-    if (activeClientId === "all") {
-      if (!isGlobalAdmin) return null;
-      return query(collectionGroup(db, "audits"), orderBy("date", "desc"));
-    }
-    return query(collection(db, "companies", activeClientId, "audits"), orderBy("date", "desc"));
-  }, [db, activeClientId, isGlobalAdmin]);
-
-  const { data: audits, isLoading } = useCollection(auditsQuery);
+  const adherence = evaluated.length
+    ? Math.round((evaluated.filter(Boolean).length / evaluated.length) * 100)
+    : null;
+  function exportAudits() {
+    const cell = (v: unknown) =>
+      '"' +
+      String(v ?? "")
+        .replace(/^[=+@-]/, "'$&")
+        .replace(/"/g, '""') +
+      '"';
+    const csv = [
+      ["Unidade", "Norma", "Auditor", "Data", "Status"],
+      ...audits.map((a) => [a.companyName, a.scope, a.auditorName, a.date, a.status]),
+    ]
+      .map((row) => row.map(cell).join(";"))
+      .join("\r\n");
+    const url = URL.createObjectURL(new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "auditorias.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
   const companiesQuery = useMemoFirebase(() => {
     if (!db || !role) return null;
@@ -139,7 +198,7 @@ export default function IsoAuditsElite() {
     setIsSubmitting(true);
     try {
       const company = companies?.find((c) => c.id === values.companyId);
-      await addDocumentNonBlocking(collection(db, "companies", values.companyId, "audits"), {
+      await addDoc(collection(db, "companies", values.companyId, "audits"), {
         ...values,
         companyName: company?.name || "Unidade Técnica",
         createdAt: new Date().toISOString(),
@@ -148,6 +207,7 @@ export default function IsoAuditsElite() {
       toast({ title: "Auditoria Protocolada" });
       setIsCreateOpen(false);
       form.reset();
+      setReload((n) => n + 1);
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao Salvar" });
     } finally {
@@ -158,27 +218,22 @@ export default function IsoAuditsElite() {
   const handleStartExecution = (audit: any) => {
     setExecutingAudit(audit);
     setChecklistResponses(audit.results || {});
-    if (audit.status === "planned" && db && audit.companyId) {
-      updateDocumentNonBlocking(doc(db, "companies", audit.companyId, "audits", audit.id), {
-        status: "in_progress",
-      });
-    }
   };
 
   const handleFinishAudit = async () => {
     if (!db || !executingAudit) return;
     setIsSubmitting(true);
     try {
-      await updateDocumentNonBlocking(
-        doc(db, "companies", executingAudit.companyId, "audits", executingAudit.id),
-        {
-          status: "finished",
-          results: checklistResponses,
-          finishedAt: new Date().toISOString(),
-        }
-      );
+      await updateDoc(doc(db, "companies", executingAudit.companyId, "audits", executingAudit.id), {
+        status: "finished",
+        results: checklistResponses,
+        finishedAt: new Date().toISOString(),
+      });
       toast({ title: "Auditoria Finalizada" });
       setExecutingAudit(null);
+      setReload((n) => n + 1);
+    } catch {
+      toast({ variant: "destructive", title: "Não foi possível salvar a auditoria" });
     } finally {
       setIsSubmitting(false);
     }
@@ -204,9 +259,11 @@ export default function IsoAuditsElite() {
         <div className="flex gap-2">
           <Button
             variant="outline"
+            onClick={exportAudits}
+            disabled={isLoading || !!loadError || !audits.length}
             className="h-12 px-6 rounded-2xl border-primary text-primary font-black uppercase text-[10px] gap-2 shadow-sm btn-hover-effect"
           >
-            <Globe2 className="size-4" /> Global Reporting (ESG)
+            <Globe2 className="size-4" /> Exportar auditorias CSV
           </Button>
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
@@ -308,6 +365,30 @@ export default function IsoAuditsElite() {
                         </FormItem>
                       )}
                     />
+                    <FormField
+                      control={form.control}
+                      name="auditorName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Auditor responsável</FormLabel>
+                          <FormControl>
+                            <Input {...field} required minLength={3} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="date"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Data do ciclo</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="date" required />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
                     <Button
                       type="submit"
                       disabled={isSubmitting}
@@ -328,6 +409,14 @@ export default function IsoAuditsElite() {
         </div>
       </header>
 
+      {loadError && (
+        <div role="alert">
+          {loadError} <Button onClick={() => setReload((n) => n + 1)}>Tentar novamente</Button>
+        </div>
+      )}
+      {truncated && (
+        <p>Exibindo até 500 auditorias. Selecione uma unidade para refinar a consulta.</p>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-1 space-y-6">
           <Card className="card-shadow border-none bg-emerald-50 rounded-[2.5rem] p-8 space-y-6 border border-emerald-100">
@@ -341,15 +430,17 @@ export default function IsoAuditsElite() {
             </div>
             <div className="space-y-4">
               <div className="flex justify-between items-center text-[10px] font-black uppercase text-emerald-700">
-                <span>GRI 403 (ESG)</span>
-                <Badge className="bg-emerald-600 text-white h-5">READY</Badge>
+                <span>Ciclos concluídos</span>
+                <Badge className="bg-emerald-600 text-white h-5">{completed.length}</Badge>
               </div>
               <div className="flex justify-between items-center text-[10px] font-black uppercase text-emerald-700">
-                <span>Aderência Média</span>
-                <span className="text-lg">94.8%</span>
+                <span>Itens marcados conformes</span>
+                <span className="text-lg">
+                  {adherence === null ? "Sem avaliação" : `${adherence}%`}
+                </span>
               </div>
               <div className="h-1.5 w-full bg-emerald-200 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-600" style={{ width: "94.8%" }} />
+                <div className="h-full bg-emerald-600" style={{ width: `${adherence || 0}%` }} />
               </div>
             </div>
           </Card>
@@ -360,11 +451,11 @@ export default function IsoAuditsElite() {
             </div>
             <div className="relative z-10 space-y-4">
               <h4 className="text-xs font-black uppercase tracking-widest text-accent flex items-center gap-2">
-                <Brain className="size-3" /> IA Preditora ISO
+                <Brain className="size-3" /> Evidências do ciclo
               </h4>
               <p className="text-[11px] leading-relaxed italic text-white/60">
-                "O motor NAI cruzou os dados do PGR com os registros de treinamento e identificou um
-                gap de 12% no Requisito 7.2 da ISO 45001."
+                Indicador calculado sobre as respostas dos ciclos concluídos exibidos. Não
+                representa certificação ISO ou avaliação independente.
               </p>
             </div>
           </Card>
@@ -537,8 +628,8 @@ export default function IsoAuditsElite() {
                 <div className="w-full flex items-center gap-4 p-5 bg-emerald-50 rounded-[1.5rem] border-2 border-dashed border-emerald-200">
                   <ShieldCheck className="size-8 text-emerald-600 shrink-0" />
                   <p className="text-[10px] text-emerald-800 font-black leading-relaxed uppercase italic">
-                    "O encerramento deste ciclo gerará o relatório GRI 403 e a trilha de evidências
-                    criptográfica para certificação global."
+                    O encerramento salva as respostas deste checklist. Não emite certificação ISO
+                    nem relatório GRI; as evidências devem ser revisadas pelo responsável.
                   </p>
                 </div>
                 <Button

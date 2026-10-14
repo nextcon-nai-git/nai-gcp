@@ -35,6 +35,7 @@ export type OmiePage = {
     id: string;
     document: string;
     partyCode: string;
+    partyName?: string | null;
     dueDate: string;
     amount: number;
     status: string;

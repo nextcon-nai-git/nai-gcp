@@ -273,10 +273,10 @@ export function ExecutiveDashboardView() {
           </button>
           <Link
             className={cn(action, "bg-[#102b3b] text-white hover:bg-[#1c4053]")}
-            href="/risk-management/pgr-analysis"
+            href="/nai-importa"
           >
             <FileText className="size-4" />
-            Importar PGR
+            NAI importa
           </Link>
         </div>
       </header>
@@ -819,7 +819,7 @@ export function ExecutiveDashboardView() {
               </div>
             ))}
           </div>
-          <div className="mt-6 rounded-xl bg-[#f4f7f9] p-4">
+          <div className="mt-6 rounded-xl bg-muted p-4">
             <p className="flex items-center gap-2 text-xs font-semibold text-slate-600">
               <ShieldCheck className="size-4" />
               Indicadores que exigem mais evidências

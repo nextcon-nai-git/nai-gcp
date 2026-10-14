@@ -6,7 +6,7 @@ import { requirePgrRole } from "@/lib/auth/require-pgr-access";
 import { PGR_MAX_FILE_BYTES } from "@/lib/pgr-schema";
 import { preparePgrDraft } from "@/services/pgr-workspace";
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 300;
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth(request);

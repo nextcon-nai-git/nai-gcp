@@ -30,6 +30,8 @@ import {
   MessageCircle,
   Star,
   User,
+  Copy,
+  Printer,
   FileUp,
   Check,
   Briefcase,
@@ -40,8 +42,6 @@ import {
   Users,
   RefreshCw,
   ReceiptText,
-  Copy,
-  Printer,
   QrCode,
   Barcode,
   Calculator,
@@ -54,6 +54,7 @@ import {
   ProviderAssessment,
   type ProviderAssessmentValues,
 } from "@/components/providers/provider-assessment";
+import { ProviderAccessState } from "@/components/providers/provider-access-state";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -94,113 +95,58 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore, useCollection, useMemoFirebase, useStorage } from "@/firebase";
-import {
-  collection,
-  query,
-  orderBy,
-  doc,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-  writeBatch,
-  where,
-} from "firebase/firestore";
+import { collection, query, orderBy, doc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
 
-function getProviderServiceForCompany(
-  providerName: string = "",
-  companyName: string = "",
-  profession: string = "",
-  specialty: string = ""
-): string {
-  const pName = (providerName || "").toUpperCase();
-  const cName = (companyName || "").toUpperCase();
-  const prof = (profession || "").toUpperCase();
-
-  if (cName.includes("CONSTRUFAM")) return "Revisão de PGR";
-  if (cName.includes("CAIXA")) return "Revisão PCMSO";
-  if (cName.includes("CETESB")) {
-    if (
-      pName.includes("GIOVAN") ||
-      pName.includes("GIOVANNA") ||
-      prof.includes("ENF") ||
-      prof.includes("COREN")
-    ) {
-      return "Atendimentos de Enfermagem Ocupacional (Ambulatório CETESB - Anexo 1 Térreo)";
-    }
-    if (pName.includes("ANA") || prof.includes("MÉDIC") || prof.includes("CRM")) {
-      return "Ambulatório Médico Ocupacional CETESB (Anexo 1 - Térreo)";
-    }
-    return "Elaboração e Revisão de PRE (Plano de Resposta a Emergência) & Ambulatório";
-  }
-  if (cName.includes("ANEEL")) {
-    if (prof.includes("FISIO") || prof.includes("CREFITO") || pName.includes("RUDIMILA")) {
-      return "Fisioterapia do Trabalho, Ergonomia & Ginástica Laboral (12h/semana - Ambulatório ANEEL)";
-    }
-    if (prof.includes("CLÍN") || prof.includes("CLIN") || pName.includes("CAIO")) {
-      return "Medicina Clínica Ambulatorial & Urgência (8h/semana - Ambulatório ANEEL)";
-    }
-    if (prof.includes("PSIC") || prof.includes("CRP") || pName.includes("SCHEILA")) {
-      return "Psicologia Ocupacional, Saúde Mental & Avaliação Comportamental (16h/semana - Ambulatório ANEEL)";
-    }
-    return "Corpo Clínico & Assistencial Especializado ANEEL";
-  }
-  if (cName.includes("MONTEC") || cName.includes("DW"))
-    return "Laudo Técnico PGR & LTCAT DW Montec";
-
-  if (
-    prof.includes("ENG") ||
-    prof.includes("CREA") ||
-    pName.includes("FELIPE") ||
-    pName.includes("ADELMO")
-  ) {
-    return "Revisão de PGR & Laudos Técnicos";
-  }
-  if (
-    prof.includes("MÉDIC") ||
-    prof.includes("MEDIC") ||
-    prof.includes("CRM") ||
-    pName.includes("CHARYSE") ||
-    pName.includes("ANA")
-  ) {
-    return "Revisão PCMSO & Atendimento Ambulatorial";
-  }
-
-  return "Gestão de SST & Consultoria Especializada";
-}
 import { enriquecerDadosEmpresa } from "@/actions/company-enrichment";
-import { createProviderAccount } from "@/lib/provider-auth-service";
 import { analyzeProviderContract } from "@/ai/flows/provider-contract-analysis-flow";
-import { errorEmitter } from "@/firebase/error-emitter";
-import { FirestorePermissionError } from "@/firebase/errors";
 import Papa from "papaparse";
 import { useSgi } from "@/contexts/sgi-context";
-import { generateProviderInviteMessage, OFFICIAL_BASE_URL } from "@/lib/domain-config";
-import { getConsolidatedProviders } from "@/lib/all-consolidated-providers";
+import { getWhatsAppLink } from "@/lib/whatsapp-utils";
+import { generateProviderInviteMessage } from "@/lib/domain-config";
+import {
+  canKeepProviderActive,
+  createFirestoreProviderConditionalWriteStore,
+  createFirestoreProviderReservationStore,
+  hashProviderIdentifier,
+  isProviderAssociatedWithCompany,
+  isProviderCsvSizeAllowed,
+  isValidProviderIdentifier,
+  MAX_PROVIDER_CSV_BYTES,
+  normalizeProviderName,
+  previewProviderCsvRows,
+  providerIdForIdentityHash,
+  reserveAndWriteProvider,
+  updateProviderIfCurrent,
+  type ProviderCsvPreviewRow,
+} from "@/lib/provider-integrity";
 
 const providerSchema = z.object({
   name: z.string().min(3, "Nome obrigatório"),
-  cnpj: z.string().min(11, "Documento inválido"),
-  profession: z.string().min(2, "Profissão obrigatória"),
+  cnpj: z.string().optional().or(z.literal("")),
+  profession: z.string().optional().or(z.literal("")),
+  operationalFunction: z.string().optional().or(z.literal("")),
   councilNumber: z.string().optional(),
-  type: z.enum(["CLINIC", "LAB", "DOCTOR", "HOSPITAL", "NURSE", "ENGINEER", "TECH_NURSE"]),
-  specialty: z.string().min(2, "Especialidade obrigatória"),
+  rqe: z.string().optional(),
+  type: z
+    .enum(["CLINIC", "LAB", "DOCTOR", "HOSPITAL", "NURSE", "ENGINEER", "TECH_NURSE"])
+    .optional(),
+  specialty: z.string().optional().or(z.literal("")),
   cep: z.string().optional().or(z.literal("")),
-  city: z.string().min(2, "Cidade obrigatória"),
-  state: z.string().min(2, "Estado obrigatório"),
+  city: z.string().optional().or(z.literal("")),
+  state: z.string().optional().or(z.literal("")),
   address: z.string().optional().or(z.literal("")),
   email: z.string().email("E-mail inválido").optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
-  active: z.boolean().default(true),
-  rating: z.number().min(1).max(5).default(5),
+  active: z.boolean().default(false),
+  rating: z.number().min(1).max(5).optional(),
   contractUrl: z.string().optional(),
   photoUrl: z.string().optional(),
   councilCardUrl: z.string().optional(),
@@ -214,6 +160,12 @@ export interface ProviderItem extends Partial<ProviderFormValues>, Record<string
   updatedAt?: string;
   aiContractAnalysis?: Record<string, unknown>;
 }
+
+type ProviderCsvImportResult = {
+  rowNumber: number;
+  status: "confirmed" | "duplicate" | "not_committed" | "committed_unconfirmed" | "outcome_unknown";
+  message?: string;
+};
 
 function RatingStars({
   rating,
@@ -248,7 +200,7 @@ function RatingStars({
 
 export default function ProvidersManagement() {
   const { toast } = useToast();
-  const { user, role } = useUser();
+  const { user, role, companyId, tenantId, isUserLoading, userError } = useUser();
   const db = useFirestore();
   const storage = useStorage();
   const { activeClientId } = useSgi();
@@ -266,80 +218,96 @@ export default function ProvidersManagement() {
   const [isFetchingCnpj, setIsFetchingCnpj] = React.useState(false);
   const [isFetchingCep, setIsFetchingCep] = React.useState(false);
   const [isImportingCsv, setIsImportingCsv] = React.useState(false);
+  const importedCsvIdentities = React.useRef<
+    Map<string, { name: string; cnpj: string; taxIdStatus: string }>
+  >(new Map());
+  const manualProviderAttempts = React.useRef(new Map<string, string>());
+  const [csvPreview, setCsvPreview] = React.useState<{
+    rows: ProviderCsvPreviewRow[];
+    errors: string[];
+    results?: ProviderCsvImportResult[];
+  } | null>(null);
   const [isAiAnalyzing, setIsAiAnalyzing] = React.useState(false);
 
   const [tempContract, setTempContract] = React.useState<File | null>(null);
   const [tempPhoto, setTempPhoto] = React.useState<File | null>(null);
   const [tempCouncilCard, setTempCouncilCard] = React.useState<File | null>(null);
 
-  const isGlobalAdmin = React.useMemo(() => ["SUPER_ADMIN", "ADMIN"].includes(role || ""), [role]);
+  const isGlobalAdmin = React.useMemo(
+    () =>
+      role === "SUPER_ADMIN" ||
+      (["ADMIN", "OPERATIONS"].includes(role || "") &&
+        (tenantId == null || tenantId === "") &&
+        (companyId == null || companyId === "" || companyId === "nextcon")),
+    [role, companyId, tenantId]
+  );
+
+  const [providerQueryVersion, setProviderQueryVersion] = React.useState(0);
 
   const providersQuery = useMemoFirebase(() => {
-    if (!db) return null;
+    if (!db || isUserLoading || !isGlobalAdmin) return null;
     return query(collection(db, "providers"), orderBy("name", "asc"));
-  }, [db]);
+  }, [db, isUserLoading, isGlobalAdmin, user?.uid, providerQueryVersion]);
 
-  const { data: providers, isLoading } = useCollection(providersQuery);
-
-  const [removedProviderIds, setRemovedProviderIds] = React.useState<Set<string>>(new Set());
-
-  const consolidatedProviders = React.useMemo(() => getConsolidatedProviders(), []);
+  const { data: providers, isLoading, error: providersError } = useCollection(providersQuery);
 
   const activeProvidersList = React.useMemo(() => {
-    const list = providers && providers.length > 0 ? providers : consolidatedProviders;
-    return list.filter((p: ProviderItem) => p && !removedProviderIds.has(p.id));
-  }, [providers, consolidatedProviders, removedProviderIds]);
+    return (providers || []).filter((provider: ProviderItem) => provider && !provider.isDeleted);
+  }, [providers]);
 
   const handleDeleteProvider = async (provider: ProviderItem) => {
-    if (!provider || !provider.id) return;
+    if (!db || !isGlobalAdmin || !provider?.id) return;
     const confirmDelete = window.confirm(
-      `Deseja realmente remover o prestador "${provider.name || "Selecionado"}"?`
+      `Deseja arquivar o cadastro do prestador "${provider.name || "Selecionado"}"?`
     );
     if (!confirmDelete) return;
 
-    // Atualização otimista e segura do estado visual
-    setRemovedProviderIds((prev) => new Set([...prev, provider.id]));
-
     try {
-      if (db) {
-        const { deleteDoc: firestoreDeleteDoc, doc: firestoreDoc } =
-          await import("firebase/firestore");
-        await firestoreDeleteDoc(firestoreDoc(db, "providers", provider.id));
-      }
+      const providerRef = doc(db, "providers", provider.id);
+      await updateProviderIfCurrent({
+        store: createFirestoreProviderConditionalWriteStore(db),
+        reference: providerRef,
+        expected: provider,
+        update: {
+          active: false,
+          isDeleted: true,
+          archivedAt: serverTimestamp(),
+          archivedBy: user?.uid || null,
+          updatedAt: serverTimestamp(),
+          revision: Number(provider.revision || 0) + 1,
+        },
+        verify: { isDeleted: true, active: false },
+      });
       toast({
-        title: "Prestador Removido",
-        description: `${provider.name || "Prestador"} foi removido com sucesso.`,
+        title: "Cadastro Arquivado",
+        description: `${provider.name || "Prestador"} foi arquivado após confirmação da gravação.`,
       });
     } catch (err: any) {
-      console.warn("Aviso ao remover do Firestore (removido localmente):", err);
       toast({
-        title: "Prestador Removido",
-        description: `${provider.name || "Prestador"} foi removido da listagem operacional.`,
+        variant: "destructive",
+        title: "Falha ao arquivar cadastro",
+        description: err.message || "A gravação não foi confirmada. Tente novamente.",
       });
     }
   };
 
   const companiesQuery = useMemoFirebase(() => {
-    if (!db || !isGlobalAdmin) return null;
+    if (!db || isUserLoading || !isGlobalAdmin) return null;
     return query(collection(db, "companies"), orderBy("name", "asc"));
-  }, [db, isGlobalAdmin]);
-  const { data: companies } = useCollection(companiesQuery);
+  }, [db, isUserLoading, isGlobalAdmin, user?.uid, providerQueryVersion]);
+  const {
+    data: companies,
+    isLoading: companiesLoading,
+    error: companiesError,
+  } = useCollection(companiesQuery);
 
   const filteredProviders = React.useMemo(() => {
     const term = searchTerm.toLowerCase();
+    const companyScope =
+      isGlobalAdmin && activeClientId === "unauthorized" ? "all" : activeClientId;
     return activeProvidersList
       .filter((p: ProviderItem) => {
-        if (activeClientId && activeClientId !== "all" && activeClientId !== "unauthorized") {
-          const isAssociated =
-            !p.servedCompanies ||
-            p.servedCompanies.length === 0 ||
-            (p.servedCompanies &&
-              Array.isArray(p.servedCompanies) &&
-              p.servedCompanies.includes(activeClientId)) ||
-            p.companyId === activeClientId ||
-            p.id === activeClientId;
-          if (!isAssociated) return false;
-        }
+        if (!isProviderAssociatedWithCompany(p, companyScope)) return false;
         return (
           (p.name || p.displayName || "").toLowerCase().includes(term) ||
           (p.cnpj || "").includes(term) ||
@@ -354,7 +322,19 @@ export default function ProvidersManagement() {
         if (!aHasPhoto && bHasPhoto) return 1;
         return (a.name || a.displayName || "").localeCompare(b.name || b.displayName || "");
       });
-  }, [activeProvidersList, searchTerm, activeClientId]);
+  }, [activeProvidersList, searchTerm, activeClientId, isGlobalAdmin]);
+
+  React.useLayoutEffect(() => {
+    setEditingProvider(null);
+    setIsCreateOpen(false);
+    setSelectedAdelmoPgr(null);
+    setSelectedNfse(null);
+    setSelectedBoleto(null);
+    setCsvPreview(null);
+    setSearchTerm("");
+    importedCsvIdentities.current.clear();
+    manualProviderAttempts.current.clear();
+  }, [user?.uid, companyId, role, activeClientId]);
 
   const form = useForm<ProviderFormValues>({
     resolver: zodResolver(providerSchema),
@@ -362,17 +342,17 @@ export default function ProvidersManagement() {
       name: "",
       cnpj: "",
       profession: "",
+      operationalFunction: "",
       councilNumber: "",
-      type: "CLINIC",
-      specialty: "Medicina do Trabalho",
+      rqe: "",
+      specialty: "",
       cep: "",
       city: "",
       state: "",
       address: "",
       email: "",
       phone: "",
-      active: true,
-      rating: 5,
+      active: false,
       contractUrl: "",
       photoUrl: "",
       councilCardUrl: "",
@@ -393,17 +373,19 @@ export default function ProvidersManagement() {
         name: editingProvider.name || "",
         cnpj: editingProvider.cnpj || "",
         profession: editingProvider.profession || "",
+        operationalFunction: editingProvider.operationalFunction || "",
         councilNumber: editingProvider.councilNumber || "",
-        type: editingProvider.type || "CLINIC",
-        specialty: editingProvider.specialty || "Medicina do Trabalho",
+        rqe: editingProvider.rqe || "",
+        type: editingProvider.type || undefined,
+        specialty: editingProvider.specialty || "",
         cep: editingProvider.cep || "",
         city: editingProvider.city || "",
         state: editingProvider.state || "",
         address: editingProvider.address || "",
         email: editingProvider.email || "",
         phone: editingProvider.phone || "",
-        active: editingProvider.active ?? true,
-        rating: editingProvider.rating || 5,
+        active: editingProvider.active ?? false,
+        rating: editingProvider.rating ?? undefined,
         contractUrl: editingProvider.contractUrl || "",
         photoUrl: editingProvider.photoUrl || "",
         councilCardUrl: editingProvider.councilCardUrl || "",
@@ -414,17 +396,18 @@ export default function ProvidersManagement() {
         name: "",
         cnpj: "",
         profession: "",
+        operationalFunction: "",
         councilNumber: "",
-        type: "CLINIC",
-        specialty: "Medicina do Trabalho",
+        rqe: "",
+        type: undefined,
+        specialty: "",
         cep: "",
         city: "",
         state: "",
         address: "",
         email: "",
         phone: "",
-        active: true,
-        rating: 5,
+        active: false,
         contractUrl: "",
         photoUrl: "",
         councilCardUrl: "",
@@ -469,8 +452,6 @@ export default function ProvidersManagement() {
       if (result) {
         form.setValue("name", result.name.toUpperCase());
         form.setValue("cnpj", result.cnpj);
-        form.setValue("type", result.type);
-        form.setValue("specialty", result.specialty);
         form.setValue("city", result.city);
         form.setValue("state", result.state);
         form.setValue("address", result.address);
@@ -483,15 +464,11 @@ export default function ProvidersManagement() {
           description: "Os dados do contrato foram extraídos com sucesso.",
         });
       }
-    } catch (error: any) {
-      console.error("AI Analysis Error:", error);
-      const isForbidden = error.message?.includes("403") || error.message?.includes("API key");
+    } catch {
       toast({
         variant: "destructive",
-        title: isForbidden ? "Erro de Credencial (IA)" : "Falha na Análise",
-        description: isForbidden
-          ? "Sua chave Gemini foi invalidada por vazamento. Atualize o GEMINI_API_KEY."
-          : "A NAI não conseguiu interpretar o documento.",
+        title: "Falha na Análise",
+        description: "Não foi possível concluir a análise. Tente novamente ou contate o suporte.",
       });
     } finally {
       setIsAiAnalyzing(false);
@@ -500,186 +477,375 @@ export default function ProvidersManagement() {
   };
 
   const handleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.currentTarget;
     const file = e.target.files?.[0];
-    if (!file || !db) return;
-    setIsImportingCsv(true);
+    if (!file) return;
+    if (!db || !isGlobalAdmin || !providers || providersError) {
+      toast({
+        variant: "destructive",
+        title: "Dados indisponíveis",
+        description: "Aguarde uma leitura autorizada dos prestadores antes de importar.",
+      });
+      input.value = "";
+      return;
+    }
+    if (!isProviderCsvSizeAllowed(file.size)) {
+      toast({
+        variant: "destructive",
+        title: "Arquivo excede o limite",
+        description: `O CSV deve ter no máximo ${MAX_PROVIDER_CSV_BYTES / 1_000_000} MB.`,
+      });
+      input.value = "";
+      return;
+    }
 
-    Papa.parse(file, {
+    setIsImportingCsv(true);
+    Papa.parse<Record<string, unknown>>(file, {
       header: true,
       skipEmptyLines: true,
-      complete: async (results) => {
-        const batch = writeBatch(db);
-        let count = 0;
-
-        for (const row of results.data as any[]) {
-          const name = row["NOME"] || row["nome"] || row["Razão Social"];
-          const cnpj = (row["CNPJ"] || row["cnpj"] || "").replace(/\D/g, "");
-
-          if (!name || !cnpj) continue;
-
-          const providerId = cnpj || doc(collection(db, "providers")).id;
-          const providerRef = doc(db, "providers", providerId);
-
-          const providerData = {
-            id: providerId,
-            name: name.toUpperCase(),
-            cnpj: cnpj,
-            profession: row["PROFISSÃO"] || row["profissao"] || "Especialista",
-            type: (row["TIPO"] || "CLINIC") as any,
-            specialty: row["ESPECIALIDADE"] || "Geral",
-            city: row["CIDADE"] || "",
-            state: row["UF"] || "",
-            active: true,
-            rating: 5,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            isDeleted: false,
-            version: "3.3",
-          };
-
-          batch.set(providerRef, providerData, { merge: true });
-
-          const userRef = doc(db, "users", providerId);
-          batch.set(
-            userRef,
-            {
-              id: providerId,
-              name: providerData.name,
-              email: row["EMAIL"] || "",
-              role: "PROVIDER",
-              updatedAt: serverTimestamp(),
-            },
-            { merge: true }
-          );
-
-          count++;
-        }
-
-        try {
-          if (count > 0) await batch.commit();
-          toast({
-            title: "Importação Concluída",
-            description: `${count} prestadores adicionados.`,
-          });
-        } catch (err: any) {
-          toast({ variant: "destructive", title: "Erro na Importação", description: err.message });
-        } finally {
-          setIsImportingCsv(false);
-          if (e.target) e.target.value = "";
-        }
+      complete: (result) => {
+        const preview = previewProviderCsvRows(result.data, [
+          ...providers,
+          ...importedCsvIdentities.current.values(),
+        ]);
+        const parseErrors = result.errors.map(
+          ({ row, message }) => `Linha ${(row ?? 0) + 2}: ${message}`
+        );
+        if (result.data.length === 0) parseErrors.push("O CSV não contém linhas para importar.");
+        setCsvPreview({
+          rows: preview.rows.map((row) =>
+            row.record ? { ...row, attemptId: crypto.randomUUID() } : row
+          ),
+          errors: [...preview.errors, ...parseErrors],
+        });
+        setIsImportingCsv(false);
+        input.value = "";
+      },
+      error: (error) => {
+        setCsvPreview({ rows: [], errors: [error.message] });
+        setIsImportingCsv(false);
+        input.value = "";
       },
     });
   };
 
+  const confirmCsvImport = async () => {
+    if (!db || !isGlobalAdmin || !providers || !csvPreview || csvPreview.errors.length > 0) return;
+    setIsImportingCsv(true);
+    const previousResults = new Map<number, ProviderCsvImportResult>(
+      (csvPreview.results || []).map((result) => [result.rowNumber, result])
+    );
+    const results: ProviderCsvImportResult[] = [];
+    const store = createFirestoreProviderReservationStore(db);
+
+    for (const row of csvPreview.rows) {
+      const previous = previousResults.get(row.rowNumber);
+      if (
+        previous &&
+        (previous.status === "confirmed" ||
+          previous.status === "duplicate" ||
+          (previous.status !== "not_committed" &&
+            previous.status !== "committed_unconfirmed" &&
+            previous.status !== "outcome_unknown"))
+      ) {
+        results.push(previous);
+        continue;
+      }
+      if (!row.record) {
+        if (previous) results.push(previous);
+        else
+          results.push({
+            rowNumber: row.rowNumber,
+            status: "not_committed",
+            message: row.errors.join(" "),
+          });
+        continue;
+      }
+      if (!row.attemptId) {
+        results.push({
+          rowNumber: row.rowNumber,
+          status: "not_committed",
+          message: "Intento sem identificador. Reabra a prévia para gerar uma nova chave.",
+        });
+        continue;
+      }
+
+      const identityHash = await hashProviderIdentifier(row.record.cnpj);
+      const providerId = providerIdForIdentityHash(identityHash);
+      const providerRef = doc(db, "providers", providerId);
+      const reservationRef = doc(db, "provider_tax_id_reservations", identityHash);
+      const legacyProviderRefs = providers
+        .filter(
+          (provider: ProviderItem) =>
+            (provider.cnpj || "").replace(/[^a-z\d]/gi, "").toUpperCase() === row.record?.cnpj ||
+            (provider.taxIdStatus === "verified" &&
+              normalizeProviderName(provider.name || "") ===
+                normalizeProviderName(row.record?.name || ""))
+        )
+        .map((provider: ProviderItem) => doc(db, "providers", provider.id));
+      const providerData = {
+        ...row.record,
+        id: providerId,
+        taxIdStatus: "pending_verification",
+        active: false,
+        isDeleted: false,
+        importAttemptId: row.attemptId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        version: "3.3",
+        revision: 1,
+      };
+      const outcome = await reserveAndWriteProvider({
+        store,
+        reservationRef,
+        providerRef,
+        legacyProviderRefs,
+        attemptId: row.attemptId,
+        identifier: row.record.cnpj,
+        identityHash,
+        providerData,
+      });
+      if (outcome.status === "confirmed") {
+        importedCsvIdentities.current.set(row.record.cnpj, {
+          name: row.record.name,
+          cnpj: row.record.cnpj,
+          taxIdStatus: "pending_verification",
+        });
+      }
+      results.push({
+        rowNumber: row.rowNumber,
+        status: outcome.status,
+        message:
+          outcome.status === "duplicate"
+            ? "Documento reservado por outro cadastro ou já existente; nenhum cadastro foi sobrescrito."
+            : outcome.status === "not_committed"
+              ? "A transação não foi gravada. O mesmo intento pode ser tentado novamente."
+              : outcome.status === "committed_unconfirmed"
+                ? "A gravação foi confirmada pela transação, mas a releitura do servidor falhou. Repita o mesmo intento para confirmar."
+                : outcome.status === "outcome_unknown"
+                  ? "O resultado do commit é desconhecido. Repita o mesmo intento; não será criado outro documento."
+                  : undefined,
+      });
+    }
+
+    setCsvPreview({ ...csvPreview, results });
+    const saved = results.filter((result) => result.status === "confirmed").length;
+    const unresolved = results.filter(
+      (result) => result.status === "committed_unconfirmed" || result.status === "outcome_unknown"
+    ).length;
+    const failed = results.length - saved - unresolved;
+    toast({
+      variant: failed > 0 || unresolved > 0 ? "destructive" : "default",
+      title: unresolved
+        ? "Confirmação pendente"
+        : failed > 0
+          ? "Importação parcial"
+          : "Importação confirmada",
+      description: `${saved} linhas confirmadas por releitura do servidor; ${unresolved} commits sem confirmação; ${failed} não gravadas. Nenhuma conta de acesso foi criada.`,
+    });
+    setIsImportingCsv(false);
+  };
+
   async function handleSave(values: ProviderFormValues) {
-    if (!db || !storage) return;
+    if (!db || !storage || !isGlobalAdmin) return;
+    if (!providers || providersError) {
+      toast({
+        variant: "destructive",
+        title: "Dados indisponíveis",
+        description: "Aguarde uma leitura autorizada dos prestadores antes de salvar.",
+      });
+      return;
+    }
     setIsSubmitting(true);
 
     try {
+      const submittedIdentifier = (values.cnpj || "").replace(/[^a-z\d]/gi, "").toUpperCase();
+      const previousIdentifier = (editingProvider?.cnpj || "")
+        .replace(/[^a-z\d]/gi, "")
+        .toUpperCase();
+      const identityChanged =
+        submittedIdentifier !== previousIdentifier ||
+        normalizeProviderName(values.name) !== normalizeProviderName(editingProvider?.name || "");
+      if (submittedIdentifier && submittedIdentifier !== previousIdentifier) {
+        if (!isValidProviderIdentifier(submittedIdentifier)) {
+          throw new Error("Informe um CPF/CNPJ válido ou deixe o documento pendente.");
+        }
+        const conflictingProvider = providers.find(
+          (provider: ProviderItem) =>
+            provider.id !== editingProvider?.id &&
+            (provider.cnpj || "").replace(/[^a-z\d]/gi, "").toUpperCase() === submittedIdentifier
+        );
+        if (conflictingProvider) {
+          throw new Error("Este CPF/CNPJ já está vinculado a outro cadastro.");
+        }
+      }
+      if (editingProvider && submittedIdentifier !== previousIdentifier) {
+        throw new Error(
+          "O CPF/CNPJ não pode ser alterado em um cadastro existente. Cadastre outro prestador para reservar a nova identidade."
+        );
+      }
+      const verifiedNameConflict = providers.find(
+        (provider: ProviderItem) =>
+          provider.id !== editingProvider?.id &&
+          provider.taxIdStatus === "verified" &&
+          normalizeProviderName(provider.name || "") === normalizeProviderName(values.name) &&
+          (provider.cnpj || "").replace(/[^a-z\d]/gi, "").toUpperCase() !== submittedIdentifier
+      );
+      if (verifiedNameConflict) {
+        throw new Error("O nome conflita com um cadastro fiscal verificado.");
+      }
+
+      const createAttemptKey = submittedIdentifier || `draft:${normalizeProviderName(values.name)}`;
+      let createAttemptId = manualProviderAttempts.current.get(createAttemptKey);
+      if (!editingProvider && !createAttemptId) {
+        createAttemptId = crypto.randomUUID();
+        manualProviderAttempts.current.set(createAttemptKey, createAttemptId);
+      }
+      const identityHash = submittedIdentifier
+        ? await hashProviderIdentifier(submittedIdentifier)
+        : await hashProviderIdentifier(`draft-${createAttemptId}`);
+      const providerId = editingProvider?.id || providerIdForIdentityHash(identityHash);
       let finalContractUrl = values.contractUrl;
       let finalPhotoUrl = values.photoUrl;
       let finalCouncilCardUrl = values.councilCardUrl;
 
       if (tempContract) {
         const snap = await uploadBytes(
-          ref(storage, `providers/contracts/${values.cnpj}_${Date.now()}.pdf`),
+          ref(storage, `providers/contracts/${providerId}_${Date.now()}.pdf`),
           tempContract
         );
         finalContractUrl = await getDownloadURL(snap.ref);
       }
       if (tempPhoto) {
         const snap = await uploadBytes(
-          ref(storage, `providers/photos/${values.cnpj}_${Date.now()}`),
+          ref(storage, `providers/photos/${providerId}_${Date.now()}`),
           tempPhoto
         );
         finalPhotoUrl = await getDownloadURL(snap.ref);
       }
       if (tempCouncilCard) {
         const snap = await uploadBytes(
-          ref(storage, `providers/council/${values.cnpj}_${Date.now()}`),
+          ref(storage, `providers/council/${providerId}_${Date.now()}`),
           tempCouncilCard
         );
         finalCouncilCardUrl = await getDownloadURL(snap.ref);
       }
 
-      const data = {
+      const data: Record<string, unknown> = {
         ...values,
-        active: values.active ?? true,
+        cnpj: values.cnpj || "",
+        taxIdType: submittedIdentifier
+          ? !identityChanged && editingProvider?.taxIdType
+            ? editingProvider.taxIdType
+            : submittedIdentifier.length === 11
+              ? "CPF"
+              : "CNPJ"
+          : undefined,
         contractUrl: finalContractUrl,
         photoUrl: finalPhotoUrl,
         councilCardUrl: finalCouncilCardUrl,
-        updatedAt: serverTimestamp(),
       };
-
-      const providerId =
-        editingProvider?.id ||
-        values.cnpj.replace(/\D/g, "") ||
-        doc(collection(db, "providers")).id;
+      for (const [key, value] of Object.entries(data)) {
+        if (value === undefined) delete data[key];
+      }
 
       const providerRef = doc(db, "providers", providerId);
-      setDoc(
-        providerRef,
-        {
+      let taxIdStatus: string | undefined;
+      let active = false;
+      if (editingProvider) {
+        taxIdStatus = identityChanged
+          ? "pending_verification"
+          : (editingProvider.taxIdStatus as string | undefined);
+        active =
+          taxIdStatus === "pending_verification"
+            ? false
+            : canKeepProviderActive(taxIdStatus, editingProvider.active === true, !identityChanged)
+              ? (values.active ?? editingProvider.active === true)
+              : false;
+        await updateProviderIfCurrent({
+          store: createFirestoreProviderConditionalWriteStore(db),
+          reference: providerRef,
+          expected: editingProvider,
+          update: {
+            ...data,
+            active,
+            ...(taxIdStatus ? { taxIdStatus } : {}),
+            updatedAt: serverTimestamp(),
+            revision: Number(editingProvider.revision || 0) + 1,
+          },
+          verify: {
+            name: values.name,
+            cnpj: values.cnpj || "",
+            active,
+            taxIdStatus,
+          },
+        });
+      } else {
+        const providerData = {
           ...data,
           id: providerId,
-          createdAt: editingProvider?.createdAt || serverTimestamp(),
+          active: false,
+          taxIdStatus: "pending_verification",
+          ...(submittedIdentifier
+            ? { taxIdType: submittedIdentifier.length === 11 ? "CPF" : "CNPJ" }
+            : {}),
+          importAttemptId: createAttemptId,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
           isDeleted: false,
           version: "3.3",
-        },
-        { merge: true }
-      ).catch(async (serverError) => {
-        errorEmitter.emit(
-          "permission-error",
-          new FirestorePermissionError({
-            path: providerRef.path,
-            operation: "write",
-            requestResourceData: data,
-          })
-        );
-      });
-
-      const userRef = doc(db, "users", providerId);
-      const userData = {
-        id: providerId,
-        name: values.name.toUpperCase(),
-        email: values.email || "",
-        role: "PROVIDER",
-        profession: values.profession,
-        servedCompanies: values.servedCompanies || [],
-        updatedAt: serverTimestamp(),
-      };
-      setDoc(userRef, userData, { merge: true }).catch(async (serverError) => {
-        errorEmitter.emit(
-          "permission-error",
-          new FirestorePermissionError({
-            path: userRef.path,
-            operation: "write",
-            requestResourceData: userData,
-          })
-        );
-      });
-
-      // Provisionamento de acesso separado do cadastro de prestador
-      let accountStatusMsg = "";
-      if (values.email && values.email.includes("@")) {
-        try {
-          const authRes = await createProviderAccount(values.email, values.name);
-          if (authRes?.isNew) {
-            accountStatusMsg = " | Conta provisionada; utilize a recuperação de senha";
-          } else if (authRes?.alreadyExists) {
-            accountStatusMsg = " | Conta já cadastrada; utilize a recuperação de senha";
-          }
-        } catch (authErr: any) {
-          console.warn("Erro ao criar conta de acesso do prestador:", authErr);
+          revision: 1,
+        };
+        const store = createFirestoreProviderReservationStore(db);
+        const reservationRef = doc(db, "provider_tax_id_reservations", identityHash);
+        const legacyProviderRefs = providers
+          .filter(
+            (provider: ProviderItem) =>
+              (!!submittedIdentifier &&
+                (provider.cnpj || "").replace(/[^a-z\d]/gi, "").toUpperCase() ===
+                  submittedIdentifier) ||
+              (provider.taxIdStatus === "verified" &&
+                normalizeProviderName(provider.name || "") === normalizeProviderName(values.name))
+          )
+          .map((provider: ProviderItem) => doc(db, "providers", provider.id));
+        const outcome = await reserveAndWriteProvider({
+          store,
+          reservationRef,
+          providerRef,
+          legacyProviderRefs,
+          attemptId: createAttemptId!,
+          identifier: submittedIdentifier,
+          identityHash,
+          providerData,
+        });
+        if (outcome.status !== "confirmed") {
+          const detail =
+            outcome.status === "duplicate"
+              ? "Este documento já existe ou está reservado por outra sessão."
+              : outcome.status === "not_committed"
+                ? "A transação não foi gravada; repita o mesmo intento."
+                : outcome.status === "committed_unconfirmed"
+                  ? "A gravação ocorreu, mas a releitura do servidor falhou. Repita o mesmo intento para confirmar."
+                  : "O resultado do commit é desconhecido. Repita o mesmo intento; não criaremos outro documento.";
+          throw new Error(detail);
         }
+        taxIdStatus = "pending_verification";
+        active = false;
       }
 
       toast({
         title: "Registro Protocolado",
-        description: `Dados salvos com sucesso.${accountStatusMsg}`,
+        description: `Cadastro profissional gravado e relido. ${
+          taxIdStatus === "verified"
+            ? "A identificação fiscal verificada foi preservada."
+            : taxIdStatus === "pending_verification"
+              ? "A identificação fiscal permanece pendente até confirmação independente."
+              : "Os dados fiscais legados foram preservados sem alteração de status."
+        } Acesso e permissões são provisionados separadamente.`,
       });
       setIsCreateOpen(false);
       setEditingProvider(null);
+      manualProviderAttempts.current.delete(createAttemptKey);
       form.reset();
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro na Gravação", description: e.message });
@@ -703,7 +869,6 @@ export default function ProvidersManagement() {
             "address",
             `${res.dados.logradouro}, ${res.dados.numero || ""} - ${res.dados.bairro || ""}`
           );
-        if (res.dados.cnaeDescricao) form.setValue("specialty", res.dados.cnaeDescricao);
         toast({ title: "CNPJ Localizado" });
       }
     } finally {
@@ -729,33 +894,15 @@ export default function ProvidersManagement() {
     }
   };
 
-  async function handleSyncProviders() {
-    if (!db) return;
-    setIsSubmitting(true);
-    try {
-      const all = getConsolidatedProviders();
-      for (const prov of all) {
-        await setDoc(
-          doc(db, "providers", prov.id),
-          {
-            ...prov,
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true }
-        );
-      }
-      toast({
-        title: "Prestadores e Clínicas Sincronizados",
-        description: `${all.length} profissionais e clínicas credenciadas foram sincronizados e restaurados no banco de dados.`,
-      });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Erro na Sincronização", description: e.message });
-    } finally {
-      setIsSubmitting(false);
-    }
+  if (isUserLoading || userError || !isGlobalAdmin || activeClientId === "unauthorized") {
+    return (
+      <ProviderAccessState
+        loading={isUserLoading}
+        error={userError}
+        authorized={isGlobalAdmin && activeClientId !== "unauthorized"}
+      />
+    );
   }
-
-  if (!isGlobalAdmin) return null;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20 text-left">
@@ -784,14 +931,22 @@ export default function ProvidersManagement() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button
-            onClick={handleSyncProviders}
-            disabled={isSubmitting}
+            type="button"
             variant="outline"
+            disabled={isImportingCsv}
+            onClick={() => document.getElementById("provider-csv-import")?.click()}
             className="h-11 px-5 border-accent text-accent hover:bg-accent/10 font-black uppercase text-[10px] gap-2 rounded-xl"
           >
-            <RefreshCw className={cn("size-4", isSubmitting && "animate-spin")} /> Sincronizar (
-            {consolidatedProviders.length})
+            {isImportingCsv ? <Loader2 className="size-4 animate-spin" /> : <FileUp size={16} />}
+            Importar CSV
           </Button>
+          <input
+            id="provider-csv-import"
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleCsvImport}
+          />
           <Button
             variant="outline"
             disabled={isAiAnalyzing}
@@ -835,6 +990,95 @@ export default function ProvidersManagement() {
         />
       </div>
 
+      {csvPreview && (
+        <Card className="border border-slate-200 bg-white">
+          <CardHeader>
+            <CardTitle className="text-base">Prévia da importação</CardTitle>
+            <CardDescription>
+              {csvPreview.rows.filter((row) => row.record).length} linhas aptas para tentativa de
+              gravação; {csvPreview.rows.filter((row) => !row.record).length} recusadas. Documentos
+              fiscais permanecem pendentes e nenhuma conta ou permissão será criada.
+            </CardDescription>
+            {csvPreview.errors.map((error) => (
+              <p key={error} role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            ))}
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <ScrollArea className="max-h-64">
+              <div className="space-y-2">
+                {csvPreview.rows.map((row) => {
+                  const result = csvPreview.results?.find(
+                    (item) => item.rowNumber === row.rowNumber
+                  );
+                  return (
+                    <div
+                      key={row.rowNumber}
+                      className="grid grid-cols-[auto_1fr_1fr_2fr] gap-3 border-b py-2 text-xs"
+                    >
+                      <span>Linha {row.rowNumber}</span>
+                      <span>{row.record?.name || "—"}</span>
+                      <span>{row.record?.cnpj || "—"}</span>
+                      <span
+                        className={
+                          result?.status === "confirmed"
+                            ? "text-emerald-700"
+                            : "text-muted-foreground"
+                        }
+                      >
+                        {result
+                          ? result.status === "confirmed"
+                            ? "Gravado e confirmado por leitura"
+                            : result.message || "Falha na gravação"
+                          : row.errors.length
+                            ? row.errors.join(" ")
+                            : "Aguardando confirmação"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCsvPreview(null)}
+                disabled={isImportingCsv}
+              >
+                Fechar prévia
+              </Button>
+              {!csvPreview.results && (
+                <Button
+                  type="button"
+                  onClick={confirmCsvImport}
+                  disabled={
+                    isImportingCsv ||
+                    csvPreview.errors.length > 0 ||
+                    !csvPreview.rows.some((row) => row.record)
+                  }
+                >
+                  {isImportingCsv && <Loader2 className="mr-2 size-4 animate-spin" />}
+                  Confirmar gravação dos válidos
+                </Button>
+              )}
+              {csvPreview.results?.some(
+                (result) =>
+                  result.status === "not_committed" ||
+                  result.status === "committed_unconfirmed" ||
+                  result.status === "outcome_unknown"
+              ) && (
+                <Button type="button" onClick={confirmCsvImport} disabled={isImportingCsv}>
+                  {isImportingCsv && <Loader2 className="mr-2 size-4 animate-spin" />}
+                  Repetir tentativas incertas
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="card-shadow border-none bg-white rounded-[2.5rem] overflow-hidden">
         <CardContent className="p-0">
           <Table>
@@ -853,6 +1097,29 @@ export default function ProvidersManagement() {
                 <TableRow>
                   <TableCell colSpan={6} className="py-20 text-center">
                     <Loader2 className="size-10 animate-spin mx-auto text-primary opacity-20" />
+                  </TableCell>
+                </TableRow>
+              ) : providersError ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-12 text-center">
+                    <p role="alert" className="mb-3 text-destructive">
+                      Não foi possível carregar os cadastros autorizados.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setProviderQueryVersion((version) => version + 1)}
+                    >
+                      <RefreshCw className="mr-2 size-4" /> Tentar novamente
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ) : filteredProviders.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-20 text-center text-muted-foreground">
+                    {providers?.length
+                      ? "Nenhum cadastro corresponde à pesquisa ou ao vínculo explícito selecionado."
+                      : "Nenhum prestador foi confirmado na base de dados."}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -888,6 +1155,11 @@ export default function ProvidersManagement() {
                           <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">
                             Vínculo: {provider.id}
                           </p>
+                          <p className="text-[8px] text-amber-700 font-bold uppercase mt-1">
+                            {provider.taxIdStatus === "verified"
+                              ? "Identificação fiscal confirmada"
+                              : "Identificação fiscal não confirmada"}
+                          </p>
                         </div>
                       </div>
                     </TableCell>
@@ -896,49 +1168,40 @@ export default function ProvidersManagement() {
                         variant="outline"
                         className="text-[8px] font-black uppercase border-slate-200 text-slate-500 mb-1"
                       >
-                        {provider.profession || "Especialista"}
+                        {provider.profession || "Profissão não informada"}
                       </Badge>
-                      <p className="text-[10px] font-bold text-slate-400 truncate max-w-[150px]">
-                        {provider.specialty}
+                      {provider.operationalFunction && (
+                        <p className="text-[10px] font-bold text-slate-500 truncate max-w-[180px]">
+                          Função: {provider.operationalFunction}
+                        </p>
+                      )}
+                      <p className="text-[10px] font-bold text-slate-400 truncate max-w-[180px]">
+                        Especialidade registrada: {provider.specialty || "Não informada"}
                       </p>
+                      {provider.rqe && (
+                        <p className="text-[9px] text-slate-400">RQE: {provider.rqe}</p>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1 max-w-[220px]">
                         {(() => {
-                          const rawCompanies = provider.servedCompanies || [];
-                          const effectiveCompanies =
-                            rawCompanies.length > 0
-                              ? rawCompanies
-                              : provider.name?.toUpperCase().includes("FELIPE") ||
-                                  provider.name?.toUpperCase().includes("CONEGLIAN")
-                                ? ["Construfam Engenharia", "DW Montec", "CETESB"]
-                                : provider.name?.toUpperCase().includes("CHARYSE") ||
-                                    provider.name?.toUpperCase().includes("MATTUELLA")
-                                  ? ["Caixa de Previdência", "ANEEL", "CEI Essencial"]
-                                  : provider.name?.toUpperCase().includes("ANA")
-                                    ? ["CETESB", "Caixa de Previdência", "CEI Essencial"]
-                                    : provider.name?.toUpperCase().includes("GIOVAN") ||
-                                        provider.name?.toUpperCase().includes("MODA")
-                                      ? ["CETESB", "Construfam Engenharia"]
-                                      : [];
+                          const explicitCompanies = Array.isArray(provider.servedCompanies)
+                            ? provider.servedCompanies
+                            : provider.companyId
+                              ? [provider.companyId]
+                              : [];
 
-                          if (effectiveCompanies.length === 0) {
+                          if (explicitCompanies.length === 0) {
                             return (
-                              <span className="text-[8px] text-slate-300 uppercase italic">
-                                Aguardando Vínculos
+                              <span className="text-[8px] text-slate-400 uppercase italic">
+                                Sem vínculo confirmado
                               </span>
                             );
                           }
 
-                          return effectiveCompanies.map((cid: string) => {
+                          return explicitCompanies.map((cid: string) => {
                             const compObj = companies?.find((c) => c.id === cid || c.name === cid);
                             const compName = compObj?.name || cid;
-                            const serviceName = getProviderServiceForCompany(
-                              provider.name,
-                              compName,
-                              provider.profession,
-                              provider.specialty
-                            );
 
                             return (
                               <TooltipProvider key={cid} delayDuration={100}>
@@ -961,7 +1224,7 @@ export default function ProvidersManagement() {
                                       <Sparkles size={10} /> {compName}
                                     </p>
                                     <p className="text-[11px] font-extrabold text-white leading-tight">
-                                      {serviceName}
+                                      Vínculo de atendimento cadastrado explicitamente
                                     </p>
                                   </TooltipContent>
                                 </Tooltip>
@@ -975,7 +1238,7 @@ export default function ProvidersManagement() {
                       <div className="inline-flex flex-col items-center gap-1">
                         <RatingStars rating={provider.rating ?? 0} readonly />
                         <span className="text-[8px] font-black text-slate-300 uppercase">
-                          Qualidade
+                          {provider.rating ? "Qualidade registrada" : "Sem avaliação"}
                         </span>
                       </div>
                     </TableCell>
@@ -1036,7 +1299,14 @@ export default function ProvidersManagement() {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <a
-                                  href={`https://wa.me/55${(provider.whatsapp || provider.phone || "").replace(/\D/g, "")}?text=${encodeURIComponent(generateProviderInviteMessage(provider.name, provider.email || "seu@email.com.br"))}`}
+                                  href={getWhatsAppLink(
+                                    provider.whatsapp || provider.phone || "",
+                                    generateProviderInviteMessage(
+                                      provider.name,
+                                      provider.email || "seu@email.com.br"
+                                    )
+                                  )}
+                                  aria-label={`Preparar convite WhatsApp para ${provider.name}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={(e) => e.stopPropagation()}
@@ -1107,7 +1377,7 @@ export default function ProvidersManagement() {
                               className="gap-3 py-3 text-xs font-bold uppercase cursor-pointer text-red-600"
                               onClick={() => handleDeleteProvider(provider)}
                             >
-                              <Trash2 size={14} /> Remover
+                              <Trash2 size={14} /> Arquivar cadastro
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -1142,6 +1412,12 @@ export default function ProvidersManagement() {
 
           <ScrollArea className="max-h-[65vh]">
             <div className="p-10">
+              {(!editingProvider || editingProvider.taxIdStatus !== "verified") && (
+                <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                  Cadastro em rascunho: o documento informado não está confirmado. O registro não
+                  será ativado nem poderá ser tratado como identidade fiscal verificada.
+                </div>
+              )}
               {isAiAnalyzing && (
                 <div className="mb-8 p-6 bg-accent/10 border-2 border-dashed border-accent rounded-[2rem] flex flex-col items-center gap-3 animate-pulse">
                   <Loader2 className="size-8 animate-spin text-accent" />
@@ -1165,7 +1441,7 @@ export default function ProvidersManagement() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-[10px] font-black uppercase text-slate-400 ml-1">
-                              CNPJ / CPF
+                              CNPJ / CPF candidato
                             </FormLabel>
                             <div className="relative">
                               <FormControl>
@@ -1189,6 +1465,10 @@ export default function ProvidersManagement() {
                                 )}
                               </Button>
                             </div>
+                            <p className="text-[9px] text-muted-foreground">
+                              A informação permanece pendente; não confirma identidade fiscal nem
+                              habilita contratação ou faturamento.
+                            </p>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1231,6 +1511,25 @@ export default function ProvidersManagement() {
                       />
                       <FormField
                         control={form.control}
+                        name="operationalFunction"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-[10px] font-black uppercase text-slate-400 ml-1">
+                              Função operacional
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                placeholder="Ex.: assistência técnica médica em perícias"
+                                className="h-12 bg-slate-50 border-none rounded-xl font-bold"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
                         name="councilNumber"
                         render={({ field }) => (
                           <FormItem>
@@ -1241,6 +1540,24 @@ export default function ProvidersManagement() {
                               <Input
                                 {...field}
                                 placeholder="Ex: 27268-PR"
+                                className="h-12 bg-slate-50 border-none rounded-xl font-bold shadow-inner"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="rqe"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-[10px] font-black uppercase text-slate-400 ml-1">
+                              RQE (quando registrado)
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
                                 className="h-12 bg-slate-50 border-none rounded-xl font-bold shadow-inner"
                               />
                             </FormControl>
@@ -1283,7 +1600,7 @@ export default function ProvidersManagement() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-[10px] font-black uppercase text-slate-400 ml-1">
-                              Especialidade / Escopo
+                              Especialidade registrada
                             </FormLabel>
                             <FormControl>
                               <Input
@@ -1505,8 +1822,8 @@ export default function ProvidersManagement() {
                   <div className="space-y-6">
                     <div className="flex items-center justify-between px-1">
                       <p className="text-[10px] font-black uppercase text-primary tracking-widest flex items-center gap-2">
-                        <Globe size={12} className="text-accent" /> Autorizações de Atendimento
-                        (Unidades Habilitadas)
+                        <Globe size={12} className="text-accent" /> Vínculos de Atendimento
+                        (Unidades selecionadas)
                       </p>
                       <Badge className="bg-primary text-white border-none text-[8px] font-black">
                         SEGURANÇA ATIVA
@@ -1514,6 +1831,29 @@ export default function ProvidersManagement() {
                     </div>
 
                     <Card className="border-none bg-slate-50 p-6 rounded-[2.5rem] shadow-inner">
+                      {companiesError && (
+                        <div role="alert" className="mb-3 text-sm text-destructive">
+                          Não foi possível carregar as unidades. Os vínculos atuais foram mantidos.
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="ml-2"
+                            onClick={() => setProviderQueryVersion((version) => version + 1)}
+                          >
+                            Tentar carregar unidades
+                          </Button>
+                        </div>
+                      )}
+                      {companiesLoading && (
+                        <p role="status" className="mb-3 text-sm text-muted-foreground">
+                          Carregando unidades autorizadas…
+                        </p>
+                      )}
+                      {!companiesLoading && !companiesError && !companies?.length && (
+                        <p className="mb-3 text-sm text-muted-foreground">
+                          Nenhuma unidade disponível para vínculo.
+                        </p>
+                      )}
                       <ScrollArea className="h-64 pr-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           {companies?.map((company) => {
@@ -1564,8 +1904,8 @@ export default function ProvidersManagement() {
                       <div className="mt-4 px-2 flex items-center gap-3">
                         <Info size={14} className="text-primary/40" />
                         <p className="text-[9px] text-primary/40 font-bold uppercase italic">
-                          "O prestador terá acesso estritamente aos dados das unidades selecionadas
-                          acima."
+                          "Este vínculo registra escopo de atendimento e não concede acesso ao
+                          sistema."
                         </p>
                       </div>
                     </Card>
@@ -1575,17 +1915,62 @@ export default function ProvidersManagement() {
                     <ProviderAssessment
                       key={editingProvider.id}
                       initialValues={{
-                        active: editingProvider.active ?? true,
+                        active: editingProvider.active ?? false,
                         rating: editingProvider.rating ?? 0,
                         ratingNote: editingProvider.ratingNote ?? "",
                       }}
                       onSave={async (assessment: ProviderAssessmentValues) => {
                         if (!db || !user || !isGlobalAdmin) throw new Error("Sessão indisponível");
-                        await updateDoc(doc(db, "providers", editingProvider.id), {
-                          ...assessment,
-                          updatedAt: serverTimestamp(),
-                          ratingUpdatedAt: serverTimestamp(),
-                          ratingUpdatedBy: user.uid,
+                        const currentIdentifier = (form.getValues("cnpj") || "")
+                          .replace(/[^a-z\d]/gi, "")
+                          .toUpperCase();
+                        const verifiedIdentifier = (editingProvider.cnpj || "")
+                          .replace(/[^a-z\d]/gi, "")
+                          .toUpperCase();
+                        if (
+                          assessment.active &&
+                          !canKeepProviderActive(
+                            editingProvider.taxIdStatus,
+                            editingProvider.active === true,
+                            currentIdentifier === verifiedIdentifier
+                          )
+                        ) {
+                          throw new Error(
+                            "Não é possível ativar o prestador sem identificação fiscal confirmada."
+                          );
+                        }
+                        const providerRef = doc(db, "providers", editingProvider.id);
+                        const submittedIdentifier = (form.getValues("cnpj") || "")
+                          .replace(/[^a-z\d]/gi, "")
+                          .toUpperCase();
+                        if (
+                          assessment.active &&
+                          (!canKeepProviderActive(
+                            editingProvider.taxIdStatus,
+                            editingProvider.active === true,
+                            currentIdentifier === submittedIdentifier
+                          ) ||
+                            currentIdentifier !== submittedIdentifier)
+                        ) {
+                          throw new Error(
+                            "Não é possível ativar o prestador sem identificação fiscal confirmada."
+                          );
+                        }
+                        await updateProviderIfCurrent({
+                          store: createFirestoreProviderConditionalWriteStore(db),
+                          reference: providerRef,
+                          expected: editingProvider,
+                          update: {
+                            ...assessment,
+                            updatedAt: serverTimestamp(),
+                            ratingUpdatedAt: serverTimestamp(),
+                            ratingUpdatedBy: user.uid,
+                            revision: Number(editingProvider.revision || 0) + 1,
+                          },
+                          verify: {
+                            active: assessment.active,
+                            rating: assessment.rating,
+                          },
                         });
                         form.setValue("active", assessment.active);
                         form.setValue("rating", assessment.rating);
@@ -1604,9 +1989,7 @@ export default function ProvidersManagement() {
                       ) : (
                         <ShieldCheck className="size-6 text-accent" />
                       )}
-                      {editingProvider
-                        ? "Protocolar Alterações"
-                        : "Finalizar Credenciamento & Gerar Login"}
+                      {editingProvider ? "Protocolar Alterações" : "Salvar cadastro profissional"}
                     </Button>
                     <p className="text-[9px] text-slate-300 font-black uppercase tracking-[0.4em]">
                       Nextcon NAI Cloud Identity v2.8

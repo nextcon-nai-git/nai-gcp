@@ -20,6 +20,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { NAI_DOCUMENT_NAMES } from "@/lib/pgr-schema";
 import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
@@ -115,6 +116,18 @@ export function TaskCard({ task }: { task: OpsTask }) {
             >
               {task.priority === "critical" ? "⚡ GARGALO" : task.priority.toUpperCase()}
             </Badge>
+            {task.sourceType === "pgr" && (
+              <Badge
+                variant="outline"
+                className="border-indigo-200 bg-indigo-50 text-indigo-700 text-[9px] h-auto min-h-5 px-2 py-0.5 rounded-lg"
+                title={
+                  task.restricted ? "Documento com acesso clínico restrito" : "Documento importado"
+                }
+              >
+                NAI importa · {NAI_DOCUMENT_NAMES[task.documentType || "PGR"]}
+                {task.restricted ? " · Restrito" : ""}
+              </Badge>
+            )}
             {task.agentEnabled && (
               <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 font-black text-[8px] h-5 px-2.5 rounded-lg flex items-center gap-1">
                 <div className="size-1.5 bg-emerald-500 rounded-full animate-pulse" /> NAI BOT

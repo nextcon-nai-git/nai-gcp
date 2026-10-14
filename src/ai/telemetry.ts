@@ -19,11 +19,12 @@ export function shouldEnableFirebaseTelemetry(env: TelemetryEnvironment): boolea
 
 /** Provider initialization is asynchronous; both synchronous and async failures are contained. */
 export async function initializeFirebaseTelemetry(
-  enable: () => Promise<void>,
+  enable: (options: { disableLoggingInputAndOutput: true }) => Promise<void>,
   log: Pick<Console, "info" | "warn"> = console
 ): Promise<void> {
   try {
-    await enable();
+    // Retain operational metrics while keeping documents and generated content out of logs.
+    await enable({ disableLoggingInputAndOutput: true });
     log.info("NAI Telemetry: Sistema de monitoramento ativado.");
   } catch {
     // Provider errors may contain credentials or request details.

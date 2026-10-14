@@ -279,7 +279,7 @@ export default function ChecklistsPage() {
             <Progress value={checklistProgress} className="h-2 mt-4 bg-white/10" />
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto p-8 bg-[#F8FAFC]">
+          <div className="flex-1 overflow-y-auto p-8 bg-background">
             {activeNR?.items.map((item) => (
               <div
                 key={item.id}

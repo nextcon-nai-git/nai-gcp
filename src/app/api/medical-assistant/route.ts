@@ -4,6 +4,7 @@ import { ai } from "@/ai/genkit";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { AuthError, handleAuthError } from "@/lib/auth/errors";
 import { getAuthorizedMedicalHistory } from "@/services/medical-history";
+import { medicalAuditService } from "@/services/audit/medical-audit-service";
 
 /**
  * @fileOverview API de Streaming para o Assistente Médico NAI.
@@ -39,6 +40,13 @@ export async function POST(request: NextRequest) {
     }
 
     const history = await getAuthorizedMedicalHistory(user, body.companyId, body.pacienteId);
+    await medicalAuditService.record({
+      actorId: user.uid,
+      actorRole: user.role,
+      tenantId: body.companyId,
+      patientId: body.pacienteId,
+      action: "MEDICAL_ASSISTANT_USED",
+    });
 
     // Inicia geração em stream via Genkit 1.x
     const { stream } = ai.generateStream({

@@ -28,6 +28,38 @@ describe("Sincronização AVP protegida", () => {
       401
     );
   });
+  it.each([
+    { role: "ADMIN", servedCompanies: [], tenantId: "OTHER" },
+    { role: "GUEST", servedCompanies: ["GRUPO_AVP"], tenantId: "GRUPO_AVP" },
+  ])("rejeita perfil sem autorização AVP: $role", async (user) => {
+    auth.mockResolvedValue(user);
+    const fetch = vi.spyOn(globalThis, "fetch");
+    expect((await POST(request("https://docs.google.com/spreadsheets/d/test/edit"))).status).toBe(
+      403
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it.each(["{", "null", "[]"])("rejeita corpo inválido %s", async (body) => {
+    const fetch = vi.spyOn(globalThis, "fetch");
+    expect(
+      (await POST(new NextRequest("https://nai.local/sync", { method: "POST", body }))).status
+    ).toBe(400);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it("limita o corpo real mesmo sem content-length", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch");
+    expect(
+      (
+        await POST(
+          new NextRequest("https://nai.local/sync", {
+            method: "POST",
+            body: JSON.stringify({ sheetUrl: "x".repeat(5_000_001) }),
+          })
+        )
+      ).status
+    ).toBe(413);
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it("bloqueia URL e redirecionamento externo", async () => {
     const fetch = vi
       .spyOn(globalThis, "fetch")

@@ -1,7 +1,8 @@
 
 # Consultas do Conector NAI
 
-query ListCompanies($limit: Int = 10) @auth(level: USER) {
+# O scaffold não implementa isolamento multiempresa. Acesso somente via Admin SDK.
+query ListCompanies($limit: Int = 10) @auth(level: NO_ACCESS) {
   companies(limit: $limit) {
     id
     name
@@ -10,7 +11,7 @@ query ListCompanies($limit: Int = 10) @auth(level: USER) {
   }
 }
 
-query GetUserProfile($id: String!) @auth(level: USER) {
+query GetUserProfile($id: String!) @auth(level: NO_ACCESS) {
   userProfile(id: $id) {
     name
     role

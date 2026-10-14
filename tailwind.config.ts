@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import { naiTheme } from "./src/styles/nai-theme";
 
 export default {
   darkMode: ["class"],
@@ -65,5 +66,5 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [require("tailwindcss-animate"), naiTheme],
 } satisfies Config;

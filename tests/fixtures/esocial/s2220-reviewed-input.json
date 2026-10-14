@@ -1,0 +1,38 @@
+{
+  "id": "ID1123456780001902026101212345600001",
+  "ideEmpregador": {
+    "tpInsc": 1,
+    "nrInsc": "12.345.678/0001-90"
+  },
+  "ideTrabalhador": {
+    "cpfTrab": "123.456.789-09",
+    "matricula": "SYNTHETIC-001"
+  },
+  "aso": {
+    "dtAso": "2026-10-10",
+    "tpAso": 1,
+    "resAso": 1,
+    "exames": [
+      {
+        "dtExm": "2026-10-10",
+        "procRealizado": "0295"
+      },
+      {
+        "dtExm": "2026-10-09",
+        "procRealizado": "0998",
+        "obsProc": "Procedimento sintético & revisão",
+        "ordExame": 2
+      }
+    ],
+    "medico": {
+      "nmMed": "Profissional Sintético",
+      "nrCrm": "12345",
+      "ufCrm": "PR"
+    },
+    "medicoResp": {
+      "nmMed": "Coordenador Sintético",
+      "nrCrm": "54321",
+      "ufCrm": "PR"
+    }
+  }
+}

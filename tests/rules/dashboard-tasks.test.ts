@@ -38,6 +38,13 @@ beforeEach(async () => {
         servedCompanies: [],
       });
     }
+    for (const role of ["ADMIN", "OPERATIONS"]) {
+      await setDoc(doc(ctx.firestore(), "users", `internal-${role}`), {
+        role,
+        companyId: "nextcon",
+        servedCompanies: [],
+      });
+    }
     for (const company of ["avp", "other"]) {
       await setDoc(doc(ctx.firestore(), `companies/${company}/tasks/priority`), {
         companyId: company,
@@ -59,8 +66,8 @@ const dashboardQuery = (context: RulesTestContext) =>
   query(collectionGroup(context.firestore(), "tasks"), orderBy("dueDate", "asc"), limit(5));
 
 describe("Dashboard task collection group", () => {
-  it.each(["SUPER_ADMIN", "ADMIN", "OPERATIONS"])(
-    "allows existing global reader %s",
+  it.each(["SUPER_ADMIN", "internal-ADMIN", "internal-OPERATIONS"])(
+    "allows authorized internal global reader %s",
     async (role) => {
       const result = await assertSucceeds(getDocs(dashboardQuery(env.authenticatedContext(role))));
       expect(result.docs.map((item) => item.ref.path).sort()).toEqual([
@@ -70,7 +77,7 @@ describe("Dashboard task collection group", () => {
     }
   );
 
-  it.each(["CLIENT_ADMIN", "HR", "PROVIDER", "USER", "unprovisioned"])(
+  it.each(["ADMIN", "OPERATIONS", "CLIENT_ADMIN", "HR", "PROVIDER", "USER", "unprovisioned"])(
     "denies global tasks to %s",
     async (role) => {
       await assertFails(getDocs(dashboardQuery(env.authenticatedContext(role))));

@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["pdfjs-dist"],
   outputFileTracingIncludes: {
     "/api/pgr/*": ["./node_modules/pdfjs-dist/legacy/build/*.mjs"],
+    "/api/nai-importa/*": ["./node_modules/pdfjs-dist/legacy/build/*.mjs"],
     "/api/financial/balances": ["./node_modules/pdfjs-dist/legacy/build/*.mjs"],
   },
   typescript: {
@@ -15,6 +16,10 @@ const nextConfig: NextConfig = {
     // Lint errors devem ser tratados no CI/CD
   },
   experimental: {
+    // Free the compiler heap before type checking and page generation in constrained builds.
+    webpackBuildWorker: true,
+    webpackMemoryOptimizations: true,
+    cpus: 2,
     serverActions: {
       bodySizeLimit: "15mb",
     },

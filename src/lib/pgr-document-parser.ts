@@ -1,3 +1,4 @@
+import { withPgrRiskCards } from "./pgr-risk-cards";
 import { createHash } from "node:crypto";
 import {
   PGR_AGENT_NAMES,
@@ -16,7 +17,21 @@ const id = (value: string) =>
 const compact = (value: string) => value.replace(/\s+/g, " ").trim();
 export function evidenceIsInPages(evidence: { pagina: number; trecho: string }, pages: PgrPage[]) {
   const page = pages.find((p) => p.numero === evidence.pagina);
-  return !!page && normalizePgrText(page.texto).includes(normalizePgrText(evidence.trecho));
+  const quote = normalizePgrText(evidence.trecho);
+  return !!page && quote.length >= 3 && normalizePgrText(page.texto).includes(quote);
+}
+export function isPgrInventoryPage(text: string) {
+  if (
+    /(?:^|\n)\s*(?:\d+(?:\.\d+)*[.)]?\s*)?(?:INVENT[ÁA]RIO\s+DE\s+EPI|AVALIA[ÇC][ÕO]ES\s+PONTUAIS|CONCEITOS\s+DE\s+RISCOS|Classifica[çc][aã]o\s+dos\s+agentes|INTRODU[ÇC][ÃA]O|MATRIZ\s+DE\s+DECIS[ÃA]O|PLANO\s+DE\s+A[ÇC][ÃA]O|CRIT[ÉE]RIOS\s+PARA\s+MONITORAMENTO|CRONOGRAMA|SUM[ÁA]RIO)/i.test(
+      text
+    )
+  )
+    return false;
+  if (/perigo\s*\/\s*fator\s+de\s+risco/i.test(text) && /avalia[çc][aã]o\s+de\s+risco/i.test(text))
+    return true;
+  return /(?:^|\n)\s*(?:\d+[.)]?\s*)?(?:RECONHECIMENTO\s+DE\s+RISCOS|INVENT[ÁA]RIO\s+DE\s+RISCOS|(?:GHE|GES)\s*:?\s*\d+)|\b(?:exposi[çc][aã]o|expost[oa]s?)\s+(?:ocupacional\s+)?a\s+/i.test(
+    text
+  );
 }
 export function isPgrExposureEvidence(
   evidence: { pagina: number; trecho: string },
@@ -26,49 +41,125 @@ export function isPgrExposureEvidence(
   return (
     !!page &&
     evidenceIsInPages(evidence, pages) &&
-    !/CONCEITOS\s+DE\s+RISCOS|Classifica[çc][aã]o\s+dos\s+agentes|INTRODU[ÇC][ÃA]O|MATRIZ\s+DE\s+DECIS[ÃA]O/i.test(
-      page.texto
-    ) &&
-    /RECONHECIMENTO\s+DE\s+RISCOS|INVENT[ÁA]RIO|GHE|EXPOST[OA]|EXPOSI[ÇC][ÃA]O/i.test(page.texto) &&
+    isPgrInventoryPage(page.texto) &&
     !/(?:n[aã]o\s+h[aá]|sem|aus[eê]ncia\s+de)\s+exposi[çc][aã]o/i.test(evidence.trecho)
   );
 }
+function documentDate(text: string, label: string) {
+  const value = text.match(
+    new RegExp(
+      `(?:^|\\n)\\s*(?:${label})\\s*:?\\s*(\\d{1,2}/\\d{1,2}/\\d{4}|\\d{1,2} de [a-zç]+ de \\d{4})`,
+      "i"
+    )
+  )?.[1];
+  return value ? compact(value) : "";
+}
 export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
+  pages = withPgrRiskCards(pages);
   const identityCandidates: {
     name: string;
     cnpj: string;
     page: number;
     quote: string;
     address: string;
+    context: string;
   }[] = [];
   for (const page of pages.slice(0, 12)) {
-    const regex = /(?:raz[aã]o\s+social|empresa|contratante|cliente)\s*:\s*([^\n]{3,300})/gi;
+    const identityLabel =
+      "(?:raz[aã]o\\s+social|empresa(?:\\s+(?:avaliada|contratante))?|contratante|cliente|empregador)";
+    const regex = new RegExp(
+      `(?:${identityLabel}\\s*:\\s*|(?:^|\\n)[ \\t]*${identityLabel}(?:[ \\t]+|\\s*\\n\\s*))([^\\n]{3,300})`,
+      "gi"
+    );
     for (const m of page.texto.matchAll(regex)) {
+      // A provider's labeled corporate name is not a second client. Respect the nearest
+      // identification block, and stop before the issuer when looking for an employer CNPJ.
+      const priorHeadings = [
+        ...page.texto
+          .slice(0, m.index || 0)
+          .matchAll(
+            /(?:^|\n)\s*(?:\d+[.)]?\s+)?((?:identifica[çc][aã]o|dados)\s+d[ao]\s+(?:empresa|contratante|cliente|prestador[a]?|contratada)|caracteriza[çc][aã]o\s+da\s+organiza[çc][aã]o[^\n]*|empresa\s+(?:elaboradora|prestadora|contratada|avaliada|contratante)|prestador[a]?|contratada|elaborad[oa]\s+por|respons[aá]vel\s+t[eé]cnico|m[eé]dico\s+(?:respons[aá]vel|examinador|coordenador)|cliente|contratante|empregador)\s*(?::|\n)/gi
+          ),
+      ];
+      const heading = normalizePgrText(priorHeadings.at(-1)?.[1] || "");
+      const explicitClient =
+        /^\s*(?:cliente|contratante|empregador|empresa\s+(?:avaliada|contratante))(?:\s*:|\s+)/i.test(
+          m[0]
+        );
+      if (
+        !explicitClient &&
+        /prestador|contratada|elaborad|responsavel tecnico|medico/.test(heading)
+      )
+        continue;
       const name = compact(
         m[1].split(/\b(?:C\.?N\.?P\.?J\.?|CNAE|Endere[çc]o|Grau\s+de\s+Risco)\s*:/i)[0]
       );
       if (!name || /^(respons[aá]vel|contratada|elaboradora|prestador)/i.test(name)) continue;
       const tail = page.texto.slice((m.index || 0) + m[0].length, (m.index || 0) + 1000);
       const nextEntity = tail.search(
-        /(?:raz[aã]o\s+social|empresa|contratante|cliente|elaborad[oa]\s+por|respons[aá]vel\s+t[eé]cnico)\s*:/i
+        /(?:^|\n)[ \t]*(?:raz[aã]o\s+social|empresa(?:\s+(?:elaboradora|prestadora|contratada|avaliada|contratante))?|contratante|cliente|empregador|prestador[a]?|contratada|cl[ií]nica(?:\s+executante)?|elaborad[oa]\s+por|respons[aá]vel\s+t[eé]cnico|m[eé]dico\s+(?:respons[aá]vel|examinador|coordenador)|(?:nome\s+d[oa]\s+)?(?:empregad[oa]|trabalhador[a]?|colaborador[a]?|paciente|funcion[aá]ri[oa]))(?:\s*:|[ \t]+|\s*\n)/i
       );
       const context = m[0] + (nextEntity >= 0 ? tail.slice(0, nextEntity) : tail);
       const cnpj =
         context.match(
           /C\.?\s*N\.?\s*P\.?\s*J\.?\s*:?\s*(\d{2}[.\s]?\d{3}[.\s]?\d{3}\s*\/\s*\d{4}\s*-\s*\d{2}|\d{14})/i
         )?.[1] || "";
-      const address = context.match(/Endere[çc]o\s*:\s*([^\n]{3,400})/i)?.[1] || "";
+      const address =
+        context.match(
+          /Endere[çc]o(?:\s*\([^\n)]*\))?\s*:?\s*([\s\S]{3,500}?)(?=\n\s*(?:C\.?N\.?P\.?J|CNAE|Grau|Quantidade|Modelo|Telefone|E-mail|Raz[aã]o|Nome|ELABORA[ÇC][ÃA]O|REVIS[ÃA]O)\b|$)/i
+        )?.[1] || "";
+      // Unpunctuated table labels require a nearby CNPJ; wrapped prose such as
+      // "cliente Exemplo" in job descriptions is not another employer identity.
+      if (!m[0].includes(":") && !cnpj) continue;
       identityCandidates.push({
         name,
         cnpj: compact(cnpj),
         page: page.numero,
-        quote: compact(m[0]),
+        quote: compact(context).slice(0, 1200),
         address: compact(address),
+        context,
       });
     }
   }
+  // The document's explicit employer section takes precedence over service
+  // recipients listed later. Multiple employer sections remain ambiguous.
+  const employerSections: typeof identityCandidates = [];
+  for (const page of pages.slice(0, 12)) {
+    for (const match of page.texto.matchAll(
+      /identifica[çc][aã]o\s+da\s+empresa[^\S\n]*\n\s*([^\n]{3,300})/gi
+    )) {
+      const name = compact(match[1].replace(/^(?:raz[aã]o\s+social|empresa)\s*:\s*/i, ""));
+      const block = page.texto
+        .slice(match.index, (match.index || 0) + 1000)
+        .split(
+          /(?:listagem|rela[çc][aã]o)\s+de\s+endere[çc]os|tomadoras?\s+de\s+servi[çc]os|\n[ \t]*(?:empresa\s+(?:elaboradora|prestadora|contratada)|prestador[a]?|contratada|elaborad[oa]\s+por|respons[aá]vel\s+t[eé]cnico|m[eé]dico\s+(?:respons[aá]vel|examinador|coordenador))\s*[:\n]/i
+        )[0];
+      const cnpj =
+        block.match(
+          /CNPJ\s*:?\s*(\d{2}[.\s]?\d{3}[.\s]?\d{3}\s*\/\s*\d{4}\s*-\s*\d{2}|\d{14})/i
+        )?.[1] || "";
+      if (
+        !isValidPgrCnpj(cnpj) ||
+        /^(?:cnpj|endereco|campo|informacao)\b/.test(normalizePgrText(name))
+      )
+        continue;
+      const address = block.match(/Endere[çc]o\s*:\s*([^\n]+)/i)?.[1] || "";
+      employerSections.push({
+        name,
+        cnpj: compact(cnpj),
+        page: page.numero,
+        quote: compact(block).slice(0, 1200),
+        address: compact(address),
+        context: block,
+      });
+    }
+  }
+  if (employerSections.length)
+    identityCandidates.splice(0, identityCandidates.length, ...employerSections);
   const unique = [
-    ...new Map(identityCandidates.map((c) => [normalizePgrText(c.name) + c.cnpj, c])).values(),
+    ...new Map(
+      identityCandidates.map((c) => [normalizePgrText(c.name) + c.cnpj.replace(/\D/g, ""), c])
+    ).values(),
   ];
   const candidate = unique.length === 1 ? unique[0] : null;
   const allText = pages.map((p) => p.texto).join("\n");
@@ -105,12 +196,17 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
       label: "Fatores ergonômicos",
       category: "ergonomico",
       pattern:
-        /\b(?:postura\s+(?:inadequada|est[aá]tica)|movimentos?\s+repetitivos?|levantamento\s+(?:manual\s+)?de\s+cargas|sobrecarga\s+muscular)\b/i,
+        /\b(?:postura\s+(?:inadequada|est[aá]tica|sentada|em\s+p[eé])|exig[eê]ncia\s+postural|movimentos?\s+repetitivos?|levantamento\s+(?:manual\s+)?de\s+cargas|sobrecarga\s+muscular)\b/i,
     },
     {
       label: "Fatores psicossociais",
       category: "psicossocial",
       pattern: /\b(?:fatores?\s+psicossociais|ass[eé]dio|sobrecarga\s+de\s+trabalho)\b/i,
+    },
+    {
+      label: "Acidente de trânsito",
+      category: "acidente",
+      pattern: /\bacidente\s+de\s+tr[aâ]nsito\b/i,
     },
     {
       label: "Trabalho em altura",
@@ -130,27 +226,46 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
     },
   ];
   const sectors = new Set<string>();
-  for (const page of pages) {
-    // Definições, introdução, índice e matrizes não provam exposição da unidade.
-    if (
-      /CONCEITOS\s+DE\s+RISCOS|Classifica[çc][aã]o\s+dos\s+agentes|INTRODU[ÇC][ÃA]O|MATRIZ\s+DE\s+DECIS[ÃA]O/i.test(
-        page.texto
-      )
-    )
+  const riskPages: PgrPage[] = pages.flatMap((page) => {
+    if (page.riscosTabela?.length) return [page];
+    const headings = [
+      ...page.texto.matchAll(/(?:^|\n)[ \t]*(?:GHE|GES)\s*:?\s*\d+\s*[-–][^\n]+/gi),
+    ];
+    if (headings.length < 2 || !isPgrInventoryPage(page.texto)) return [page];
+    return headings.map((heading, index) => ({
+      numero: page.numero,
+      texto: page.texto.slice(heading.index, headings[index + 1]?.index),
+    }));
+  });
+  for (const page of riskPages) {
+    if (risks.length >= 100) break;
+    if (!isPgrInventoryPage(page.texto)) continue;
+    if (page.riscosTabela?.length) {
+      for (const row of page.riscosTabela.slice(0, 100 - risks.length)) {
+        if (!evidenceIsInPages({ pagina: page.numero, trecho: row.trecho }, pages)) continue;
+        risks.push({
+          id: id(row.agente + row.setorGhe + row.trecho),
+          agente: row.agente,
+          categoria: row.categoria,
+          setorGhe: row.setorGhe,
+          evidencia: { pagina: page.numero, trecho: row.trecho },
+          controlesDocumentados: row.controlesDocumentados,
+          classificacaoOriginal: row.classificacaoOriginal,
+        });
+      }
       continue;
-    const inventory =
-      /RECONHECIMENTO\s+DE\s+RISCOS|INVENT[ÁA]RIO|GHE|EXPOST[OA]|EXPOSI[ÇC][ÃA]O/i.test(page.texto);
-    if (!inventory) continue;
+    }
     const lines = page.texto.split("\n").map(compact).filter(Boolean);
     const sectorIndex = lines.findIndex((l) => /RECONHECIMENTO DE RISCOS|INVENT[ÁA]RIO/i.test(l));
     const sector =
-      sectorIndex >= 0
+      page.texto.match(/(?:^|\n)\s*(?:GHE|GES)\s*:?\s*\d+\s*[-–][^\n]+/i)?.[0].trim() ||
+      (sectorIndex >= 0
         ? lines
             .slice(sectorIndex + 1, sectorIndex + 5)
             .filter((l) => !/^Grupo Homog|^Fun[çc][oõ]es|^Tipos de|^\d+$/.test(l))
             .join(" · ")
             .slice(0, 300)
-        : page.texto.match(/GHE\s*[:\d-]+[^\n]{0,150}/i)?.[0] || "Setor a conferir";
+        : page.texto.match(/(?:GHE|GES)\s*[:\d-]+[^\n]{0,150}/i)?.[0] || "Setor a conferir");
     for (const spec of riskPatterns) {
       const match = spec.pattern.exec(page.texto);
       if (!match) continue;
@@ -179,8 +294,22 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
     }
     if (risks.length >= 100) break;
   }
-  const cnae = allText.match(/\bCNAE\s*:\s*([^\n]{1,160})/i)?.[1] || "";
-  const degree = allText.match(/Grau\s+de\s+Risco\s*:\s*([1-4])\b/i)?.[1];
+  const employerText = candidate?.context || "";
+  const cnae = employerText.match(/\bCNAE(?:\s+Principal)?\s*:?\s*(\d[^\n]{0,159})/i)?.[1] || "";
+  const degree = employerText.match(/Grau\s+de\s+Risco\s*:?\s*(?:Grau\s*)?0?([1-4])\b/i)?.[1];
+  const documentedGhes = new Map<string, string>();
+  for (const match of allText.matchAll(
+    /(?:^|\n)[ \t]*(?:GHE|GES)[ \t]*(:?)[ \t]*(\d+)[ \t]*[-–][ \t]*([^\n]{2,160})/gi
+  )) {
+    const groupKey = match[2] + "|" + normalizePgrText(match[3]);
+    const previous = documentedGhes.get(groupKey);
+    if (
+      !previous ||
+      (match[1] && !previous.startsWith("GHE:")) ||
+      compact(match[0]).length < previous.length
+    )
+      documentedGhes.set(groupKey, compact(match[0]));
+  }
   const output: PgrAnalysisOutput = {
     pgrCardDetalhado: {
       razaoSocial: candidate?.name || "",
@@ -188,12 +317,18 @@ export function parsePgrDocumentPages(pages: PgrPage[]): PgrAnalysisOutput {
       cnae: compact(cnae),
       grauDeRisco: degree ? Number(degree) : null,
       enderecoCompleto: candidate?.address || "",
-      cidadeUf: "",
-      dataEmissao: "",
-      dataValidade: "",
+      cidadeUf:
+        candidate?.address
+          .match(/([^,–\n-]+)\s*\/\s*([A-Z]{2})\b/)
+          ?.slice(1)
+          .map((x) => x.trim())
+          .join("/") || "",
+      dataEmissao: documentDate(allText, "data de emiss[aã]o|emiss[aã]o|elabora[çc][aã]o"),
+      dataValidade: documentDate(allText, "data de validade|validade|vig[eê]ncia at[eé]"),
+      dataRevisao: documentDate(allText, "pr[oó]xima revis[aã]o|revis[aã]o"),
       coordenadasGps: "",
       totalRiscosMapeados: risks.length,
-      ghesIdentificados: [...sectors],
+      ghesIdentificados: [...documentedGhes.values()].slice(0, 200),
       esocialS2240Status:
         "A conferir pelo responsável técnico; PGR não comprova enquadramento ou transmissão do S-2240.",
     },

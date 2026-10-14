@@ -2,10 +2,10 @@ import { incidentRepository, IncidentRecord } from "@/repositories/incidents/inc
 import { auditService } from "@/services/audit/audit-service";
 import {
   analyzeIncidentWithNormativeGrounding,
-  TechnicalIncidentOpinion,
+  type TechnicalIncidentOpinion,
 } from "@/services/ai/incident-investigation-engine";
-import { AuthContext } from "@/lib/auth/auth-context";
-import { ApiKeyContext } from "@/lib/auth/api-key";
+import { aiFailureCode } from "@/lib/ai-failure";
+import { logger } from "@/lib/logger";
 
 export interface CreateIncidentInput {
   type: string;
@@ -16,7 +16,9 @@ export interface CreateIncidentInput {
 
 export interface IncidentCreationResult {
   incidentId: string;
-  opinion: TechnicalIncidentOpinion;
+  opinion: TechnicalIncidentOpinion | null;
+  analysisAvailable: boolean;
+  reviewRequired: true;
 }
 
 export class IncidentService {
@@ -29,51 +31,43 @@ export class IncidentService {
       companyId: context.tenantId,
       type: input.type,
       description: input.description,
-      location: input.location || "Chão de Fábrica",
+      location: input.location?.trim() || "",
       photoUrl: input.photoUrl || null,
       reporterId: context.email || context.uid || "API_CLIENT",
       status: "ABERTO",
       createdAt: new Date().toISOString(),
     });
 
-    // 2. Registro de Auditoria
-    await auditService.record({
-      actorId: context.uid || "API",
-      actorEmail: context.email,
-      actorRole: context.role,
-      tenantId: context.tenantId,
-      action: "INCIDENT_REPORTED",
-      resourceType: "incident",
-      resourceId: incidentId,
-      metadata: { type: input.type },
-    });
+    try {
+      await auditService.record({
+        actorId: context.uid || "API",
+        actorEmail: context.email,
+        actorRole: context.role,
+        tenantId: context.tenantId,
+        action: "INCIDENT_REPORTED",
+        resourceType: "incident",
+        resourceId: incidentId,
+        metadata: { type: input.type },
+      });
 
-    // 3. Execução do RAG Grounding Engine Normativo
-    const opinion = await analyzeIncidentWithNormativeGrounding(
-      incidentId,
-      context.tenantId,
-      input.description,
-      { location: input.location, photoUrl: input.photoUrl || undefined }
-    );
+      const opinion = await analyzeIncidentWithNormativeGrounding(
+        incidentId,
+        context.tenantId,
+        input.description,
+        { location: input.location, photoUrl: input.photoUrl || undefined }
+      );
 
-    // 4. Enriquecimento do registro do incidente com o Parecer Técnico e Prazos de CAT
-    const requiresCat = opinion.esocialImpact.requiresCatS2210;
-    await incidentRepository.update(incidentId, {
-      severity: opinion.severity,
-      hasLeave: opinion.extractedFacts.hasLeave,
-      daysOfLeave: opinion.extractedFacts.estimatedDaysOfLeave,
-      requiresCatS2210: requiresCat,
-      catDeadlineIso: opinion.esocialImpact.catDeadlineIso || null,
-      catDeadlineTimestamp: opinion.esocialImpact.catDeadlineTimestamp || null,
-      catStatus: requiresCat ? "PENDENTE" : "NAO_APLICAVEL",
-      technicalOpinion: opinion,
-      status: "EM_ANALISE",
-    });
-
-    return {
-      incidentId,
-      opinion,
-    };
+      // A preliminary opinion does not establish clinical or regulatory record fields.
+      await incidentRepository.update(incidentId, {
+        technicalOpinion: opinion,
+        status: "EM_ANALISE",
+      });
+      return { incidentId, opinion, analysisAvailable: true, reviewRequired: true };
+    } catch (error) {
+      // Receipt already committed: preserve its identifier even if a later step fails.
+      logger.warn("Incident review unavailable after receipt", { code: aiFailureCode(error) });
+      return { incidentId, opinion: null, analysisAvailable: false, reviewRequired: true };
+    }
   }
 
   async listCompanyIncidents(companyId: string): Promise<IncidentRecord[]> {

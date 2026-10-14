@@ -1,5 +1,6 @@
 import type { AuthContext } from "./auth-context";
 import { forbidden, badRequest } from "./errors";
+import { getNaiDocument, type PgrAnalysisOutput } from "../pgr-schema";
 export function requirePgrRole(user: AuthContext) {
   if (
     ![
@@ -16,7 +17,25 @@ export function requirePgrRole(user: AuthContext) {
       "HEALTH_PROFESSIONAL",
     ].includes(user.role)
   )
-    throw forbidden("Seu perfil não está autorizado a analisar PGRs.");
+    throw forbidden("Seu perfil não está autorizado a importar documentos de SST.");
+}
+
+/** Matches the clinical AI roles; a generic provider may be an engineer. */
+export function canAccessClinicalImport(user: AuthContext) {
+  return ["SUPER_ADMIN", "ADMIN", "DOCTOR", "NURSE", "HEALTH_PROFESSIONAL"].includes(user.role);
+}
+
+export function requirePgrDocumentAccess(user: AuthContext, analysis: PgrAnalysisOutput) {
+  requirePgrRole(user);
+  const document = getNaiDocument(analysis);
+  if (
+    (document.acesso === "clinico_restrito" ||
+      ["PCMSO", "ASO", "PERICIA_MEDICA"].includes(document.tipo)) &&
+    !canAccessClinicalImport(user)
+  )
+    throw forbidden(
+      "Este documento exige acesso clínico. A análise integral está disponível apenas para um perfil de saúde autorizado."
+    );
 }
 export function isPgrGlobalAdmin(user: AuthContext) {
   return user.role === "SUPER_ADMIN" || (user.role === "ADMIN" && !user.tenantId);

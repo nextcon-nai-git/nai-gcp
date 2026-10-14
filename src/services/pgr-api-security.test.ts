@@ -28,6 +28,11 @@ import { GET as records } from "@/app/api/pgr/records/route";
 import { GET as tasks, PATCH as patchTask } from "@/app/api/pgr/tasks/route";
 import { GET as risks } from "@/app/api/pgr/risks/route";
 import { POST as agent } from "@/app/api/pgr/agent-review/route";
+import { POST as naiAnalyze } from "@/app/api/nai-importa/analyze/route";
+import { POST as naiSave } from "@/app/api/nai-importa/save/route";
+import { GET as naiCompanies } from "@/app/api/nai-importa/companies/route";
+import { GET as naiHistory } from "@/app/api/nai-importa/history/route";
+import { GET as naiReview } from "@/app/api/nai-importa/agent-review/route";
 const request = (path: string, method = "GET", body?: string, appToken?: string) =>
   new NextRequest("https://nai.local/api/pgr/" + path, {
     method,
@@ -60,6 +65,11 @@ describe("APIs de PGR: autenticação, isolamento e App Check", () => {
       [tasks, "tasks", "GET"],
       [risks, "risks", "GET"],
       [agent, "agent-review", "POST"],
+      [naiAnalyze, "nai-analyze", "POST"],
+      [naiSave, "nai-save", "POST"],
+      [naiCompanies, "nai-companies", "GET"],
+      [naiHistory, "nai-history", "GET"],
+      [naiReview, "nai-review", "GET"],
     ] as const) {
       expect((await handler(request(path, method))).status).toBe(401);
     }
@@ -125,5 +135,27 @@ describe("APIs de PGR: autenticação, isolamento e App Check", () => {
     expect((await records(request("records"))).status).toBe(200);
     mock.verify.mockRejectedValueOnce(new Error("fake"));
     expect((await records(request("records", "GET", undefined, "fake"))).status).toBe(403);
+  });
+
+  it("NAI importa preserva a escolha explícita de cadastro de prestadores", async () => {
+    const form = new FormData();
+    form.set(
+      "file",
+      new File(["%PDF-1.7\nsynthetic\n%%EOF"], "synthetic.pdf", { type: "application/pdf" })
+    );
+    form.set("draftId", "a".repeat(64));
+    form.set("companyId", "cetesb");
+    form.set("confirmed", "true");
+    form.set("includeProviders", "false");
+    mock.save.mockResolvedValue({ companyId: "cetesb", cardId: "a".repeat(64), providerCount: 0 });
+    const response = await naiSave(
+      new NextRequest("https://nai.local/api/nai-importa/save", { method: "POST", body: form })
+    );
+    expect(response.status).toBe(200);
+    expect(mock.save).toHaveBeenCalledWith(
+      expect.objectContaining({ uid: "operator" }),
+      expect.objectContaining({ confirmed: true, includeProviders: false }),
+      expect.any(Uint8Array)
+    );
   });
 });

@@ -69,7 +69,7 @@
     "googleapis": "^144.0.0",
     "jspdf": "4.2.1",
     "lucide-react": "^0.475.0",
-    "next": "15.5.26",
+    "next": "15.5.27",
     "papaparse": "^5.7.0",
     "pdfjs-dist": "6.4.299",
     "react": "^19.2.1",

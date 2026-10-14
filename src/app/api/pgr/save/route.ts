@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
           createCompany: form.get("createCompany") === "true",
           confirmed: form.get("confirmed") === "true",
           dueDate: String(form.get("dueDate") || ""),
+          includeProviders: form.get("includeProviders") !== "false",
         },
         new Uint8Array(await file.arrayBuffer())
       ),

@@ -11,14 +11,32 @@ service cloud.firestore {
         : null;
     }
 
+    function isInternalStaff(profile) {
+      return profile != null && (
+        profile.role == 'SUPER_ADMIN' ||
+        (profile.role in ['ADMIN', 'OPERATIONS'] &&
+          (!('tenantId' in profile) || profile.tenantId == null || profile.tenantId == '') &&
+          (!('companyId' in profile) || profile.companyId == null || profile.companyId in ['', 'nextcon']))
+      );
+    }
+
     function isNextconOfficial() {
-      let profile = getUserProfile();
-      return isSignedIn() && profile != null && profile.role in ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'];
+      return isSignedIn() && isInternalStaff(getUserProfile());
     }
 
     function belongsToCompany(companyId) {
       let profile = getUserProfile();
       return isSignedIn() && profile != null && profile.companyId == companyId;
+    }
+
+    function isAuthorizedDoctorForCompany(companyId) {
+      let profile = getUserProfile();
+      return isSignedIn() && profile != null && profile.role == 'DOCTOR' && (
+        profile.companyId == companyId ||
+        ('tenantId' in profile && profile.tenantId == companyId) ||
+        ('servedCompanies' in profile && profile.servedCompanies is list &&
+          companyId in profile.servedCompanies)
+      );
     }
 
     function isCompanyAdmin(companyId) {
@@ -42,7 +60,10 @@ service cloud.firestore {
     function hasClinicalAccess(companyId) {
       let profile = getUserProfile();
       return isSignedIn() && profile != null && (
-        profile.role in ['SUPER_ADMIN', 'ADMIN'] ||
+        profile.role == 'SUPER_ADMIN' ||
+        (profile.role == 'ADMIN' && (isInternalStaff(profile) ||
+          profile.companyId == companyId ||
+          ('servedCompanies' in profile && profile.servedCompanies is list && companyId in profile.servedCompanies))) ||
         (profile.role in ['DOCTOR', 'NURSE', 'HEALTH_PROFESSIONAL', 'PROVIDER'] &&
           (profile.companyId == companyId || ('servedCompanies' in profile && profile.servedCompanies is list && companyId in profile.servedCompanies)))
       );
@@ -50,6 +71,102 @@ service cloud.firestore {
 
     function isClinicalCollection(name) {
       return name in ['aso_attendances', 'medical_records', 'clinical_records', 'prontuarios', 'medical_certificates'];
+    }
+
+    function isClinicalImportDocument(name, documentId) {
+      return name == 'clinical_records' && documentId.matches('import_.*');
+    }
+
+    function hasClinicalImportAccess(companyId) {
+      let profile = getUserProfile();
+      let tenantId = profile != null && 'tenantId' in profile && profile.tenantId is string
+        ? profile.tenantId
+        : profile != null && 'companyId' in profile && profile.companyId is string
+          ? profile.companyId
+          : '';
+      return isSignedIn() && profile != null && (
+        profile.role == 'SUPER_ADMIN' ||
+        (profile.role == 'ADMIN' && tenantId == '') ||
+        (profile.role in ['ADMIN', 'DOCTOR', 'NURSE', 'HEALTH_PROFESSIONAL'] &&
+          (tenantId == companyId || ('servedCompanies' in profile && profile.servedCompanies is list && companyId in profile.servedCompanies)))
+      );
+    }
+
+    function isImportOperationalCollection(name) {
+      return name in ['tasks', 'risks'];
+    }
+
+    function hasImportSource(data) {
+      return 'sourceType' in data && data.sourceType == 'pgr';
+    }
+
+    function isServerManagedImportDocument(name, documentId) {
+      return name == 'pgr_cards' || isClinicalImportDocument(name, documentId) ||
+        (name == 'tasks' && documentId.matches('pgr_.*')) ||
+        (name == 'risks' && documentId.matches('risk_.*'));
+    }
+
+    function isClinicalAppointmentId(value) {
+      return value is string && value.matches('[^/]{1,128}') &&
+        !(value in ['all', 'unauthorized']);
+    }
+
+    // Called only after checking the complete ISO-shaped string.
+    function isClinicalCalendarDate(value) {
+      let year = int(value[0:4]);
+      let month = int(value[5:7]);
+      let day = int(value[8:10]);
+      let leapYear = year % 400 == 0 || (year % 4 == 0 && year % 100 != 0);
+      let daysInMonth = month == 2 ? (leapYear ? 29 : 28) :
+        (month in [4, 6, 9, 11] ? 30 : 31);
+      return day <= daysInMonth;
+    }
+
+    function clinicalAppointmentSubjectsMatch(companyId, data, creating) {
+      // Inspect the final atomic state: a batch must not remove or reassign
+      // the subjects while it creates or advances their appointment.
+      let company = getAfter(/databases/$(database)/documents/companies/$(companyId)).data;
+      let employee = getAfter(/databases/$(database)/documents/companies/$(companyId)/employees/$(data.colaborador_id)).data;
+      return company != null && employee != null &&
+        (!('isDeleted' in company) || company.isDeleted != true) &&
+        (!('isDeleted' in employee) || employee.isDeleted != true) &&
+        (!('companyId' in employee) || employee.companyId == null ||
+          employee.companyId == '' || employee.companyId == companyId) &&
+        (!creating || (company.name is string && company.name.size() > 0 &&
+          employee.name is string && employee.name.size() > 0 &&
+          data.companyName == company.name && data.colaborador_nome == employee.name));
+    }
+
+    function clinicalAppointmentCreateIsValid(companyId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['companyId', 'companyName', 'colaborador_id', 'colaborador_nome',
+          'data_hora', 'tipo', 'status', 'check_in_realizado', 'createdAt']) &&
+        isClinicalAppointmentId(companyId) && isClinicalAppointmentId(data.colaborador_id) &&
+        data.companyId == companyId && data.status == 'Agendado' &&
+        data.check_in_realizado == false && data.createdAt == request.time &&
+        data.tipo in ['Admissional', 'Periódico', 'Retorno ao Trabalho', 'Mudança de Riscos', 'Demissional'] &&
+        data.data_hora is string &&
+        data.data_hora.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:00') &&
+        isClinicalCalendarDate(data.data_hora) &&
+        clinicalAppointmentSubjectsMatch(companyId, data, true);
+    }
+
+    function clinicalAppointmentTransitionIsValid(companyId) {
+      let current = resource.data;
+      let next = request.resource.data;
+      let changed = next.diff(current).affectedKeys();
+      // Old fields remain readable and unchanged. Incomplete identity needs
+      // separate review; no client may repair it while advancing attendance.
+      return isClinicalAppointmentId(companyId) && isClinicalAppointmentId(current.colaborador_id) &&
+        (!('companyId' in current) || current.companyId == companyId) &&
+        clinicalAppointmentSubjectsMatch(companyId, current, false) &&
+        ((current.status == 'Agendado' && next.status == 'Em Espera' &&
+          changed.hasOnly(['status', 'check_in_realizado', 'check_in_at']) &&
+          next.check_in_realizado == true && next.check_in_at is string &&
+          next.check_in_at.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9][.][0-9]{3}Z') &&
+          isClinicalCalendarDate(next.check_in_at)) ||
+        (current.status == 'Em Espera' && next.status == 'Em Atendimento' &&
+          changed.hasOnly(['status'])));
     }
 
     function userSelfManagedCreateKeysAreValid(userId) {
@@ -64,9 +181,84 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'updatedAt', 'crm', 'rqe', 'certificate_info']);
     }
 
+    function providerFiscalCreateIsValid(providerId) {
+      let data = request.resource.data;
+      let reservation = getAfter(
+        /databases/$(database)/documents/provider_tax_id_reservations/$(data.identityHash)
+      ).data;
+      return data.taxIdStatus == 'pending_verification' && data.active == false &&
+        data.identityHash is string && data.identityHash.matches('[a-f0-9]{64}') &&
+        data.importAttemptId is string && data.importAttemptId.size() >= 16 &&
+        data.importAttemptId.size() <= 100 &&
+        reservation != null &&
+        reservation.providerId == providerId &&
+        reservation.identityHash == data.identityHash &&
+        reservation.attemptId == data.importAttemptId;
+    }
+
+    function providerFiscalIdentityIsUnchanged(current, next) {
+      return ((!('cnpj' in current) && (!('cnpj' in next) || next.cnpj == '')) ||
+          next.cnpj == current.cnpj) &&
+        ((!('identityHash' in current) && !('identityHash' in next)) ||
+          next.identityHash == current.identityHash) &&
+        ((!('importAttemptId' in current) && !('importAttemptId' in next)) ||
+          next.importAttemptId == current.importAttemptId);
+    }
+
+    function providerFiscalUpdateIsValid() {
+      let current = resource.data;
+      let next = request.resource.data;
+      return providerFiscalIdentityIsUnchanged(current, next) && (
+        ('taxIdStatus' in current &&
+          current.taxIdStatus == 'pending_verification' &&
+          next.taxIdStatus == 'pending_verification' &&
+          next.active == false) ||
+        ('taxIdStatus' in current &&
+          current.taxIdStatus == 'verified' &&
+          next.taxIdStatus == 'verified' &&
+          next.cnpj == current.cnpj) ||
+        ('taxIdStatus' in current &&
+          current.taxIdStatus == 'verified' &&
+          next.taxIdStatus == 'pending_verification' &&
+          next.active == false) ||
+        (!('taxIdStatus' in current) &&
+          next.taxIdStatus == 'pending_verification' &&
+          next.active == false) ||
+        (!('taxIdStatus' in current) &&
+          !('taxIdStatus' in next) &&
+          ((!('cnpj' in current) && (!('cnpj' in next) || next.cnpj == '')) ||
+            next.cnpj == current.cnpj) &&
+          (next.active == false ||
+            ('active' in current && current.active == true && next.active == true)))
+      );
+    }
+
+    function providerReservationCreateIsValid(providerId) {
+      let data = request.resource.data;
+      let providerAfter = getAfter(
+        /databases/$(database)/documents/providers/$(providerId)
+      ).data;
+      return data.keys().hasOnly(['attemptId', 'identityHash', 'providerId', 'updatedAt']) &&
+        data.providerId == providerId &&
+        data.attemptId is string && data.attemptId.size() >= 16 && data.attemptId.size() <= 100 &&
+        data.identityHash is string && data.identityHash.matches('[a-f0-9]{64}') &&
+        data.updatedAt == request.time &&
+        providerAfter != null &&
+        providerAfter.importAttemptId == data.attemptId &&
+        providerAfter.identityHash == data.identityHash &&
+        providerAfter.taxIdStatus == 'pending_verification' &&
+        providerAfter.active == false;
+    }
+
     match /companies/{companyId} {
-      allow read: if isSignedIn() && (belongsToCompany(companyId) || isNextconOfficial());
+      allow read: if isSignedIn() && (belongsToCompany(companyId) || isNextconOfficial() ||
+        isAuthorizedDoctorForCompany(companyId));
       allow write: if isCompanyAdmin(companyId);
+    }
+
+    match /companies/{companyId}/employees/{employeeId} {
+      allow read: if belongsToCompany(companyId) || isNextconOfficial() ||
+        isAuthorizedDoctorForCompany(companyId);
     }
 
     // The dashboard aggregates operational tasks across companies. Collection
@@ -76,16 +268,46 @@ service cloud.firestore {
       allow list: if isNextconOfficial();
     }
 
-    match /companies/{companyId}/{subcollection}/{document=**} {
-      allow read: if isClinicalCollection(subcollection)
-        ? hasClinicalAccess(companyId)
-        : isSignedIn() && (belongsToCompany(companyId) || isNextconOfficial());
-      allow create, update: if isClinicalCollection(subcollection)
-        ? hasClinicalAccess(companyId)
-        : isCompanyAdmin(companyId) || isNextconOfficial();
-      allow delete: if isClinicalCollection(subcollection)
-        ? isSecurityAdmin()
-        : isCompanyAdmin(companyId) || isNextconOfficial();
+    match /companies/{companyId}/agendamentos/{appointmentId} {
+      allow read: if belongsToCompany(companyId) || isNextconOfficial() ||
+        isAuthorizedDoctorForCompany(companyId);
+      allow create: if (isCompanyAdmin(companyId) || isNextconOfficial()) &&
+        clinicalAppointmentCreateIsValid(companyId);
+      allow update: if (isCompanyAdmin(companyId) || isNextconOfficial()) &&
+        clinicalAppointmentTransitionIsValid(companyId);
+      // No supported client writer completes or deletes clinical attendance.
+      // Reads, including legacy records, retain the company rule below.
+      allow delete: if false;
+    }
+
+    match /companies/{companyId}/{subcollection}/{documentId}/{nested=**} {
+      allow read: if isClinicalImportDocument(subcollection, documentId)
+        ? hasClinicalImportAccess(companyId)
+        : isClinicalCollection(subcollection)
+          ? hasClinicalAccess(companyId)
+          : isSignedIn() && (belongsToCompany(companyId) || isNextconOfficial());
+      // Import records are written by authenticated server handlers. Checking
+      // both versions of sourceType also blocks changing/removing the marker to
+      // bypass checklist, classification or clinical-review validation.
+      allow create: if subcollection != 'agendamentos' &&
+        !isServerManagedImportDocument(subcollection, documentId) &&
+        !(isImportOperationalCollection(subcollection) && hasImportSource(request.resource.data)) &&
+        (isClinicalCollection(subcollection)
+          ? hasClinicalAccess(companyId)
+          : isCompanyAdmin(companyId) || isNextconOfficial());
+      allow update: if subcollection != 'agendamentos' &&
+        !isServerManagedImportDocument(subcollection, documentId) &&
+        !(isImportOperationalCollection(subcollection) &&
+          (hasImportSource(resource.data) || hasImportSource(request.resource.data))) &&
+        (isClinicalCollection(subcollection)
+          ? hasClinicalAccess(companyId)
+          : isCompanyAdmin(companyId) || isNextconOfficial());
+      allow delete: if subcollection != 'agendamentos' &&
+        !isServerManagedImportDocument(subcollection, documentId) &&
+        !(isImportOperationalCollection(subcollection) && hasImportSource(resource.data)) &&
+        (isClinicalCollection(subcollection)
+          ? isSecurityAdmin()
+          : isCompanyAdmin(companyId) || isNextconOfficial());
     }
 
     match /users/{userId} {
@@ -94,6 +316,40 @@ service cloud.firestore {
       allow update: if (isSelf(userId) && userSelfManagedUpdateKeysAreValid()) || isSecurityAdmin() ||
         ((isNextconOfficial() || isCompanyAdmin(resource.data.companyId)) && userSelfManagedUpdateKeysAreValid());
       allow delete: if isSecurityAdmin();
+    }
+
+    match /providers/{providerId} {
+      allow read: if isSignedIn() && isNextconOfficial();
+      allow create: if isSignedIn() && isNextconOfficial() && providerFiscalCreateIsValid(providerId);
+      allow update: if isSignedIn() && isNextconOfficial() && providerFiscalUpdateIsValid();
+      allow delete: if false;
+    }
+
+    match /provider_tax_id_reservations/{reservationId} {
+      allow read: if isSignedIn() && isNextconOfficial();
+      allow create: if isSignedIn() && isNextconOfficial() &&
+        request.resource.data.identityHash == reservationId &&
+        providerReservationCreateIsValid(request.resource.data.providerId);
+      allow update, delete: if false;
+    }
+
+    // Import drafts can contain unreviewed clinical text. Only authenticated
+    // server handlers may return their contents after checking the owner/role.
+    match /nai_importa_drafts/{draftId} {
+      allow read, write: if false;
+    }
+
+    // Preserve other operational user subcollections without exposing drafts
+    // through the broad root-collection read rule below.
+    match /users/{userId}/{subcollection}/{document=**} {
+      allow read: if isNextconOfficial() &&
+        !(subcollection in ['pgr_analysis_drafts', 'nai_import_drafts', 'nai_importa_drafts']);
+      allow write: if false;
+    }
+
+    match /phi_audit_logs/{logId} {
+      allow read: if isNextconOfficial();
+      allow write: if false;
     }
 
     match /documents/{documentId} {
@@ -107,9 +363,13 @@ service cloud.firestore {
         isCompanyAdmin(request.resource.data.companyId) ||
         isHealthProfessionalForCompany(request.resource.data.companyId)
       );
-      allow update, delete: if isSignedIn() && (
+      allow update: if isSignedIn() && (
         isNextconOfficial() ||
-        isCompanyAdmin(resource.data.companyId)
+        (isCompanyAdmin(resource.data.companyId) &&
+          request.resource.data.companyId == resource.data.companyId)
+      );
+      allow delete: if isSignedIn() && (
+        isNextconOfficial() || isCompanyAdmin(resource.data.companyId)
       );
     }
 
@@ -128,7 +388,10 @@ service cloud.firestore {
         isCompanyAdmin(request.resource.data.companyId) ||
         isHealthProfessionalForCompany(request.resource.data.companyId)
       );
-      allow update, delete: if isSignedIn() && (isNextconOfficial() || isCompanyAdmin(resource.data.companyId));
+      allow update: if isSignedIn() && (isNextconOfficial() ||
+        (isCompanyAdmin(resource.data.companyId) &&
+          request.resource.data.companyId == resource.data.companyId));
+      allow delete: if isSignedIn() && (isNextconOfficial() || isCompanyAdmin(resource.data.companyId));
     }
 
     match /analisesPGR/{docId} {
@@ -136,17 +399,13 @@ service cloud.firestore {
         isNextconOfficial() ||
         belongsToCompany(resource.data.companyId)
       );
-      allow create: if isSignedIn() && (
-        isNextconOfficial() ||
-        isCompanyAdmin(request.resource.data.companyId) ||
-        isHealthProfessionalForCompany(request.resource.data.companyId)
-      );
-      allow update, delete: if isSignedIn() && (isNextconOfficial() || isCompanyAdmin(resource.data.companyId));
+      // Legacy background jobs are server-owned. Callers must use authenticated import APIs.
+      allow create, update, delete: if false;
     }
 
     match /{rootCollection}/{document=**} {
-      allow read: if isSignedIn() && isNextconOfficial() && !(rootCollection in ['companies', 'api_keys', 'webhooks', 'webhook_deliveries']);
-      allow write: if isNextconOfficial() && !(rootCollection in ['users', 'companies', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries']);
+      allow read: if isSignedIn() && isNextconOfficial() && !(rootCollection in ['users', 'companies', 'providers', 'provider_tax_id_reservations', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries']);
+      allow write: if isNextconOfficial() && !(rootCollection in ['users', 'companies', 'providers', 'provider_tax_id_reservations', 'agendamentos', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'analisesPGR']);
     }
   }
 }

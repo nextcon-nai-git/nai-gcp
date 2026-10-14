@@ -1,7 +1,9 @@
 
 # Mutações do Conector NAI
 
-mutation CreateCompany($name: String!, $cnpj: String!, $riskDegree: Int) @auth(level: USER_ADMIN) {
+# Scaffold administrativo sem política multiempresa. Somente contexto Admin SDK.
+# O aplicativo atual usa os fluxos autenticados de Firestore; não publicar acesso cliente aqui.
+mutation CreateCompany($name: String!, $cnpj: String!, $riskDegree: Int) @auth(level: NO_ACCESS) {
   company_insert(data: {
     name: $name,
     cnpj: $cnpj,
@@ -9,6 +11,6 @@ mutation CreateCompany($name: String!, $cnpj: String!, $riskDegree: Int) @auth(l
   })
 }
 
-mutation UpdateUserProfile($id: String!, $name: String!) @auth(level: USER) {
+mutation UpdateUserProfile($id: String!, $name: String!) @auth(level: NO_ACCESS) {
   userProfile_update(id: $id, data: { name: $name })
 }
