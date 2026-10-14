@@ -106,6 +106,7 @@
     "postcss": "$postcss",
     "picomatch@<2.3.2": "^2.3.2",
     "@grpc/grpc-js": ">=1.14.0",
-    "adm-zip": ">=0.5.12"
+    "adm-zip": ">=0.5.12",
+    "@opentelemetry/propagator-jaeger": "2.9.0"
   }
 }
