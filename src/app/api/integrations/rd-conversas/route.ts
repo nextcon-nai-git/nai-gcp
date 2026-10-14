@@ -97,7 +97,12 @@ export async function GET(req: NextRequest) {
       return reply({
         data: items(result.data).map((r) => ({
           id: providerId(r._id ?? r.id),
-          name: string(r.full_name ?? r.name),
+          name:
+            string(r.full_name ?? r.name)
+              .trim()
+              .toLocaleLowerCase("pt-BR") === "sonia mattar"
+              ? "Operacional"
+              : string(r.full_name ?? r.name),
           email: string(r.email),
         })),
       });
