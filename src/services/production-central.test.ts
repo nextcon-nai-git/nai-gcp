@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { randomUUID, createHash } from "node:crypto";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import { emptyFinanceBook } from "@/lib/financial/operations";
+import { ContractCommercialTermsSchema } from "@/lib/financial/contract-flow";
 const state = vi.hoisted(() => ({
   files: new Map<string, { bytes: Buffer; generation: string; metadata?: object }>(),
   calls: 0,
@@ -194,6 +195,7 @@ describe("private central persistence", () => {
       client: "Cliente",
       center: "SST",
       monthlyCents: 10000,
+      commercialTerms: ContractCommercialTermsSchema.parse({}),
       dueDay: 10,
       active: true,
     });

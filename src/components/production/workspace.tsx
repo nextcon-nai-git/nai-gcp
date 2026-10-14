@@ -30,6 +30,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Company = { id: string; name: string; cnpj: string };
+type FinanceOptions = {
+  version: number;
+  contracts: { id: string; name: string; client: string; monthlyCents: number }[];
+  titles: {
+    id: string;
+    description: string;
+    competence: string;
+    amountCents: number;
+    receivedCents: number;
+    adjustmentCents: number;
+  }[];
+};
 type Terms = z.infer<typeof TermsSchema>;
 type Document = z.infer<typeof DocumentSchema>;
 type Mutation = Command extends infer C
@@ -774,6 +786,26 @@ function RecordView({
   disabled: boolean;
   mutate: (c: Mutation) => Promise<boolean>;
 }) {
+  const [finance, setFinance] = React.useState<FinanceOptions | null>(null);
+  const [financeBusy, setFinanceBusy] = React.useState(false);
+  const financeAlive = React.useRef(true);
+  React.useEffect(() => {
+    financeAlive.current = true;
+    return () => {
+      financeAlive.current = false;
+    };
+  }, []);
+  const loadFinance = async () => {
+    setFinanceBusy(true);
+    try {
+      const data = await api(`/api/production/finance?recordId=${encodeURIComponent(record.id)}`);
+      if (financeAlive.current) setFinance(data);
+    } catch (e) {
+      if (financeAlive.current) setError((e as Error).message);
+    } finally {
+      if (financeAlive.current) setFinanceBusy(false);
+    }
+  };
   const cycleId = record.cycles.some((c) => c.id === selectedCycle)
     ? selectedCycle
     : record.cycles.at(-1)?.id || "";
@@ -866,6 +898,9 @@ function RecordView({
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" onClick={() => setDocuments(!documents)}>
           Documentos e aditivos ({record.documents.length})
+        </Button>
+        <Button type="button" variant="outline" disabled={financeBusy} onClick={loadFinance}>
+          {financeBusy ? "Consultando ERP…" : "Consultar contratos e títulos do ERP"}
         </Button>
         <Button asChild variant="outline">
           <Link href="/financial/operacoes">Conferir lançamentos no ERP</Link>
@@ -1050,6 +1085,7 @@ function RecordView({
             </section>
           ))}
           <BillingEditor
+            finance={finance}
             cycle={cycle}
             disabled={disabled || !record.active}
             save={async (data) =>
@@ -1110,8 +1146,12 @@ function RecordView({
       <details className="rounded border p-4">
         <summary>Vínculo financeiro e encerramento do contrato</summary>
         <p className="my-2 text-sm">
-          Contrato ERP vinculado: {record.financeContractId || "Nenhum"}. O vínculo exige fluxo do
-          ERP com o mesmo CNPJ e não gera lançamentos.
+          Contrato ERP vinculado:{" "}
+          {record.financeContractId
+            ? finance?.contracts.find((c) => c.id === record.financeContractId)?.name ||
+              "Vinculado; consulte o ERP para ver os dados atuais"
+            : "Nenhum"}
+          . O vínculo exige fluxo do ERP com o mesmo CNPJ e não gera lançamentos.
         </p>
         <form
           className="space-y-3"
@@ -1127,12 +1167,28 @@ function RecordView({
           }}
         >
           <fieldset disabled={disabled || !record.active} className="space-y-3">
-            <Field
-              name="financeContractId"
-              label="ID do contrato no ERP"
-              defaultValue={record.financeContractId}
-              required
-            />
+            <label className="block text-sm">
+              Contrato correspondente no ERP
+              <select
+                className={inputClass}
+                name="financeContractId"
+                required
+                defaultValue={record.financeContractId}
+                key={String(finance?.version)}
+                disabled={!finance}
+              >
+                <option value="">
+                  {finance
+                    ? "Selecione o contrato do mesmo CNPJ"
+                    : "Use Consultar contratos e títulos do ERP acima"}
+                </option>
+                {finance?.contracts.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.client} · {c.name} · {money(c.monthlyCents)}/mês
+                  </option>
+                ))}
+              </select>
+            </label>
             <TextField name="reason" label="Evidência da conferência do vínculo" required />
             <Button type="submit" variant="outline">
               Vincular contrato do ERP
@@ -1298,11 +1354,13 @@ function CardEditor({
   );
 }
 function BillingEditor({
+  finance,
   cycle,
   disabled,
   save,
 }: {
   cycle: Cycle;
+  finance: FinanceOptions | null;
   disabled: boolean;
   save: (d: {
     data: Extract<Command, { action: "billing" }>["data"];
@@ -1380,12 +1438,33 @@ function BillingEditor({
             defaultValue={cycle.invoiceReference}
             maxLength={180}
           />
-          <Field
-            name="financeTitleId"
-            label="ID do título no ERP (opcional; validado ao salvar)"
-            defaultValue={cycle.financeTitleId}
-            maxLength={100}
-          />
+          <label className="block text-sm">
+            Título aprovado do contrato vinculado (opcional)
+            <select
+              className={inputClass}
+              name="financeTitleId"
+              defaultValue={cycle.financeTitleId}
+              key={String(finance?.version)}
+            >
+              <option value="">Sem vínculo com título ERP</option>
+              {cycle.financeTitleId &&
+                !finance?.titles.some((t) => t.id === cycle.financeTitleId) && (
+                  <option value={cycle.financeTitleId}>
+                    Título já vinculado; consulte o ERP para conferir
+                  </option>
+                )}
+              {finance?.titles.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.description} · {t.competence} · faturado {money(t.amountCents)} · recebido{" "}
+                  {money(t.receivedCents)} · ajustes {money(t.adjustmentCents)}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-muted-foreground">
+              Consulte os títulos acima e confira os valores da medição/NF e da conciliação. O
+              servidor verifica novamente ao salvar.
+            </span>
+          </label>
           <TextField name="reason" label="Motivo da atualização" required />
           <Button type="submit">Salvar registros financeiros</Button>
           {error && <p role="alert">{error}</p>}
