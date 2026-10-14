@@ -2,52 +2,96 @@ import { NextRequest, NextResponse } from "next/server";
 import { processWhatsappMessage } from "@/ai/flows/whatsapp-agent-flow";
 import { NEXTCON_WHATSAPP_DISPLAY } from "@/lib/whatsapp-routing";
 
-/**
- * Webhook Universal para Integrações WhatsApp
- * Suporta: Evolution API, Z-API, Meta Cloud API, Baileys e Webhooks Genéricos.
- */
-export async function POST(req: NextRequest) {
+const MAX_WEBHOOK_BYTES = 64 * 1024;
+const MAX_MESSAGE_LENGTH = 16_000;
+
+class InvalidWebhook extends Error {
+  constructor(readonly status: number) {
+    super("Payload inválido.");
+  }
+}
+
+async function readPayload(req: NextRequest): Promise<unknown> {
+  if (Number(req.headers.get("content-length")) > MAX_WEBHOOK_BYTES) throw new InvalidWebhook(413);
+  const reader = req.body?.getReader();
+  if (!reader) throw new InvalidWebhook(400);
+  const chunks: Uint8Array[] = [];
+  let size = 0;
   try {
-    const secret = process.env.WHATSAPP_WEBHOOK_SECRET;
-    if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`)
-      return NextResponse.json({ error: "Webhook não autorizado." }, { status: 401 });
-    const body = await req.json();
-
-    // Extrair telefone e mensagem de acordo com o formato do payload
-    let fromPhone = "";
-    let messageText = "";
-
-    // 1. Padrão Evolution API / Z-API
-    if (body?.data?.key?.remoteJid || body?.data?.message) {
-      fromPhone = (body?.data?.key?.remoteJid || "").replace("@s.whatsapp.net", "");
-      messageText =
-        body?.data?.message?.conversation || body?.data?.message?.extendedTextMessage?.text || "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > MAX_WEBHOOK_BYTES) {
+        await reader.cancel();
+        throw new InvalidWebhook(413);
+      }
+      chunks.push(value);
     }
-    // 2. Padrão Meta Cloud API
-    else if (body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]) {
-      const msg = body.entry[0].changes[0].value.messages[0];
-      fromPhone = msg.from;
-      messageText = msg.text?.body || "";
-    }
-    // 3. Padrão Simplificado / Payload Direto
-    else if (body?.phone && body?.message) {
-      fromPhone = body.phone;
-      messageText = body.message;
-    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch {
+    throw new InvalidWebhook(400);
+  }
+}
 
-    if (!fromPhone || !messageText) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Payload não continha número ou mensagem válidos.",
-        },
-        { status: 400 }
-      );
-    }
+function field(value: unknown, key: string): unknown {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)[key]
+    : undefined;
+}
 
-    // Processar através do motor de IA NAI 3.7
+function first(value: unknown): unknown {
+  return Array.isArray(value) ? value[0] : undefined;
+}
+
+function extractMessage(body: unknown) {
+  const data = field(body, "data");
+  const key = field(data, "key");
+  const message = field(data, "message");
+  const change = first(field(first(field(body, "entry")), "changes"));
+  const meta = first(field(field(change, "value"), "messages"));
+  let phone: unknown;
+  let text: unknown;
+  if (field(key, "remoteJid") || message) {
+    phone = field(key, "remoteJid");
+    if (typeof phone === "string") phone = phone.replace(/@s\.whatsapp\.net$/, "");
+    text = field(message, "conversation") || field(field(message, "extendedTextMessage"), "text");
+  } else if (meta) {
+    phone = field(meta, "from");
+    text = field(field(meta, "text"), "body");
+  } else {
+    phone = field(body, "phone");
+    text = field(body, "message");
+  }
+  if (
+    typeof phone !== "string" ||
+    !/^\+?\d{7,20}$/.test(phone) ||
+    typeof text !== "string" ||
+    !text.trim() ||
+    text.length > MAX_MESSAGE_LENGTH
+  )
+    throw new InvalidWebhook(400);
+  return { fromPhone: phone, messageText: text.trim() };
+}
+
+// Only computes a response for the authenticated integration. Does not send messages.
+export async function POST(req: NextRequest) {
+  const secret = process.env.WHATSAPP_WEBHOOK_SECRET;
+  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`)
+    return NextResponse.json({ error: "Webhook não autorizado." }, { status: 401 });
+  try {
+    const { fromPhone, messageText } = extractMessage(await readPayload(req));
     const result = await processWhatsappMessage(messageText, fromPhone);
-
     return NextResponse.json({
       success: true,
       officialChannel: NEXTCON_WHATSAPP_DISPLAY,
@@ -57,13 +101,18 @@ export async function POST(req: NextRequest) {
       isHumanHandoff: result.isHumanHandoff,
       humanResponsible: result.humanResponsible,
     });
-  } catch (error: any) {
-    console.error("[WhatsApp Webhook Error]", error);
+  } catch (error: unknown) {
+    if (error instanceof InvalidWebhook)
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.status === 413 ? "Payload excede o limite permitido." : "Payload inválido.",
+        },
+        { status: error.status }
+      );
+    console.error("[WhatsApp Webhook Error] Falha no processamento.");
     return NextResponse.json(
-      {
-        success: false,
-        error: error.message || "Erro interno no processamento do webhook",
-      },
+      { success: false, error: "Erro interno no processamento do webhook." },
       { status: 500 }
     );
   }
