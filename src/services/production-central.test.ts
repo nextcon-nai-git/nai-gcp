@@ -37,20 +37,22 @@ vi.mock("firebase-admin/storage", () => ({
             return [f.bytes];
           },
           save: async (
-            json: string,
-            options: { preconditionOpts: { ifGenerationMatch: string }; metadata: object }
+            json: string | Buffer,
+            options: { preconditionOpts: { ifGenerationMatch: string | number }; metadata: object }
           ) => {
             const f = state.files.get(name);
             if (
               state.conflict ||
-              options.preconditionOpts.ifGenerationMatch !== (f?.generation || "0")
+              String(options.preconditionOpts.ifGenerationMatch) !== (f?.generation || "0")
             )
               throw { code: 412 };
-            expect(options.metadata).toEqual({ cacheControl: "private, no-store" });
+            if (name.endsWith(".json"))
+              expect(options.metadata).toEqual({ cacheControl: "private, no-store" });
             state.writes++;
             state.files.set(name, {
               bytes: Buffer.from(json),
               generation: String(++state.sequence),
+              metadata: options.metadata,
             });
           },
         }),
@@ -62,6 +64,7 @@ import {
   getProductionBook,
   saveProductionCommand,
   readProductionSource,
+  preserveProductionSource,
 } from "./production-central";
 const admin: AuthContext = {
   uid: "admin",
@@ -247,6 +250,51 @@ describe("private central persistence", () => {
         reason: "Fechar",
       })
     ).rejects.toThrow("divergem");
+    expect(state.writes).toBe(1);
+  });
+});
+
+describe("immutable source upload", () => {
+  it("uploads, verifies, and reuses an identical PDF without replacement", async () => {
+    const bytes = Buffer.from("%PDF-1.7\noriginal");
+    const source = await preserveProductionSource(admin, bytes);
+    expect(source.sha256).toBe(createHash("sha256").update(bytes).digest("hex"));
+    expect(await preserveProductionSource(admin, bytes)).toEqual(source);
+    expect(state.writes).toBe(1);
+    expect(await readProductionSource(admin, source)).toEqual(bytes);
+  });
+  it("rejects tenant admins before touching storage", async () => {
+    await expect(
+      preserveProductionSource(
+        { ...admin, role: "ADMIN", tenantId: "client" },
+        Buffer.from("%PDF-")
+      )
+    ).rejects.toMatchObject({ status: 403 });
+    expect(state.calls).toBe(0);
+  });
+  it("rejects non-PDF and oversized content", async () => {
+    await expect(preserveProductionSource(admin, Buffer.from("not PDF"))).rejects.toMatchObject({
+      status: 400,
+    });
+    await expect(
+      preserveProductionSource(admin, Buffer.alloc(10 * 1024 * 1024))
+    ).rejects.toMatchObject({ status: 413 });
+    expect(state.writes).toBe(0);
+  });
+  it("does not trust or overwrite a corrupt existing object", async () => {
+    const bytes = Buffer.from("%PDF-1.7\noriginal");
+    const source = await preserveProductionSource(admin, bytes);
+    state.files.get(source.storagePath)!.bytes = Buffer.from("%PDF-1.7\nmodified");
+    await expect(preserveProductionSource(admin, bytes)).rejects.toMatchObject({ status: 400 });
+    expect(state.writes).toBe(1);
+  });
+  it("does not report success when verification fails", async () => {
+    state.failRead = true;
+    await expect(preserveProductionSource(admin, Buffer.from("%PDF-1.7"))).rejects.toThrow(
+      "read unavailable"
+    );
+    state.failRead = false;
+    await preserveProductionSource(admin, Buffer.from("%PDF-1.7"));
     expect(state.writes).toBe(1);
   });
 });

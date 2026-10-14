@@ -1,9 +1,9 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { useUser, useStorage } from "@/firebase";
+import { useUser } from "@/firebase";
 import { getActionIdToken } from "@/lib/auth/action-token";
-import { hashContractFile, preserveContractSource } from "@/lib/contracts/integration";
+import { hashContractFile } from "@/lib/contracts/integration";
 import {
   type ProductionBook,
   type ProductionRecord,
@@ -459,7 +459,6 @@ function SourceUpload({
   disabled: boolean;
   onBusy: (busy: boolean) => void;
 }) {
-  const storage = useStorage();
   const [busy, setBusy] = React.useState(false),
     [error, setError] = React.useState(""),
     [document, setDocument] = React.useState<Document | null>(null),
@@ -505,7 +504,24 @@ function SourceUpload({
             setError("");
             try {
               const hash = await hashContractFile(file);
-              const source = await preserveContractSource(storage, file, hash);
+              const response = await fetch("/api/production/source", {
+                method: "PUT",
+                headers: {
+                  Authorization: `Bearer ${await getActionIdToken()}`,
+                  "Content-Type": "application/pdf",
+                },
+                body: file,
+                signal: AbortSignal.timeout(60000),
+                cache: "no-store",
+              });
+              const result = await response.json();
+              if (!response.ok)
+                throw new Error(
+                  result.error || "Não foi possível preservar o PDF. Tente novamente."
+                );
+              const source = result.source as Document["source"];
+              if (source.sha256 !== hash || source.sizeBytes !== file.size)
+                throw new Error("A integridade do arquivo enviado não foi confirmada.");
               const d = { name: file.name, kind, source };
               setDocument(d);
               onChange(d, null);

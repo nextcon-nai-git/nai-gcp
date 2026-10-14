@@ -319,17 +319,12 @@ export default function ClientsManagement() {
         version: "2.8",
         compliance_score: 100,
         isDeleted: false,
-        createdAt: editingCompany ? editingCompany.createdAt : serverTimestamp(),
+        ...(!editingCompany ? { createdAt: serverTimestamp() } : {}),
       };
 
-      if (db) {
-        try {
-          const companyRef = doc(db, "companies", targetId);
-          await setDoc(companyRef, data, { merge: true });
-        } catch (e: any) {
-          console.warn("Aviso ao salvar no Firestore (mantendo local):", e.message);
-        }
-      }
+      if (!db) throw new Error("Conexão indisponível. Os dados não foram salvos.");
+      const companyRef = doc(db, "companies", targetId);
+      await setDoc(companyRef, data, { merge: true });
 
       // Sincronização imediata no LocalStorage para que o TopNav e a tela reflitam instantaneamente
       if (typeof window !== "undefined") {

@@ -68,6 +68,39 @@ export async function readProductionSource(user: AuthContext, input: unknown) {
     throw badRequest("Integridade da fonte não confirmada.");
   return bytes;
 }
+export async function preserveProductionSource(user: AuthContext, bytes: Buffer) {
+  requireFinancialAccess(user);
+  if (!bytes.length || bytes.length >= 10 * 1024 * 1024)
+    throw new AuthError("Selecione um PDF com menos de 10 MB.", 413);
+  if (bytes.subarray(0, 5).toString() !== "%PDF-") throw badRequest("Selecione um PDF válido.");
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  const storagePath = `internos_nextcon/contract-sources/${sha256}`;
+  const file = bucket().file(storagePath);
+  try {
+    await file.save(bytes, {
+      resumable: false,
+      preconditionOpts: { ifGenerationMatch: 0 },
+      metadata: {
+        contentType: "application/pdf",
+        cacheControl: "private, no-store",
+        metadata: { sourceSha256: sha256 },
+      },
+    });
+  } catch (error) {
+    // An existing immutable source is reused only after full verification below.
+    if (code(error) !== 412) throw error;
+  }
+  const [meta] = await file.getMetadata();
+  const parsed = SourceSchema.safeParse({
+    sha256,
+    storagePath,
+    generation: String(meta.generation || ""),
+    sizeBytes: bytes.length,
+  });
+  if (!parsed.success) throw badRequest("Metadados da fonte inválidos.");
+  await readProductionSource(user, parsed.data);
+  return parsed.data;
+}
 export async function productionCompanies(user: AuthContext) {
   requireFinancialAccess(user);
   const snap = await adminDb.collection("companies").limit(1001).get();

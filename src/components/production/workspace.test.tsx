@@ -5,11 +5,12 @@ import { applyCommand, CommandSchema, emptyBook } from "@/lib/production/model";
 const state = vi.hoisted(() => ({
   user: { uid: "admin" } as { uid: string } | null,
   fetch: vi.fn(),
+  hash: vi.fn(),
 }));
 vi.mock("@/firebase", () => ({ useUser: () => ({ user: state.user }), useStorage: () => ({}) }));
 vi.mock("@/lib/auth/action-token", () => ({ getActionIdToken: async () => "test-token" }));
 vi.mock("@/lib/contracts/integration", () => ({
-  hashContractFile: vi.fn(),
+  hashContractFile: state.hash,
   preserveContractSource: vi.fn(),
 }));
 vi.mock("next/link", () => ({
@@ -156,4 +157,37 @@ describe("production workspace", () => {
     });
     expect(host.textContent).toContain("RASCUNHO NÃO ENVIADO");
   });
+});
+
+describe("PDF preservation in the central", () => {
+  it.each([true, false])(
+    "uses an authenticated bounded upload and verifies the response (%s)",
+    async (valid) => {
+      state.hash.mockResolvedValue("a".repeat(64));
+      await render();
+      await click("Novo registro");
+      const file = new File(["%PDF-1.7"], "contrato.pdf", { type: "application/pdf" });
+      state.fetch.mockResolvedValueOnce(
+        reply({ source: { sha256: (valid ? "a" : "b").repeat(64), sizeBytes: file.size } })
+      );
+      const input = host.querySelector('input[type="file"]')!;
+      Object.defineProperty(input, "files", { value: [file] });
+      await act(async () => {
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      expect(state.fetch).toHaveBeenLastCalledWith(
+        "/api/production/source",
+        expect.objectContaining({
+          method: "PUT",
+          body: file,
+          signal: expect.any(AbortSignal),
+          headers: { Authorization: "Bearer test-token", "Content-Type": "application/pdf" },
+        })
+      );
+      expect(host.textContent).toContain(
+        valid ? "Fonte preservada:" : "A integridade do arquivo enviado não foi confirmada."
+      );
+      expect(host.textContent?.includes("Fonte preservada:")).toBe(valid);
+    }
+  );
 });
