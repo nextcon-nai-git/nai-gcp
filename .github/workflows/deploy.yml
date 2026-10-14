@@ -58,7 +58,22 @@ jobs:
           java-version: '21'
 
       - name: Test Firestore security rules
-        run: npm run test:rules
+        id: rules
+        run: |
+          set -o pipefail
+          npm run test:rules 2>&1 | tee firebase-rules-test.log
+
+      - name: Preserve failed emulator diagnostics
+        if: failure() && steps.rules.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: firebase-emulator-diagnostics
+          path: |
+            firebase-rules-test.log
+            firestore-debug.log
+            storage-debug.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Build app
         run: npm run build

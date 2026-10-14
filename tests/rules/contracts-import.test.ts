@@ -214,6 +214,10 @@ describe("Private contract import rules and persistence", () => {
     expect((await getDocs(collection(db("global"), "contract_import_sources"))).empty).toBe(true);
   });
 
+  // The emulator can hold contended transaction locks for 30 seconds. Keep the
+  // real concurrent calls and allow time for the SDK retry instead of timing out
+  // mid-transaction and leaking work into the next test's database reset.
+  // https://firebase.google.com/docs/emulator-suite/connect_firestore#transactions
   it("makes concurrent retries idempotent and refuses source overwrite", async () => {
     const { source } = await preserve();
     const outcomes = await Promise.all([
@@ -245,7 +249,7 @@ describe("Private contract import rules and persistence", () => {
       })
     );
     await assertFails(getBytes(ref(storage("tenant"), source.storagePath)));
-  });
+  }, 60_000);
 
   it("does not claim a created company when the extracted CNPJ mismatches", async () => {
     const { source } = await preserve();
