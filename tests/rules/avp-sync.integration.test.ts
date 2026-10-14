@@ -4,34 +4,32 @@ import { initializeTestEnvironment, type RulesTestEnvironment } from "@firebase/
 import { AVP_SOURCE_HEADERS } from "@/lib/avp-source-config";
 
 const source = vi.hoisted(() => ({ values: [] as unknown[][], fail: false, reads: 0 }));
-vi.mock("googleapis", () => ({
-  google: {
-    auth: { GoogleAuth: class {} },
-    sheets: () => ({
-      spreadsheets: {
-        get: async () => ({
-          data: {
-            sheets: [
-              {
-                properties: {
-                  sheetId: 1413127031,
-                  title: "Fila de Agendamentos",
-                  gridProperties: { rowCount: 1046, columnCount: 22 },
-                },
+vi.mock("googleapis/build/src/apis/sheets", () => ({
+  auth: { GoogleAuth: class {} },
+  sheets: () => ({
+    spreadsheets: {
+      get: async () => ({
+        data: {
+          sheets: [
+            {
+              properties: {
+                sheetId: 1413127031,
+                title: "Fila de Agendamentos",
+                gridProperties: { rowCount: 1046, columnCount: 22 },
               },
-            ],
-          },
-        }),
-        values: {
-          get: async () => {
-            source.reads++;
-            if (source.fail) throw { code: 403 };
-            return { data: { values: source.values } };
-          },
+            },
+          ],
+        },
+      }),
+      values: {
+        get: async () => {
+          source.reads++;
+          if (source.fail) throw { code: 403 };
+          return { data: { values: source.values } };
         },
       },
-    }),
-  },
+    },
+  }),
 }));
 import { adminDb } from "@/lib/firebase-admin";
 import { syncAvpSource, getAvpSnapshot, patchAvpQueue } from "@/services/avp-sheet-sync";

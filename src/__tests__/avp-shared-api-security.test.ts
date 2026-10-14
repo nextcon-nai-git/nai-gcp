@@ -17,12 +17,10 @@ vi.mock("@/services/avp-sheet-sync", () => ({
   getAvpSnapshot: mock.snapshot,
   patchAvpQueue: mock.patch,
 }));
-vi.mock("googleapis", () => ({
-  google: {
-    auth: {
-      OAuth2: class {
-        verifyIdToken = mock.oidc;
-      },
+vi.mock("googleapis/build/src/apis/oauth2", () => ({
+  auth: {
+    OAuth2: class {
+      verifyIdToken = mock.oidc;
     },
   },
 }));

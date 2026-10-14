@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { google } from "googleapis";
+import { auth as googleAuth } from "googleapis/build/src/apis/oauth2";
 import { syncAvpSource } from "@/services/avp-sheet-sync";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
       { status: 503 }
     );
   try {
-    const ticket = await new google.auth.OAuth2().verifyIdToken({ idToken: token, audience });
+    const ticket = await new googleAuth.OAuth2().verifyIdToken({ idToken: token, audience });
     const claims = ticket.getPayload();
     if (claims?.email !== email || claims.email_verified !== true)
       return NextResponse.json({ error: "Agendador não autorizado." }, { status: 403 });
