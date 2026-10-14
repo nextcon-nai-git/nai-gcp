@@ -59,3 +59,51 @@ HTTP(S)_PROXY está definido. Não houve alteração das restrições de rede lo
 
 O PR altera somente a infraestrutura de testes. Não publica regras clínicas,
 não ativa backups e não homologa integrações externas.
+
+## Atualização de revisão — 14/10/2026
+
+Esta execução ampliou o fluxo de contrato no código, mas não acessou consoles,
+contas de produção, credenciais, provedores nem dados reais. As condições podem
+ser registradas no contrato ou com referência de aditivo. O CNPJ do tomador é
+validado e, quando o cadastro vinculado contém CNPJ válido, precisa coincidir
+com ele. Código de serviço é somente o valor informado; nenhuma classificação
+fiscal é inferida. Setup e êxito permanecem separados da mensalidade e não criam
+previsões, títulos ou receita automaticamente. Prazo contado da emissão e grade
+persistem como condições, mas bloqueiam a geração de títulos neste fluxo até
+existir cálculo e evidência compatíveis. Nomes informados não comprovam
+assinaturas. Validade impressa da certidão e status/evidência de consulta ao
+emissor são campos independentes e não autenticam o documento.
+
+### Frentes que exigem acesso operacional
+
+- **Backup/restore:** o último registro do Console informa backups programados e
+  PITR desativados, sem restauração isolada exercitada. Administrador do projeto
+  deve aprovar retenção/custo, configurar proteção e realizar restauração em
+  ambiente isolado, registrando resultado e integridade.
+- **Proteção da `main`:** o último estado observado foi `protected=false`; a
+  tentativa no Console exigiu confirmação Mobile em modo sudo. Um mantenedor
+  autorizado precisa aplicar e verificar a política de revisão/checks. Esta
+  execução não alterou permissões ou proteção.
+- **DNS sem `www`:** o último estado observado no App Hosting foi configuração
+  necessária para o domínio sem `www`; `www` estava conectado. Responsável DNS
+  precisa validar e aplicar o registro solicitado no provedor e confirmar
+  resolução/TLS e domínio no backend. Nenhuma alteração DNS foi feita.
+- **Regras Firestore/deploy:** o workflow de regras foi bloqueado pela ausência
+  de `FIREBASE_SERVICE_ACCOUNT_JSON`. Administrador deve provisionar credencial
+  pela governança do repositório e executar validação/publicação aprovada; não
+  foi criada nem exposta credencial.
+- **Provedores externos:** emissão de NFS-e pelo NAI, sincronização bidirecional
+  de baixas Omie, assinatura/certificado, transmissão e recibos eSocial, controle
+  físico e mensageria seguem sem homologação ponta a ponta. Exigem ambiente,
+  credenciais/certificados autorizados, casos aprovados e aceite do responsável;
+  consulta somente leitura, mock ou teste sintético não conclui homologação.
+- **Código/deploy atual:** as alterações desta revisão não foram publicadas.
+  É necessário CI aprovado no SHA resultante e processo de deploy autorizado.
+  Esta sessão não valida funcionalmente as 106 páginas, não publica regras e
+  não realiza operações em produção.
+
+Os testes focados desta implementação cobrem compatibilidade de contratos
+legados, separação de identidades, persistência sem título automático, bloqueio
+de cobranças cujo vencimento depende de emissão/grade e distinção entre validade
+impressa e consulta ao emissor. Eles não substituem regras no emulador, revisão
+de contrato por responsável, homologação real ou teste de restauração.
