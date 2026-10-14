@@ -1,5 +1,5 @@
 import "server-only";
-import { google } from "googleapis";
+import { auth as googleAuth, sheets as googleSheets } from "googleapis/build/src/apis/sheets";
 import { createHash, randomUUID } from "node:crypto";
 import { adminDb } from "@/lib/firebase-admin";
 import { AVP_SOURCE } from "@/lib/avp-source-config";
@@ -55,10 +55,10 @@ export function applyAvpOverrides(rows: GrupoAvpAso[], overrides: Map<string, Ov
 
 /** ADC utiliza a identidade do App Hosting; a planilha continua privada. */
 export async function readPrivateAvpSheet() {
-  const auth = new google.auth.GoogleAuth({
+  const auth = new googleAuth.GoogleAuth({
     scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
   });
-  const sheets = google.sheets({ version: "v4", auth });
+  const sheets = googleSheets({ version: "v4", auth });
   const metadata = await sheets.spreadsheets.get(
     { spreadsheetId: AVP_SOURCE.spreadsheetId, fields: "sheets.properties" },
     { timeout: 20000 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { google } from "googleapis";
+import { auth as googleAuth } from "googleapis/build/src/apis/places";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { requireAvpAccess } from "@/lib/auth/avp-access";
 import { AuthError, handleAuthError } from "@/lib/auth/errors";
@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
         },
         { status: 429 }
       );
-    const auth = new google.auth.GoogleAuth({
+    const auth = new googleAuth.GoogleAuth({
       scopes: ["https://www.googleapis.com/auth/maps-platform.places.textsearch"],
     });
     const client = await auth.getClient();
