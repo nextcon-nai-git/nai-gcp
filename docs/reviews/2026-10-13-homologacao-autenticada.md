@@ -25,7 +25,8 @@ mensagem, convite, cobrança, documento clínico ou transmissão fiscal foi envi
 ## Pendências para encerramento
 
 - Homologação funcional de gravação e isolamento por perfil, além da navegação.
-- Implantação das regras Firestore/Storage do PR #114 confirmada no projeto.
+- Implantação integral das regras Firestore e índices ainda pendente; Storage
+  e restrições fiscais confirmados conforme atualização abaixo.
 - Segurança de dependências: avaliação e mitigação dos alertas registrados.
 - Backup, restauração isolada, proteção de branch e publicação do SHA.
 - Integrações ainda não implementadas (Academia, controle físico, emissão fiscal
@@ -33,3 +34,35 @@ mensagem, convite, cobrança, documento clínico ou transmissão fiscal foi envi
 
 Os testes e o CI de cada PR são evidências técnicas separadas destas observações.
 Não há percentual global de 100% atestado nesta rodada.
+
+## Atualização de infraestrutura — 23:50 Brasília
+
+- PRs #114, #115 e #116 integrados. CI do #116: 1.472 testes em 163 arquivos,
+  compilação, tipos e verificações de segurança aprovados.
+- App Hosting confirmou o SHA ed7a191 (PR #115) como versão atual na primeira
+  inspeção. Às 23:53, a Academia em produção já apresentou a correção do PR #116:
+  “Não apurado”, base local explícita e ações não implementadas desabilitadas.
+- Storage: regras do PR #114 publicadas pelo console, recarregadas e comparadas
+  integralmente ao texto preparado (4.854 caracteres). A fonte de contrato não
+  admite sobrescrita nem exclusão pelo cliente.
+- Workflow manual 38502065853: validação aprovada, incluindo 1.469 testes de
+  aplicação e 129 testes de regras. Deploy falhou antes da publicação porque
+  FIREBASE_SERVICE_ACCOUNT_JSON estava ausente. Não foi criada credencial.
+- Firestore: aplicada proteção fiscal de prestadores sobre a versão que já estava
+  publicada (base 768fcae), sem ampliar as permissões clínicas. Snapshot exato em
+  releases/firestore-2026-10-13.rules. Testes da combinação: 22/22 aprovados em
+  providers-access, tenant-admin-boundary e user-profile, com ambos os emuladores.
+  Após recarregar o console, o texto publicado coincidiu integralmente com o
+  candidato validado (18.508 caracteres).
+  As regras completas da main ainda diferem nas permissões clínicas de médicos;
+  esta implantação parcial não deve ser confundida com publicação integral.
+- Banco principal: backups programados e recuperação pontual desativados.
+  Não foi presumida retenção, orçamento ou capacidade de restauração.
+- Domínio com www conectado no Firebase. Domínio sem www não consta na lista
+  de domínios do backend nesta inspeção.
+- Branch main retornou protected=false. Checks aprovados não equivalem a
+  política obrigatória de revisão/merge.
+
+- Tentativa de configurar proteção da main pelo console foi bloqueada pela
+  revisão automática de aprovação: mudança persistente de controle de acesso
+  exigindo autorização específica. Nenhuma regra foi criada.
