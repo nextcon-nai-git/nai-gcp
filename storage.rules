@@ -44,10 +44,6 @@ service firebase.storage {
         && request.resource.contentType.matches('application/pdf|image/.*');
     }
 
-    function isContractSourcePath(path) {
-      return path.matches('contract-sources/[a-f0-9]{64}');
-    }
-
     function hasClinicalAccess(companyId) {
       let user = getUserData();
       return isSignedIn() && user != null && (
@@ -95,10 +91,12 @@ service firebase.storage {
           : isSignedIn() && (isNextconOfficial() || isCompanyAdmin(companyId)));
     }
 
-    match /internos_nextcon/{allPaths=**} {
+    match /internos_nextcon/{folder}/{allPaths=**} {
       allow read: if isNextconOfficial();
-      allow create, update: if isNextconOfficial() && !isContractSourcePath(allPaths) && isSafeFile();
-      allow delete: if isNextconOfficial() && !isContractSourcePath(allPaths);
+      // Recursive wildcards are paths, not strings. Reserve this entire
+      // namespace so the general rule cannot overwrite a contract source.
+      allow create, update: if isNextconOfficial() && folder != 'contract-sources' && isSafeFile();
+      allow delete: if isNextconOfficial() && folder != 'contract-sources';
     }
 
     match /internos_nextcon/contract-sources/{sourceFile} {
