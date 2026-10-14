@@ -109,6 +109,7 @@ const NAV_MODULES: NavModule[] = [
       { title: "Central do Cliente", icon: LifeBuoy, href: "/client-center", badge: "Novo" },
       { title: "Grupo AVP · Mapa e fila", icon: MapPin, href: "/clients/grupo-avp" },
       { title: "Agendamento de ASO", icon: CalendarDays, href: "/aso-scheduler" },
+      { title: "RD Conversas · Tallos", icon: Network, href: "/integrations/rd-conversas" },
       { title: "Agentes SST", icon: Bot, href: "/agentes-ia" },
       {
         title: "Dashboard Geral",

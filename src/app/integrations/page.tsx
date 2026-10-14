@@ -6,6 +6,13 @@ import { Badge } from "@/components/ui/badge";
 
 const availableModules = [
   {
+    name: "RD Conversas · Tallos",
+    description:
+      "Consulte contatos, operadores, atendimentos e a operação de ASOs. Revise e autorize cada mensagem antes do envio.",
+    href: "/integrations/rd-conversas",
+    action: "Abrir central de atendimento",
+  },
+  {
     name: "Omie financeiro",
     description:
       "Confira a conexão e consulte contas a pagar e a receber com as credenciais configuradas.",
