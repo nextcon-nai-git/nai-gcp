@@ -2,8 +2,6 @@
 
 import * as React from "react";
 import {
-  GraduationCap,
-  Calendar,
   Users,
   Clock,
   CheckCircle2,
@@ -11,7 +9,6 @@ import {
   HardHat,
   Brain,
   Building2,
-  FileText,
   QrCode,
   Zap,
   AlertCircle,
@@ -55,7 +52,9 @@ export default function TrainingDashboard() {
     return REAL_TRAININGS.filter((t) => t.companyId === selectedCompanyId);
   }, [selectedCompanyId]);
 
-  const totalStudents = trainings.reduce((acc, curr) => acc + curr.students.length, 0);
+  const totalStudents = new Set(
+    trainings.flatMap((training) => training.students.map((student) => student.id))
+  ).size;
   const completedHours = trainings.reduce(
     (acc, curr) => acc + (curr.status === "completed" ? curr.totalHours : 0),
     0
@@ -104,23 +103,13 @@ export default function TrainingDashboard() {
                   Assinatura de Presença
                 </DialogTitle>
                 <DialogDescription className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">
-                  Aponte a câmera para registrar sua entrada
+                  Registro de presença indisponível
                 </DialogDescription>
               </DialogHeader>
-              <div className="py-8 flex flex-col items-center gap-6">
-                <div className="size-64 bg-slate-50 rounded-[2rem] border-4 border-dashed border-primary/10 flex items-center justify-center relative overflow-hidden group">
-                  <QrCode className="size-48 text-primary opacity-80 group-hover:scale-110 transition-transform duration-500" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-primary/5 to-transparent" />
-                </div>
-                <div className="space-y-2">
-                  <Badge className="bg-emerald-100 text-emerald-700 border-none uppercase font-black text-[9px]">
-                    Sessão Ativa: NR-18
-                  </Badge>
-                  <p className="text-xs text-slate-500 italic">
-                    "Geolocalização e Biometria Facial ativas para conformidade NR-01."
-                  </p>
-                </div>
-              </div>
+              <p className="py-8 text-sm text-slate-600">
+                Não há sessão de treinamento conectada. QR Code, geolocalização e biometria não
+                estão implementados nesta tela; nenhuma presença é registrada aqui.
+              </p>
               <Button
                 onClick={() => setShowQr(false)}
                 className="w-full h-14 bg-primary text-white font-black uppercase text-xs rounded-2xl"
@@ -129,37 +118,46 @@ export default function TrainingDashboard() {
               </Button>
             </DialogContent>
           </Dialog>
-          <Button className="bg-primary text-white gap-2 h-11 px-6 shadow-lg font-bold uppercase text-[10px]">
+          <Button
+            disabled
+            title="Funcionalidade ainda não disponível"
+            className="bg-primary text-white gap-2 h-11 px-6 shadow-lg font-bold uppercase text-[10px]"
+          >
             <Zap className="size-4" /> Novo Treinamento
           </Button>
         </div>
       </header>
 
+      <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
+        Base de treinamentos ainda não conectada. Os registros abaixo são locais; cadastro,
+        presença, trilhas e emissão de certificados estão indisponíveis. Indicadores sem fonte
+        aparecem como “Não apurado”.
+      </p>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <KpiCard
-          label="Alunos Ativos"
-          value={totalStudents}
+          label="Alunos nos registros locais"
+          value={trainings.length ? totalStudents : "Não apurado"}
           icon={Users}
           color="text-blue-600"
           bg="bg-blue-50"
         />
         <KpiCard
-          label="Horas Presenciais"
-          value={`${completedHours}h`}
+          label="Horas concluídas registradas"
+          value={trainings.length ? `${completedHours}h` : "Não apurado"}
           icon={Clock}
           color="text-emerald-600"
           bg="bg-emerald-50"
         />
         <KpiCard
           label="Capacitação Mensal"
-          value="40h / 5 Dias"
+          value="Não apurado"
           icon={HardHat}
           color="text-orange-600"
           bg="bg-orange-50"
         />
         <KpiCard
           label="Conformidade Digital"
-          value="98%"
+          value="Não apurado"
           icon={CheckCircle2}
           color="text-accent"
           bg="bg-accent/5"
@@ -201,7 +199,7 @@ export default function TrainingDashboard() {
                   </CardDescription>
                 </div>
                 <Badge className="bg-[#001F3F] text-white font-black uppercase text-[10px] px-4 h-8 flex items-center shadow-lg">
-                  FEVEREIRO 2026
+                  REGISTROS LOCAIS
                 </Badge>
               </CardHeader>
               <CardContent className="p-8">
@@ -240,29 +238,7 @@ export default function TrainingDashboard() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-5 gap-3 h-20">
-                        {["Seg", "Ter", "Qua", "Qui", "Sex"].map((day, i) => (
-                          <div key={day} className="flex flex-col gap-2">
-                            <div
-                              className={cn(
-                                "flex-1 rounded-2xl border-2 border-dashed flex items-center justify-center transition-all shadow-inner",
-                                i < 3 || trn.status === "completed"
-                                  ? "bg-accent/10 border-accent/30 text-accent"
-                                  : "bg-slate-50 border-slate-200 text-slate-300 opacity-40"
-                              )}
-                            >
-                              {i < 3 || trn.status === "completed" ? (
-                                <CheckCircle2 className="size-5" />
-                              ) : (
-                                <Calendar className="size-5" />
-                              )}
-                            </div>
-                            <span className="text-[9px] font-black uppercase text-center text-slate-400 tracking-tighter">
-                              {day}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
+                      <p className="text-sm text-slate-500">Presença diária não informada.</p>
 
                       <div className="flex items-center justify-between pt-2 border-t border-dashed">
                         <div className="flex gap-2">
@@ -277,6 +253,8 @@ export default function TrainingDashboard() {
                           ))}
                         </div>
                         <Button
+                          disabled
+                          title="Funcionalidade ainda não disponível"
                           variant="ghost"
                           size="sm"
                           className="h-8 text-[9px] font-black uppercase gap-2"
@@ -311,11 +289,15 @@ export default function TrainingDashboard() {
                 <CardContent className="p-8 pt-0 space-y-6">
                   <div className="p-5 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-md">
                     <p className="text-sm italic leading-relaxed text-white/80">
-                      "O engajamento digital na rede subiu 15%. Turmas presenciais com QR Code
-                      reduziram o tempo de processamento de certificados."
+                      Não há dados conectados para calcular engajamento, presença ou tempo de
+                      emissão de certificados.
                     </p>
                   </div>
-                  <Button className="w-full h-14 bg-accent text-primary font-black uppercase text-[10px] rounded-xl shadow-xl hover:opacity-90">
+                  <Button
+                    disabled
+                    title="Funcionalidade ainda não disponível"
+                    className="w-full h-14 bg-accent text-primary font-black uppercase text-[10px] rounded-xl shadow-xl hover:opacity-90"
+                  >
                     Analisar Gap de Treinamento
                   </Button>
                 </CardContent>
@@ -355,7 +337,7 @@ export default function TrainingDashboard() {
                             Módulo 1: Cultura de Segurança
                           </span>
                           <Badge className="bg-emerald-100 text-emerald-700 text-[8px]">
-                            LIBERADO
+                            INDISPONÍVEL
                           </Badge>
                         </div>
                         <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl opacity-60">
@@ -366,7 +348,11 @@ export default function TrainingDashboard() {
                         </div>
                       </div>
                     </div>
-                    <Button className="w-full h-12 bg-primary text-white font-black uppercase text-[10px] rounded-xl shadow-lg gap-2">
+                    <Button
+                      disabled
+                      title="Funcionalidade ainda não disponível"
+                      className="w-full h-12 bg-primary text-white font-black uppercase text-[10px] rounded-xl shadow-lg gap-2"
+                    >
                       Iniciar Trilha <ArrowRight className="size-3" />
                     </Button>
                   </CardContent>
@@ -407,6 +393,8 @@ export default function TrainingDashboard() {
                       </div>
                     </div>
                     <Button
+                      disabled
+                      title="Funcionalidade ainda não disponível"
                       variant="outline"
                       className="w-full h-12 border-primary text-primary font-black uppercase text-[10px] rounded-xl gap-2"
                     >
@@ -428,19 +416,18 @@ export default function TrainingDashboard() {
                     Biblioteca Técnica NAI
                   </h3>
                   <p className="text-sm text-slate-600 leading-relaxed font-medium italic">
-                    "Centralizamos todos os materiais didáticos, vídeos instrucionais e guias de
-                    normas para que a expertise técnica da rede seja escalável e perene."
+                    Acervo didático ainda não conectado. Documentos e acessos não foram apurados.
                   </p>
                   <div className="flex gap-4 pt-4">
                     <div className="flex flex-col">
-                      <span className="text-2xl font-black text-primary">124</span>
+                      <span className="text-2xl font-black text-primary">Não apurado</span>
                       <span className="text-[8px] font-black uppercase text-slate-400">
                         Documentos Registrados
                       </span>
                     </div>
                     <div className="h-8 w-px bg-slate-200 mx-4 self-center" />
                     <div className="flex flex-col">
-                      <span className="text-2xl font-black text-primary">850</span>
+                      <span className="text-2xl font-black text-primary">Não apurado</span>
                       <span className="text-[8px] font-black uppercase text-slate-400">
                         Acessos este Mês
                       </span>
@@ -463,8 +450,8 @@ export default function TrainingDashboard() {
                     Treinamento Ágil
                   </h3>
                   <p className="text-xs text-white/60 leading-relaxed font-medium">
-                    O aprendizado rápido de novos colaboradores é garantido por materiais dinâmicos
-                    e trilhas automatizadas pela NAI.
+                    Trilhas, materiais e evidências de conclusão precisam ser conectados antes de
+                    avaliar o aprendizado.
                   </p>
                   <div className="space-y-3">
                     <div className="flex items-center gap-3 p-3 bg-white/5 rounded-2xl border border-white/10">
@@ -507,7 +494,7 @@ export default function TrainingDashboard() {
                       <div>
                         <p className="text-xs font-bold text-primary uppercase">{student.name}</p>
                         <p className="text-[9px] text-slate-400 font-bold uppercase">
-                          Expira em: 12/2026
+                          Validade não informada
                         </p>
                       </div>
                     </div>
@@ -528,7 +515,11 @@ export default function TrainingDashboard() {
               </div>
             </CardContent>
             <div className="p-6 bg-slate-50 border-t">
-              <Button className="w-full h-12 bg-primary text-white font-black uppercase text-[10px] tracking-widest rounded-xl shadow-lg gap-2">
+              <Button
+                disabled
+                title="Funcionalidade ainda não disponível"
+                className="w-full h-12 bg-primary text-white font-black uppercase text-[10px] tracking-widest rounded-xl shadow-lg gap-2"
+              >
                 <FileCheck className="size-4 text-accent" /> Auditar Certificados
               </Button>
             </div>
@@ -539,7 +530,19 @@ export default function TrainingDashboard() {
   );
 }
 
-function KpiCard({ label, value, icon: Icon, color, bg }: any) {
+function KpiCard({
+  label,
+  value,
+  icon: Icon,
+  color,
+  bg,
+}: {
+  label: string;
+  value: string | number;
+  icon: typeof Users;
+  color: string;
+  bg: string;
+}) {
   return (
     <Card className="border-none shadow-sm bg-white rounded-3xl group hover:ring-2 ring-primary/5 transition-all overflow-hidden text-left">
       <CardContent className="p-6">
@@ -548,7 +551,7 @@ function KpiCard({ label, value, icon: Icon, color, bg }: any) {
             <Icon className="size-5" />
           </div>
           <Badge variant="outline" className="text-[8px] font-black uppercase text-slate-300">
-            Live
+            Base local
           </Badge>
         </div>
         <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest mb-1">

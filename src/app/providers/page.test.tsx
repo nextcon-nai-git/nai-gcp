@@ -24,6 +24,8 @@ const mocks = vi.hoisted(() => ({
       | {
           id: string;
           name: string;
+          phone?: string;
+          whatsapp?: string;
           profession?: string;
           type?: string;
           councilNumber?: string;
@@ -109,6 +111,19 @@ afterEach(async () => {
 });
 
 describe("providers page authorization state", () => {
+  it.each(["(41) 99999-9999", "+55 (41) 99999-9999"])(
+    "does not duplicate country code in invitation links: %s",
+    async (phone) => {
+      mocks.session.isUserLoading = false;
+      mocks.collection.data = [{ id: "synthetic-provider", name: "Teste Sintético", phone }];
+      await act(async () => root.render(<ProvidersManagement />));
+      const link = container.querySelector<HTMLAnchorElement>(
+        'a[aria-label="Preparar convite WhatsApp para Teste Sintético"]'
+      );
+      expect(link?.href).toContain("https://wa.me/5541999999999?text=");
+    }
+  );
+
   it("hides previously loaded provider data when the live profile loses internal scope", async () => {
     await act(async () => root.render(<ProvidersManagement />));
     expect(container.textContent).toContain("Verificando autorização");

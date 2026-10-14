@@ -109,6 +109,7 @@ import { enriquecerDadosEmpresa } from "@/actions/company-enrichment";
 import { analyzeProviderContract } from "@/ai/flows/provider-contract-analysis-flow";
 import Papa from "papaparse";
 import { useSgi } from "@/contexts/sgi-context";
+import { getWhatsAppLink } from "@/lib/whatsapp-utils";
 import { generateProviderInviteMessage } from "@/lib/domain-config";
 import {
   canKeepProviderActive,
@@ -1298,7 +1299,14 @@ export default function ProvidersManagement() {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <a
-                                  href={`https://wa.me/55${(provider.whatsapp || provider.phone || "").replace(/\D/g, "")}?text=${encodeURIComponent(generateProviderInviteMessage(provider.name, provider.email || "seu@email.com.br"))}`}
+                                  href={getWhatsAppLink(
+                                    provider.whatsapp || provider.phone || "",
+                                    generateProviderInviteMessage(
+                                      provider.name,
+                                      provider.email || "seu@email.com.br"
+                                    )
+                                  )}
+                                  aria-label={`Preparar convite WhatsApp para ${provider.name}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={(e) => e.stopPropagation()}
