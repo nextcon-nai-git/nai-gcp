@@ -44,13 +44,9 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useCollection, useMemoFirebase, useStorage, useUser } from "@/firebase";
 import { updatePgrTask } from "@/hooks/use-pgr-workspace";
-import { doc, collection, query, orderBy, where } from "firebase/firestore";
+import { doc, collection, query, orderBy, where, updateDoc, deleteDoc } from "firebase/firestore";
 import { useSgi } from "@/contexts/sgi-context";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import {
-  updateDocumentNonBlocking,
-  deleteDocumentNonBlocking,
-} from "@/firebase/non-blocking-updates";
 import { cn } from "@/lib/utils";
 import { STORAGE_PATHS } from "@/lib/storage-paths";
 import { PgrAgentReview } from "@/components/pgr-agent-review";
@@ -67,6 +63,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
   const db = useFirestore();
   const storage = useStorage();
   const [isSaving, setIsSaving] = React.useState(false);
+  const [isDeleting, setIsDeleting] = React.useState(false);
   const [editedTask, setEditedTask] = React.useState<OpsTask>(task);
   const [newChecklistItem, setNewChecklistItem] = React.useState("");
 
@@ -200,7 +197,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
   };
 
   const handleSave = async () => {
-    if (!db || !task.companyId) return;
+    if (!db || !task.companyId || isSaving || isDeleting) return;
     setIsSaving(true);
     try {
       const taskRef = doc(db, "companies", task.companyId, "tasks", task.id);
@@ -244,7 +241,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
           checklist: updateData.checklist,
           lastComment: updateData.lastComment,
         });
-      } else updateDocumentNonBlocking(taskRef, updateData);
+      } else await updateDoc(taskRef, updateData);
       toast({ title: "Task Atualizada", description: "Alterações protocoladas no SGI." });
       onOpenChange(false);
     } catch (e) {
@@ -258,13 +255,25 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
     }
   };
 
-  const handleDelete = () => {
-    if (!db || !task.companyId || imported) return;
+  const handleDelete = async () => {
+    if (!db || !task.companyId || imported || isSaving || isDeleting) return;
     if (confirm("Deseja excluir permanentemente esta tarefa?")) {
-      const taskRef = doc(db, "companies", task.companyId, "tasks", task.id);
-      deleteDocumentNonBlocking(taskRef);
-      toast({ title: "Task Removida" });
-      onOpenChange(false);
+      setIsDeleting(true);
+      try {
+        const taskRef = doc(db, "companies", task.companyId, "tasks", task.id);
+        await deleteDoc(taskRef);
+        toast({ title: "Task Removida" });
+        onOpenChange(false);
+      } catch {
+        toast({
+          variant: "destructive",
+          title: "Erro ao Excluir",
+          description:
+            "A exclusão não foi confirmada. Confira o registro antes de tentar novamente.",
+        });
+      } finally {
+        setIsDeleting(false);
+      }
     }
   };
 
@@ -709,7 +718,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
             <Button
               variant="outline"
               onClick={handleDelete}
-              disabled={task.sourceType === "pgr"}
+              disabled={task.sourceType === "pgr" || isSaving || isDeleting}
               title={
                 task.sourceType === "pgr"
                   ? "Arquive o card no quadro para preservar as evidências do documento."
@@ -717,11 +726,12 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
               }
               className="flex-1 h-14 rounded-2xl font-black uppercase text-[10px] border-red-200 text-red-500 hover:bg-red-50 gap-2"
             >
-              <Trash2 size={16} /> Excluir Registro
+              {isDeleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 size={16} />}{" "}
+              Excluir Registro
             </Button>
             <Button
               onClick={handleSave}
-              disabled={isSaving}
+              disabled={isSaving || isDeleting}
               className="flex-1 h-14 bg-primary text-white font-black uppercase text-[10px] rounded-2xl shadow-xl gap-3"
             >
               {isSaving ? (

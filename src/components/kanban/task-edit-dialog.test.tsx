@@ -8,6 +8,9 @@ const state = vi.hoisted(() => ({
   user: { uid: "reviewer" },
   db: {},
   updatePgrTask: vi.fn().mockResolvedValue(undefined),
+  updateDoc: vi.fn(),
+  deleteDoc: vi.fn(),
+  onOpenChange: vi.fn(),
   toast: vi.fn(),
 }));
 vi.mock("@/firebase", () => ({
@@ -23,6 +26,8 @@ vi.mock("firebase/firestore", () => ({
   query: () => ({}),
   orderBy: () => ({}),
   where: () => ({}),
+  updateDoc: state.updateDoc,
+  deleteDoc: state.deleteDoc,
 }));
 vi.mock("@/hooks/use-pgr-workspace", () => ({ updatePgrTask: state.updatePgrTask }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: state.toast }) }));
@@ -78,6 +83,13 @@ function fixture(clinical = false): OpsTask {
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   state.updatePgrTask.mockClear();
+  state.updateDoc.mockReset().mockResolvedValue(undefined);
+  state.deleteDoc.mockReset().mockResolvedValue(undefined);
+  state.onOpenChange.mockClear();
+  vi.stubGlobal(
+    "confirm",
+    vi.fn(() => true)
+  );
   state.toast.mockClear();
   element = document.createElement("div");
   document.body.appendChild(element);
@@ -90,7 +102,9 @@ afterEach(async () => {
 });
 
 async function render(task: OpsTask) {
-  await act(async () => root.render(<TaskEditDialog task={task} isOpen onOpenChange={() => {}} />));
+  await act(async () =>
+    root.render(<TaskEditDialog task={task} isOpen onOpenChange={state.onOpenChange} />)
+  );
 }
 const inputWith = (value: string) =>
   Array.from(element.querySelectorAll("input")).find((input) => input.value === value)!;
@@ -142,5 +156,72 @@ describe("Imported operation card editing", () => {
     expect(element.querySelector<HTMLButtonElement>('button[role="checkbox"]')?.disabled).toBe(
       false
     );
+  });
+});
+
+const actionButton = (action: "save" | "delete") =>
+  Array.from(element.querySelectorAll("button")).find((button) =>
+    button.textContent?.includes(action === "save" ? "Protocolar Alterações" : "Excluir Registro")
+  )!;
+const manualTask = (): OpsTask => ({ ...fixture(), sourceType: undefined });
+
+describe("Confirmed persistence for manual operation cards", () => {
+  it.each(["save", "delete"] as const)(
+    "waits for %s before reporting success or closing",
+    async (action) => {
+      let complete!: () => void;
+      const pending = new Promise<void>((resolve) => {
+        complete = resolve;
+      });
+      const mutation = action === "save" ? state.updateDoc : state.deleteDoc;
+      mutation.mockReturnValueOnce(pending);
+      await render(manualTask());
+      await act(async () => actionButton(action).click());
+      expect(mutation).toHaveBeenCalledOnce();
+      expect(state.toast).not.toHaveBeenCalled();
+      expect(state.onOpenChange).not.toHaveBeenCalled();
+      expect(actionButton("save").disabled).toBe(true);
+      expect(actionButton("delete").disabled).toBe(true);
+      await act(async () => {
+        actionButton("save").click();
+        actionButton("delete").click();
+      });
+      expect(mutation).toHaveBeenCalledOnce();
+      await act(async () => {
+        complete();
+        await pending;
+      });
+      expect(state.toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: action === "save" ? "Task Atualizada" : "Task Removida",
+        })
+      );
+      expect(state.onOpenChange).toHaveBeenCalledWith(false);
+    }
+  );
+
+  it.each(["save", "delete"] as const)(
+    "keeps the editor open when %s is rejected",
+    async (action) => {
+      const mutation = action === "save" ? state.updateDoc : state.deleteDoc;
+      mutation.mockRejectedValueOnce(new Error("Permission denied"));
+      await render(manualTask());
+      await act(async () => actionButton(action).click());
+      expect(state.onOpenChange).not.toHaveBeenCalled();
+      expect(state.toast).toHaveBeenCalledOnce();
+      expect(state.toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" }));
+      expect(inputWith("Revisão do documento")).toBeDefined();
+      expect(actionButton("save").disabled).toBe(false);
+      expect(actionButton("delete").disabled).toBe(false);
+    }
+  );
+
+  it("does not delete or announce success when confirmation is cancelled", async () => {
+    vi.mocked(confirm).mockReturnValueOnce(false);
+    await render(manualTask());
+    await act(async () => actionButton("delete").click());
+    expect(state.deleteDoc).not.toHaveBeenCalled();
+    expect(state.toast).not.toHaveBeenCalled();
+    expect(state.onOpenChange).not.toHaveBeenCalled();
   });
 });
