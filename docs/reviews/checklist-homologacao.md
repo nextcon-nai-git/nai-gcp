@@ -107,3 +107,12 @@ legados, separação de identidades, persistência sem título automático, bloq
 de cobranças cujo vencimento depende de emissão/grade e distinção entre validade
 impressa e consulta ao emissor. Eles não substituem regras no emulador, revisão
 de contrato por responsável, homologação real ou teste de restauração.
+
+Validação local no Node 24: `npm run ci` passou (formatação, lint com zero erros
+e 1.303 avisos, TypeScript, **1.483 testes em 164 arquivos** com cobertura de
+44,72% linhas, e build). `npm run test:rules` não iniciou: o ambiente tem Java
+17, mas Firebase CLI 15.33.0 exige Java 21; instalar JDK no ambiente foi
+bloqueado por falta de permissão. CodeQL não encontrou alertas; o backend de
+revisão automatizada estava indisponível. A varredura de segredos não encontrou
+segredos nos arquivos alterados. Nenhum check hospedado ou deploy foi executado
+por esta validação local.
