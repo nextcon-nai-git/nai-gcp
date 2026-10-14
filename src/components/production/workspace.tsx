@@ -745,7 +745,7 @@ function RecordForm({
               required
             />
             <label className="flex items-start gap-2 text-sm">
-              <input type="checkbox" required />
+              <input key={String(revision) + document?.source.sha256} type="checkbox" required />
               Conferi o cliente, o documento original e os dados. Autorizo salvar esta versão e
               gerar as tarefas, sem autorizar envio externo.
             </label>
@@ -790,8 +790,14 @@ function RecordView({
           {record.companyName} · {record.cnpj} · Gestor: {record.owner}
         </p>
         <p className="text-sm">
-          {record.active ? "Contrato ativo" : "Contrato encerrado"} · {p.completed}/{p.total} cards
-          concluídos · {record.revisions.length} versão(ões)
+          {record.active
+            ? record.formalizedAt
+              ? "Contrato ativo"
+              : "Em negociação / formalização"
+            : record.formalizedAt
+              ? "Contrato encerrado"
+              : "Negociação encerrada"}{" "}
+          · {p.completed}/{p.total} cards concluídos · {record.revisions.length} versão(ões)
         </p>
         <div className="mt-3 grid gap-2 sm:grid-cols-4">
           {(
@@ -956,6 +962,58 @@ function RecordView({
         <>
           <details className="rounded border p-3">
             <summary>Escopo preservado deste ciclo · revisão {cycle.revision + 1}</summary>
+            <form
+              className="my-3 space-y-3"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                try {
+                  const f = new FormData(e.currentTarget);
+                  await mutate({
+                    action: "replan",
+                    recordId: record.id,
+                    cycleId: cycle.id,
+                    revision: Number(value(f, "revision")),
+                    contractedCents: value(f, "value") ? amount(f, "value") : null,
+                    reason: value(f, "reason"),
+                    reviewed: true,
+                  });
+                } catch (e) {
+                  setError((e as Error).message);
+                }
+              }}
+            >
+              <fieldset className="space-y-3" disabled={disabled || !record.active}>
+                <label className="text-sm">
+                  Replanejar ciclo não iniciado com aditivo aprovado
+                  <select
+                    className={inputClass}
+                    name="revision"
+                    defaultValue={record.revisions.length - 1}
+                  >
+                    {record.revisions.map((r, n) => (
+                      <option key={n} value={n}>
+                        Revisão {n + 1} · efeito {r.effectiveOn}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Field
+                  name="value"
+                  label="Valor revisado deste ciclo (R$); vazio = pendente"
+                  type="number"
+                  defaultValue={cycle.contractedCents === null ? "" : cycle.contractedCents / 100}
+                />
+                <TextField name="reason" label="Aprovação e impacto do replanejamento" required />
+                <label className="flex gap-2 text-sm">
+                  <input type="checkbox" required />
+                  Conferi a vigência aplicável e confirmo que este ciclo não foi iniciado.
+                  Autorizações anteriores de antecipação serão removidas.
+                </label>
+                <Button type="submit" variant="outline">
+                  Aplicar revisão ao ciclo planejado
+                </Button>
+              </fieldset>
+            </form>
             <p className="whitespace-pre-wrap text-sm">
               {record.revisions[cycle.revision].terms.scope}
             </p>
@@ -1104,7 +1162,11 @@ function RecordView({
               Conferi vigência, recorrência, obrigações e pendências.
             </label>
             <Button type="submit" variant="outline">
-              {record.active ? "Encerrar contrato inteiro" : "Reativar contrato"}
+              {record.active
+                ? record.formalizedAt
+                  ? "Encerrar contrato inteiro"
+                  : "Encerrar negociação sem contratação"
+                : "Reativar registro"}
             </Button>
           </fieldset>
         </form>

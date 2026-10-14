@@ -8,6 +8,10 @@ const note = z.string().trim().min(3).max(2000);
 const date = z.string().refine(isCalendarDate, "Data inválida.");
 const optionalDate = z.union([z.literal(""), date]);
 const cents = z.number().int().min(0).max(100_000_000_000);
+const contracted = cents.refine(
+  (v) => v > 0,
+  "Informe valor contratado positivo ou deixe pendente. Ciclos gratuitos não são suportados nesta esteira de faturamento."
+);
 export const SourceSchema = z
   .object({
     sha256: z.string().regex(/^[a-f0-9]{64}$/),
@@ -34,7 +38,7 @@ export const TermsSchema = z
     scope: note,
     units: z.string().max(1000),
     deliverables: z.string().max(2000),
-    valueCents: cents.nullable(),
+    valueCents: contracted.nullable(),
     startsOn: optionalDate,
     endsOn: optionalDate,
     paymentTerms: z.string().max(2000),
@@ -71,7 +75,7 @@ const CycleSchema = z.object({
   service: label,
   period: label,
   revision: z.number().int().nonnegative(),
-  contractedCents: cents.nullable(),
+  contractedCents: contracted.nullable(),
   cards: z.array(CardSchema).length(6),
   advanceEvidence: z.string().max(2000),
   measuredCents: cents,
@@ -145,6 +149,17 @@ export const CommandSchema = z.discriminatedUnion("action", [
   z
     .object({
       ...common,
+      action: z.literal("replan"),
+      cycleId: id,
+      revision: z.number().int().nonnegative(),
+      contractedCents: contracted.nullable(),
+      reason: note,
+      reviewed: z.literal(true),
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
       action: z.literal("revise"),
       terms: TermsSchema,
       effectiveOn: date,
@@ -189,7 +204,7 @@ export const CommandSchema = z.discriminatedUnion("action", [
       service: label,
       period: label,
       revision: z.number().int().nonnegative(),
-      contractedCents: cents.nullable(),
+      contractedCents: contracted.nullable(),
       advanceEvidence: z.string().max(2000),
     })
     .strict(),
@@ -356,8 +371,12 @@ export function applyCommand(
       record.cycles[0].contractedCents = command.terms.valueCents;
     }
     if (command.action === "document" || command.action === "amend") {
-      if (record.documents.some((d) => d.source.sha256 === command.document.source.sha256))
-        fail("Documento já anexado.");
+      if (
+        next.records.some((r) =>
+          r.documents.some((d) => d.source.sha256 === command.document.source.sha256)
+        )
+      )
+        fail("Documento já anexado a um registro da central.");
       if (command.action === "document" && command.document.kind === "aditivo")
         fail("Use a aprovação de aditivo para registrar seus efeitos.");
       if (command.action === "amend") {
@@ -380,6 +399,10 @@ export function applyCommand(
       record.documents.push(command.document);
     }
     if (command.action === "cycle") {
+      if (!record.formalizedAt)
+        fail(
+          "Formalize o contrato antes de criar ciclos adicionais. Corrija os dados iniciais usando a revisão inicial."
+        );
       if (
         record.cycles.some(
           (c) =>
@@ -411,6 +434,27 @@ export function applyCommand(
         adjustmentEvidence: "",
         financeTitleId: "",
       });
+    }
+    if (command.action === "replan") {
+      const cycle =
+        record.cycles.find((c) => c.id === command.cycleId) || fail("Ciclo não encontrado.");
+      if (!record.revisions[command.revision] || command.revision <= cycle.revision)
+        fail("Selecione uma revisão posterior aprovada.");
+      if (
+        cycle.cards.some((c) => c.status !== "todo" && c.status !== "blocked") ||
+        cycle.measuredCents ||
+        cycle.invoicedCents ||
+        cycle.receivedCents ||
+        cycle.adjustmentCents ||
+        cycle.financeTitleId
+      )
+        fail(
+          "Somente ciclos ainda não iniciados e sem movimentação financeira podem ser replanejados. Preserve o histórico do trabalho executado."
+        );
+      cycle.revision = command.revision;
+      cycle.contractedCents = command.contractedCents;
+      // An old advance authorization does not automatically authorize the amended terms.
+      cycle.advanceEvidence = "";
     }
     if (command.action === "card") {
       const cycle = record.cycles.find((c) => c.id === command.cycleId);
@@ -523,8 +567,28 @@ export function applyCommand(
     }
     if (command.action === "linkFinance") record.financeContractId = command.financeContractId;
     if (command.action === "active") {
-      if (!command.active && record.cycles.some((c) => !c.cards.every(complete)))
+      if (
+        !command.active &&
+        record.formalizedAt &&
+        record.cycles.some((c) => !c.cards.every(complete))
+      )
         fail("Existem ciclos pendentes. Resolva-os antes de encerrar o contrato.");
+      if (
+        !command.active &&
+        !record.formalizedAt &&
+        record.cycles.some(
+          (c) =>
+            c.cards.some((x) => x.status === "doing" || complete(x)) ||
+            c.measuredCents ||
+            c.invoicedCents ||
+            c.receivedCents ||
+            c.adjustmentCents ||
+            c.financeTitleId
+        )
+      )
+        fail(
+          "Existem execução ou registros financeiros. Resolva as pendências antes de cancelar a negociação."
+        );
       record.active = command.active;
     }
   }
@@ -544,7 +608,16 @@ export function applyCommand(
           : "Novo ciclo",
     details: JSON.stringify(command),
   });
-  return BookSchema.parse(next);
+  const validated = BookSchema.safeParse(next);
+  if (!validated.success) {
+    if (validated.error.issues.some((issue) => issue.code === "too_big"))
+      throw new ProductionError(
+        "Limite operacional da central atingido. Preserve o histórico e solicite particionamento antes de novos registros.",
+        413
+      );
+    throw new ProductionError("Estado inválido: " + validated.error.issues[0]?.message, 422);
+  }
+  return validated.data;
 }
 export function progress(record: ProductionRecord) {
   const cards = [...record.commercial, ...record.cycles.flatMap((c) => c.cards)];

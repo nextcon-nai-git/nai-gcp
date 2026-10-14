@@ -129,6 +129,11 @@ describe("private central persistence", () => {
     expect(state.writes).toBe(1);
     expect(b.records[0].companyName).toBe("Cliente");
   });
+  it("rejects soft-deleted customers even when still active", async () => {
+    state.company.isDeleted = true;
+    await expect(saveProductionCommand(admin, command())).rejects.toMatchObject({ status: 400 });
+    expect(state.writes).toBe(0);
+  });
   it("rejects inactive or mismatched customer", async () => {
     state.company.active = false;
     await expect(saveProductionCommand(admin, command())).rejects.toMatchObject({ status: 400 });

@@ -8,18 +8,19 @@ Entrada: `/production`, também vinculada no menu, em Contratos e em Agentes IA.
 2. A confirmação cria três cards comerciais e seis cards no ciclo inicial. Cada card contém instrução de trabalho, checklist, responsável, prazo, evidências, bloqueios e histórico. O orçamento e a proposta podem ser marcados não aplicáveis com justificativa para um contrato existente.
 3. Antes da formalização, dados pendentes podem ser corrigidos por revisão inicial. Depois de formalizado, alterações comerciais usam aditivo com documento e aprovação. Ciclos anteriores mantêm a versão e os valores originais.
 4. Novos serviços/competências criam seis cards e selecionam explicitamente a versão contratual aplicável. A central não cria cobranças nem competências futuras silenciosamente.
-5. Medição, NF válida/cobrança e recebimentos conciliados são registrados com evidências distintas. Uma cláusula aprovada pode permitir medição antecipada; o ciclo somente encerra após entrega e quitação. A conclusão de um ciclo não encerra contrato recorrente.
+5. Medição, NF válida/cobrança e recebimentos conciliados são registrados com evidências distintas. Uma cláusula aprovada pode permitir medição antecipada; o ciclo somente encerra após entrega e quitação. A conclusão de um ciclo não encerra contrato recorrente. Negociações recusadas sem execução ou movimentação financeira podem ser encerradas com justificativa, sem simular conclusão de serviço.
 6. O vínculo opcional ao ERP valida contrato ativo e CNPJ do fluxo financeiro. Títulos devem ser recebíveis aprovados do mesmo contrato e valor; recebimentos e ajustes são conferidos contra baixas não estornadas ao salvar e ao encerrar. Juros e multas ficam no ERP, fora do principal do ciclo. Nenhum lançamento é criado ou alterado pela central.
 7. A aba Instruções de trabalho contém nove procedimentos v1.0 (entradas, quatro passos, responsáveis, saídas e exceções). A aba Agentes IA oferece NAI Comercial, NAI Operacional e NAI Faturamento, cada qual com contexto cadastrado no servidor e o procedimento da sua etapa.
 
 ## Limites explícitos
 
 - A central completa usa a mesma autorização do livro financeiro: SUPER_ADMIN e ADMIN sem tenant. Não amplia acesso de clientes, prestadores ou equipes técnicas a valores e contratos corporativos.
+- Valores contratados devem ser positivos ou permanecer pendentes; ciclos gratuitos não são suportados nesta esteira de faturamento. Novos ciclos exigem formalização do contrato.
 - Nenhuma mensagem/e-mail é enviada. Os agentes não possuem ferramentas de mutação, emissão fiscal, assinatura, pagamento ou comunicação; respostas são orientações e rascunhos revisáveis.
 - Emissão fiscal permanece no emissor habilitado. Registrar uma NF na central não emite nota fiscal, não valida situação no fisco e não cria cobrança no Omie. O responsável deve conferir evidência da autorização fiscal.
 - Documentos PDF são preservados no namespace imutável existente, por SHA-256 e geração. Outros formatos devem ser convertidos em PDF. Assinaturas não são validadas pela IA.
 - Não há migração automática do histórico do onboarding antigo. Cadastre contratos existentes na central, vincule o mesmo cliente/ERP e justifique etapas anteriores sem duplicar lançamentos financeiros.
-- Aditivos afetam novos ciclos selecionados explicitamente; não reescrevem trabalho ou faturamento anteriores. Correções financeiras exigem reabrir cards dependentes, preservando auditoria.
+- Aditivos afetam novos ciclos selecionados explicitamente. Ciclos ainda não iniciados e sem movimentação podem ser replanejados mediante aprovação; a autorização antiga de antecipação é removida. Trabalho ou faturamento anteriores não são reescritos. Correções financeiras exigem reabrir cards dependentes, preservando auditoria.
 
 ## Persistência e validação
 

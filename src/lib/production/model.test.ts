@@ -102,6 +102,124 @@ const bill = {
   financeTitleId: "",
 };
 describe("production lifecycle", () => {
+  it("blocks additional cycles before formalization without blocking initial corrections", () => {
+    const b = initial();
+    expect(() =>
+      apply(b, {
+        action: "cycle",
+        cycleId: "c2",
+        service: "Novo serviço",
+        period: "2026-11",
+        revision: 0,
+        contractedCents: 10000,
+        advanceEvidence: "",
+      })
+    ).toThrow("Formalize");
+    expect(
+      apply(b, {
+        action: "revise",
+        terms,
+        effectiveOn: "2026-10-01",
+        evidence: "Dados corrigidos",
+        reviewed: true,
+      }).version
+    ).toBe(2);
+  });
+  it("rejects attaching the same source to another existing record", () => {
+    let b = initial();
+    b = apply(b, {
+      ...create(),
+      requestId: randomUUID(),
+      expectedVersion: b.version,
+      recordId: "r2",
+      document: null,
+    });
+    expect(() =>
+      apply(b, { action: "document", recordId: "r2", document, evidence: "Nova vinculação" })
+    ).toThrow("já anexado");
+  });
+  it("rejects zero-price contracts and cycles instead of creating unclosable free billing", () => {
+    const c = create();
+    expect(CommandSchema.safeParse({ ...c, terms: { ...terms, valueCents: 0 } }).success).toBe(
+      false
+    );
+    expect(
+      CommandSchema.safeParse({
+        action: "cycle",
+        recordId: "r1",
+        requestId: randomUUID(),
+        expectedVersion: 1,
+        cycleId: "c2",
+        service: "Gratuito",
+        period: "2026-11",
+        revision: 0,
+        contractedCents: 0,
+        advanceEvidence: "",
+      }).success
+    ).toBe(false);
+  });
+  it("returns a deterministic capacity error without modifying the stored book", () => {
+    const b = initial();
+    b.audit = Array.from({ length: 20000 }, (_, n) => ({
+      ...b.audit[0],
+      requestId: randomUUID(),
+      hash: String(n),
+    }));
+    try {
+      apply(b, { action: "active", active: false, reason: "Cancelado pelo cliente" });
+      throw new Error("Expected capacity rejection");
+    } catch (e) {
+      expect(e).toMatchObject({ status: 413 });
+    }
+    expect(b.records[0].active).toBe(true);
+    expect(b.version).toBe(1);
+  });
+
+  it("closes a rejected proposal without inventing completed service cards", () => {
+    const b = apply(initial(), {
+      action: "active",
+      active: false,
+      reason: "Proposta recusada pelo cliente",
+    });
+    expect(b.records[0].active).toBe(false);
+    expect(progress(b.records[0]).completed).toBe(0);
+    expect(b.audit.at(-1)?.reason).toContain("recusada");
+  });
+  it("replans only untouched cycles and removes superseded advance approval", () => {
+    let b = signed();
+    b.records[0].revisions.push({
+      ...b.records[0].revisions[0],
+      terms: { ...terms, valueCents: 20000 },
+      effectiveOn: "2026-11-01",
+    });
+    b.records[0].cycles[0].advanceEvidence = "Sinal anterior";
+    const next = apply(b, {
+      action: "replan",
+      cycleId: "r1_initial",
+      revision: 1,
+      contractedCents: 20000,
+      reason: "Novo escopo aprovado para ciclo futuro",
+      reviewed: true,
+    });
+    expect(next.records[0].cycles[0]).toMatchObject({
+      revision: 1,
+      contractedCents: 20000,
+      advanceEvidence: "",
+    });
+    expect(b.records[0].cycles[0].revision).toBe(0);
+    b = finish(b, "mobilize", "r1_initial");
+    expect(() =>
+      apply(b, {
+        action: "replan",
+        cycleId: "r1_initial",
+        revision: 1,
+        contractedCents: 20000,
+        reason: "Tentativa sobre execução",
+        reviewed: true,
+      })
+    ).toThrow("não iniciados");
+  });
+
   it("creates exactly nine cards and leaves human confirmations pending", () => {
     const b = initial();
     expect(progress(b.records[0])).toEqual({ completed: 0, total: 9 });
@@ -216,7 +334,7 @@ describe("production lifecycle", () => {
     expect(next.records[0].cycles[1].revision).toBe(1);
   });
   it("rejects duplicate cycle periods and invalid revision", () => {
-    const b = initial();
+    const b = signed();
     const c = {
       action: "cycle",
       cycleId: "other",
@@ -362,7 +480,7 @@ describe("production lifecycle", () => {
   });
   it("cannot close contract with pending cycles", () =>
     expect(() =>
-      apply(initial(), { action: "active", active: false, reason: "Fim da vigência" })
+      apply(signed(), { action: "active", active: false, reason: "Fim da vigência" })
     ).toThrow("ciclos pendentes"));
   it("provides nine complete instructions and three bounded advisory agents", () => {
     expect(instructions).toHaveLength(9);

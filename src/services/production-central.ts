@@ -75,7 +75,11 @@ export async function productionCompanies(user: AuthContext) {
     throw new AuthError("Cadastro excede o limite de consulta. Solicite paginação.", 422);
   return snap.docs
     .filter(
-      (d) => d.data().active === true && !d.data().deletedAt && d.data().status !== "archived"
+      (d) =>
+        d.data().active === true &&
+        d.data().isDeleted !== true &&
+        !d.data().deletedAt &&
+        d.data().status !== "archived"
     )
     .map((d) => ({
       id: d.id,
@@ -106,6 +110,7 @@ export async function saveProductionCommand(user: AuthContext, payload: unknown)
     if (
       !data ||
       data.active !== true ||
+      data.isDeleted === true ||
       data.deletedAt ||
       data.status === "archived" ||
       normalizeCnpj(String(data.cnpj || "")) !== command.cnpj
