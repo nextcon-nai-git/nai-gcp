@@ -234,6 +234,123 @@ describe("contract to cash", () => {
       })
     ).toThrow(/vinculado/);
   });
+  it("stores separated commercial terms without inferring fees or generating extra charges", () => {
+    const b = proposal();
+    b.erp.parties[0].document = "11.222.333/0001-81";
+    const commercialTerms = {
+      sellerCnpj: "12.ABC.345/01DE-35",
+      buyerCnpj: "11.222.333/0001-81",
+      serviceCode: "informado-pelo-cliente",
+      setupCents: 250000,
+      successFeeTerms: "Condicionada a evento documentado, com análise humana.",
+      paymentBasis: "days_after_invoice",
+      paymentDetails: "45 dias corridos após emissão; confirmar documento e vencimento.",
+      sellerSignatory: "Representante da contratada",
+      buyerSignatory: "Representante do tomador",
+      witness: "Testemunha indicada",
+      pendingDocuments: ["Aditivo assinado", "Certidão fiscal"],
+      certificates: [],
+    };
+    const next = run(b, create(b, { commercialTerms, billingRequiresReadiness: false }));
+    expect(next.contracts[0].commercialTerms).toEqual(commercialTerms);
+    expect(next.titles).toHaveLength(0);
+    expect(contractFlowOverview(next, "2026-10", "2026-10-12")[0].blocked).toMatch(/emissão/);
+    expect(() =>
+      run(next, { action: "recurring", contractId: next.contracts[0].id, month: "2026-10" })
+    ).toThrow(/não está calculada/);
+    expect(() =>
+      run(
+        b,
+        create(b, { commercialTerms: { ...commercialTerms, buyerCnpj: "12.ABC.345/01DE-35" } })
+      )
+    ).toThrow(/coincidir/);
+    expect(() =>
+      run(b, create(b, { commercialTerms: { ...commercialTerms, buyerCnpj: "" } }))
+    ).toThrow(/CNPJ do tomador separado/);
+  });
+  it("keeps legacy contracts compatible and separates printed certificate validity from issuer review", () => {
+    const parsed = FinanceBookSchema.parse({
+      ...emptyFinanceBook(),
+      contracts: [
+        {
+          id: "legacy-contract",
+          name: "Contrato legado",
+          client: "Cliente sintético",
+          center: "SST",
+          monthlyCents: 10000,
+          dueDay: 20,
+          active: true,
+        },
+      ],
+    });
+    expect(parsed.contracts[0].commercialTerms).toMatchObject({
+      sellerCnpj: "",
+      buyerCnpj: "",
+      paymentBasis: "fixed_day",
+      certificates: [],
+    });
+    let b = run(proposal(), {
+      action: "contract",
+      data: {
+        name: "Contrato existente",
+        client: "Cliente sintético",
+        center: "SST",
+        monthlyCents: 10000,
+        dueDay: 20,
+        active: true,
+      },
+    });
+    b = run(b, {
+      action: "enrollExistingContract",
+      contractId: b.contracts[0].id,
+      partyId: b.erp.parties[0].id,
+      owner: "Operação teste",
+      acceptedOn: "2026-01-01",
+      acceptanceEvidence: "Contrato sintético arquivado",
+      implementationDue: "2026-10-20",
+      billingRequiresReadiness: true,
+      billingStartMonth: "2026-10",
+      billingEvidence: "Cobranças conferidas",
+      existingBillingReviewed: true,
+      monthlyPriceConfirmed: true,
+    });
+    expect(() =>
+      run(b, {
+        action: "contractCertificate",
+        contractId: b.contracts[0].id,
+        name: "Certidão fiscal",
+        printedValidThrough: "2026-12-31",
+        issuerStatus: "confirmed",
+        issuerEvidence: "",
+      })
+    ).toThrow(/referência da consulta/);
+    b = run(b, {
+      action: "contractCertificate",
+      contractId: b.contracts[0].id,
+      name: "Certidão fiscal",
+      printedValidThrough: "2026-12-31",
+      issuerStatus: "not_checked",
+      issuerEvidence: "",
+    });
+    expect(b.contracts[0].commercialTerms.certificates[0]).toMatchObject({
+      printedValidThrough: "2026-12-31",
+      issuerStatus: "not_checked",
+    });
+    b = run(b, {
+      action: "contractCertificate",
+      contractId: b.contracts[0].id,
+      name: "Certidão fiscal",
+      printedValidThrough: "2026-12-31",
+      issuerStatus: "confirmed",
+      issuerEvidence: "Consulta identificada no portal do emissor.",
+    });
+    expect(b.contracts[0].commercialTerms.certificates).toHaveLength(1);
+    expect(b.contracts[0].commercialTerms.certificates[0]).toMatchObject({
+      printedValidThrough: "2026-12-31",
+      issuerStatus: "confirmed",
+      issuerEvidence: "Consulta identificada no portal do emissor.",
+    });
+  });
   it("blocks operation and monthly billing until implementation is ready", () => {
     let b = contract();
     expect(() => service(b)).toThrow(/implantação/);
