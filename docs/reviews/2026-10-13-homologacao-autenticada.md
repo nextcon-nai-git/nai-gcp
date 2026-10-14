@@ -62,3 +62,7 @@ Não há percentual global de 100% atestado nesta rodada.
   de domínios do backend nesta inspeção.
 - Branch main retornou protected=false. Checks aprovados não equivalem a
   política obrigatória de revisão/merge.
+
+- Tentativa de configurar proteção da main pelo console foi bloqueada pela
+  revisão automática de aprovação: mudança persistente de controle de acesso
+  exigindo autorização específica. Nenhuma regra foi criada.
