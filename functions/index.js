@@ -3,16 +3,12 @@ import { getAuth } from "firebase-admin/auth";
 import admin from "firebase-admin";
 import { genkit, z } from "genkit";
 import { googleAI } from "@genkit-ai/google-genai";
-import { pipeline } from "stream";
-import { promisify } from "util";
 
 /**
  * @fileOverview Cloud Functions NAI - Motor de Inteligência Ocupacional.
  * Centraliza automações de claims e processamento neural de documentos SST.
  * Com streaming de PDFs, retry logic e otimizações de memória.
  */
-
-const pipelineAsync = promisify(pipeline);
 
 // Inicializa o admin SDK
 admin.initializeApp();
@@ -133,8 +129,6 @@ export const analisarPgrEmSegundoPlano = onDocumentCreated(
 
         // Encoding em chunks para economizar memória
         const base64Pdf = buffer.toString("base64");
-        const chunkSize = 1024 * 1024; // 1MB chunks
-        let currentChunk = "";
 
         // Chamada neural via Genkit 1.x com timeout
         const response = await Promise.race([

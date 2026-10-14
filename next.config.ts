@@ -1,7 +1,16 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["pdfjs-dist"],
+  serverExternalPackages: [
+    "pdfjs-dist",
+    "genkit",
+    "@genkit-ai/core",
+    "@genkit-ai/firebase",
+    "@genkit-ai/google-cloud",
+    "@genkit-ai/google-genai",
+    "@opentelemetry/sdk-node",
+    "@opentelemetry/instrumentation-winston",
+  ],
   outputFileTracingIncludes: {
     "/api/pgr/*": ["./node_modules/pdfjs-dist/legacy/build/*.mjs"],
     "/api/nai-importa/*": ["./node_modules/pdfjs-dist/legacy/build/*.mjs"],

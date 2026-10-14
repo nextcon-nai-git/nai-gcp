@@ -1,29 +1,23 @@
 "use client";
 
 import * as React from "react";
-import { OpsTask, TaskStatus, Priority, TaskType } from "@/types/schema";
+import type { OpsTask, Priority, TaskType } from "@/types/schema";
 import {
   X,
   Save,
   Loader2,
   Trash2,
   Plus,
-  CheckCircle2,
-  AlertTriangle,
   ClipboardList,
-  Building2,
   Calendar,
   Layers,
   ShieldCheck,
   UserCheck,
   FileUp,
-  FileText,
   History,
   ExternalLink,
   Paperclip,
-  Pencil,
   Bot,
-  Zap,
 } from "lucide-react";
 import {
   Sheet,
@@ -35,7 +29,6 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -109,7 +102,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
   }, [db, task.sourceType]);
   const { data: providers } = useCollection(providersQuery);
 
-  const handleUpdateField = (field: keyof OpsTask, value: any) => {
+  const handleUpdateField = <K extends keyof OpsTask>(field: K, value: OpsTask[K]) => {
     if (restrictedImport && ["title", "lastComment"].includes(field)) return;
     setEditedTask((prev) => ({ ...prev, [field]: value }));
   };
@@ -118,7 +111,11 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
     if (!storage || !task.companyId) return;
 
     const isOld = type === "old";
-    isOld ? setIsUploadingOld(true) : setIsUploadingNew(true);
+    if (isOld) {
+      setIsUploadingOld(true);
+    } else {
+      setIsUploadingNew(true);
+    }
 
     try {
       const path = STORAGE_PATHS.CLIENT_SST_NR(
@@ -138,10 +135,14 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
         title: "Documento Carregado",
         description: `O ${isOld ? "PGR Antigo" : "PGR Novo"} foi sincronizado com o storage do cliente.`,
       });
-    } catch (e) {
+    } catch {
       toast({ variant: "destructive", title: "Erro no Upload" });
     } finally {
-      isOld ? setIsUploadingOld(false) : setIsUploadingNew(false);
+      if (isOld) {
+        setIsUploadingOld(false);
+      } else {
+        setIsUploadingNew(false);
+      }
     }
   };
 
@@ -381,7 +382,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                   <Select
                     value={editedTask.type}
                     disabled={task.sourceType === "pgr"}
-                    onValueChange={(v) => handleUpdateField("type", v)}
+                    onValueChange={(v) => handleUpdateField("type", v as TaskType)}
                   >
                     <SelectTrigger className="h-12 bg-slate-50 border-none rounded-xl font-bold shadow-inner">
                       <SelectValue />
@@ -571,7 +572,12 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                     type="number"
                     value={editedTask.riskDegree || ""}
                     disabled={task.sourceType === "pgr"}
-                    onChange={(e) => handleUpdateField("riskDegree", e.target.value)}
+                    onChange={(e) =>
+                      handleUpdateField(
+                        "riskDegree",
+                        e.target.value ? Number(e.target.value) : undefined
+                      )
+                    }
                     className="h-10 bg-white border-none rounded-lg text-xs font-bold text-center"
                   />
                 </div>
@@ -597,7 +603,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                 </label>
                 <Select
                   value={editedTask.priority}
-                  onValueChange={(v) => handleUpdateField("priority", v)}
+                  onValueChange={(v) => handleUpdateField("priority", v as Priority)}
                 >
                   <SelectTrigger className="h-12 bg-slate-50 border-none rounded-xl font-bold shadow-inner">
                     <SelectValue />
