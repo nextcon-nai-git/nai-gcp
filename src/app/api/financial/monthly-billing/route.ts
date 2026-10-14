@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { AuthError, forbidden } from "@/lib/auth/errors";
 import { MonthlyBillingImportSchema } from "@/lib/monthly-billing";
 import { listMonthlyBilling, saveMonthlyBilling } from "@/services/monthly-billing";
+import { limitedBytes } from "@/lib/http/private-api";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 function failure(error: unknown) {
@@ -31,9 +32,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth(request);
     if (user.role !== "SUPER_ADMIN") throw forbidden();
-    const text = await request.text();
-    if (Buffer.byteLength(text, "utf8") > 65536)
-      throw new AuthError("Lote acima do limite de 64 KB.", 413);
+    const text = new TextDecoder().decode(await limitedBytes(request, 65536));
     let body: unknown;
     try {
       body = JSON.parse(text);

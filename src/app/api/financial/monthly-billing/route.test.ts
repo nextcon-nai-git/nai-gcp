@@ -58,4 +58,54 @@ describe("monthly billing authorization and validation", () => {
     expect(result.status).toBe(503);
     expect(await result.text()).not.toContain("internal secret");
   });
+  it.each([undefined, "1"])(
+    "stops an oversized stream before reading the remainder (content-length: %s)",
+    async (declaredLength) => {
+      const cancel = vi.fn();
+      let reads = 0;
+      const body = new ReadableStream<Uint8Array>(
+        {
+          pull(controller) {
+            reads++;
+            if (reads === 1) controller.enqueue(new Uint8Array(65536));
+            else if (reads === 2) controller.enqueue(new Uint8Array(1));
+            else controller.error(new Error("The oversized remainder must not be read"));
+          },
+          cancel,
+        },
+        { highWaterMark: 0 }
+      );
+      const init = {
+        method: "POST",
+        body,
+        ...(declaredLength ? { headers: { "Content-Length": declaredLength } } : {}),
+        duplex: "half" as const,
+      };
+      const req = new NextRequest("https://test/api/financial/monthly-billing", init);
+      const result = await POST(req);
+      expect(result.status).toBe(413);
+      expect(reads).toBe(2);
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(body.locked).toBe(false);
+      expect(mocks.save).not.toHaveBeenCalled();
+      expect(result.headers.get("cache-control")).toBe("private, no-store");
+    }
+  );
+  it.each(["", "\uFEFF"])("accepts valid JSON at the exact byte limit (BOM: %s)", async (bom) => {
+    const json = bom + JSON.stringify(input);
+    mocks.save.mockResolvedValue({ saved: true });
+    const req = new NextRequest("https://test/api/financial/monthly-billing", {
+      method: "POST",
+      body: json + " ".repeat(65536 - Buffer.byteLength(json)),
+    });
+    expect((await POST(req)).status).toBe(200);
+    expect(mocks.save).toHaveBeenCalledWith({ uid: "admin", role: "SUPER_ADMIN" }, input);
+  });
+  it("rejects unauthorized callers before consuming the request body", async () => {
+    mocks.auth.mockResolvedValue({ uid: "client", role: "CLIENT_ADMIN" });
+    const req = request(input);
+    expect((await POST(req)).status).toBe(403);
+    expect(req.bodyUsed).toBe(false);
+    expect(mocks.save).not.toHaveBeenCalled();
+  });
 });
