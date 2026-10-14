@@ -33,6 +33,8 @@ describe("WhatsApp webhook input boundary", () => {
     "{",
     "null",
     "[]",
+    JSON.stringify({ data: { key: { remoteJid: "123456789@lid" }, message: { conversation: "menu" } } }),
+    JSON.stringify({ data: { key: { remoteJid: "123456789@g.us", remoteJidAlt: "5541999999999@s.whatsapp.net" }, message: { conversation: "menu" } } }),
     JSON.stringify({ phone: 5541999999999, message: "menu" }),
     JSON.stringify({ phone: "5541999999999", message: {} }),
     JSON.stringify({ phone: "5541999999999", message: "   " }),
@@ -54,6 +56,7 @@ describe("WhatsApp webhook input boundary", () => {
   );
   it.each([
     { phone: "5541999999999", message: " menu " },
+    { data: { key: { remoteJid: "123456789@lid", remoteJidAlt: "5541999999999@s.whatsapp.net" }, message: { conversation: "menu" } } },
     {
       data: {
         key: { remoteJid: "5541999999999@s.whatsapp.net" },

@@ -64,6 +64,7 @@ function extractMessage(body: unknown) {
   let text: unknown;
   if (field(key, "remoteJid") || message) {
     phone = field(key, "remoteJid");
+    if (typeof phone === "string" && phone.endsWith("@lid")) phone = field(key, "remoteJidAlt");
     if (typeof phone === "string") phone = phone.replace(/@s\.whatsapp\.net$/, "");
     text = field(message, "conversation") || field(field(message, "extendedTextMessage"), "text");
   } else if (meta) {
