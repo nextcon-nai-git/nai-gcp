@@ -169,6 +169,36 @@ describe("providers collection authorization", () => {
     await assertFails(mismatched.commit());
   });
 
+  it("rejects reservations stored under another fiscal identity", async () => {
+    const firestore = db("internal-admin");
+    const identityHash = "a".repeat(64);
+    const attemptId = "synthetic-attempt-id-001";
+    const batch = writeBatch(firestore);
+    batch.set(doc(firestore, "providers/provider-pending"), {
+      id: "provider-pending",
+      cnpj: "12.345.678/0001-95",
+      taxIdStatus: "pending_verification",
+      active: false,
+      identityHash,
+      importAttemptId: attemptId,
+    });
+    const reservation = {
+      attemptId,
+      identityHash,
+      providerId: "provider-pending",
+      updatedAt: serverTimestamp(),
+    };
+    batch.set(doc(firestore, `provider_tax_id_reservations/${identityHash}`), reservation);
+    await assertSucceeds(batch.commit());
+
+    const unrelatedReservation = doc(firestore, `provider_tax_id_reservations/${"b".repeat(64)}`);
+    await assertFails(setDoc(unrelatedReservation, reservation));
+    expect((await getDoc(unrelatedReservation)).exists()).toBe(false);
+    expect(
+      (await getDoc(doc(firestore, `provider_tax_id_reservations/${identityHash}`))).data()
+    ).toMatchObject({ identityHash, providerId: "provider-pending", attemptId });
+  });
+
   it("blocks browser fiscal verification, allows demotion, and protects legacy identity", async () => {
     const firestore = db("internal-admin");
     await env.withSecurityRulesDisabled(async (context) => {

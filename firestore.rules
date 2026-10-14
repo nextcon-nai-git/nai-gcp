@@ -328,6 +328,7 @@ service cloud.firestore {
     match /provider_tax_id_reservations/{reservationId} {
       allow read: if isSignedIn() && isNextconOfficial();
       allow create: if isSignedIn() && isNextconOfficial() &&
+        request.resource.data.identityHash == reservationId &&
         providerReservationCreateIsValid(request.resource.data.providerId);
       allow update, delete: if false;
     }

@@ -7,7 +7,7 @@ import {
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import { collection, doc, getDoc, getDocs, setDoc, type Firestore } from "firebase/firestore";
-import { getBytes, ref, uploadBytes } from "firebase/storage";
+import { deleteObject, getBytes, ref, uploadBytes } from "firebase/storage";
 import type { FirebaseStorage } from "firebase/storage";
 import type { ContractAnalysisOutput } from "@/ai/flows/contract-analysis-flow";
 import {
@@ -91,6 +91,28 @@ async function preserve(uid = "global") {
 }
 
 describe("Private contract import rules and persistence", () => {
+  it("keeps ordinary internal files writable without opening the contract source namespace", async () => {
+    for (const path of ["internos_nextcon/report.pdf", "internos_nextcon/reports/report.pdf"]) {
+      const target = ref(storage("global"), path);
+      await assertSucceeds(uploadBytes(target, file, { contentType: "application/pdf" }));
+      await assertSucceeds(uploadBytes(target, file, { contentType: "application/pdf" }));
+      await assertFails(
+        uploadBytes(ref(storage("tenant"), path), file, { contentType: "application/pdf" })
+      );
+      await assertSucceeds(deleteObject(target));
+    }
+    for (const path of [
+      "internos_nextcon/contract-sources/invalid.pdf",
+      "internos_nextcon/contract-sources/nested/source.pdf",
+    ]) {
+      await assertFails(
+        uploadBytes(ref(storage("global"), path), file, { contentType: "application/pdf" })
+      );
+    }
+    const { source } = await preserve();
+    await assertFails(deleteObject(ref(storage("global"), source.storagePath)));
+  });
+
   it("allows internal staff to preserve source and atomically link it to an existing legacy ID", async () => {
     const companyBefore = await getDoc(doc(db("global"), `companies/${companyId}`));
     const { sourceHash, source } = await preserve();
