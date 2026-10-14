@@ -40,3 +40,7 @@ env:
     value: "2026-10-09T11:05:00Z"
     availability:
       - RUNTIME
+  - variable: TALLOS_API_TOKEN
+    secret: TALLOS_API_TOKEN
+    availability:
+      - RUNTIME
