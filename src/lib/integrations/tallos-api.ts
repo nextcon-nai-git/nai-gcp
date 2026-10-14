@@ -87,7 +87,7 @@ export async function tallosRequest(
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: "application/json",
-          ...(body ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
+          "Content-Type": body ? "application/x-www-form-urlencoded" : "application/json",
         },
         signal: AbortSignal.timeout(20000),
         cache: "no-store",
@@ -102,7 +102,10 @@ export async function tallosRequest(
   }
   if (!response.ok) {
     const messages: Record<number, string> = {
-      401: "Token Tallos inválido ou expirado.",
+      401:
+        path === "/v4/reports"
+          ? "O Tallos recusou a autenticação da API de relatórios (HTTP 401). Confira com o provedor a credencial e a liberação deste recurso. Contatos e operadores usam consultas independentes."
+          : "O Tallos não aceitou a credencial para este recurso (HTTP 401). Confira o token e a autorização da consulta.",
       403: "Seu plano ou credencial Tallos não permite este recurso.",
       429: "Limite de consultas Tallos atingido. Aguarde e tente novamente.",
     };
