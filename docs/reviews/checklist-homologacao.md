@@ -47,7 +47,11 @@ prazos, chamadas concorrentes e asserções de segurança permanecem. Logs de
 falha são retidos por sete dias, preservando o código de saída do teste.
 
 No CI do SHA 64c2c32, 1.476 testes de aplicação e 129 de regras passaram;
-checks de qualidade, builds, CodeQL, audit e revisão de dependências aprovaram.
+checks de qualidade, builds e CodeQL aprovaram. O limite bloqueante de
+criticidade da auditoria de produção e da revisão de dependências não foi
+excedido. Já o comando `npm audit --audit-level=high` segue reprovando pelos
+alertas documentados: seu job usa `continue-on-error: true`, portanto a cor
+verde do job não representa aprovação da auditoria nem resolução dos riscos.
 A execução local do novo CLI encontrou falhas de consulta entre emuladores
 no ambiente com proxy; isso foi registrado no PR e não tratado como aprovação.
 O código do CLI aplica ProxyAgent inclusive às requisições de loopback quando
