@@ -59,7 +59,9 @@ jobs:
 
       - name: Test Firestore security rules
         id: rules
-        run: npm run test:rules
+        run: |
+          set -o pipefail
+          npm run test:rules 2>&1 | tee firebase-rules-test.log
 
       - name: Preserve failed emulator diagnostics
         if: failure() && steps.rules.outcome == 'failure'
@@ -67,6 +69,7 @@ jobs:
         with:
           name: firebase-emulator-diagnostics
           path: |
+            firebase-rules-test.log
             firestore-debug.log
             storage-debug.log
           if-no-files-found: ignore
