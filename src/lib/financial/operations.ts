@@ -1,4 +1,10 @@
-import { ContractFlowSchema, flowCommands, applyFlowCommand, flowReady } from "./contract-flow";
+import {
+  ContractCommercialTermsSchema,
+  ContractFlowSchema,
+  flowCommands,
+  applyFlowCommand,
+  flowReady,
+} from "./contract-flow";
 import { OmieExport } from "./omie-export";
 import { z } from "zod";
 import { isCalendarDate } from "./omie-dre";
@@ -21,6 +27,7 @@ const Contract = z.object({
   monthlyCents: cents,
   dueDay: z.number().int().min(1).max(28),
   active: z.boolean(),
+  commercialTerms: ContractCommercialTermsSchema.default({}),
 });
 const Service = z.object({
   id,
@@ -535,6 +542,8 @@ export function applyFinanceCommand(
   switch (command.action) {
     case "enrollExistingContract":
     case "contractFromOrder":
+    case "contractTerms":
+    case "contractCertificate":
     case "flowChecklist":
     case "flowReviewService":
       applyFlowCommand(book, command, actor, now, fail);
@@ -583,6 +592,8 @@ export function applyFinanceCommand(
         c = one(book.contracts, s.contractId);
       if (s.voided) fail("Serviço anulado não pode ser faturado.");
       if (!c.active) fail("Contrato inativo.");
+      if (c.commercialTerms.paymentBasis !== "fixed_day")
+        fail("A cobrança avulsa com prazo após emissão ou grade não está calculada neste fluxo.");
       if (command.dueDate < s.date) fail("O vencimento não pode anteceder a execução do serviço.");
       if (s.billingMode === "included")
         fail("Serviço incluído na mensalidade não gera cobrança avulsa.");
@@ -613,6 +624,8 @@ export function applyFinanceCommand(
     case "recurring": {
       const c = one(book.contracts, command.contractId);
       if (!c.active || c.monthlyCents <= 0) fail("Contrato sem mensalidade ativa.");
+      if (c.commercialTerms.paymentBasis !== "fixed_day")
+        fail("A mensalidade com prazo após emissão ou grade não está calculada neste fluxo.");
       const contractualDueDate = `${command.month}-${String(c.dueDay).padStart(2, "0")}`;
       const dueDate = command.dueDate || contractualDueDate;
       if (dueDate !== contractualDueDate && !command.reason)
@@ -927,11 +940,15 @@ export function applyFinanceCommand(
     reason:
       "reason" in command
         ? command.reason || "Registro confirmado"
-        : "evidence" in command
-          ? command.evidence
-          : command.action === "erpFollowUp"
-            ? command.data.note
-            : "Registro confirmado",
+        : "amendmentEvidence" in command
+          ? command.amendmentEvidence
+          : command.action === "contractCertificate"
+            ? command.issuerEvidence || `Validade impressa registrada para ${command.name}.`
+            : "evidence" in command
+              ? command.evidence
+              : command.action === "erpFollowUp"
+                ? command.data.note
+                : "Registro confirmado",
     version: book.version,
     details: JSON.stringify(command),
   });

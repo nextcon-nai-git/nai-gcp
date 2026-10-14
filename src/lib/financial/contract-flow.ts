@@ -2,11 +2,65 @@ import { z } from "zod";
 import { isCalendarDate } from "./omie-dre";
 import type { FinanceBook } from "./operations";
 import { financialLabel } from "./labels";
+import { isValidCnpj, normalizeCnpj } from "@/lib/cnpj";
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 const note = z.string().trim().min(3).max(1000);
 const month = z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/);
 const date = z.string().refine(isCalendarDate, "Data inválida.");
 const common = { requestId: z.string().uuid(), expectedVersion: z.number().int().nonnegative() };
+const cnpj = z
+  .string()
+  .trim()
+  .max(30)
+  .refine((value) => !value || isValidCnpj(value), "Informe um CNPJ válido.");
+export const ContractCommercialTermsSchema = z
+  .object({
+    sellerCnpj: cnpj.default(""),
+    buyerCnpj: cnpj.default(""),
+    serviceCode: z.string().trim().max(30).default(""),
+    setupCents: z.number().int().min(0).max(100_000_000_000).default(0),
+    successFeeTerms: z.string().trim().max(1000).default(""),
+    paymentBasis: z
+      .enum(["fixed_day", "days_after_invoice", "payment_schedule"])
+      .default("fixed_day"),
+    paymentDetails: z.string().trim().max(1000).default(""),
+    sellerSignatory: z.string().trim().max(180).default(""),
+    buyerSignatory: z.string().trim().max(180).default(""),
+    witness: z.string().trim().max(180).default(""),
+    pendingDocuments: z.array(z.string().trim().min(1).max(180)).max(50).default([]),
+    certificates: z
+      .array(
+        z
+          .object({
+            id,
+            name: z.string().trim().min(1).max(180),
+            printedValidThrough: date.nullable(),
+            issuerStatus: z.enum(["not_checked", "confirmed", "not_confirmed"]),
+            issuerEvidence: z.string().trim().max(1000),
+          })
+          .strict()
+          .superRefine((certificate, ctx) => {
+            if (certificate.issuerStatus !== "not_checked" && certificate.issuerEvidence.length < 3)
+              ctx.addIssue({
+                code: "custom",
+                path: ["issuerEvidence"],
+                message: "Registre a referência da consulta ao emissor.",
+              });
+          })
+      )
+      .max(50)
+      .default([]),
+  })
+  .strict()
+  .superRefine((terms, ctx) => {
+    if (terms.paymentBasis !== "fixed_day" && !terms.paymentDetails)
+      ctx.addIssue({
+        code: "custom",
+        path: ["paymentDetails"],
+        message: "Descreva o prazo após emissão ou a grade de pagamento.",
+      });
+  });
+export type ContractCommercialTerms = z.infer<typeof ContractCommercialTermsSchema>;
 export const checklistLabels = {
   clientData: "Unidades e dados do cliente conferidos",
   scope: "Escopo e condições comerciais conferidos",
@@ -74,6 +128,27 @@ export const flowCommands = [
       dueDay: z.number().int().min(1).max(28),
       billingRequiresReadiness: z.boolean(),
       monthlyPriceConfirmed: z.literal(true),
+      commercialTerms: ContractCommercialTermsSchema.default({}),
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      action: z.literal("contractTerms"),
+      contractId: id,
+      commercialTerms: ContractCommercialTermsSchema,
+      amendmentEvidence: note,
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      action: z.literal("contractCertificate"),
+      contractId: id,
+      name: z.string().trim().min(1).max(180),
+      printedValidThrough: date.nullable(),
+      issuerStatus: z.enum(["not_checked", "confirmed", "not_confirmed"]),
+      issuerEvidence: z.string().trim().max(1000),
     })
     .strict(),
   z
@@ -197,6 +272,14 @@ export function applyFlowCommand(
     const party = book.erp.parties.find((p) => p.id === order.partyId)!;
     if (party.role === "supplier" || !party.document.replace(/[^a-z0-9]/gi, ""))
       fail("Confira o documento e o perfil do cliente antes de criar o contrato.");
+    if (isValidCnpj(party.document) && !command.commercialTerms.buyerCnpj)
+      fail("Informe o CNPJ do tomador separado do CNPJ da contratada.");
+    if (
+      command.commercialTerms.buyerCnpj &&
+      isValidCnpj(party.document) &&
+      normalizeCnpj(command.commercialTerms.buyerCnpj) !== normalizeCnpj(party.document)
+    )
+      fail("O CNPJ do tomador precisa coincidir com o cadastro vinculado ao pedido.");
     book.contracts.push({
       id: command.requestId,
       name: financialLabel(`Contrato · ${order.number}`),
@@ -205,6 +288,7 @@ export function applyFlowCommand(
       monthlyCents: order.totalCents,
       dueDay: command.dueDay,
       active: true,
+      commercialTerms: command.commercialTerms,
     });
     book.contractFlows.push({
       contractId: command.requestId,
@@ -219,6 +303,39 @@ export function applyFlowCommand(
       createdBy: actor,
       serviceReviews: [],
     });
+    return;
+  }
+  if (command.action === "contractTerms" || command.action === "contractCertificate") {
+    const contract =
+      book.contracts.find((c) => c.id === command.contractId) || fail("Contrato não encontrado.");
+    const flow = book.contractFlows.find((f) => f.contractId === command.contractId);
+    if (command.action === "contractTerms") {
+      if (flow && isValidCnpj(flow.customerDocument) && !command.commercialTerms.buyerCnpj)
+        fail("Informe o CNPJ do tomador separado do CNPJ da contratada.");
+      if (
+        command.commercialTerms.buyerCnpj &&
+        flow &&
+        isValidCnpj(flow.customerDocument) &&
+        normalizeCnpj(command.commercialTerms.buyerCnpj) !== normalizeCnpj(flow.customerDocument)
+      )
+        fail("O CNPJ do tomador precisa coincidir com a identidade vinculada ao fluxo.");
+      contract.commercialTerms = command.commercialTerms;
+    } else {
+      if (command.issuerStatus !== "not_checked" && command.issuerEvidence.length < 3)
+        fail("Registre a referência da consulta ao emissor.");
+      const existing = contract.commercialTerms.certificates.find(
+        (item) => item.name.toLocaleLowerCase("pt-BR") === command.name.toLocaleLowerCase("pt-BR")
+      );
+      const certificate = {
+        id: existing?.id || command.requestId,
+        name: command.name,
+        printedValidThrough: command.printedValidThrough,
+        issuerStatus: command.issuerStatus,
+        issuerEvidence: command.issuerEvidence,
+      };
+      if (existing) Object.assign(existing, certificate);
+      else contract.commercialTerms.certificates.push(certificate);
+    }
     return;
   }
   const flow =
@@ -301,7 +418,9 @@ export function contractFlowOverview(book: FinanceBook, month: string, today: st
           ? "Competência anterior ao aceite"
           : flow && flow.billingRequiresReadiness && !flowReady(flow)
             ? "Implantação pendente"
-            : "";
+            : contract.commercialTerms.paymentBasis !== "fixed_day"
+              ? "Prazo após emissão ou grade não é calculado neste fluxo."
+              : "";
     const recurringExists = titles.some((t) => t.sourceKey === `recurring:${contract.id}:${month}`);
     return {
       contract,

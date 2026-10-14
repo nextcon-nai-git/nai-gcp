@@ -1,7 +1,12 @@
 "use client";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { checklistLabels, contractFlowOverview, flowReady } from "@/lib/financial/contract-flow";
+import {
+  checklistLabels,
+  contractFlowOverview,
+  flowReady,
+  type ContractCommercialTerms,
+} from "@/lib/financial/contract-flow";
 import type { FinanceBook } from "@/lib/financial/operations";
 import type { FinanceForm } from "./operations-workspace";
 const money = (c: number) =>
@@ -12,6 +17,88 @@ const yesNo = [
   { value: "false", label: "Pendente" },
   { value: "true", label: "Conferido" },
 ];
+const paymentBasisOptions = [
+  { value: "fixed_day", label: "Dia fixo do mês" },
+  { value: "days_after_invoice", label: "Prazo após emissão" },
+  { value: "payment_schedule", label: "Grade de pagamento" },
+];
+const issuerStatusOptions = [
+  { value: "not_checked", label: "Não consultado no emissor" },
+  { value: "confirmed", label: "Confirmado em consulta informada" },
+  { value: "not_confirmed", label: "Não confirmado em consulta informada" },
+];
+const termsFields = (terms?: ContractCommercialTerms) => [
+  { name: "sellerCnpj", label: "CNPJ da contratada", value: terms?.sellerCnpj || "" },
+  { name: "buyerCnpj", label: "CNPJ do tomador", value: terms?.buyerCnpj || "" },
+  {
+    name: "serviceCode",
+    label: "Código de serviço informado (sem enquadramento fiscal)",
+    value: terms?.serviceCode || "",
+  },
+  {
+    name: "setupAmount",
+    label: "Setup único (R$)",
+    type: "number",
+    value: String((terms?.setupCents || 0) / 100),
+  },
+  {
+    name: "successFeeTerms",
+    label: "Condição de remuneração por êxito (não gera cobrança automática)",
+    type: "textarea",
+    value: terms?.successFeeTerms || "",
+    optional: true,
+  },
+  {
+    name: "paymentBasis",
+    label: "Base do prazo de pagamento",
+    value: terms?.paymentBasis || "fixed_day",
+    options: paymentBasisOptions,
+  },
+  {
+    name: "paymentDetails",
+    label: "Prazo após emissão ou grade de pagamento",
+    type: "textarea",
+    value: terms?.paymentDetails || "",
+    optional: true,
+  },
+  {
+    name: "sellerSignatory",
+    label: "Signatário da contratada",
+    value: terms?.sellerSignatory || "",
+    optional: true,
+  },
+  {
+    name: "buyerSignatory",
+    label: "Signatário do tomador",
+    value: terms?.buyerSignatory || "",
+    optional: true,
+  },
+  { name: "witness", label: "Testemunha", value: terms?.witness || "", optional: true },
+  {
+    name: "pendingDocuments",
+    label: "Documentos pendentes (um por linha)",
+    type: "textarea",
+    value: terms?.pendingDocuments.join("\n") || "",
+    optional: true,
+  },
+];
+const buildTerms = (f: FormData, current?: ContractCommercialTerms) => ({
+  sellerCnpj: get(f, "sellerCnpj"),
+  buyerCnpj: get(f, "buyerCnpj"),
+  serviceCode: get(f, "serviceCode"),
+  setupCents: Math.round(Number(get(f, "setupAmount").replace(",", ".")) * 100),
+  successFeeTerms: get(f, "successFeeTerms"),
+  paymentBasis: get(f, "paymentBasis") || "fixed_day",
+  paymentDetails: get(f, "paymentDetails"),
+  sellerSignatory: get(f, "sellerSignatory"),
+  buyerSignatory: get(f, "buyerSignatory"),
+  witness: get(f, "witness"),
+  pendingDocuments: get(f, "pendingDocuments")
+    .split(/\r?\n/)
+    .map((document) => document.trim())
+    .filter(Boolean),
+  certificates: current?.certificates || [],
+});
 type Props = {
   book: FinanceBook;
   period: string;
@@ -67,6 +154,7 @@ export function ContractFlowWorkspace({
         { name: "acceptedOn", label: "Data do aceite do cliente", type: "date", value: today },
         { name: "implementationDue", label: "Prazo de implantação", type: "date", value: today },
         { name: "dueDay", label: "Dia de vencimento (1 a 28)", type: "number", value: "10" },
+        ...termsFields(),
         {
           name: "billingRequiresReadiness",
           label: "Regra contratual de cobrança",
@@ -92,6 +180,7 @@ export function ContractFlowWorkspace({
         dueDay: Number(get(f, "dueDay")),
         billingRequiresReadiness: get(f, "billingRequiresReadiness") === "true",
         acceptanceEvidence: get(f, "acceptanceEvidence"),
+        commercialTerms: buildTerms(f),
       }),
     });
   }
@@ -182,6 +271,51 @@ export function ContractFlowWorkspace({
       }),
     });
   }
+  function updateTerms() {
+    if (!row) return;
+    showForm({
+      title: "Registrar condições comerciais por aditivo",
+      description:
+        "Informe a referência do aditivo. Isto registra termos; não comprova assinatura, validade jurídica nem emissão fiscal.",
+      fields: [
+        ...termsFields(row.contract.commercialTerms),
+        { name: "amendmentEvidence", label: "Referência do aditivo e evidência", type: "textarea" },
+      ],
+      build: (f) => ({
+        action: "contractTerms",
+        contractId: row.contract.id,
+        commercialTerms: buildTerms(f, row.contract.commercialTerms),
+        amendmentEvidence: get(f, "amendmentEvidence"),
+      }),
+    });
+  }
+  function reviewCertificate() {
+    if (!row) return;
+    showForm({
+      title: "Registrar conferência de certidão",
+      description:
+        "A validade impressa e a consulta ao emissor são campos separados. O registro depende da conferência humana e não autentica o documento.",
+      fields: [
+        { name: "name", label: "Certidão / emissor" },
+        { name: "printedValidThrough", label: "Validade impressa", type: "date", optional: true },
+        { name: "issuerStatus", label: "Consulta ao emissor", options: issuerStatusOptions },
+        {
+          name: "issuerEvidence",
+          label: "Referência da consulta ao emissor (obrigatória se consultado)",
+          type: "textarea",
+          optional: true,
+        },
+      ],
+      build: (f) => ({
+        action: "contractCertificate",
+        contractId: row.contract.id,
+        name: get(f, "name"),
+        printedValidThrough: get(f, "printedValidThrough") || null,
+        issuerStatus: get(f, "issuerStatus") || "not_checked",
+        issuerEvidence: get(f, "issuerEvidence"),
+      }),
+    });
+  }
   return (
     <section className="space-y-5" aria-label="Fluxo do contrato ao recebimento">
       <div className={card}>
@@ -268,6 +402,65 @@ export function ContractFlowWorkspace({
                       Documento do cliente: {row.flow.customerDocument || "não informado"}. Aceite
                       em {row.flow.acceptedOn}: {row.flow.acceptanceEvidence}
                     </p>
+                    <div className="mt-3 space-y-1 text-sm">
+                      <p>
+                        CNPJ contratada:{" "}
+                        {row.contract.commercialTerms.sellerCnpj || "não informado"} · CNPJ tomador:{" "}
+                        {row.contract.commercialTerms.buyerCnpj || "não informado"}
+                      </p>
+                      <p>
+                        Código de serviço:{" "}
+                        {row.contract.commercialTerms.serviceCode || "não informado"} · Setup único:{" "}
+                        {money(row.contract.commercialTerms.setupCents)}
+                      </p>
+                      <p>
+                        Base de pagamento:{" "}
+                        {paymentBasisOptions.find(
+                          (option) => option.value === row.contract.commercialTerms.paymentBasis
+                        )?.label || "não informada"}
+                        {row.contract.commercialTerms.paymentDetails
+                          ? ` · ${row.contract.commercialTerms.paymentDetails}`
+                          : ""}
+                      </p>
+                      {row.contract.commercialTerms.successFeeTerms && (
+                        <p>
+                          Condição de êxito registrada (sem cálculo/cobrança automática):{" "}
+                          {row.contract.commercialTerms.successFeeTerms}
+                        </p>
+                      )}
+                      <p>
+                        Nomes informados como signatários/testemunha (não comprovam assinatura):{" "}
+                        {[
+                          row.contract.commercialTerms.sellerSignatory,
+                          row.contract.commercialTerms.buyerSignatory,
+                          row.contract.commercialTerms.witness,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "pendentes"}
+                      </p>
+                      <p>
+                        Documentos pendentes:{" "}
+                        {row.contract.commercialTerms.pendingDocuments.join(", ") ||
+                          "nenhum informado"}
+                      </p>
+                      <p>
+                        Certidões:{" "}
+                        {row.contract.commercialTerms.certificates
+                          .map(
+                            (certificate) =>
+                              `${certificate.name} (validade impressa: ${certificate.printedValidThrough || "não informada"}; ${issuerStatusOptions.find((option) => option.value === certificate.issuerStatus)?.label || "emissor não consultado"})`
+                          )
+                          .join(" · ") || "nenhuma conferida"}
+                      </p>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button disabled={busy || !row.contract.active} onClick={updateTerms}>
+                        Registrar condições por aditivo
+                      </Button>
+                      <Button disabled={busy || !row.contract.active} onClick={reviewCertificate}>
+                        Conferir certidão
+                      </Button>
+                    </div>
                     <p className="mt-2 text-sm">
                       {row.flow.billingRequiresReadiness
                         ? "Mensalidade depende da implantação conferida."
@@ -332,9 +525,29 @@ export function ContractFlowWorkspace({
                       Contrato anterior ao fluxo integrado. Confira o contrato e as cobranças
                       existentes para incluí-lo com histórico preservado.
                     </p>
-                    <Button disabled={busy || !row.contract.active} onClick={enroll}>
-                      Incluir contrato existente no fluxo
-                    </Button>
+                    <p className="text-sm">
+                      CNPJ contratada: {row.contract.commercialTerms.sellerCnpj || "não informado"}{" "}
+                      · CNPJ tomador: {row.contract.commercialTerms.buyerCnpj || "não informado"} ·
+                      Código de serviço:{" "}
+                      {row.contract.commercialTerms.serviceCode || "não informado"}
+                    </p>
+                    <p className="text-sm">
+                      Certidões registradas:{" "}
+                      {row.contract.commercialTerms.certificates
+                        .map((certificate) => certificate.name)
+                        .join(", ") || "nenhuma"}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button disabled={busy || !row.contract.active} onClick={enroll}>
+                        Incluir contrato existente no fluxo
+                      </Button>
+                      <Button disabled={busy || !row.contract.active} onClick={updateTerms}>
+                        Registrar condições por aditivo
+                      </Button>
+                      <Button disabled={busy || !row.contract.active} onClick={reviewCertificate}>
+                        Conferir certidão
+                      </Button>
+                    </div>
                   </div>
                 )}
               </article>
