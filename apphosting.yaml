@@ -44,3 +44,24 @@ env:
     secret: TALLOS_API_TOKEN
     availability:
       - RUNTIME
+  # SOC scope verified in screen 733. Reads stay disabled until the separate keys are provisioned.
+  - variable: SOC_PRINCIPAL_COMPANY_ID
+    value: "1005519"
+    availability:
+      - RUNTIME
+  - variable: SOC_ALLOWED_COMPANY_IDS
+    value: "2306171"
+    availability:
+      - RUNTIME
+  - variable: SOC_COMPANIES_CODE
+    value: "185065"
+    availability:
+      - RUNTIME
+  - variable: SOC_EMPLOYEES_CODE
+    value: "155091"
+    availability:
+      - RUNTIME
+  - variable: SOC_ASOS_CODE
+    value: "221493"
+    availability:
+      - RUNTIME
