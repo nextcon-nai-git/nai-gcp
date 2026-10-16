@@ -225,6 +225,12 @@ const NAV_MODULES: NavModule[] = [
       },
       { title: "Quadro de Vidas", icon: Users, href: "/employees" },
       { title: "Middleware ERPs (TOTVS)", icon: Network, href: "/integrations" },
+      {
+        title: "Painel SOC",
+        icon: ClipboardCheck,
+        href: "/integrations/soc",
+        parentHref: "/integrations",
+      },
       { title: "Ponto Eletrônico CLT", icon: Clock, href: "/time-tracking" },
       { title: "Colaboradores NXC", icon: UserCheck, href: "/nxc-team" },
       { title: "Prestadores", icon: Users, href: "/providers" },
