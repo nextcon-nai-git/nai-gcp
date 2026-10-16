@@ -23,6 +23,16 @@ export async function POST(req: NextRequest) {
     return reply({ error: "Não autorizado." }, 401);
   const companies = socCompanyIds();
   if (!companies.length) return reply({ error: "Escopo SOC não configurado." }, 503);
+  // Keep this endpoint within its 180s runtime. A larger manual scope must not
+  // silently turn one scheduled request into thousands of sequential reads.
+  if (companies.length > 5)
+    return reply(
+      {
+        error:
+          "A carteira excede 5 empresas. O monitoramento em lote precisa ser configurado antes da execução; nenhuma empresa foi consultada.",
+      },
+      503
+    );
   const lock = adminDb.collection("webhook_deliveries").doc("soc-monitor");
   try {
     const acquired = await adminDb.runTransaction(async (tx) => {

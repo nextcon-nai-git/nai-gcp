@@ -39,7 +39,7 @@ export function socCompanyIds() {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  if (!ids.length || ids.length > 5 || ids.some((s) => !idPattern.test(s))) return [];
+  if (!ids.length || ids.length > 2000 || ids.some((s) => !idPattern.test(s))) return [];
   return [...new Set(ids)];
 }
 export function socConfiguration() {

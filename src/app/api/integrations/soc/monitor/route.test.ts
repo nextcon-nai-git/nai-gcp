@@ -54,3 +54,10 @@ it("does not report success if monitoring was not recorded", async () => {
   expect(result.status).toBe(502);
   expect(await result.text()).toContain("AUDIT_UNAVAILABLE");
 });
+
+it("refuses an oversized scheduled batch before locking or reading", async () => {
+  vi.stubEnv("SOC_ALLOWED_COMPANY_IDS", "1,2,3,4,5,6");
+  expect((await POST(req())).status).toBe(503);
+  expect(mocks.transaction).not.toHaveBeenCalled();
+  expect(mocks.read).not.toHaveBeenCalled();
+});

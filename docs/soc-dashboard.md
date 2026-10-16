@@ -41,3 +41,13 @@ A gravação registra ator, horário do servidor e uma versão aleatória. Uma t
 ## Validação
 
 Os testes de schema e API cobrem autorização, isolamento de clientes, leitura sem permissão de publicação, limite de corpo, validação, concorrência, regressão de data e indicadores desconhecidos. São validações de código; não comprovam leitura dos arquivos SOC ou funcionamento do conector em produção. Após publicar o aplicativo, importar o levantamento pela sessão autorizada, recarregar e verificar os dados persistidos, busca e filtros no ambiente publicado.
+
+## Convocação por empresa
+
+O painel aceita CSV original de **Convocação de Exames**, uma empresa por arquivo. O administrador seleciona o código SOC, data de referência e prazo, confere a prévia e confirma que o arquivo abrange todas as unidades/exames, sem filtro de vencimento. O apelido no CSV deve corresponder ao nome cadastrado; divergências bloqueiam a importação e exigem conferência da origem. A preparação preserva os outros clientes; a publicação segue o controle de versão transacional existente.
+
+O navegador processa até 16 MB/20 mil linhas; somente contagens agregadas chegam à API protegida, sem nomes de colaboradores, CPF, CNPJ, resultados clínicos ou códigos de pessoas. A importação não cria colaboradores, agendas ou ASOs e não modifica o SOC. Arquivos vazios, situações desconhecidas, vínculos incompletos e datas conflitantes são rejeitados.
+
+Os indicadores são **exames de colaboradores em situação Ativo**, não pessoas nem ASOs. `Refazer em` anterior à referência é vencido; da referência até o prazo inclusive é vencendo; após o prazo fica separado. Ausência de data permanece desconhecida. Duplicatas de empresa/vínculo/unidade/exame são removidas apenas quando concordam na data; outras situações são contadas separadamente. Cada empresa conserva data de referência e horário de importação. A cobertura explícita distingue empresas sem relatório de empresas importadas com zero vencidos.
+
+`examSummaries` é opcional no schema para manter compatibilidade com levantamentos anteriores. Sua validação exige empresa pertencente à carteira, códigos únicos e soma consistente das categorias. O CSV de uma empresa não representa a carteira inteira; nenhuma autorização de conector deriva automaticamente do upload.
