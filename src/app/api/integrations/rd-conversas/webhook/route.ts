@@ -1,24 +1,31 @@
 import { completedRdAsoText, rdAsoRequestFromText } from "@/lib/integrations/rd-aso-request";
 import { adminDb } from "@/lib/firebase-admin";
 import { receiveRdWebhook } from "@/lib/integrations/rd-conversas-webhook";
+import { createRdWebhookDiagnostics } from "@/lib/integrations/rd-conversas-diagnostics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-let lastDiagnosticMs = 0;
+const diagnose = createRdWebhookDiagnostics({
+  until: () => process.env.RD_CONVERSAS_DIAGNOSTICS_UNTIL,
+  write: async (observation) => {
+    // Structured operational event, deliberately free of message/credential values.
+    // eslint-disable-next-line no-console
+    console.info("NAI_RD_WEBHOOK_RESULT", JSON.stringify(observation));
+    await adminDb
+      .collection("webhook_deliveries")
+      .doc("rd-conversas-diagnostics")
+      .collection("outcomes")
+      .doc(observation.code)
+      .set(observation);
+  },
+});
 
 export async function POST(req: Request) {
   return receiveRdWebhook(req, {
     secret: process.env.RD_CONVERSAS_WEBHOOK_SECRET,
     parseCompletedAso: completedRdAsoText,
-    diagnose: (fields) => {
-      const now = Date.now();
-      const until = Date.parse(process.env.RD_CONVERSAS_DIAGNOSTICS_UNTIL || "");
-      if (until > now && until - now <= 86400000 && now - lastDiagnosticMs >= 60000) {
-        lastDiagnosticMs = now;
-        console.info("NAI_RD_WEBHOOK_SCHEMA", JSON.stringify({ fields }));
-      }
-    },
+    diagnose,
     allowedPhones: (process.env.RD_CONVERSAS_AVP_PHONES || "").split(","),
     save: async (key, message) => {
       const ref = adminDb

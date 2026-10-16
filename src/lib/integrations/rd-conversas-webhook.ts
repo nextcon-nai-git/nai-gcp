@@ -10,9 +10,25 @@ export type RdIncomingMessage = {
 export type RdWebhookConfig = {
   secret?: string;
   allowedPhones: string[];
-  diagnose?: (shape: string[]) => void;
+  diagnose?: (diagnostic: RdWebhookDiagnostic) => void | Promise<void>;
   parseCompletedAso?: (value: unknown) => string | null;
   save: (key: string, message: RdIncomingMessage) => Promise<boolean>;
+};
+export type RdWebhookDiagnostic = {
+  code:
+    | "invalid_envelope"
+    | "invalid_aso"
+    | "outgoing"
+    | "unknown_direction"
+    | "invalid_phone"
+    | "outside_avp"
+    | "invalid_request_id"
+    | "invalid_message"
+    | "stored"
+    | "duplicate"
+    | "storage_unavailable";
+  status: number;
+  fields: string[];
 };
 
 export function normalizeRdPhone(value: unknown): string {
@@ -93,43 +109,67 @@ export async function receiveRdWebhook(req: Request, config: RdWebhookConfig): P
   } finally {
     reader.releaseLock();
   }
-  let body: Record<string, unknown>;
+  let parsed: unknown;
   try {
-    body = record(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+    parsed = JSON.parse(Buffer.concat(chunks).toString("utf8"));
   } catch {
     return response(400, { error: "JSON inválido." });
   }
-  const shape = rdPayloadShape(body);
-  try {
-    config.diagnose?.(shape);
-  } catch {
-    /* Diagnostics must not block receipt. */
-  }
+  const fields = rdPayloadShape(parsed);
+  const finish = async (
+    status: number,
+    body: Record<string, unknown>,
+    code: RdWebhookDiagnostic["code"]
+  ) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      if (config.diagnose)
+        await Promise.race([
+          config.diagnose({ code, status, fields }),
+          new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, 1000);
+          }),
+        ]);
+    } catch {
+      /* Diagnostics must not change receipt or cause a provider retry. */
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+    return response(status, body);
+  };
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+    return finish(422, { error: "Envelope da mensagem inválido." }, "invalid_envelope");
+  const body = record(parsed);
   const data = Object.keys(record(body.data)).length ? record(body.data) : body;
   const message = record(data.message);
   const customer = record(data.customer);
   const completedAso = data.event === "aso.request.completed";
   const completedText = completedAso ? config.parseCompletedAso?.(data.aso_request) : null;
   if (completedAso && !completedText)
-    return response(422, {
-      error: "Solicitação de ASO incompleta ou inválida.",
-    });
+    return finish(
+      422,
+      {
+        error: "Solicitação de ASO incompleta ou inválida.",
+      },
+      "invalid_aso"
+    );
   // Explicit outgoing signals are ignored. Do not infer incoming from absence.
   const direction = data.direction ?? message.direction;
   const sentBy = data.sent_by ?? message.sent_by;
   if (!completedAso && (direction === "outbound" || sentBy === "operator" || sentBy === "bot"))
-    return response(200, { accepted: false, reason: "outgoing" });
+    return finish(200, { accepted: false, reason: "outgoing" }, "outgoing");
   if (!completedAso && direction !== "inbound" && sentBy !== "customer")
-    return response(422, { error: "Direção da mensagem não reconhecida." });
+    return finish(422, { error: "Direção da mensagem não reconhecida." }, "unknown_direction");
   const phone = normalizeRdPhone(customer.cel_phone ?? data.phone);
-  if (!phone) return response(422, { error: "Telefone inválido." });
-  if (!allowed.has(phone)) return response(200, { accepted: false, reason: "outside_avp" });
+  if (!phone) return finish(422, { error: "Telefone inválido." }, "invalid_phone");
+  if (!allowed.has(phone))
+    return finish(200, { accepted: false, reason: "outside_avp" }, "outside_avp");
   const requestId = data.request_id;
   if (
     completedAso &&
     (typeof requestId !== "string" || !requestId.trim() || requestId.length > 400)
   )
-    return response(422, { error: "Identificador da solicitação inválido." });
+    return finish(422, { error: "Identificador da solicitação inválido." }, "invalid_request_id");
   const id = completedAso
     ? "aso-request:" + requestId
     : (message.id ?? message._id ?? data.message_id);
@@ -146,9 +186,13 @@ export async function receiveRdWebhook(req: Request, config: RdWebhookConfig): P
     !text.trim() ||
     text.length > 16000
   )
-    return response(422, {
-      error: "Identificador ou texto da mensagem inválido.",
-    });
+    return finish(
+      422,
+      {
+        error: "Identificador ou texto da mensagem inválido.",
+      },
+      "invalid_message"
+    );
   const incoming: RdIncomingMessage = {
     provider: "rd-conversas",
     messageId: id,
@@ -161,10 +205,14 @@ export async function receiveRdWebhook(req: Request, config: RdWebhookConfig): P
     .digest("hex");
   try {
     const created = await config.save(key, incoming);
-    return response(200, { accepted: true, duplicate: !created });
+    return finish(200, { accepted: true, duplicate: !created }, created ? "stored" : "duplicate");
   } catch {
-    return response(503, {
-      error: "Recebimento indisponível. Tente novamente.",
-    });
+    return finish(
+      503,
+      {
+        error: "Recebimento indisponível. Tente novamente.",
+      },
+      "storage_unavailable"
+    );
   }
 }

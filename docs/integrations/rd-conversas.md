@@ -54,6 +54,34 @@ Teste final de produção: mensagem individual de contato autorizado aparece uma
 repetir o mesmo evento não duplica; contato externo não é armazenado.
 Não registrar texto, telefone, cabeçalhos nem credenciais nos logs.
 
+### Diagnóstico de recebimento
+
+A partir da correção de 16/10/2026, cada resultado de um payload autenticado e
+JSON válido registra código de resultado, HTTP e horário. A aba Operação ASO
+exibe a última ocorrência de cada resultado (amostragem de uma por minuto por
+resultado/instância). Ausência de diagnóstico não significa ausência de tráfego:
+falhas de autenticação/JSON não são incluídas e a gravação é best-effort.
+
+Os registros ficam em `webhook_deliveries/rd-conversas-diagnostics/outcomes`,
+com no máximo onze documentos substituíveis. A leitura passa pela mesma autorização
+operacional da fila; acesso direto via SDK do navegador continua bloqueado.
+Falha nessa observabilidade não transforma uma mensagem já salva em erro/reenvio.
+
+`RD_CONVERSAS_DIAGNOSTICS_UNTIL` habilita a captura limitada de nomes e tipos
+de campos somente quando o prazo está no futuro, a no máximo 24 horas. A janela
+atual termina em **17/10/2026 08:00 UTC**. Valores, telefones, conteúdo, IDs de
+mensagem e cabeçalhos não são registrados. Após o prazo, novos registros têm
+`fields: []`; registros históricos anteriores podem conservar a estrutura.
+
+`stored`/`duplicate` confirmam persistência; `outgoing`/`outside_avp` indicam
+descarte esperado; `unknown_direction`, `invalid_phone`, `invalid_message`,
+`invalid_envelope`, `invalid_aso` e `invalid_request_id` identificam o motivo do
+422; `storage_unavailable` indica falha no banco (503).
+
+Os HTTP 422 observados em produção em 15/10 não informam o contrato nativo.
+Esta instrumentação permite capturar a próxima ocorrência natural sem enviar
+mensagens. Ela não confirma nem corrige por si só uma divergência de contrato.
+
 ## Solicitação de ASO concluída no coletor do RD
 
 Na última etapa do formulário/chatbot, configurar uma ação HTTP POST para o mesmo

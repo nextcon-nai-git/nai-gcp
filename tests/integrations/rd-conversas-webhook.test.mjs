@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createRdWebhookDiagnostics } from "../../src/lib/integrations/rd-conversas-diagnostics.ts";
 import {
   receiveRdWebhook,
   normalizeRdPhone,
@@ -187,4 +188,95 @@ test("diagnostic failure does not block message receipt", async () => {
     },
   });
   assert.equal((await receiveRdWebhook(req(), s.config)).status, 200);
+});
+
+test("reports the actual rejection without personal values and preserves validation", async () => {
+  for (const [body, code] of [
+    [[], "invalid_envelope"],
+    [{ unknown: "private-value" }, "unknown_direction"],
+    [{ ...payload, phone: "invalid" }, "invalid_phone"],
+    [{ ...payload, message_id: undefined }, "invalid_message"],
+  ]) {
+    const observations = [];
+    const s = setup({ diagnose: async (d) => observations.push(d) });
+    assert.equal((await receiveRdWebhook(req(body), s.config)).status, 422);
+    assert.equal(s.stored.size, 0);
+    assert.equal(observations.length, 1);
+    assert.equal(observations[0].code, code);
+    assert.equal(observations[0].status, 422);
+    for (const value of [phone, secret, payload.message, "private-value"])
+      assert.ok(!JSON.stringify(observations).includes(value));
+  }
+});
+
+test("observability distinguishes saved, duplicate, ignored and failed persistence", async () => {
+  const observations = [];
+  const s = setup({ diagnose: async (d) => observations.push(d) });
+  await receiveRdWebhook(req(), s.config);
+  await receiveRdWebhook(req(), s.config);
+  await receiveRdWebhook(req({ ...payload, direction: "outbound" }), s.config);
+  await receiveRdWebhook(req({ ...payload, phone: "5521999990000" }), s.config);
+  s.config.save = async () => {
+    throw Error("private");
+  };
+  await receiveRdWebhook(req(), s.config);
+  assert.deepEqual(
+    observations.map(({ code }) => code),
+    ["stored", "duplicate", "outgoing", "outside_avp", "storage_unavailable"]
+  );
+});
+
+test("async diagnostic write failure does not change receipt or deduplication", async () => {
+  const s = setup({
+    diagnose: async () => {
+      throw Error("private database failure");
+    },
+  });
+  assert.equal((await receiveRdWebhook(req(), s.config)).status, 200);
+  assert.equal((await (await receiveRdWebhook(req(), s.config)).json()).duplicate, true);
+  assert.equal(s.stored.size, 1);
+});
+
+test("unresponsive diagnostic persistence does not hold the webhook response", async () => {
+  const s = setup({ diagnose: () => new Promise(() => {}) });
+  const result = await receiveRdWebhook(req(), s.config);
+  assert.equal(result.status, 200);
+  assert.equal(s.stored.size, 1);
+});
+
+test("diagnostics throttle per outcome, keeping distinct rejection causes", async () => {
+  let now = Date.parse("2026-10-16T10:00:00Z");
+  const observations = [];
+  const diagnose = createRdWebhookDiagnostics({
+    now: () => now,
+    until: () => "2026-10-16T11:00:00Z",
+    write: async (d) => {
+      observations.push(d);
+    },
+  });
+  const d = { code: "unknown_direction", status: 422, fields: ["$.message:string"] };
+  await diagnose(d);
+  await diagnose(d);
+  await diagnose({ ...d, code: "invalid_phone" });
+  assert.equal(observations.length, 2);
+  assert.deepEqual(observations[0].fields, d.fields);
+  now += 60000;
+  await diagnose(d);
+  assert.equal(observations.length, 3);
+});
+
+test("schema capture expires and cannot be enabled more than 24 hours ahead", async () => {
+  for (const until of [undefined, "invalid", "2026-10-16T09:59:59Z", "2026-10-18T10:00:00Z"]) {
+    const observations = [];
+    const diagnose = createRdWebhookDiagnostics({
+      now: () => Date.parse("2026-10-16T10:00:00Z"),
+      until: () => until,
+      write: async (d) => {
+        observations.push(d);
+      },
+    });
+    await diagnose({ code: "unknown_direction", status: 422, fields: ["$.message:string"] });
+    assert.deepEqual(observations[0].fields, []);
+    assert.equal(observations[0].code, "unknown_direction");
+  }
 });

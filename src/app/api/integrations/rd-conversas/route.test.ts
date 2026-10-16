@@ -129,7 +129,12 @@ describe("Tallos read-only operation without remote history", () => {
       new NextRequest("https://nai.local/api/integrations/rd-conversas?resource=operation")
     );
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ messages: [], requests: [], limit: 100 });
+    expect(await response.json()).toEqual({
+      messages: [],
+      requests: [],
+      webhookDiagnostics: [],
+      limit: 100,
+    });
     expect(state.queries).toContain("messages");
     expect(state.queries).toContain("asoRequests");
     expect(state.queries.filter((q) => q === "limit:100")).toHaveLength(2);

@@ -159,11 +159,35 @@ export async function GET(req: NextRequest) {
       return reply({ data, page, total: result.total, pages: result.pages });
     }
     if (resource === "operation") {
-      const [messages, requests] = await Promise.all([
+      const [messages, requests, diagnostics] = await Promise.all([
         rd().collection("messages").orderBy("receivedAt", "desc").limit(100).get(),
         rd().collection("asoRequests").orderBy("createdAt", "desc").limit(100).get(),
+        adminDb
+          .collection("webhook_deliveries")
+          .doc("rd-conversas-diagnostics")
+          .collection("outcomes")
+          .orderBy("receivedAt", "desc")
+          .limit(11)
+          .get()
+          .catch(() => null),
       ]);
       return reply({
+        webhookDiagnostics:
+          diagnostics?.docs.map((d) => {
+            const r = d.data();
+            return {
+              id: d.id,
+              code: string(r.code),
+              status: String(r.status),
+              receivedAt: string(r.receivedAt),
+              fields: Array.isArray(r.fields)
+                ? r.fields
+                    .slice(0, 100)
+                    .map((f) => string(f, 300))
+                    .join("\n")
+                : "",
+            };
+          }) ?? null,
         messages: messages.docs.map((d) => {
           const r = d.data();
           return {
