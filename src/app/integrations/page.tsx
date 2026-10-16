@@ -6,11 +6,11 @@ import { Badge } from "@/components/ui/badge";
 
 const availableModules = [
   {
-    name: "SOC · Cadastros e ASOs",
+    name: "Painel SOC · Clientes e pendências",
     description:
-      "Consulte empresas, colaboradores e ASOs emitidos. Confira matrículas e acompanhe as consultas do NAI com as credenciais configuradas.",
+      "Acompanhe o levantamento dos clientes ativos, os relatórios disponíveis e as pendências confirmadas. Consulte também cadastros e ASOs com as credenciais configuradas.",
     href: "/integrations/soc",
-    action: "Abrir central SOC",
+    action: "Abrir painel SOC",
   },
   {
     name: "RD Conversas · Tallos",
