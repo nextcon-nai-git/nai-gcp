@@ -17,6 +17,31 @@ export const reportStatuses = {
   empty: "Sem resultado neste filtro",
 } as const;
 
+const count = z.number().int().min(0).max(20000);
+export const socExamSummarySchema = z
+  .object({
+    companyId: id,
+    importedAt: z.string().datetime({ offset: true }),
+    referenceDate: day,
+    dueSoonEnd: day,
+    source: z.literal("SOC · Convocação de Exames CSV"),
+    total: count,
+    overdue: count,
+    dueSoon: count,
+    later: count,
+    unknown: count,
+    excludedInactive: count,
+    duplicates: count,
+  })
+  .strict()
+  .superRefine((s, ctx) => {
+    if (s.overdue + s.dueSoon + s.later + s.unknown !== s.total)
+      ctx.addIssue({ code: "custom", message: "Contagens inconsistentes" });
+    if (s.dueSoonEnd < s.referenceDate)
+      ctx.addIssue({ code: "custom", message: "Prazo anterior à referência" });
+  });
+export type SocExamSummary = z.infer<typeof socExamSummarySchema>;
+
 const reportSchema = z
   .object({
     id,
@@ -58,7 +83,15 @@ export const socDashboardSchema = z
     dueSoonEnd: day,
     inactiveExcluded: z.number().int().min(0).max(100_000),
     activeCompanies: z
-      .array(z.object({ id, name: text }).strict())
+      .array(
+        z
+          .object({
+            id,
+            name: text,
+            lastReportedLives: z.number().int().min(0).max(10000000).optional(),
+          })
+          .strict()
+      )
       .min(1)
       .max(2_000),
     reports: z.array(reportSchema).max(100),
@@ -73,6 +106,7 @@ export const socDashboardSchema = z
           .strict()
       )
       .max(100),
+    examSummaries: z.array(socExamSummarySchema).max(2000).optional(),
     limitation: text,
   })
   .strict()
@@ -82,6 +116,17 @@ export const socDashboardSchema = z
         context.addIssue({ code: "custom", path: [key], message: "Códigos repetidos" });
       }
     }
+    const companyIds = new Set(snapshot.activeCompanies.map((c) => c.id));
+    const summaries = snapshot.examSummaries ?? [];
+    if (
+      new Set(summaries.map((s) => s.companyId)).size !== summaries.length ||
+      summaries.some((s) => !companyIds.has(s.companyId))
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["examSummaries"],
+        message: "Empresa ausente ou repetida",
+      });
     if (!Number.isFinite(Date.parse(snapshot.observedAt))) return;
     const observedDay = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(
       new Date(snapshot.observedAt)

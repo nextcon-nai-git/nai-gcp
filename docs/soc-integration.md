@@ -63,14 +63,14 @@ Endpoint documentado dentro do SOC: `https://ws1.soc.com.br/WebSoc/exportadados?
 
 Provisionar segredos no gerenciador do ambiente e vinculá-los ao runtime do App Hosting. Não colar chaves no chat, GitHub, `.env` versionado ou formulário de configuração comum.
 
-| Variável                               | Valor/uso                                                                                          |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| SOC_PRINCIPAL_COMPANY_ID               | 1005519, após confirmar escopo do contrato                                                         |
-| SOC_ALLOWED_COMPANY_IDS                | Até 5 códigos de empresas explicitamente autorizadas, separados por vírgula; sem padrão automático |
-| SOC_COMPANIES_CODE / SOC_COMPANIES_KEY | 185065 e sua chave Exporta Dados                                                                   |
-| SOC_EMPLOYEES_CODE / SOC_EMPLOYEES_KEY | 155091 e sua chave Exporta Dados                                                                   |
-| SOC_ASOS_CODE / SOC_ASOS_KEY           | 221493 e sua chave Exporta Dados                                                                   |
-| SOC_MONITOR_SECRET                     | Segredo dedicado, aleatório, mínimo 32 caracteres, para o agendador                                |
+| Variável                               | Valor/uso                                                                                              |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| SOC_PRINCIPAL_COMPANY_ID               | 1005519, após confirmar escopo do contrato                                                             |
+| SOC_ALLOWED_COMPANY_IDS                | Até 2.000 códigos de empresas explicitamente autorizadas, separados por vírgula; sem padrão automático |
+| SOC_COMPANIES_CODE / SOC_COMPANIES_KEY | 185065 e sua chave Exporta Dados                                                                       |
+| SOC_EMPLOYEES_CODE / SOC_EMPLOYEES_KEY | 155091 e sua chave Exporta Dados                                                                       |
+| SOC_ASOS_CODE / SOC_ASOS_KEY           | 221493 e sua chave Exporta Dados                                                                       |
+| SOC_MONITOR_SECRET                     | Segredo dedicado, aleatório, mínimo 32 caracteres, para o agendador                                    |
 
 Os códigos foram observados; as chaves não foram copiadas para código ou relatório. Uma configuração preenchida não declara conexão: somente uma consulta bem-sucedida registra resposta do provedor. O Grupo AVP foi localizado após o usuário informar suas instituições: empresa SOC 2306171 (ASSOBES), com as instituições representadas em unidades. Usar SOC_ALLOWED_COMPANY_IDS=2306171 para esse escopo, após provisionamento seguro; a empresa principal de autenticação continua 1005519. Nenhuma autorização é inferida automaticamente do nome AVP.
 
@@ -105,3 +105,7 @@ Validação local de código em 16/10/2026: 48 testes direcionados aprovados (co
 4. Confirmar respostas reais JSON/CSV, codificação e erros de autorização sem expor chaves. Ajustar layout apenas a partir de evidência.
 5. Executar monitoramento manual, conferir resumo persistido, habilitar agendamento e comprovar a primeira execução diária.
 6. Somente depois do contrato RM, homologar alterações individuais e sucesso da próxima carga. Testes unitários não substituem essas etapas.
+
+## Ampliação da carteira
+
+Consultas manuais aceitam até 2.000 códigos explicitamente autorizados, sem curinga ou autorização por nome. O cadastro do painel não amplia automaticamente o escopo do conector. O endpoint de monitoramento continua limitado a cinco empresas por execução: recusa carteiras maiores antes de qualquer consulta, evitando exceder o tempo de execução ou declarar cobertura parcial como completa. O agendador continua desabilitado; a orquestração de lotes exige implementação e homologação próprias. Chaves e alteração efetiva do escopo no ambiente continuam necessárias.

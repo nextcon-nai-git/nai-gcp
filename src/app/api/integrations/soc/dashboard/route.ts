@@ -92,6 +92,15 @@ export async function PUT(req: NextRequest) {
     const { snapshot, expectedVersion } = parsed.data;
     if (Date.parse(snapshot.observedAt) > Date.now() + 300_000)
       return reply({ error: "A data da consulta não pode estar no futuro." }, 400);
+    if (
+      snapshot.examSummaries?.some(
+        (s) =>
+          Date.parse(s.importedAt) > Date.now() + 300_000 ||
+          s.referenceDate >
+            new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date())
+      )
+    )
+      return reply({ error: "A referência do relatório não pode estar no futuro." }, 400);
     const version = randomUUID();
     const savedAt = new Date().toISOString();
     const ref = document();

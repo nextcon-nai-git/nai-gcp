@@ -88,3 +88,21 @@ describe("SOC dashboard evidence", () => {
     ).toBe(false);
   });
 });
+
+it("distinguishes missing life counts from a reported zero and rejects invalid counts", () => {
+  const snapshot = socDashboardSchema.parse({
+    ...fixture,
+    activeCompanies: [
+      { id: "101", name: "Teste", lastReportedLives: 0 },
+      { id: "102", name: "Outro" },
+    ],
+  });
+  expect(snapshot.activeCompanies[0].lastReportedLives).toBe(0);
+  expect(snapshot.activeCompanies[1].lastReportedLives).toBeUndefined();
+  expect(
+    socDashboardSchema.safeParse({
+      ...fixture,
+      activeCompanies: [{ id: "101", name: "Teste", lastReportedLives: -1 }],
+    }).success
+  ).toBe(false);
+});

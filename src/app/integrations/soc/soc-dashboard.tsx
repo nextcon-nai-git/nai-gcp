@@ -15,6 +15,8 @@ import {
   type SocDashboardSnapshot,
 } from "@/lib/integrations/soc-dashboard";
 
+import { SocConvocationPanel } from "./soc-convocation-panel";
+
 const date = (value: string) =>
   new Date(`${value}T12:00:00Z`).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
 const timestamp = (value: string) =>
@@ -218,16 +220,49 @@ export function SocDashboard() {
             <Metric
               icon={<FileClock className="size-5" />}
               title="Relatórios para leitura"
-              value={String(summary.readyReports)}
+              value={snapshot.reports.length ? String(summary.readyReports) : "Não levantado"}
               detail={`${summary.scheduledReports} com processamento agendado. Disponibilidade não confirma quantidade de pendências.`}
             />
             <Metric
               icon={<ListChecks className="size-5" />}
               title="Tarefas administrativas"
-              value={String(summary.administrativeTasks)}
+              value={
+                snapshot.administrativeTasks.length
+                  ? String(summary.administrativeTasks)
+                  : "Não levantado"
+              }
               detail="Etapas encontradas no Maestro; não representam uma contagem de ASOs parados."
             />
           </div>
+          <div className="rounded-lg border p-4 text-sm">
+            <p>
+              <strong>
+                Vidas na última contagem SOC:{" "}
+                {snapshot.activeCompanies.some((c) => c.lastReportedLives !== undefined)
+                  ? snapshot.activeCompanies
+                      .reduce((total, c) => total + (c.lastReportedLives ?? 0), 0)
+                      .toLocaleString("pt-BR")
+                  : "Não informado"}
+              </strong>
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              Cobertura:{" "}
+              {snapshot.activeCompanies.filter((c) => c.lastReportedLives !== undefined).length} de{" "}
+              {snapshot.activeCompanies.length} empresas. A data da contagem não consta no
+              relatório; não representa confirmação do quadro atual.
+            </p>
+          </div>
+          <SocConvocationPanel
+            key={`${owner}:${visibleData.version}`}
+            snapshot={snapshot}
+            canPublish={visibleData.canPublish}
+            busy={publishing}
+            onDraft={(value) => {
+              setDraft(value);
+              setError("");
+              setNotice("Resumo preparado. Revise a prévia e publique abaixo.");
+            }}
+          />
           <Card>
             <CardHeader>
               <CardTitle>Relatórios e próximos passos</CardTitle>
@@ -344,6 +379,7 @@ export function SocDashboard() {
                       <tr>
                         <th className="p-3">Código SOC</th>
                         <th className="p-3">Cliente ativo</th>
+                        <th className="p-3">Última contagem de vidas</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -351,6 +387,11 @@ export function SocDashboard() {
                         <tr key={company.id} className="border-t">
                           <td className="p-3 font-mono text-xs">{company.id}</td>
                           <td className="p-3">{company.name}</td>
+                          <td className="p-3">
+                            {company.lastReportedLives === undefined
+                              ? "Não informado"
+                              : company.lastReportedLives.toLocaleString("pt-BR")}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -412,7 +453,7 @@ export function SocDashboard() {
         </>
       )}
       {visibleData?.canPublish && (
-        <details className="rounded-lg border p-4">
+        <details className="rounded-lg border p-4" open={!!draft || undefined}>
           <summary className="cursor-pointer font-medium">Publicar levantamento verificado</summary>
           <div className="mt-4 space-y-4 text-sm">
             <p>
@@ -443,6 +484,10 @@ export function SocDashboard() {
                   {draft.inactiveExcluded}
                 </p>
                 <p>{draft.limitation}</p>
+                <p>
+                  Convocação: {draft.examSummaries?.length ?? 0} empresas com resumo de exames.
+                  Confira as datas de referência por empresa.
+                </p>
                 <Button onClick={publish} disabled={publishing}>
                   <Upload className="mr-2 size-4" />
                   {publishing ? "Publicando…" : "Publicar levantamento"}

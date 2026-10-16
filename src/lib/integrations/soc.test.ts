@@ -52,10 +52,33 @@ describe("SOC scope and credentials", () => {
     expect(socConfiguration().resources.employees.configured).toBe(false);
   });
   it("fails closed for absent, malformed or oversized company scope", () => {
-    for (const value of ["", "101,any", "1,2,3,4,5,6"]) {
+    for (const value of [
+      "",
+      "101,any",
+      Array.from({ length: 2001 }, (_, i) => String(i + 1)).join(","),
+    ]) {
       vi.stubEnv("SOC_ALLOWED_COMPANY_IDS", value);
       expect(socCompanyIds()).toEqual([]);
     }
+  });
+  it("supports the full explicit portfolio without wildcard authorization", () => {
+    const ids = Array.from({ length: 162 }, (_, i) => String(i + 1));
+    vi.stubEnv("SOC_ALLOWED_COMPANY_IDS", ids.join(","));
+    expect(socCompanyIds()).toEqual(ids);
+    expect(() => socQuery("employees", { companyId: "162" })).not.toThrow();
+    expect(() => socQuery("employees", { companyId: "163" })).toThrow();
+    vi.stubEnv("SOC_ALLOWED_COMPANY_IDS", "*");
+    expect(socCompanyIds()).toEqual([]);
+  });
+  it("keeps the ASO employee batch capped at 50 after portfolio expansion", () => {
+    expect(() =>
+      socQuery("asos", {
+        companyId: "101",
+        start: "2026-10-01",
+        end: "2026-10-16",
+        employeeIds: Array.from({ length: 51 }, (_, i) => String(i + 1)).join(","),
+      })
+    ).toThrow("1 a 50");
   });
   it("never calls provider for unauthorized company", async () => {
     const fetcher = response([]);
