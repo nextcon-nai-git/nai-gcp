@@ -462,7 +462,8 @@ export function mergeSpreadsheetData(
         });
 
         if (hasChanges) {
-          target.cidadeRaw = `${target.cidade} / ${target.uf}`;
+          if (target.cidade !== existing.cidade || target.uf !== existing.uf)
+            target.cidadeRaw = `${target.cidade} / ${target.uf}`;
           target.urgenciaRaw = target.urgencia;
         }
 
