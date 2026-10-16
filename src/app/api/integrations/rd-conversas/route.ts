@@ -139,7 +139,7 @@ export async function GET(req: NextRequest) {
       if (!process.env.TALLOS_HISTORY_PRIVATE_KEY)
         throw new TallosError(
           424,
-          "O histórico completo requer plano Advanced e configuração da chave privada Tallos. As mensagens recebidas pelo webhook continuam disponíveis na aba Operação ASO."
+          "O histórico completo requer plano Pro ou Advanced e configuração da chave privada Tallos. As mensagens recebidas pelo webhook continuam disponíveis na aba Operação ASO."
         );
       const result = await tallosRequest("/v2/messages/history", {
         customer_id: id,
@@ -159,11 +159,35 @@ export async function GET(req: NextRequest) {
       return reply({ data, page, total: result.total, pages: result.pages });
     }
     if (resource === "operation") {
-      const [messages, requests] = await Promise.all([
+      const [messages, requests, diagnostics] = await Promise.all([
         rd().collection("messages").orderBy("receivedAt", "desc").limit(100).get(),
         rd().collection("asoRequests").orderBy("createdAt", "desc").limit(100).get(),
+        adminDb
+          .collection("webhook_deliveries")
+          .doc("rd-conversas-diagnostics")
+          .collection("outcomes")
+          .orderBy("receivedAt", "desc")
+          .limit(11)
+          .get()
+          .catch(() => null),
       ]);
       return reply({
+        webhookDiagnostics:
+          diagnostics?.docs.map((d) => {
+            const r = d.data();
+            return {
+              id: d.id,
+              code: string(r.code),
+              status: String(r.status),
+              receivedAt: string(r.receivedAt),
+              fields: Array.isArray(r.fields)
+                ? r.fields
+                    .slice(0, 100)
+                    .map((f) => string(f, 300))
+                    .join("\n")
+                : "",
+            };
+          }) ?? null,
         messages: messages.docs.map((d) => {
           const r = d.data();
           return {

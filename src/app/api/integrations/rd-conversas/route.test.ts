@@ -5,13 +5,23 @@ const state = vi.hoisted(() => ({
   user: { uid: "staff", role: "OPERATIONS", tenantId: null as string | null },
   draft: null as Record<string, unknown> | null,
   send: vi.fn(),
+  queries: [] as string[],
 }));
 vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: vi.fn(async () => state.user) }));
 vi.mock("@/lib/firebase-admin", () => {
   const ref = {
-    collection: () => ref,
+    collection: (name: string) => {
+      state.queries.push(name);
+      return ref;
+    },
     doc: () => ref,
     id: "draft-id",
+    orderBy: () => ref,
+    limit: (limit: number) => {
+      state.queries.push(`limit:${limit}`);
+      return ref;
+    },
+    get: async () => ({ docs: [] }),
     create: vi.fn(async (d: Record<string, unknown>) => {
       state.draft = d;
     }),
@@ -44,6 +54,8 @@ const request = (body: unknown) =>
 beforeEach(() => {
   state.user = { uid: "staff", role: "OPERATIONS", tenantId: null };
   state.draft = null;
+  state.queries = [];
+  vi.unstubAllEnvs();
   state.send.mockReset().mockResolvedValue({ data: {}, total: null, pages: null });
 });
 describe("Reviewed Tallos messages", () => {
@@ -105,6 +117,46 @@ describe("Reviewed Tallos messages", () => {
       new NextRequest("https://nai.local/api/integrations/rd-conversas?resource=contacts")
     );
     expect(response.status).toBe(403);
+    expect(state.send).not.toHaveBeenCalled();
+  });
+});
+
+describe("Tallos read-only operation without remote history", () => {
+  it("reads the AVP queue without any Tallos credentials or provider calls", async () => {
+    vi.stubEnv("TALLOS_API_TOKEN", "");
+    vi.stubEnv("TALLOS_HISTORY_PRIVATE_KEY", "");
+    const response = await GET(
+      new NextRequest("https://nai.local/api/integrations/rd-conversas?resource=operation")
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      messages: [],
+      requests: [],
+      webhookDiagnostics: [],
+      limit: 100,
+    });
+    expect(state.queries).toContain("messages");
+    expect(state.queries).toContain("asoRequests");
+    expect(state.queries.filter((q) => q === "limit:100")).toHaveLength(2);
+    expect(state.send).not.toHaveBeenCalled();
+  });
+  it("blocks tenant access before reading the shared AVP queue", async () => {
+    state.user.tenantId = "client";
+    const response = await GET(
+      new NextRequest("https://nai.local/api/integrations/rd-conversas?resource=operation")
+    );
+    expect(response.status).toBe(403);
+    expect(state.queries).toEqual([]);
+    expect(state.send).not.toHaveBeenCalled();
+  });
+  it("does not query encrypted history without a private key", async () => {
+    vi.stubEnv("TALLOS_HISTORY_PRIVATE_KEY", "");
+    const response = await GET(
+      new NextRequest(
+        "https://nai.local/api/integrations/rd-conversas?resource=history&contactId=synthetic"
+      )
+    );
+    expect(response.status).toBe(424);
     expect(state.send).not.toHaveBeenCalled();
   });
 });

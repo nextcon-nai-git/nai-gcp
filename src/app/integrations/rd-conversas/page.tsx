@@ -105,7 +105,11 @@ export default function TallosWorkspace() {
   const [contacts, setContacts] = useState<List<Contact> | null>(null);
   const [reports, setReports] = useState<List<Row> | null>(null);
   const [operators, setOperators] = useState<Row[]>([]);
-  const [operation, setOperation] = useState<{ messages: Row[]; requests: Row[] } | null>(null);
+  const [operation, setOperation] = useState<{
+    messages: Row[];
+    requests: Row[];
+    webhookDiagnostics: Row[] | null;
+  } | null>(null);
   const [start, setStart] = useState(() => today().slice(0, 8) + "01");
   const [end, setEnd] = useState(today);
   const [reportStatus, setReportStatus] = useState("");
@@ -249,7 +253,7 @@ export default function TallosWorkspace() {
                 Histórico completo:{" "}
                 {status.historyKeyConfigured
                   ? "chave configurada; acesso depende do plano"
-                  : "requer chave privada e plano Advanced"}{" "}
+                  : "requer chave privada e plano Pro ou Advanced"}{" "}
                 · Webhook:{" "}
                 {status.webhookConfigured
                   ? "segredos configurados; confira os recebimentos"
@@ -462,6 +466,31 @@ export default function TallosWorkspace() {
             </p>
             {operation && (
               <>
+                <details className="rounded-xl border p-4">
+                  <summary className="cursor-pointer font-medium">
+                    Diagnóstico do recebimento
+                  </summary>
+                  <p className="my-3 text-sm text-muted-foreground">
+                    Última ocorrência por resultado, amostrada a cada minuto. Configuração do
+                    webhook e conexão com a API não comprovam recebimento. Os campos técnicos abaixo
+                    não incluem conteúdo das mensagens.
+                  </p>
+                  {operation.webhookDiagnostics === null ? (
+                    <p>Diagnóstico indisponível nesta consulta.</p>
+                  ) : operation.webhookDiagnostics.length === 0 ? (
+                    <p>Aguardando evento autenticado após a publicação do diagnóstico.</p>
+                  ) : (
+                    <DataTable
+                      rows={operation.webhookDiagnostics}
+                      columns={[
+                        ["receivedAt", "Última ocorrência"],
+                        ["code", "Resultado"],
+                        ["status", "HTTP"],
+                        ["fields", "Estrutura (sem valores)"],
+                      ]}
+                    />
+                  )}
+                </details>
                 <h3 className="font-semibold">Solicitações de ASO · {operation.requests.length}</h3>
                 <DataTable
                   rows={operation.requests}
@@ -658,8 +687,8 @@ export default function TallosWorkspace() {
               <section className="space-y-3 border-t pt-4">
                 <h3 className="font-semibold">Histórico completo</h3>
                 <p className="text-xs text-muted-foreground">
-                  Período: {start} a {end}. Requer plano Advanced e chave privada configurada no
-                  servidor.
+                  Período: {start} a {end}. Requer plano Pro ou Advanced e chave privada configurada
+                  no servidor.
                 </p>
                 <Button
                   variant="outline"

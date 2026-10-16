@@ -32,7 +32,8 @@ ter Secret Accessor nesse segredo e executar uma revisão que contenha a configu
 
 ## Histórico completo (dependência externa)
 
-A documentação do Tallos exige plano Advanced e chave privada para GET
+A documentação oficial consultada em 16/10/2026 informa disponibilidade nos planos
+Pro e Advanced, com criptografia e chave privada, para GET
 /v2/messages/history. Sem essa chave, a central informa a pendência; o histórico
 recebido via webhook continua disponível. O código suporta JWE compact e flattened
 JSON com RSA-OAEP/RSA-OAEP-256 e AES GCM/CBC-HMAC autenticado. Tags inválidas,
@@ -50,6 +51,20 @@ acesso ao backend nai e, somente depois de o segredo existir, adicionar ao env:
 ```
 
 Não compartilhe a chave no chat, em arquivos do repositório ou em screenshots.
+
+## Consulta sem contratar Advanced
+
+- Mensagens e solicitações AVP já armazenadas são lidas diretamente do Firestore,
+  sem chamar a API Tallos e sem depender do token ou da chave de histórico.
+  São até 100 mensagens e até 100 solicitações, separadamente; não é todo o chat.
+- O webhook aceita apenas contratos suportados e telefones autorizados. Não
+  recupera mensagens anteriores à sua ativação nem anexos ou eventos em lote.
+- Contatos, operadores e relatórios usam o token Tallos, sem a chave privada de
+  histórico. A disponibilidade deve ser conferida por recurso na conta contratada;
+  uma conexão válida não comprova acesso a relatórios.
+- O histórico remoto também está documentado para o plano Pro. A chave configurada
+  não comprova que a conta tenha permissão. Não recomendar upgrade sem verificar
+  o plano e uma consulta autorizada ao recurso.
 
 ## Validação operacional
 
