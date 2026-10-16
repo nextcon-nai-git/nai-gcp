@@ -98,6 +98,8 @@ export function socQuery(
     invalid("Informe de 1 a 50 códigos SOC de colaboradores, separados por vírgula.");
   const br = (s: string) => s.split("-").reverse().join("/");
   return {
+    // Screen 733 real ASO read uses the target company's code here (not the login/principal).
+    empresa: companyId,
     funcionarioInicio: "",
     funcionarioFim: "",
     pFuncionario: "1",
@@ -221,12 +223,12 @@ export async function socRead(
       const next = await reader.read();
       if (next.done) break;
       size += next.value.byteLength;
-      if (size > 4 * 1024 * 1024) {
+      if (size > 16 * 1024 * 1024) {
         await reader.cancel();
         throw new SocError(
           502,
           "RESPONSE_TOO_LARGE",
-          "A consulta excedeu 4 MB. Reduza o período ou o conjunto de colaboradores."
+          "A consulta excedeu 16 MB. Reduza o período ou solicite um relatório com escopo menor ao SOC."
         );
       }
       chunks.push(next.value);
@@ -273,6 +275,7 @@ export async function socRead(
       registration: r.MATRICULAFUNCIONARIO,
       status: r.SITUACAO || "",
       unit: r.NOMEUNIDADE || "",
+      unitId: r.CODIGOUNIDADE || "",
       role: r.NOMECARGO || "",
       review: !r.MATRICULAFUNCIONARIO
         ? "Matrícula ausente; conferir regra do vínculo"

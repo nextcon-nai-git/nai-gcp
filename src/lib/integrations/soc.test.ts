@@ -130,7 +130,7 @@ describe("SOC contracts and errors", () => {
   });
   it("bounds streamed responses", async () => {
     await expect(
-      socRead("employees", { companyId: "101" }, response("x".repeat(4 * 1024 * 1024 + 1)))
+      socRead("employees", { companyId: "101" }, response("x".repeat(16 * 1024 * 1024 + 1)))
     ).rejects.toMatchObject({ code: "RESPONSE_TOO_LARGE" });
   });
   it("rejects mixed-company records", async () => {
@@ -160,6 +160,23 @@ describe("SOC contracts and errors", () => {
     expect(JSON.stringify(rows)).not.toContain("private");
   });
 });
+it("preserves distinct unit codes even when the names match", async () => {
+  const rows = await socRead(
+    "employees",
+    { companyId: "101" },
+    response([
+      employee({ CODIGOUNIDADE: "286", NOMEUNIDADE: "CEUDESP", MATRICULAFUNCIONARIO: "01" }),
+      employee({
+        CODIGO: "16",
+        CODIGOUNIDADE: "300",
+        NOMEUNIDADE: "CEUDESP",
+        MATRICULAFUNCIONARIO: "02",
+      }),
+    ])
+  );
+  expect(rows.map((r) => r.unitId)).toEqual(["286", "300"]);
+});
+
 describe("SOC ASO query", () => {
   const query = { companyId: "101", start: "2026-10-01", end: "2026-10-16", employeeIds: "15" };
   const aso = {
@@ -172,6 +189,7 @@ describe("SOC ASO query", () => {
   };
   it("uses emission date and explicit employee scope", () => {
     expect(socQuery("asos", query)).toMatchObject({
+      empresa: "101",
       dataInicio: "01/10/2026",
       dataFim: "16/10/2026",
       pDataIncAso: "2",
@@ -189,7 +207,12 @@ describe("SOC ASO query", () => {
     expect(() => socQuery("asos", { ...query, ...change })).toThrow()
   );
   it("deduplicates exam rows and excludes clinical conclusions", async () => {
-    const rows = await socRead("asos", query, response([aso, aso]));
+    const fetcher = response([aso, aso]);
+    const rows = await socRead("asos", query, fetcher);
+    const parameters = JSON.parse(
+      new URL(String(fetcher.mock.calls[0][0])).searchParams.get("parametro")!
+    );
+    expect(parameters.empresa).toBe("101");
     expect(rows).toHaveLength(1);
     expect(rows[0]).not.toHaveProperty("RESASOSOC");
     expect(JSON.stringify(rows)).not.toContain("private");

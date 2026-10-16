@@ -73,6 +73,7 @@ export default function SocPage() {
   const [start, setStart] = useState(today);
   const [end, setEnd] = useState(today);
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [unitFilter, setUnitFilter] = useState("");
   const [page, setPage] = useState(0);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -86,6 +87,7 @@ export default function SocPage() {
     setNotice("");
     setCompanyId("");
     setVerified({});
+    setUnitFilter("");
     if (!user) return;
     let cancelled = false;
     (async () => {
@@ -111,6 +113,7 @@ export default function SocPage() {
   }, [user]);
 
   function clear() {
+    setUnitFilter("");
     setRows(null);
     setNotice("");
     setError("");
@@ -150,6 +153,18 @@ export default function SocPage() {
     }
   }
   const ready = resource === "runs" || !!config?.resources[resource]?.configured;
+  const units =
+    resource === "employees"
+      ? [
+          ...new Map(
+            (rows || []).filter((r) => r.unitId).map((r) => [String(r.unitId), String(r.unit)])
+          ).entries(),
+        ].sort((a, b) => a[1].localeCompare(b[1], "pt-BR"))
+      : [];
+  const visibleRows =
+    resource === "employees" && unitFilter
+      ? (rows || []).filter((r) => r.unitId === unitFilter)
+      : rows || [];
   return (
     <main className="space-y-6 pb-16">
       <header className="space-y-2">
@@ -310,7 +325,29 @@ export default function SocPage() {
       )}
       {rows !== null && (
         <section className="space-y-3">
-          <p className="text-sm">{rows.length} registros nesta consulta.</p>
+          <p className="text-sm">
+            {visibleRows.length} registros exibidos de {rows.length} consultados.
+          </p>
+          {resource === "employees" && units.length > 0 && (
+            <label className="block space-y-2 text-sm">
+              Unidade SOC
+              <select
+                className="block h-10 max-w-full rounded-md border bg-background px-3"
+                value={unitFilter}
+                onChange={(e) => {
+                  setUnitFilter(e.target.value);
+                  setPage(0);
+                }}
+              >
+                <option value="">Todas as unidades ({units.length})</option>
+                {units.map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name} · código {id}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-left text-sm">
               <thead className="bg-muted">
@@ -323,7 +360,7 @@ export default function SocPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.slice(page * 50, (page + 1) * 50).map((row, i) => (
+                {visibleRows.slice(page * 50, (page + 1) * 50).map((row, i) => (
                   <tr key={i} className="border-t">
                     {columns[resource].map(([key]) => (
                       <td className="p-3" key={key}>
@@ -335,17 +372,17 @@ export default function SocPage() {
               </tbody>
             </table>
           </div>
-          {rows.length > 50 && (
+          {visibleRows.length > 50 && (
             <div className="flex items-center gap-3">
               <Button variant="outline" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
                 Anterior
               </Button>
               <span>
-                Página {page + 1} de {Math.ceil(rows.length / 50)}
+                Página {page + 1} de {Math.ceil(visibleRows.length / 50)}
               </span>
               <Button
                 variant="outline"
-                disabled={(page + 1) * 50 >= rows.length}
+                disabled={(page + 1) * 50 >= visibleRows.length}
                 onClick={() => setPage((p) => p + 1)}
               >
                 Próxima

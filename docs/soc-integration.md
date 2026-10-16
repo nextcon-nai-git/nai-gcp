@@ -22,6 +22,26 @@ Matrícula vazia é um indício para conferir a regra do vínculo, não prova de
 
 Estas verificações são **leituras reais na interface SOC**. Não são testes da API NAI publicada, das chaves Exporta Dados a partir do servidor NAI, do agendador ou da sincronização RM. Nenhuma dessas etapas foi declarada operacional nesta entrega.
 
+## Grupo AVP: empresa e unidades confirmadas
+
+Depois de receber as siglas do usuário, a inspeção encontrou **ASSOBES ENSINO SUPERIOR LTDA, empresa SOC 2306171** (razão social inicial STAMP SERVICOS EDUCACIONAIS LTDA). As nove instituições aparecem nas unidades dessa empresa. A consulta real de colaboradores retornou **5.685 registros em 43 códigos de unidade**, incluindo todas as situações cadastrais; não equivale a 5.685 empregados ativos. **195 registros sem matrícula** e nenhuma repetida entre as matrículas preenchidas, sem conclusão automática de incorreção.
+
+| Instituição informada | Códigos de unidade SOC                | Registros retornados |
+| --------------------- | ------------------------------------- | -------------------: |
+| ASSOBES               | 2 a 33, conforme unidades cadastradas |                2.547 |
+| CEUDESP               | 286 e 300                             |          128 + 2.709 |
+| ASCEC                 | 245                                   |                   65 |
+| ASPER                 | 243                                   |                   15 |
+| APESU                 | 293                                   |                   95 |
+| AESPI                 | 306                                   |                   42 |
+| AESA                  | 251                                   |                   20 |
+| AVIES                 | 147                                   |                    7 |
+| AESMS                 | 250 e 304                             |               17 + 1 |
+
+A unidade 246, FORTALEZA - ASSOCIADA, retornou mais 39 registros. Sua associação a uma das nove siglas não foi presumida. CEUDESP tem duas unidades com o mesmo nome, e AESMS aparece com dois nomes; o conector preserva CODIGOUNIDADE e o painel filtra pelo código, sem juntar registros pelo nome. O teto de resposta foi aumentado para 16 MB para acomodar a base consolidada, mantendo limite de 20 mil linhas e rejeição explícita de excesso.
+
+Consulta real de **Dados ASO com exames**, empresa 2306171, período de emissão **01–16/10/2026**, retornou **4 linhas e 4 fichas** da mesma empresa, com emissões em 01/10 e 08/10. Não foram copiados pareceres ou resultados clínicos para este documento. Esse relatório representa ASOs emitidos, não a fila de agendamento. A repetição com pFuncionario=1 e os quatro códigos de colaboradores retornou as mesmas quatro linhas, todas da empresa e dos colaboradores solicitados, validando na interface o filtro usado pelo conector.
+
 ## Contratos conferidos na tela 733
 
 | Relatório                              | Código observado | Acesso POST/WS | JSON | Última execução exibida antes dos testes |
@@ -36,8 +56,8 @@ Todos esses quatro relatórios estavam ativos. O conector usa CSV para empresas 
 Endpoint documentado dentro do SOC: `https://ws1.soc.com.br/WebSoc/exportadados?parametro=...`. O parâmetro contém JSON com `empresa`, `codigo`, `chave`, `tipoSaida` e filtros específicos. A documentação chama esse acesso de POST, mas exemplifica uma URL para colar no navegador; esta implementação usa GET conforme a URL documentada. O transporte ainda deve ser homologado a partir do servidor. Não registrar URLs completas, pois contêm chave.
 
 - Colaboradores: `empresaTrabalho`, `cpf` vazio, `parametroData=0`, datas vazias. Colunas mínimas CODIGOEMPRESA, CODIGO, MATRICULAFUNCIONARIO. NAI preserva zeros à esquerda, não compara CPF e não supõe que matrícula repetida seja necessariamente erro.
-- ASOs: `pFuncionario=1`, `funcionario` com 1–50 códigos explícitos, intervalo de até 31 dias, `pDataIncAso=2` (emissão), tipos 1–6. Qualquer registro fora da empresa/colaboradores solicitados rejeita toda a resposta. Exige validação do comportamento real do escopo na homologação.
-- Até 4 MB e 20 mil linhas por resposta, timeout 20 s, sem redirecionamento, sem cache. Não há truncamento silencioso. Retorno desconhecido/HTML/erro não vira lista vazia. Mensagens e corpos brutos do provedor nunca são enviados ao navegador ou gravados no histórico.
+- ASOs: `empresa` é o código da empresa consultada (2306171 na verificação real), diferente da empresa principal usada nas consultas de empresas/colaboradores. A tela 733 confirmou esse filtro na execução real; a autenticação dessa combinação de empresa e chave pelo servidor NAI ainda precisa ser homologada. `pFuncionario=1`, `funcionario` com 1–50 códigos explícitos, intervalo de até 31 dias, `pDataIncAso=2` (emissão), tipos 1–6. Qualquer registro fora da empresa/colaboradores solicitados rejeita toda a resposta. Exige validação do comportamento real do escopo na homologação.
+- Até 16 MB e 20 mil linhas por resposta, timeout 20 s, sem redirecionamento, sem cache. Não há truncamento silencioso. Retorno desconhecido/HTML/erro não vira lista vazia. Mensagens e corpos brutos do provedor nunca são enviados ao navegador ou gravados no histórico.
 
 ## Configuração segura pendente
 
@@ -52,7 +72,7 @@ Provisionar segredos no gerenciador do ambiente e vinculá-los ao runtime do App
 | SOC_ASOS_CODE / SOC_ASOS_KEY           | 221493 e sua chave Exporta Dados                                                                   |
 | SOC_MONITOR_SECRET                     | Segredo dedicado, aleatório, mínimo 32 caracteres, para o agendador                                |
 
-Os códigos foram observados; as chaves não foram copiadas para código ou relatório. Uma configuração preenchida não declara conexão: somente uma consulta bem-sucedida registra resposta do provedor. É necessário identificar o(s) código(s) SOC do Grupo AVP pelo cadastro oficial; o nome do grupo não foi encontrado literalmente na exportação.
+Os códigos foram observados; as chaves não foram copiadas para código ou relatório. Uma configuração preenchida não declara conexão: somente uma consulta bem-sucedida registra resposta do provedor. O Grupo AVP foi localizado após o usuário informar suas instituições: empresa SOC 2306171 (ASSOBES), com as instituições representadas em unidades. Usar SOC_ALLOWED_COMPANY_IDS=2306171 para esse escopo, após provisionamento seguro; a empresa principal de autenticação continua 1005519. Nenhuma autorização é inferida automaticamente do nome AVP.
 
 ## Monitoramento diário
 
@@ -77,7 +97,7 @@ Roteiro de treinamento proposto: identificar empresa e vínculo; conferir campos
 
 ## Homologação antes de considerar operacional
 
-Validação local de código em 16/10/2026: 47 testes direcionados aprovados (contratos, isolamento, autenticação, agendador e privacidade dos registros); TypeScript e ESLint dos arquivos alterados aprovados; build Next.js concluído. O build reportou avisos preexistentes em outros módulos. As etapas abaixo continuam pendentes e são distintas dessa validação.
+Validação local de código em 16/10/2026: 48 testes direcionados aprovados (contratos, isolamento, autenticação, agendador e privacidade dos registros); TypeScript e ESLint dos arquivos alterados aprovados; build Next.js concluído. O build reportou avisos preexistentes em outros módulos. As etapas abaixo continuam pendentes e são distintas dessa validação.
 
 1. Configurar os segredos e o escopo e publicar a versão aprovada.
 2. Conferir uma empresa e um colaborador reais nos dois sistemas, incluindo zeros à esquerda e vínculos.
