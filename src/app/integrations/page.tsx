@@ -6,6 +6,13 @@ import { Badge } from "@/components/ui/badge";
 
 const availableModules = [
   {
+    name: "SOC · Cadastros e ASOs",
+    description:
+      "Consulte empresas, colaboradores e ASOs emitidos. Confira matrículas e acompanhe as consultas do NAI com as credenciais configuradas.",
+    href: "/integrations/soc",
+    action: "Abrir central SOC",
+  },
+  {
     name: "RD Conversas · Tallos",
     description:
       "Consulte contatos, operadores, atendimentos e a operação de ASOs. Revise e autorize cada mensagem antes do envio.",

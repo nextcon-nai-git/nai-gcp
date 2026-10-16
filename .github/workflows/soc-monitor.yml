@@ -1,0 +1,32 @@
+name: SOC morning monitor
+on:
+  schedule:
+    - cron: "0 10 * * *" # 07:00 America/Sao_Paulo
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: soc-monitor
+  cancel-in-progress: false
+jobs:
+  monitor:
+    if: vars.SOC_MONITOR_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Consult authorized SOC companies
+        env:
+          SOC_MONITOR_SECRET: ${{ secrets.SOC_MONITOR_SECRET }}
+        run: |
+          if [ ${#SOC_MONITOR_SECRET} -lt 32 ]; then
+            echo 'SOC_MONITOR_SECRET is missing or too short.'
+            exit 1
+          fi
+          status=$(curl --silent --show-error --max-time 170 --request POST \
+            --header "Authorization: Bearer $SOC_MONITOR_SECRET" \
+            --output /dev/null --write-out '%{http_code}' \
+            'https://nai--studio-8439299034-125c7.us-central1.hosted.app/api/integrations/soc/monitor')
+          if [ "$status" != '200' ]; then
+            echo "SOC monitor failed (HTTP $status). Check the NAI monitoring panel."
+            exit 1
+          fi
+          echo 'SOC monitoring finished. Review counts and outcomes in NAI.'
