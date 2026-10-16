@@ -177,6 +177,12 @@ export default function SocPage() {
           Acompanhe clientes ativos, relatórios e pendências verificadas da operação.
         </p>
       </header>
+      <Link
+        href="/integrations/soc/convocations"
+        className="inline-block rounded-lg border px-4 py-3 font-medium underline"
+      >
+        Convocações SOC · importar e consultar base AVP
+      </Link>
       <SocDashboard />
       <details className="space-y-6 rounded-lg border p-4">
         <summary className="cursor-pointer text-lg font-semibold">
