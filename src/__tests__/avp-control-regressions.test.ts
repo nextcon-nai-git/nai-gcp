@@ -19,6 +19,12 @@ describe("Preservação da fila AVP", () => {
     nomeClinica: "Clínica de teste",
   };
 
+  it("preserva a identidade textual da cidade ao atualizar evidências", () => {
+    const row = { ...original, cidadeRaw: "Imperatriz/MA", cidade: "Imperatriz", uf: "MA" };
+    const result = mergeSpreadsheetData([row], [{ Nº: "1", Observações: "ASO recebido" }]);
+    expect(result.mergedAsos[0].cidadeRaw).toBe("Imperatriz/MA");
+  });
+
   it("uma planilha parcial não apaga status, urgência ou responsável", () => {
     const result = mergeSpreadsheetData([original], [{ Nº: "1", "Valor ASO": "35,00" }]);
     expect(result.mergedAsos[0]).toMatchObject({

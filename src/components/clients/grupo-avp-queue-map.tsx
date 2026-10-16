@@ -51,6 +51,7 @@ import {
   getCityViewBox,
   StateViewBoxData,
 } from "@/lib/brazil-states-paths";
+import { AVP_COST_BANDS, avpCostBand } from "@/lib/avp-evidence";
 import { avpCostSummary, formatBrlCents } from "@/lib/avp-costs";
 import { AvpClinicAlternatives } from "./avp-clinic-alternatives";
 import { buildAvpKml } from "@/lib/avp-kml-export";
@@ -756,8 +757,11 @@ export function GrupoAvpQueueMap({
         {/* BARRA DE LEGENDA INTERATIVA DE CORES DE STATUS */}
         {mapMode === "COST" ? (
           <div className="flex flex-wrap gap-4 pt-4 text-xs text-white">
-            <span>🟢 Até R$40</span>
-            <span>🔴 Algum custo acima de R$40</span>
+            <span>🟢 Abaixo de R$40</span>
+            <span>🟡 R$40 a menos de R$50</span>
+            <span>🔴 R$50 a R$60</span>
+            <span>🟣 Acima de R$60</span>
+            <span>Cor do polo: maior custo unitário informado</span>
             <span>⚪ Sem preço único confirmado</span>
             <span>🔷 Opções para credenciamento</span>
           </div>
@@ -1358,11 +1362,7 @@ export function GrupoAvpQueueMap({
 
                     const costs = avpCostSummary(loc.asos);
                     if (mapMode === "COST")
-                      pinColor = costs.aboveTarget
-                        ? "#ef4444"
-                        : costs.missing
-                          ? "#64748b"
-                          : "#10b981";
+                      pinColor = AVP_COST_BANDS[avpCostBand(costs.maximumCostCents)].color;
                     // Raio proporcional adaptado dinamicamente ao zoom
                     const rawRadius =
                       loc.totalAsos >= 15

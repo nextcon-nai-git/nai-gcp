@@ -41,6 +41,8 @@ import { GrupoAvpAsoManager } from "@/components/clients/grupo-avp-aso-manager";
 import { AvpSchedulingRequestForm } from "@/components/clients/avp-scheduling-request-form";
 import { GrupoAvpCredenciamentoHub } from "@/components/clients/grupo-avp-credenciamento-hub";
 
+import { AvpEvidencePanel } from "@/components/clients/avp-evidence-panel";
+
 export default function GrupoAvpClientHubPage() {
   const { toast } = useToast();
   const [copiedChannel, setCopiedChannel] = React.useState<string | null>(null);
@@ -254,6 +256,13 @@ export default function GrupoAvpClientHubPage() {
               </Badge>
             </TabsTrigger>
 
+            <TabsTrigger value="payments" className="rounded-xl py-2.5 px-4 text-xs font-bold">
+              Pagamentos às clínicas
+            </TabsTrigger>
+            <TabsTrigger value="documents" className="rounded-xl py-2.5 px-4 text-xs font-bold">
+              ASOs recebidos
+            </TabsTrigger>
+
             <TabsTrigger
               value="credenciamento"
               className="rounded-xl py-2.5 px-4 text-xs font-black uppercase tracking-wider data-[state=active]:bg-[#25D366] data-[state=active]:text-white gap-2 transition-all shadow-sm"
@@ -311,6 +320,13 @@ export default function GrupoAvpClientHubPage() {
             </div>
           </div>
           <GrupoAvpAsoManager onQueueSummaryChange={setQueueSummary} />
+        </TabsContent>
+
+        <TabsContent value="payments">
+          <AvpEvidencePanel kind="payment" />
+        </TabsContent>
+        <TabsContent value="documents">
+          <AvpEvidencePanel kind="aso" />
         </TabsContent>
 
         {/* TAB 1.5: CENTRAL NACIONAL DE CREDENCIAMENTO BRASIL (WHATSAPP 1-CLIQUE) */}
