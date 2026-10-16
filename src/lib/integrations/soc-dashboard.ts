@@ -83,7 +83,15 @@ export const socDashboardSchema = z
     dueSoonEnd: day,
     inactiveExcluded: z.number().int().min(0).max(100_000),
     activeCompanies: z
-      .array(z.object({ id, name: text }).strict())
+      .array(
+        z
+          .object({
+            id,
+            name: text,
+            lastReportedLives: z.number().int().min(0).max(10000000).optional(),
+          })
+          .strict()
+      )
       .min(1)
       .max(2_000),
     reports: z.array(reportSchema).max(100),

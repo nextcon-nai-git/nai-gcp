@@ -234,6 +234,24 @@ export function SocDashboard() {
               detail="Etapas encontradas no Maestro; não representam uma contagem de ASOs parados."
             />
           </div>
+          <div className="rounded-lg border p-4 text-sm">
+            <p>
+              <strong>
+                Vidas na última contagem SOC:{" "}
+                {snapshot.activeCompanies.some((c) => c.lastReportedLives !== undefined)
+                  ? snapshot.activeCompanies
+                      .reduce((total, c) => total + (c.lastReportedLives ?? 0), 0)
+                      .toLocaleString("pt-BR")
+                  : "Não informado"}
+              </strong>
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              Cobertura:{" "}
+              {snapshot.activeCompanies.filter((c) => c.lastReportedLives !== undefined).length} de{" "}
+              {snapshot.activeCompanies.length} empresas. A data da contagem não consta no
+              relatório; não representa confirmação do quadro atual.
+            </p>
+          </div>
           <SocConvocationPanel
             key={`${owner}:${visibleData.version}`}
             snapshot={snapshot}
@@ -361,6 +379,7 @@ export function SocDashboard() {
                       <tr>
                         <th className="p-3">Código SOC</th>
                         <th className="p-3">Cliente ativo</th>
+                        <th className="p-3">Última contagem de vidas</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -368,6 +387,11 @@ export function SocDashboard() {
                         <tr key={company.id} className="border-t">
                           <td className="p-3 font-mono text-xs">{company.id}</td>
                           <td className="p-3">{company.name}</td>
+                          <td className="p-3">
+                            {company.lastReportedLives === undefined
+                              ? "Não informado"
+                              : company.lastReportedLives.toLocaleString("pt-BR")}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
