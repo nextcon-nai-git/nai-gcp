@@ -249,7 +249,7 @@ export default function TallosWorkspace() {
                 Histórico completo:{" "}
                 {status.historyKeyConfigured
                   ? "chave configurada; acesso depende do plano"
-                  : "requer chave privada e plano Advanced"}{" "}
+                  : "requer chave privada e plano Pro ou Advanced"}{" "}
                 · Webhook:{" "}
                 {status.webhookConfigured
                   ? "segredos configurados; confira os recebimentos"
@@ -658,7 +658,7 @@ export default function TallosWorkspace() {
               <section className="space-y-3 border-t pt-4">
                 <h3 className="font-semibold">Histórico completo</h3>
                 <p className="text-xs text-muted-foreground">
-                  Período: {start} a {end}. Requer plano Advanced e chave privada configurada no
+                  Período: {start} a {end}. Requer plano Pro ou Advanced e chave privada configurada no
                   servidor.
                 </p>
                 <Button

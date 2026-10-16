@@ -139,7 +139,7 @@ export async function GET(req: NextRequest) {
       if (!process.env.TALLOS_HISTORY_PRIVATE_KEY)
         throw new TallosError(
           424,
-          "O histórico completo requer plano Advanced e configuração da chave privada Tallos. As mensagens recebidas pelo webhook continuam disponíveis na aba Operação ASO."
+          "O histórico completo requer plano Pro ou Advanced e configuração da chave privada Tallos. As mensagens recebidas pelo webhook continuam disponíveis na aba Operação ASO."
         );
       const result = await tallosRequest("/v2/messages/history", {
         customer_id: id,
