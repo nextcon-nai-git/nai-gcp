@@ -30,16 +30,16 @@ const journeys = [
     icon: CalendarClock,
     title: "Uma jornada mais clara até a entrega do ASO",
     description:
-      "Organize a solicitação, localize a rede de atendimento e acompanhe a conclusão no módulo de saúde.",
+      "Organize a solicitação, localize a rede de atendimento e acompanhe o ASO na mesma central.",
     steps: [
       "Preparar solicitação de exame",
       "Consultar a rede credenciada",
       "Conferir atendimento e ASO",
     ],
     links: [
-      { label: "Agendamento de ASO", href: "/aso-scheduler" },
+      { label: "ASO · Agendamento e kits", href: "/health-control?tab=agendamento" },
       { label: "Rede credenciada", href: "/accredited-network" },
-      { label: "Clínica e ASO digital", href: "/health-control" },
+      { label: "ASO · Clínica e atendimento", href: "/health-control?tab=clinica" },
     ],
   },
   {
