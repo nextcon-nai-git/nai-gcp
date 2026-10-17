@@ -91,6 +91,9 @@ const documentPatterns: {
   },
 ];
 
+const referenceHeading =
+  /^(?:indice|sumario|referencias?|bibliografia|quadro de documentos|relacao de documentos|documentos (?:relacionados|vinculados|de referencia|complementares))\b/;
+
 /** Titles and document structure are evidence; filenames and active clients are never inputs. */
 export function classifyNaiDocument(pages: PgrPage[]): NaiDocument {
   const candidates: {
@@ -105,11 +108,7 @@ export function classifyNaiDocument(pages: PgrPage[]): NaiDocument {
     let referenceSection = false;
     for (const [lineIndex, line] of lines.slice(0, 80).entries()) {
       const normalized = normalizePgrText(line);
-      if (
-        /^(?:indice|sumario|referencias?|bibliografia|quadro de documentos|relacao de documentos|documentos (?:relacionados|vinculados|de referencia|complementares))\b/.test(
-          normalized
-        )
-      ) {
+      if (referenceHeading.test(normalized)) {
         referenceSection = true;
         continue;
       }
@@ -118,22 +117,33 @@ export function classifyNaiDocument(pages: PgrPage[]): NaiDocument {
         /^(?:referencias?|bibliografia|consultar|ver |conforme |solicitar|anexo\b)/.test(normalized)
       )
         continue;
+      // PDF text runs frequently split a cover title across several lines. Join only
+      // a short window on the same physical page, stopping before reference sections.
+      const titleLines = lines.slice(lineIndex, lineIndex + 4);
+      const referenceIndex = titleLines.findIndex((item) =>
+        referenceHeading.test(normalizePgrText(item))
+      );
+      const title = compact(
+        titleLines.slice(0, referenceIndex < 0 ? undefined : referenceIndex).join(" ")
+      );
+      const normalizedTitle = normalizePgrText(title);
       for (const spec of documentPatterns) {
-        const match = spec.title.exec(normalized);
+        const match = spec.title.exec(normalizedTitle);
         const fullTitle =
           !!match &&
+          match.index < normalized.length &&
           (match.index < 12 || /^(?:titulo|documento|tipo de documento)\s*:/.test(normalized));
         const acronymTitle =
           !!spec.acronym &&
           new RegExp(
-            `^(?:(?:documento|titulo)\\s*:\\s*)?${spec.acronym}(?:$|\\s*[-–—:/([]|\\s+\\d{4}\\b)`
+            `^(?:(?:documento|titulo)\\s*:\\s*)?${spec.acronym.split("").join("[.\\s]*")}\\.?(?:$|\\s*[-–—:/([]|\\s+\\d{4}\\b)`
           ).test(normalized);
         if (!fullTitle && !acronymTitle) continue;
         candidates.push({
           tipo: spec.tipo,
           score: (fullTitle ? 90 : 70) + (page.numero === 1 ? 30 : 0) + (lineIndex < 12 ? 15 : 0),
           pagina: page.numero,
-          trecho: line.slice(0, 1200),
+          trecho: fullTitle ? title.slice(0, match!.index + match![0].length) : line.slice(0, 1200),
           fullTitle,
         });
       }
