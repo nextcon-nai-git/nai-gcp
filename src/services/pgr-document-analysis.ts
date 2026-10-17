@@ -117,7 +117,9 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
     if (pages.length > 300) throw new Error("Limite de 300 páginas por análise.");
   }
 
-  let documento = classifyNaiDocument(pages);
+  const textDocument = classifyNaiDocument(pages);
+  let documento = textDocument;
+  const documentText = pages.map((p) => `[PÁGINA PDF ${p.numero}]\n${p.texto}`).join("\n\n");
   const needsClassification =
     input.pdfDataUri.startsWith("data:") ||
     (documento.statusClassificacao !== "identificado" &&
@@ -129,67 +131,95 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const result = await Promise.race([
-        ai.generate({
-          prompt: [
-            { text: NAI_VISUAL_CLASSIFICATION_PROMPT },
-            ...(input.pdfDataUri.startsWith("data:")
-              ? [{ media: { url: input.pdfDataUri } }]
-              : [
-                  {
-                    text: pages
-                      .map((page) => `[PÁGINA PDF ${page.numero}]\n${page.texto}`)
-                      .join("\n\n"),
-                  },
-                ]),
-          ],
-          output: { schema: VisualClassificationSchema },
-          abortSignal: controller.signal,
-        }),
-        new Promise<null>((resolve) => {
-          timer = setTimeout(() => {
-            controller.abort();
-            triageFailure = "TIMEOUT";
-            resolve(null);
-          }, 45000);
-        }),
-      ]);
-      const classification = VisualClassificationSchema.safeParse(result?.output);
-      if (classification.success) {
-        visualTriaged = true;
-        const value = classification.data;
-        const conflicting =
-          documento.statusClassificacao === "identificado" &&
-          value.statusClassificacao === "identificado" &&
-          documento.tipo !== value.tipo;
-        const evidence = (value.evidencias || []).filter((item) => evidenceIsInPages(item, pages));
-        const identified =
-          !conflicting &&
-          value.statusClassificacao === "identificado" &&
-          value.tipo !== "OUTRO" &&
-          (isVisual ||
-            evidence.length > 0 ||
-            (documento.statusClassificacao === "identificado" && documento.tipo === value.tipo));
-        const tipo = identified ? value.tipo : "OUTRO";
-        documento = {
-          tipo,
-          agenteResponsavel: naiDocumentAgent(tipo),
-          statusClassificacao: identified
-            ? "identificado"
-            : conflicting || value.statusClassificacao === "ambiguo"
-              ? "ambiguo"
-              : "nao_identificado",
-          evidencias: evidence,
-          justificativa: identified
-            ? "Tipo identificado pela triagem de conteúdo da IA. Confira as evidências e o original antes de integrar."
-            : "A triagem visual não distinguiu um único tipo documental. Reenvie o documento legível e separado.",
-          acesso:
-            documento.acesso === "clinico_restrito" ||
-            value.contemDadosClinicosIndividuais ||
-            ["PCMSO", "ASO", "PERICIA_MEDICA"].includes(value.tipo)
-              ? "clinico_restrito"
-              : "sst",
-        };
+      // Both attempts share one budget; retrying must not extend the request deadline.
+      const timeout = new Promise<null>((resolve) => {
+        timer = setTimeout(() => {
+          controller.abort();
+          triageFailure = "TIMEOUT";
+          resolve(null);
+        }, 45000);
+      });
+      for (let attempt = 0; attempt < 2; attempt++) {
+        visualTriaged = false;
+        const result = await Promise.race([
+          ai.generate({
+            prompt: [
+              { text: NAI_VISUAL_CLASSIFICATION_PROMPT },
+              { text: `<documento>\n${documentText}\n</documento>` },
+              ...(attempt > 0
+                ? [
+                    {
+                      text: "A primeira leitura não confirmou um tipo com evidência suficiente. Reexamine o título, as siglas e a estrutura no original junto ao texto extraído. Use a posição física da página PDF e transcreva o título literalmente; não use números impressos de página. Não presuma o tipo nem descarte conflitos ou dados clínicos.",
+                    },
+                  ]
+                : []),
+              ...(input.pdfDataUri.startsWith("data:")
+                ? [{ media: { url: input.pdfDataUri } }]
+                : []),
+            ],
+            output: { schema: VisualClassificationSchema },
+            config: { temperature: 0 },
+            abortSignal: controller.signal,
+          }),
+          timeout,
+        ]);
+        if (!result || controller.signal.aborted) break;
+        const classification = VisualClassificationSchema.safeParse(result?.output);
+        if (classification.success) {
+          visualTriaged = true;
+          const value = classification.data;
+          const conflicting =
+            textDocument.statusClassificacao === "identificado" &&
+            value.statusClassificacao === "identificado" &&
+            textDocument.tipo !== value.tipo;
+          const evidence = (value.evidencias || []).filter((item) => {
+            if (evidenceIsInPages(item, pages)) return true;
+            // A PDF may expose only a watermark/footer as text while the title is
+            // an image. The original was sent to the model: allow a visual title
+            // on a real page, but never relax evidence checks for identity/risks.
+            if (
+              !input.pdfDataUri.startsWith("data:") ||
+              !pages.some((p) => p.numero === item.pagina)
+            )
+              return false;
+            const title = classifyNaiDocument([{ numero: item.pagina, texto: item.trecho }]);
+            return title.statusClassificacao === "identificado" && title.tipo === value.tipo;
+          });
+          const identified =
+            !conflicting &&
+            value.statusClassificacao === "identificado" &&
+            value.tipo !== "OUTRO" &&
+            (isVisual ||
+              evidence.length > 0 ||
+              (textDocument.statusClassificacao === "identificado" &&
+                textDocument.tipo === value.tipo));
+          const tipo = identified ? value.tipo : "OUTRO";
+          documento = {
+            tipo,
+            agenteResponsavel: naiDocumentAgent(tipo),
+            statusClassificacao: identified
+              ? "identificado"
+              : conflicting || value.statusClassificacao === "ambiguo"
+                ? "ambiguo"
+                : "nao_identificado",
+            evidencias: evidence.length
+              ? evidence
+              : identified && textDocument.tipo === tipo
+                ? textDocument.evidencias
+                : [],
+            justificativa: identified
+              ? "Tipo identificado pela triagem de conteúdo da IA. Confira as evidências e o original antes de integrar."
+              : "A triagem visual não distinguiu um único tipo documental. Reenvie o documento legível e separado.",
+            acesso:
+              documento.acesso === "clinico_restrito" ||
+              value.contemDadosClinicosIndividuais ||
+              ["PCMSO", "ASO", "PERICIA_MEDICA"].includes(value.tipo)
+                ? "clinico_restrito"
+                : "sst",
+          };
+          // A mixed/conflicting document needs review, not repeated calls until it passes.
+          if (documento.statusClassificacao !== "nao_identificado") break;
+        }
       }
     } catch (error) {
       triageFailure = aiFailureCode(error);
@@ -225,7 +255,9 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
     );
   if (documento.statusClassificacao !== "identificado" || !documento.agenteResponsavel)
     return pending(
-      "O tipo de documento precisa ser identificado antes da análise especializada. Confira o original e reenvie um documento completo por vez.",
+      documento.statusClassificacao === "ambiguo"
+        ? "Foram encontrados tipos documentais conflitantes. Separe os documentos e analise cada um para encaminhar ao especialista correto."
+        : "Não foi possível confirmar o tipo após a conferência do original e do texto. Este importador analisa PGR, LTCAT, PCMSO, ASO, perícias médicas, AEP, AET e dados ergonômicos. Use Analisar novamente; se persistir, confira se o arquivo contém o título e as páginas completas.",
       "pendente"
     );
   if (documento.acesso === "clinico_restrito" && documento.agenteResponsavel !== "medico_trabalho")
@@ -238,7 +270,6 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
   const controller = new AbortController();
   let timedOut = false;
   try {
-    const documentText = pages.map((p) => `[PÁGINA PDF ${p.numero}]\n${p.texto}`).join("\n\n");
     const content = [
       { text: naiDocumentAnalysisPrompt(documento) },
       { text: `<documento>\n${documentText}\n</documento>` },

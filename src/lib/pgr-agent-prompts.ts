@@ -4,7 +4,7 @@ import {
   type NaiDocument,
   type PGR_AGENT_ROLES,
 } from "./pgr-schema";
-export const NAI_IMPORT_PROMPT_VERSION = "nai-importa-specialists-v3";
+export const NAI_IMPORT_PROMPT_VERSION = "nai-importa-specialists-v4";
 export const PGR_NORMS_URL =
   "https://www.gov.br/trabalho-e-emprego/pt-br/acesso-a-informacao/participacao-social/conselhos-e-orgaos-colegiados/comissao-tripartite-partitaria-permanente/normas-regulamentadora/normas-regulamentadoras-vigentes";
 export function pgrAgentPrompt(role: (typeof PGR_AGENT_ROLES)[number]) {
@@ -59,6 +59,7 @@ O campo parecerTecnicoIA é a síntese da sua análise documental, com achados, 
 }
 
 export const NAI_VISUAL_CLASSIFICATION_PROMPT = `Faça somente a triagem documental visual do NAI importa.
+Confira o arquivo original junto ao texto extraído em <documento>. Os marcadores PÁGINA PDF indicam a posição física no arquivo, não a numeração impressa. Use essa posição nas evidências. O texto extraído pode fragmentar títulos e siglas em várias linhas, ou apresentar cabeçalhos, rodapés e colunas fora de ordem; confronte com o original. Siglas pontuadas como P.C.M.S.O. e A.S.O. também podem identificar um título. Uma sigla isolada em uma lista não é título.
 Identifique o tipo principal pelo título e estrutura: PGR, LTCAT, PCMSO, ASO, PERICIA_MEDICA, AEP, AET, DADOS_ERGONOMICOS ou OUTRO.
 Menções em bibliografia, índice ou lista de documentos não determinam o tipo. Mais de um documento principal sem separação exige statusClassificacao ambiguo e tipo OUTRO; imagem ilegível exige nao_identificado.
 Formulários vazios de ordem de serviço, campos sem preenchimento, nomes de responsáveis, riscos ocupacionais e recomendações gerais de exames não são dados clínicos individuais. Exija informação de saúde vinculada a uma pessoa ou um documento clínico efetivo; não preencha campos vazios com o rótulo seguinte.

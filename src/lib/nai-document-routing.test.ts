@@ -9,6 +9,33 @@ import { getNaiDocument, PgrAnalysisOutputSchema } from "./pgr-schema";
 
 describe("NAI importa: classificação pelo conteúdo", () => {
   it.each([
+    ["PROGRAMA DE\nGERENCIAMENTO DE\nRISCOS", "PGR"],
+    ["LAUDO TÉCNICO DAS\nCONDIÇÕES AMBIENTAIS\nDO TRABALHO", "LTCAT"],
+    ["PROGRAMA DE CONTROLE\nMÉDICO DE SAÚDE\nOCUPACIONAL", "PCMSO"],
+    ["ATESTADO DE SAÚDE\nOCUPACIONAL", "ASO"],
+    ["AVALIAÇÃO ERGONÔMICA\nPRELIMINAR", "AEP"],
+    ["ANÁLISE ERGONÔMICA\nDO TRABALHO", "AET"],
+    ["P. C. M. S. O.\n2026", "PCMSO"],
+    ["A. S. O. - ADMISSIONAL", "ASO"],
+  ])("reconhece título fragmentado de PDF: %s", (texto, tipo) => {
+    const result = classifyNaiDocument([{ numero: 1, texto }]);
+    expect(result).toMatchObject({ tipo, statusClassificacao: "identificado" });
+    expect(result.evidencias[0].pagina).toBe(1);
+  });
+
+  it("não une título através de páginas nem classifica referências multilinha", () => {
+    for (const pages of [
+      [
+        { numero: 1, texto: "PROGRAMA DE" },
+        { numero: 2, texto: "GERENCIAMENTO DE RISCOS" },
+      ],
+      [{ numero: 1, texto: "REFERÊNCIAS\nPROGRAMA DE\nGERENCIAMENTO DE RISCOS" }],
+      [{ numero: 1, texto: "Consultar PROGRAMA DE\nGERENCIAMENTO DE RISCOS" }],
+    ])
+      expect(classifyNaiDocument(pages).tipo).toBe("OUTRO");
+  });
+
+  it.each([
     ["Programa de Gerenciamento de Riscos", "PGR", "engenheiro_seguranca", "sst"],
     ["Laudo Técnico das Condições Ambientais do Trabalho", "LTCAT", "engenheiro_seguranca", "sst"],
     [
