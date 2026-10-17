@@ -101,7 +101,7 @@ vi.mock("@/lib/pgr-request-headers", () => ({
   pgrRequestHeaders: vi.fn(async () => ({ Authorization: "******" })),
 }));
 vi.mock("@/components/GoogleCalendarSyncWidget", () => ({ GoogleCalendarSyncWidget: () => null }));
-import HealthControl from "./page";
+import HealthControl from "@/components/aso/clinical-workspace";
 
 let root: Root;
 let container: HTMLDivElement;
