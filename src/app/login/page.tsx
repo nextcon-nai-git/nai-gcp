@@ -144,10 +144,6 @@ export default function LoginPage() {
             N
           </div>
           <h1 className="text-4xl font-black text-primary uppercase tracking-tighter">NAI</h1>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
-            NAI GCP · Versão consolidada
-          </p>
-          <p className="text-xs text-slate-500">Mapa AVP · Google Planilhas · Menu completo</p>
         </div>
 
         <form
