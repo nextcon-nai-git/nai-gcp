@@ -27,6 +27,14 @@ export const ObligationSchema = z
   })
   .strict();
 export type Obligation = z.infer<typeof ObligationSchema>;
+export const ObligationsSchema = z
+  .array(ObligationSchema)
+  .max(MAX_OBLIGATIONS)
+  .default([])
+  .refine(
+    (items) => new Set(items.map((item) => item.id)).size === items.length,
+    "Cada obrigação deve ter um identificador único."
+  );
 export const TaskUpdateSchema = z
   .object({
     owner: z.string().trim().max(180),

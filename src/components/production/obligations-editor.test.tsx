@@ -100,3 +100,37 @@ it("shows contractual evidence and submits only editable task execution fields",
   );
   expect(save.mock.calls[0][0]).not.toHaveProperty("obligation");
 });
+
+it("keeps existing duties and human edits while accepting an addendum suggestion with a colliding ID", async () => {
+  const suggestion = {
+    ...obligation,
+    title: "Realizar ASO",
+    serviceType: "ASO" as const,
+    sourceReference: "Aditivo, cláusula 2",
+    sourceExcerpt: "Contratada a realização de ASO.",
+  };
+  await act(async () =>
+    root.render(
+      <form>
+        <ObligationsFields initial={[obligation]} suggestions={[suggestion]} />
+      </form>
+    )
+  );
+  const form = host.querySelector("form")!;
+  expect(readObligations(new FormData(form))).toEqual([obligation]);
+  host.querySelector<HTMLInputElement>('[name="obligation.pgr.title"]')!.value =
+    "Revisar PGR da unidade A";
+  const add = Array.from(host.querySelectorAll("button")).find(
+    (b) => b.textContent === "Adicionar sugestão 1 como nova obrigação"
+  )!;
+  await act(async () => add.click());
+  const result = readObligations(new FormData(form));
+  expect(result).toHaveLength(2);
+  expect(result[0]).toEqual({ ...obligation, title: "Revisar PGR da unidade A" });
+  expect(result[1].id).not.toBe(result[0].id);
+  expect(result[1]).toMatchObject({
+    title: suggestion.title,
+    sourceExcerpt: suggestion.sourceExcerpt,
+  });
+  expect(add.disabled).toBe(true);
+});

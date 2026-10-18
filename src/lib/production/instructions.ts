@@ -1,5 +1,5 @@
 /** Versioned work instructions shared by the workspace and the three advisory agents. */
-export const instructionVersion = "1.0";
+export const instructionVersion = "1.1";
 export const stages = ["comercial", "operacional", "faturamento"] as const;
 export type Stage = (typeof stages)[number];
 export const stageNames: Record<Stage, string> = {

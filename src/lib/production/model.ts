@@ -3,7 +3,7 @@ import { isCalendarDate } from "@/lib/financial/omie-dre";
 import { isValidCnpj, normalizeCnpj } from "@/lib/cnpj";
 import { instructions, type CardId } from "./instructions";
 import {
-  ObligationSchema,
+  ObligationsSchema,
   TaskSchema,
   TaskUpdateSchema,
   makeTasks,
@@ -51,14 +51,7 @@ export const TermsSchema = z
     endsOn: optionalDate,
     paymentTerms: z.string().max(2000),
     recurring: z.boolean(),
-    obligations: z
-      .array(ObligationSchema)
-      .max(MAX_OBLIGATIONS)
-      .default([])
-      .refine(
-        (items) => new Set(items.map((item) => item.id)).size === items.length,
-        "Cada obrigação deve ter um identificador único."
-      ),
+    obligations: ObligationsSchema,
   })
   .strict()
   .refine(

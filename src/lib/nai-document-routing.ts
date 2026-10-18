@@ -94,6 +94,64 @@ const documentPatterns: {
 const referenceHeading =
   /^(?:indice|sumario|referencias?|bibliografia|quadro de documentos|relacao de documentos|documentos (?:relacionados|vinculados|de referencia|complementares))\b/;
 
+function isHeadingSuffix(
+  suffix: string,
+  rawSuffix: string,
+  spec: (typeof documentPatterns)[number]
+) {
+  const metadata = [
+    "nr\\s*[-–—]?\\s*\\d{1,2}(?:\\.\\d+)*",
+    "\\d{4}",
+    "(?:rev(?:isao)?\\.?|versao)\\s*:?\\s*\\d+(?:\\.\\d+)*",
+    ...(spec.acronym ? [spec.acronym] : []),
+    ...(spec.tipo === "ASO"
+      ? ["admissional|demissional|periodico|retorno ao trabalho|mudanca de risco ocupacional"]
+      : []),
+  ].join("|");
+  // Consume the entire suffix: a separator is not enough to turn explanatory prose into a title.
+  // Some OCR engines flatten the heading and labeled form fields into one line.
+  // Validate the complete heading suffix up to that explicit field boundary.
+  const headingSuffix = suffix.split(
+    /\b(?:razao social|empresa|cliente|contratante|cnpj|cnae|unidade|nome do trabalhador|paciente)\s*:/,
+    1
+  )[0];
+  if (new RegExp(`^[\\s.,:;()/–—-]*(?:(?:${metadata})[\\s.,:;()/–—-]*)*$`).test(headingSuffix))
+    return true;
+  // Medical forms sometimes append a person's name to the heading. Keep access restricted,
+  // but never include this suffix in classification evidence.
+  return (
+    ["ASO", "PCMSO", "PERICIA_MEDICA"].includes(spec.tipo) &&
+    !/\b(?:deve|devem|ser|sera|serao|pode|podem|realizad[oa]s?|emitid[oa]s?)\b/.test(suffix) &&
+    /^\s*:\s*\p{Lu}[\p{L}'-]+(?:\s+(?:d[aeo]s?\s+)?\p{Lu}[\p{L}'-]+){1,7}\s*$/u.test(rawSuffix)
+  );
+}
+
+function headingTitle(lines: string[], spec: (typeof documentPatterns)[number]) {
+  let title = "";
+  for (const line of lines.slice(0, 4)) {
+    if (!line || referenceHeading.test(normalizePgrText(line)) || /\.{4}|_{4}/.test(line)) break;
+    title = compact(`${title} ${line}`);
+    const normalized = normalizePgrText(title);
+    const match = spec.title.exec(normalized);
+    if (!match) continue;
+    // A title must start on the first line. Short prose prefixes ("O Programa…")
+    // are not headings, even when a PDF wraps the sentence across several lines.
+    if (match.index >= normalizePgrText(lines[0]).length) return null;
+    const prefix = normalized.slice(0, match.index).trim();
+    const headingPrefix =
+      /^(?:(?:titulo|documento|tipo de documento)\s*:|(?:(?:secao|capitulo)\s+)?\d+(?:\.\d+)*[.)]?\s*[-–—:]?|nr\s*[-–—]?\s*\d{1,2}(?:\.\d+)*\s*[-–—:]?)?$/;
+    const acronymPrefix = spec.acronym ? new RegExp(`^${spec.acronym}\\s*[-–—:]$`) : null;
+    if (!headingPrefix.test(prefix) && !acronymPrefix?.test(prefix)) return null;
+    // Check only the line completing the title, not the paragraph after it.
+    // A parenthesized acronym may end a heading, but must not hide prose after it.
+    const end = match.index + match[0].length;
+    const suffix = normalized.slice(end).trim();
+    if (!isHeadingSuffix(suffix, title.slice(end), spec)) return null;
+    return title.slice(0, end);
+  }
+  return null;
+}
+
 /** Titles and document structure are evidence; filenames and active clients are never inputs. */
 export function classifyNaiDocument(pages: PgrPage[]): NaiDocument {
   const candidates: {
@@ -117,33 +175,21 @@ export function classifyNaiDocument(pages: PgrPage[]): NaiDocument {
         /^(?:referencias?|bibliografia|consultar|ver |conforme |solicitar|anexo\b)/.test(normalized)
       )
         continue;
-      // PDF text runs frequently split a cover title across several lines. Join only
-      // a short window on the same physical page, stopping before reference sections.
-      const titleLines = lines.slice(lineIndex, lineIndex + 4);
-      const referenceIndex = titleLines.findIndex((item) =>
-        referenceHeading.test(normalizePgrText(item))
-      );
-      const title = compact(
-        titleLines.slice(0, referenceIndex < 0 ? undefined : referenceIndex).join(" ")
-      );
-      const normalizedTitle = normalizePgrText(title);
       for (const spec of documentPatterns) {
-        const match = spec.title.exec(normalizedTitle);
-        const fullTitle =
-          !!match &&
-          match.index < normalized.length &&
-          (match.index < 12 || /^(?:titulo|documento|tipo de documento)\s*:/.test(normalized));
-        const acronymTitle =
-          !!spec.acronym &&
+        const title = headingTitle(lines.slice(lineIndex, lineIndex + 4), spec);
+        const fullTitle = title !== null;
+        const acronymMatch =
+          spec.acronym &&
           new RegExp(
-            `^(?:(?:documento|titulo)\\s*:\\s*)?${spec.acronym.split("").join("[.\\s]*")}\\.?(?:$|\\s*[-–—:/([]|\\s+\\d{4}\\b)`
-          ).test(normalized);
+            `^(?:(?:documento|titulo)\\s*:\\s*)?${spec.acronym.split("").join("[.\\s]*")}\\.?(?=$|\\s*[-–—:/([]|\\s+\\d{4}\\b)`
+          ).exec(normalized);
+        const acronymTitle = !!acronymMatch;
         if (!fullTitle && !acronymTitle) continue;
         candidates.push({
           tipo: spec.tipo,
           score: (fullTitle ? 90 : 70) + (page.numero === 1 ? 30 : 0) + (lineIndex < 12 ? 15 : 0),
           pagina: page.numero,
-          trecho: fullTitle ? title.slice(0, match!.index + match![0].length) : line.slice(0, 1200),
+          trecho: (title || line.slice(0, acronymMatch![0].length)).slice(0, 1200),
           fullTitle,
         });
       }
@@ -179,8 +225,12 @@ export function classifyNaiDocument(pages: PgrPage[]): NaiDocument {
     ).values(),
   ].sort((a, b) => b.score - a.score);
   const best = unique[0];
+  const fullTitleTypes = new Set(
+    candidates.filter((item) => item.fullTitle).map((item) => item.tipo)
+  );
   const ambiguous =
-    !!best && unique.some((item) => item.tipo !== best.tipo && best.score - item.score <= 15);
+    fullTitleTypes.size > 1 ||
+    (!!best && unique.some((item) => item.tipo !== best.tipo && best.score - item.score <= 15));
   const tipo = best && !ambiguous ? best.tipo : "OUTRO";
   const clinical =
     hasNaiClinicalData(pages) ||

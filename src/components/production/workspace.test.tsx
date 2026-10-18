@@ -94,7 +94,7 @@ describe("production workspace", () => {
   it("renders nine work instructions and three agent entry points", async () => {
     await render();
     await click("Instruções de trabalho");
-    expect(host.textContent).toContain("versão 1.0");
+    expect(host.textContent).toContain("versão 1.1");
     expect(host.querySelectorAll("ol")).toHaveLength(9);
     await click("3 agentes IA");
     await selectRecord();
@@ -188,6 +188,92 @@ describe("PDF preservation in the central", () => {
         valid ? "Fonte preservada:" : "A integridade do arquivo enviado não foi confirmada."
       );
       expect(host.textContent?.includes("Fonte preservada:")).toBe(valid);
+    }
+  );
+});
+
+describe("addendum consolidation", () => {
+  it.each([false, true])(
+    "preserves all existing obligations after partial extraction (new duty: %s)",
+    async (hasNewDuty) => {
+      const duty = {
+        id: "pgr",
+        title: "Elaborar PGR",
+        serviceType: "PGR" as const,
+        owner: "Engenharia",
+        due: "2026-10-30",
+        trigger: "",
+        deadlineRule: "Prazo contratado",
+        sourceReference: "Contrato, cláusula 4",
+        sourceExcerpt: "Elaborar o PGR da unidade.",
+      };
+      const currentBook = structuredClone(book);
+      currentBook.records[0].revisions[0].terms.obligations = [duty];
+      state.fetch.mockResolvedValue(reply({ book: currentBook, companies: [company] }));
+      state.hash.mockResolvedValue("a".repeat(64));
+      await render();
+      await selectRecord();
+      await click("Documentos e aditivos");
+      const file = new File(["%PDF-1.7"], "aditivo.pdf", { type: "application/pdf" });
+      const source = {
+        sha256: "a".repeat(64),
+        sizeBytes: file.size,
+        storagePath: `internos_nextcon/contract-sources/${"a".repeat(64)}`,
+        generation: "1",
+      };
+      const form = Array.from(host.querySelectorAll("form")).find((f) =>
+        f.querySelector('input[type="file"]')
+      )!;
+      const kind = Array.from(form.querySelectorAll("select")).find((s) =>
+        Array.from(s.options).some((o) => o.value === "aditivo")
+      )!;
+      await act(async () => {
+        kind.value = "aditivo";
+        kind.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      state.fetch.mockResolvedValueOnce(reply({ source }));
+      const input = form.querySelector('input[type="file"]')!;
+      Object.defineProperty(input, "files", { value: [file] });
+      await act(async () => {
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      state.fetch.mockResolvedValueOnce(
+        reply({
+          extraction: {
+            clientName: null,
+            cnpj: null,
+            scope: null,
+            units: null,
+            deliverables: null,
+            valueCents: 20000,
+            startsOn: null,
+            endsOn: null,
+            paymentTerms: null,
+            recurring: null,
+            obligations: hasNewDuty ? [{ ...duty, title: "Realizar ASO", serviceType: "ASO" }] : [],
+            references: [],
+            pending: [],
+          },
+        })
+      );
+      await click("Identificar cliente e dados com IA");
+      expect(form.querySelector<HTMLInputElement>('[name="obligation.pgr.title"]')?.value).toBe(
+        duty.title
+      );
+      expect(form.querySelectorAll('[name="obligationId"]')).toHaveLength(1);
+      expect(form.textContent).toContain("As obrigações vigentes foram mantidas");
+      expect(form.textContent?.includes("Sugestões do aditivo para conferência")).toBe(hasNewDuty);
+      (form.elements.namedItem("evidence") as HTMLTextAreaElement).value =
+        "Aditivo financeiro conferido; serviços mantidos";
+      state.fetch.mockResolvedValueOnce(reply(currentBook));
+      await act(async () => {
+        form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      });
+      const payload = JSON.parse(state.fetch.mock.calls.at(-1)![1].body);
+      expect(payload).toMatchObject({
+        action: "amend",
+        terms: { obligations: [duty], valueCents: 20000 },
+      });
     }
   );
 });

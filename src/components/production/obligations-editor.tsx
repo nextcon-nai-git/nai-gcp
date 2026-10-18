@@ -41,8 +41,15 @@ export function readObligations(f: FormData): Obligation[] {
   });
 }
 
-export function ObligationsFields({ initial }: { initial: Obligation[] }) {
+export function ObligationsFields({
+  initial,
+  suggestions = [],
+}: {
+  initial: Obligation[];
+  suggestions?: Obligation[];
+}) {
   const [items, setItems] = React.useState(initial);
+  const [added, setAdded] = React.useState<string[]>([]);
   return (
     <section className="space-y-3 md:col-span-2" aria-label="Obrigações contratuais revisadas">
       <h3 className="font-semibold">Serviços contratados → tarefas individuais</h3>
@@ -51,6 +58,40 @@ export function ObligationsFields({ initial }: { initial: Obligation[] }) {
         etapas gerais, sem duplicar o valor do contrato. Datas ausentes ficam pendentes; prazos
         relativos precisam de programação.
       </p>
+      {suggestions.length > 0 && (
+        <section aria-label="Sugestões do aditivo" className="space-y-2 rounded-md border p-3">
+          <h4 className="font-medium">Sugestões do aditivo para conferência</h4>
+          <p className="text-sm">
+            Para um serviço alterado, edite a obrigação existente abaixo. Adicione uma nova
+            obrigação somente se o aditivo contratar um serviço adicional.
+          </p>
+          {suggestions.map((suggestion, index) => (
+            <div key={suggestion.id} className="space-y-1 border-t pt-2 text-sm">
+              <p>
+                {suggestion.title} · {suggestion.serviceType}
+              </p>
+              <p>{suggestion.sourceReference}</p>
+              <blockquote>{suggestion.sourceExcerpt}</blockquote>
+              <p>Prazo: {suggestion.due || suggestion.deadlineRule || "Pendente"}</p>
+              {suggestion.trigger && <p>Acionamento: {suggestion.trigger}</p>}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={items.length >= MAX_OBLIGATIONS || added.includes(suggestion.id)}
+                onClick={() => {
+                  setItems((old) => [...old, { ...suggestion, id: crypto.randomUUID() }]);
+                  setAdded((old) => [...old, suggestion.id]);
+                }}
+              >
+                {added.includes(suggestion.id)
+                  ? `Sugestão ${index + 1} adicionada`
+                  : `Adicionar sugestão ${index + 1} como nova obrigação`}
+              </Button>
+            </div>
+          ))}
+        </section>
+      )}
       {items.map((item, index) => (
         <fieldset key={item.id} className="space-y-3 rounded-md border p-3">
           <legend className="px-1 text-sm font-medium">Obrigação {index + 1}</legend>

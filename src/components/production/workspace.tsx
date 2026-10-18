@@ -410,7 +410,13 @@ const emptyTerms: Terms = {
   recurring: false,
   obligations: [],
 };
-function TermsFields({ terms }: { terms: Terms }) {
+function TermsFields({
+  terms,
+  suggestions = [],
+}: {
+  terms: Terms;
+  suggestions?: Terms["obligations"];
+}) {
   return (
     <div className="grid gap-3 md:grid-cols-2">
       <TextField label="Escopo revisado" name="scope" defaultValue={terms.scope} required />
@@ -443,7 +449,7 @@ function TermsFields({ terms }: { terms: Terms }) {
         <input type="checkbox" name="recurring" defaultChecked={terms.recurring} />
         Contrato recorrente (conferido)
       </label>
-      <ObligationsFields initial={terms.obligations} />
+      <ObligationsFields initial={terms.obligations} suggestions={suggestions} />
     </div>
   );
 }
@@ -685,7 +691,8 @@ function RecordForm({
                   endsOn: x.endsOn ?? old.endsOn,
                   paymentTerms: x.paymentTerms ?? old.paymentTerms,
                   recurring: x.recurring ?? old.recurring,
-                  obligations: x.obligations ?? [],
+                  // An addendum is a partial source, never a replacement for the contract.
+                  obligations: record ? old.obligations : x.obligations,
                 }));
                 setRevision((n) => n + 1);
               }}
@@ -754,7 +761,18 @@ function RecordForm({
             )}
             {(!record || document?.kind === "aditivo") && (
               <>
-                <TermsFields key={revision} terms={terms} />
+                {record && (
+                  <p className="text-sm">
+                    As obrigações vigentes foram mantidas. Confira as sugestões do aditivo e
+                    atualize a lista consolidada antes de aprovar esta versão. Remova um serviço
+                    somente quando o documento comprovar sua exclusão.
+                  </p>
+                )}
+                <TermsFields
+                  key={revision}
+                  terms={terms}
+                  suggestions={record ? extraction?.obligations : []}
+                />
                 <Field
                   name="effectiveOn"
                   label="Data de efeito desta versão (revisada)"
@@ -785,8 +803,8 @@ function RecordForm({
             />
             <label className="flex items-start gap-2 text-sm">
               <input key={String(revision) + document?.source.sha256} type="checkbox" required />
-              Conferi o cliente, o documento original e os dados. Autorizo salvar esta versão e
-              gerar as tarefas, sem autorizar envio externo.
+              Conferi o cliente, o documento original, os dados e as obrigações consolidadas.
+              Autorizo salvar esta versão e gerar as tarefas, sem autorizar envio externo.
             </label>
             {error && <p role="alert">{error}</p>}
             <Button type="submit">

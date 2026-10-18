@@ -2,16 +2,15 @@
 
 import * as React from "react";
 import {
+  type LucideIcon,
   LogOut,
   BarChart3,
   ShieldCheck,
-  Sparkles,
   DollarSign,
   ClipboardCheck,
   HardHat,
   Zap,
   HeartPulse,
-  Database,
   ShoppingCart,
   Stethoscope,
   Users,
@@ -22,21 +21,14 @@ import {
   Scale,
   ShieldAlert,
   Bot,
-  Compass,
   FileSpreadsheet,
-  Calculator,
   Lock,
-  Target,
   FileSearch,
-  Settings,
   GraduationCap,
-  Activity,
   History,
   Scan,
   TrendingDown,
-  Cpu,
   Video,
-  Terminal,
   Binary,
   Gavel,
   UserCheck,
@@ -75,83 +67,128 @@ const BRASAO_URL =
 
 interface NavItem {
   title: string;
-  icon: any;
+  icon: LucideIcon;
   href: string;
   badge?: string;
   badgeColor?: string;
   parentHref?: string;
+  providerAudience?: "health" | "engineering" | "all";
 }
 
 interface NavModule {
   label: string;
-  icon: any;
+  icon: LucideIcon;
   items: NavItem[];
 }
 
 const NAV_MODULES: NavModule[] = [
   {
-    label: "FORNECEDORES",
-    icon: ClipboardCheck,
-    items: [
-      {
-        title: "Homologação de fornecedores",
-        icon: ClipboardCheck,
-        href: "/suppliers/qualification",
-      },
-    ],
-  },
-  {
-    label: "PAINEL EXECUTIVO",
+    label: "Dashboard Executivo",
     icon: Zap,
     items: [
-      { title: "NAI importa", icon: FileSearch, href: "/nai-importa", badge: "IA" },
-      { title: "Central do Cliente", icon: LifeBuoy, href: "/client-center", badge: "Novo" },
-      { title: "Grupo AVP · Mapa e fila", icon: MapPin, href: "/clients/grupo-avp" },
-      { title: "RD Conversas · Tallos", icon: Network, href: "/integrations/rd-conversas" },
-      { title: "Agentes SST", icon: Bot, href: "/agentes-ia" },
       {
-        title: "Dashboard Geral",
+        title: "Dashboard Executivo",
         icon: Zap,
         href: "/",
         badge: "Live",
         badgeColor: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
       },
+      {
+        title: "Superauditoria eSocial",
+        icon: ShieldAlert,
+        href: "/esocial/audit",
+        badge: "S-2240",
+        badgeColor: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+      },
+      { title: "Contestação FAP/NTEP", icon: Scale, href: "/legal-financial/ntep-contestation" },
+      {
+        title: "Simulador FAP/RAT",
+        icon: TrendingDown,
+        href: "/simulator",
+        badge: "ROI",
+        badgeColor: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+      },
+      { title: "Hub ISO (Auditorias)", icon: ShieldCheck, href: "/audits" },
+      { title: "Inteligência Fiscal", icon: BarChart3, href: "/esocial-audit" },
+      { title: "ROI Jurídico", icon: Scale, href: "/legal-financial" },
+      { title: "Canal de Ética", icon: ShieldAlert, href: "/compliance" },
+      { title: "Segurança ISO 27001", icon: Lock, href: "/governance" },
     ],
   },
   {
-    label: "OPERACIONAL — SAÚDE",
-    icon: HeartPulse,
+    label: "Comercial",
+    icon: ShoppingCart,
     items: [
+      { title: "Central do Cliente", icon: LifeBuoy, href: "/client-center", badge: "Novo" },
+      { title: "RD Conversas · Tallos", icon: Network, href: "/integrations/rd-conversas" },
+      { title: "Central de Contratos e Produção", icon: ClipboardCheck, href: "/production" },
+      {
+        title: "Unidades & Clientes",
+        icon: Globe,
+        href: "/clients",
+        badgeColor: "bg-white/10 text-slate-300 border-white/10",
+      },
+    ],
+  },
+  {
+    label: "Operacional",
+    icon: HardHat,
+    items: [
+      {
+        title: "Homologação de fornecedores",
+        icon: ClipboardCheck,
+        href: "/suppliers/qualification",
+        providerAudience: "all",
+      },
+      { title: "NAI importa", icon: FileSearch, href: "/nai-importa", badge: "IA" },
+      { title: "Grupo AVP · Mapa e fila", icon: MapPin, href: "/clients/grupo-avp" },
+      { title: "Agentes SST", icon: Bot, href: "/agentes-ia" },
       {
         title: "ASO — Agendamento e Clínica",
         icon: Stethoscope,
         href: "/health-control",
         badgeColor: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+        providerAudience: "health",
       },
-      { title: "Prontuário Médico (PEP)", icon: HeartPulse, href: "/medical/health-management" },
+      {
+        title: "Prontuário Médico (PEP)",
+        icon: HeartPulse,
+        href: "/medical/health-management",
+        providerAudience: "health",
+      },
       {
         title: "Atestados Médicos (CFM)",
         icon: FileText,
         href: "/medical-certificates",
         badge: "IA",
         badgeColor: "bg-amber-400/20 text-amber-400 border-amber-400/30",
+        providerAudience: "health",
       },
-      { title: "Operação CASSI BB", icon: Building2, href: "/clients/cassi" },
-      { title: "Faturamento CASSI (TISS)", icon: FileSpreadsheet, href: "/cassi-billing" },
-      { title: "Sentinela (NTEP)", icon: History, href: "/absenteeism" },
-      { title: "Biomecânica", icon: Video, href: "/medical/biomechanics" },
-    ],
-  },
-  {
-    label: "OPERACIONAL — ENGENHARIA",
-    icon: HardHat,
-    items: [
+      {
+        title: "Operação CASSI BB",
+        icon: Building2,
+        href: "/clients/cassi",
+        providerAudience: "health",
+      },
+      {
+        title: "Sentinela (NTEP)",
+        icon: History,
+        href: "/absenteeism",
+        providerAudience: "health",
+      },
+      {
+        title: "Biomecânica",
+        icon: Video,
+        href: "/medical/biomechanics",
+        providerAudience: "health",
+      },
       {
         title: "Inventário de Riscos (PGR)",
         icon: ClipboardCheck,
         href: "/risk-management",
         badge: "NR-01",
         badgeColor: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+        providerAudience: "engineering",
       },
       {
         title: "Importações de documentos",
@@ -159,15 +196,27 @@ const NAV_MODULES: NavModule[] = [
         href: "/risk-management/pgr-analysis",
         badge: "Auto",
         badgeColor: "bg-amber-400/20 text-amber-400 border-amber-400/30",
+        providerAudience: "engineering",
       },
-      { title: "Centro de Operação (5W2H)", icon: LayoutGrid, href: "/action-plans" },
-      { title: "Relatórios & Laudos SGI", icon: FileText, href: "/reports" },
+      {
+        title: "Centro de Operação (5W2H)",
+        icon: LayoutGrid,
+        href: "/action-plans",
+        providerAudience: "engineering",
+      },
+      {
+        title: "Relatórios & Laudos SGI",
+        icon: FileText,
+        href: "/reports",
+        providerAudience: "engineering",
+      },
       {
         title: "Entrega de EPI Digital",
         icon: HardHat,
         href: "/ppe-management",
         badge: "NR-06",
         badgeColor: "bg-amber-400/20 text-amber-400 border-amber-400/30",
+        providerAudience: "engineering",
       },
       {
         title: "Ordens de Serviço (NR-01)",
@@ -175,19 +224,59 @@ const NAV_MODULES: NavModule[] = [
         href: "/work-orders",
         badge: "Construfam",
         badgeColor: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+        providerAudience: "engineering",
       },
-      { title: "Auditoria de NRs", icon: Gavel, href: "/governance/compliance-audit" },
+      {
+        title: "Auditoria de NRs",
+        icon: Gavel,
+        href: "/governance/compliance-audit",
+        providerAudience: "engineering",
+      },
+      { title: "Quadro de Vidas", icon: Users, href: "/employees" },
+      { title: "Middleware ERPs (TOTVS)", icon: Network, href: "/integrations" },
+      {
+        title: "Painel SOC",
+        icon: ClipboardCheck,
+        href: "/integrations/soc",
+        parentHref: "/integrations",
+      },
+      { title: "Ponto Eletrônico CLT", icon: Clock, href: "/time-tracking" },
+      { title: "Colaboradores NXC", icon: UserCheck, href: "/nxc-team" },
+      { title: "Prestadores", icon: Users, href: "/providers" },
+      { title: "Rede Credenciada", icon: MapPin, href: "/accredited-network" },
+      { title: "Academia NRs", icon: GraduationCap, href: "/trainings" },
+      {
+        title: "Inspeção de Campo (Câmera)",
+        icon: Camera,
+        href: "/field-inspection",
+        badge: "Foto",
+        badgeColor: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+      },
+      {
+        title: "WhatsApp Bot (3358-0818)",
+        icon: Bot,
+        href: "/whatsapp-hub",
+        badge: "IA",
+        badgeColor: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+      },
+      { title: "Data Lab (OCR Hub)", icon: Binary, href: "/data-lab" },
+      { title: "Firewall Físico (Catraca)", icon: Scan, href: "/field-control" },
     ],
   },
   {
-    label: "DADOS MESTRE",
-    icon: Database,
+    label: "Faturamento",
+    icon: DollarSign,
     items: [
+      {
+        title: "Faturamento CASSI (TISS)",
+        icon: FileSpreadsheet,
+        href: "/cassi-billing",
+        providerAudience: "health",
+      },
       { title: "Financeiro", icon: BarChart3, href: "/financial" },
       { title: "Notas fiscais", icon: FileText, href: "/financial/notas-fiscais" },
       { title: "Conectores Omie", icon: BarChart3, href: "/financial/omie/conectores" },
       { title: "ERP financeiro", icon: BarChart3, href: "/financial/operacoes" },
-      { title: "Central de Contratos e Produção", icon: ClipboardCheck, href: "/production" },
       {
         title: "Ações financeiras",
         icon: ClipboardCheck,
@@ -214,79 +303,6 @@ const NAV_MODULES: NavModule[] = [
         parentHref: "/financial",
         badge: "Contábil",
       },
-      {
-        title: "Unidades & Clientes",
-        icon: Globe,
-        href: "/clients",
-        badgeColor: "bg-white/10 text-slate-300 border-white/10",
-      },
-      { title: "Quadro de Vidas", icon: Users, href: "/employees" },
-      { title: "Middleware ERPs (TOTVS)", icon: Network, href: "/integrations" },
-      {
-        title: "Painel SOC",
-        icon: ClipboardCheck,
-        href: "/integrations/soc",
-        parentHref: "/integrations",
-      },
-      { title: "Ponto Eletrônico CLT", icon: Clock, href: "/time-tracking" },
-      { title: "Colaboradores NXC", icon: UserCheck, href: "/nxc-team" },
-      { title: "Prestadores", icon: Users, href: "/providers" },
-      { title: "Rede Credenciada", icon: MapPin, href: "/accredited-network" },
-      { title: "Academia NRs", icon: GraduationCap, href: "/trainings" },
-    ],
-  },
-  {
-    label: "INTELIGÊNCIA DE CAMPO",
-    icon: Cpu,
-    items: [
-      {
-        title: "Inspeção de Campo (Câmera)",
-        icon: Camera,
-        href: "/field-inspection",
-        badge: "Foto",
-        badgeColor: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-      },
-      {
-        title: "WhatsApp Bot (3358-0818)",
-        icon: Bot,
-        href: "/whatsapp-hub",
-        badge: "IA",
-        badgeColor: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-      },
-      { title: "Data Lab (OCR Hub)", icon: Binary, href: "/data-lab" },
-      { title: "Firewall Físico (Catraca)", icon: Scan, href: "/field-control" },
-    ],
-  },
-  {
-    label: "ESTRATÉGICO C-LEVEL",
-    icon: Scale,
-    items: [
-      {
-        title: "Superauditoria eSocial",
-        icon: ShieldAlert,
-        href: "/esocial/audit",
-        badge: "S-2240",
-        badgeColor: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-      },
-      { title: "Contestação FAP/NTEP", icon: Scale, href: "/legal-financial/ntep-contestation" },
-      {
-        title: "Simulador FAP/RAT",
-        icon: TrendingDown,
-        href: "/simulator",
-        badge: "ROI",
-        badgeColor: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-      },
-      { title: "Hub ISO (Auditorias)", icon: ShieldCheck, href: "/audits" },
-      { title: "Inteligência Fiscal", icon: BarChart3, href: "/esocial-audit" },
-      { title: "ROI Jurídico", icon: Scale, href: "/legal-financial" },
-    ],
-  },
-  {
-    label: "GOVERNANÇA & IT",
-    icon: Lock,
-    items: [
-      { title: "Canal de Ética", icon: ShieldAlert, href: "/compliance" },
-      { title: "Segurança ISO 27001", icon: Lock, href: "/governance" },
     ],
   },
 ];
@@ -354,22 +370,18 @@ export function AppSidebar() {
   const filteredModules = React.useMemo(() => {
     const query = normalizeNavigationSearch(filterText);
     return NAV_MODULES.map((module) => {
-      if (
-        isEngineeringProvider &&
-        module.label !== "OPERACIONAL — ENGENHARIA" &&
-        module.label !== "FORNECEDORES"
-      )
-        return null;
-      if (
-        isHealthProvider &&
-        module.label !== "OPERACIONAL — SAÚDE" &&
-        module.label !== "FORNECEDORES"
-      )
-        return null;
+      const visibleItems = module.items.filter((item) => {
+        if (isEngineeringProvider)
+          return item.providerAudience === "engineering" || item.providerAudience === "all";
+        if (isHealthProvider)
+          return item.providerAudience === "health" || item.providerAudience === "all";
+        return true;
+      });
+      if (visibleItems.length === 0) return null;
 
-      if (!query) return module;
+      if (!query) return { ...module, items: visibleItems };
 
-      const matchedItems = module.items.filter(
+      const matchedItems = visibleItems.filter(
         (item) =>
           normalizeNavigationSearch(item.title).includes(query) ||
           item.href.toLowerCase().includes(query) ||
@@ -382,7 +394,7 @@ export function AppSidebar() {
 
       return {
         ...module,
-        items: matchedItems.length > 0 ? matchedItems : module.items,
+        items: matchedItems.length > 0 ? matchedItems : visibleItems,
       };
     }).filter(Boolean) as NavModule[];
   }, [filterText, isEngineeringProvider, isHealthProvider]);
