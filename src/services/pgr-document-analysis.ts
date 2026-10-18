@@ -169,9 +169,10 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
           visualTriaged = true;
           const value = classification.data;
           const conflicting =
-            textDocument.statusClassificacao === "identificado" &&
-            value.statusClassificacao === "identificado" &&
-            textDocument.tipo !== value.tipo;
+            textDocument.statusClassificacao === "ambiguo" ||
+            (textDocument.statusClassificacao === "identificado" &&
+              value.statusClassificacao === "identificado" &&
+              textDocument.tipo !== value.tipo);
           const evidence = (value.evidencias || []).filter((item) => {
             if (evidenceIsInPages(item, pages)) return true;
             // A PDF may expose only a watermark/footer as text while the title is
@@ -202,11 +203,14 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
               : conflicting || value.statusClassificacao === "ambiguo"
                 ? "ambiguo"
                 : "nao_identificado",
-            evidencias: evidence.length
-              ? evidence
-              : identified && textDocument.tipo === tipo
+            evidencias:
+              textDocument.statusClassificacao === "ambiguo"
                 ? textDocument.evidencias
-                : [],
+                : evidence.length
+                  ? evidence
+                  : identified && textDocument.tipo === tipo
+                    ? textDocument.evidencias
+                    : [],
             justificativa: identified
               ? "Tipo identificado pela triagem de conteúdo da IA. Confira as evidências e o original antes de integrar."
               : "A triagem visual não distinguiu um único tipo documental. Reenvie o documento legível e separado.",

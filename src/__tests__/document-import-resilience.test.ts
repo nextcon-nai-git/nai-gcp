@@ -19,6 +19,14 @@ import { extractMedicalCertificate } from "@/ai/flows/extract-medical-certificat
 import { classifyDocument } from "@/ai/flows/document-classifier-flow";
 
 describe("Suíte de Resiliência: Importação de PGR e Documentos Regulatórios NAI", () => {
+  it("não admite PCMSO com prefixo normativo no OCR genérico", async () => {
+    await expect(
+      extractDocumentAutofillData(
+        "NR-07 - Programa de Controle Médico de Saúde Ocupacional",
+        "GERAL"
+      )
+    ).rejects.toThrow("acesso clínico restrito");
+  });
   it("1. Deve auditar PGR via motor regulatório com extração de GHEs, CNAE e Ações NR-12/NR-35", async () => {
     const pgrInput = {
       pdfDataUri:
