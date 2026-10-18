@@ -4,13 +4,11 @@ import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  Bell,
   Search,
   Settings,
   ChevronDown,
   Building2,
   ShieldCheck,
-  UserCircle,
   WifiOff,
   ShieldAlert,
   Menu,
@@ -22,12 +20,11 @@ import {
   LifeBuoy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import Image from "next/image";
-import { useUser, useAuth, useMemoFirebase, useFirestore, useCollection, useDoc } from "@/firebase";
+import { useUser, useAuth, useMemoFirebase, useFirestore, useDoc } from "@/firebase";
 import { signOut } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
-import { collection, query, orderBy, where, doc, limit } from "firebase/firestore";
+import { doc } from "firebase/firestore";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,29 +32,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { PlatformFeedback } from "@/components/feedback/platform-feedback";
 import { OfflineSyncBadge } from "@/components/layout/offline-sync-badge";
-import { cn } from "@/lib/utils";
 import { useSgi } from "@/contexts/sgi-context";
-import { REAL_COMPANIES } from "@/lib/real-data";
-import { sortCompaniesByName } from "@/lib/company-order";
+import { useCompanyDirectory } from "@/hooks/use-company-directory";
 import { useSidebar } from "@/components/ui/sidebar";
 import { GlobalCommandPalette } from "@/components/layout/global-command-palette";
 
 /**
  * TOPNAV v3.1 - GESTÃO MESTRE MULTI-TENANT & CLIENT SELECTION
- * Sincroniza em tempo real todas as unidades cadastradas (Base Mestra + Firestore + Local).
+ * Consulta as unidades cadastradas dentro do escopo autorizado da sessão.
  */
 export function TopNav() {
-  const { user, role, companyId: userCompanyId } = useUser();
+  const { user } = useUser();
   const auth = useAuth();
   const { toast } = useToast();
   const handleSignOut = async () => {
@@ -93,10 +82,8 @@ export function TopNav() {
     isLoading: isSgiLoading,
   } = useSgi();
   const { toggleSidebar } = useSidebar();
-  const [searchQuery, setSearchQuery] = React.useState("");
   const [commandOpen, setCommandOpen] = React.useState(false);
   const [isOnline, setIsOnline] = React.useState(true);
-  const [localCustomCompanies, setLocalCustomCompanies] = React.useState<any[]>([]);
 
   // Atalho de Teclado Global: Cmd + K / Ctrl + K para abrir o Command Palette
   React.useEffect(() => {
@@ -122,35 +109,6 @@ export function TopNav() {
     };
   }, []);
 
-  // Sincronização reativa de empresas customizadas salvas localmente
-  React.useEffect(() => {
-    const loadLocalCompanies = () => {
-      if (typeof window === "undefined") return;
-      try {
-        const rawCustom = localStorage.getItem("nai_custom_companies");
-        const rawRegistered = localStorage.getItem("nai_registered_clients");
-        const listCustom = rawCustom ? JSON.parse(rawCustom) : [];
-        const listReg = rawRegistered ? JSON.parse(rawRegistered) : [];
-
-        const map = new Map<string, any>();
-        for (const item of [...listReg, ...listCustom]) {
-          if (item?.id) map.set(item.id, item);
-        }
-        setLocalCustomCompanies(Array.from(map.values()));
-      } catch (e) {
-        console.warn("Aviso ao carregar empresas locais no TopNav:", e);
-      }
-    };
-
-    loadLocalCompanies();
-    window.addEventListener("nai_clients_updated", loadLocalCompanies);
-    window.addEventListener("storage", loadLocalCompanies);
-    return () => {
-      window.removeEventListener("nai_clients_updated", loadLocalCompanies);
-      window.removeEventListener("storage", loadLocalCompanies);
-    };
-  }, []);
-
   const profileRef = useMemoFirebase(() => {
     if (!db || !user) return null;
     return doc(db, "users", user.uid);
@@ -164,61 +122,28 @@ export function TopNav() {
     profile?.name || user?.displayName || user?.email?.split("@")[0] || "Usuário NAI";
   const userPhotoUrl = BRASAO_URL;
 
-  const companiesQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return query(collection(db, "companies"), orderBy("name", "asc"));
-  }, [db]);
-
-  const { data: rawCompanies } = useCollection(companiesQuery);
-
-  // Consolidação completa: REAL_COMPANIES (25 base) + LocalStorage Custom + Firestore
-  const filteredCompanies = React.useMemo(() => {
-    const map = new Map<string, any>();
-
-    // 1. Inserir todos os 25 clientes reais mestre da NextCon
-    for (const comp of REAL_COMPANIES) {
-      if (comp?.id) {
-        map.set(comp.id, { ...comp });
-      }
-    }
-
-    // 2. Inserir empresas cadastradas localmente pelo usuário
-    for (const comp of localCustomCompanies) {
-      if (!comp?.id) continue;
-      const existing = map.get(comp.id) || {};
-      map.set(comp.id, { ...existing, ...comp });
-    }
-
-    // 3. Inserir / sobrepor dados em tempo real vindos do Firestore
-    if (rawCompanies && rawCompanies.length > 0) {
-      for (const comp of rawCompanies) {
-        if (!comp?.id) continue;
-        const existing = map.get(comp.id) || {};
-        map.set(comp.id, { ...existing, ...comp });
-      }
-    }
-
-    let allList = Array.from(map.values()).filter((c) => c.active === true && c.isDeleted !== true);
-
-    // Se o usuário tiver restrição de tenant (ex: prestador restrito)
-    if (!isGlobalStaff && authorizedCompanies && authorizedCompanies.length > 0) {
-      allList = allList.filter((c) => authorizedCompanies.includes(c.id));
-    }
-
-    return sortCompaniesByName(allList.filter(Boolean));
-  }, [rawCompanies, localCustomCompanies, isGlobalStaff, authorizedCompanies]);
+  const {
+    data: companies,
+    isLoading: directoryLoading,
+    error: directoryError,
+  } = useCompanyDirectory(db, user?.uid, isGlobalStaff, authorizedCompanies, !isSgiLoading);
+  const filteredCompanies = React.useMemo(
+    () => companies.filter((company) => company.active !== false),
+    [companies]
+  );
 
   const activeCompanyName = React.useMemo(() => {
-    if (activeClientId === "all" || !activeClientId) return "Rede Global Nextcon";
+    if (directoryError) return "Não foi possível carregar unidades";
+    if (directoryLoading) return "Carregando unidades...";
+    if (activeClientId === "all" && isGlobalStaff) return "Rede Global Nextcon";
     if (activeClientId === "unauthorized") return "Acesso Restrito";
     const found = filteredCompanies?.find((c) => c?.id === activeClientId);
     if (found) return found?.displayName || found?.name || found?.razaoSocial || found?.id;
-    return "Rede Global Nextcon";
-  }, [activeClientId, filteredCompanies]);
-
-  const canSwitchCompany = true;
+    return "Selecione uma unidade autorizada";
+  }, [activeClientId, filteredCompanies, directoryError, directoryLoading, isGlobalStaff]);
 
   const handleClientChange = (newClientId: string) => {
+    if (!isGlobalStaff && !authorizedCompanies.includes(newClientId)) return;
     setActiveClientId(newClientId);
     if (!newClientId || newClientId === "all") {
       router.push("/");
@@ -273,7 +198,11 @@ export function TopNav() {
       {/* Seletor de Unidades & Barra de Pesquisa Responsiva */}
       <div className="flex-1 max-w-xl mx-1 md:mx-4 flex items-center gap-2 md:gap-4 min-w-0">
         <div className="flex-1 sm:w-72 md:w-80 min-w-0 animate-in fade-in zoom-in-95">
-          <Select value={activeClientId} onValueChange={handleClientChange} disabled={isSgiLoading}>
+          <Select
+            value={activeClientId}
+            onValueChange={handleClientChange}
+            disabled={isSgiLoading || directoryLoading || !!directoryError}
+          >
             <SelectTrigger className="h-10 bg-slate-50 border border-slate-200/70 rounded-xl font-black uppercase text-[9px] tracking-wider shadow-inner focus:ring-primary/10 flex items-center justify-between w-full">
               <div className="flex items-center gap-2 truncate">
                 <Building2 className="size-3.5 text-primary/60 shrink-0" />
@@ -281,12 +210,14 @@ export function TopNav() {
               </div>
             </SelectTrigger>
             <SelectContent className="rounded-xl border border-slate-200 shadow-2xl max-h-96 overflow-y-auto w-80">
-              <SelectItem
-                value="all"
-                className="text-[10px] font-black uppercase text-primary border-b border-slate-100 py-2.5 cursor-pointer"
-              >
-                🌐 Rede Global (Filtro Zero)
-              </SelectItem>
+              {isGlobalStaff && (
+                <SelectItem
+                  value="all"
+                  className="text-[10px] font-black uppercase text-primary border-b border-slate-100 py-2.5 cursor-pointer"
+                >
+                  🌐 Rede Global (Filtro Zero)
+                </SelectItem>
+              )}
               {filteredCompanies.filter(Boolean).map((c) => {
                 const label = c?.displayName || c?.name || c?.razaoSocial || c?.id || "Empresa";
                 return (

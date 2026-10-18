@@ -37,9 +37,10 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useCompanyDirectory } from "@/hooks/use-company-directory";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore, useMemoFirebase, useCollection } from "@/firebase";
-import { collection, addDoc, serverTimestamp, query, orderBy, where } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, orderBy } from "firebase/firestore";
 import { useSgi } from "@/contexts/sgi-context";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -104,31 +105,27 @@ export function NewAttendanceModal() {
     },
   });
 
-  const companiesQuery = useMemoFirebase(() => {
-    if (
-      !db ||
-      !["SUPER_ADMIN", "ADMIN", "DOCTOR", "NURSE", "HEALTH_PROFESSIONAL", "PROVIDER"].includes(
-        role || ""
-      )
-    )
-      return null;
-    if (isGlobalStaff) {
-      return query(collection(db, "companies"), orderBy("name", "asc"));
-    }
-    if (authorizedCompanies && authorizedCompanies.length > 0) {
-      return query(collection(db, "companies"), where("__name__", "in", authorizedCompanies));
-    }
-    return null;
-  }, [db, role, isGlobalStaff, authorizedCompanies]);
-  const { data: companies } = useCollection(companiesQuery);
+  const canRead = [
+    "SUPER_ADMIN",
+    "ADMIN",
+    "DOCTOR",
+    "NURSE",
+    "HEALTH_PROFESSIONAL",
+    "PROVIDER",
+  ].includes(role || "");
+  const {
+    data: companies,
+    isLoading: loadingCompanies,
+    error: companiesError,
+  } = useCompanyDirectory(db, user?.uid, isGlobalStaff, authorizedCompanies, canRead);
 
   const companyId = form.watch("companyId");
   const employeesQuery = useMemoFirebase(
     () =>
-      !db || !companyId
+      !db || !companyId || !canRead || !companies.some((company) => company.id === companyId)
         ? null
         : query(collection(db, "companies", companyId, "employees"), orderBy("name", "asc")),
-    [db, companyId]
+    [db, companyId, companies, canRead]
   );
   const { data: employees, isLoading: loadingEmployees } = useCollection(employeesQuery);
 
@@ -201,6 +198,11 @@ export function NewAttendanceModal() {
             onSubmit={form.handleSubmit(onFormSubmit)}
             className="p-8 grid grid-cols-1 lg:grid-cols-12 gap-10"
           >
+            {companiesError && (
+              <p role="alert" className="lg:col-span-12 text-red-700">
+                Não foi possível consultar as unidades autorizadas. Tente novamente.
+              </p>
+            )}
             <div className="lg:col-span-7 space-y-8">
               <div className="grid grid-cols-2 gap-4">
                 <FormField
@@ -382,7 +384,7 @@ export function NewAttendanceModal() {
             <div className="lg:col-span-12 pt-8 border-t flex flex-col items-center gap-4">
               <Button
                 type="submit"
-                disabled={isSubmitting || loadingEmployees}
+                disabled={isSubmitting || loadingEmployees || loadingCompanies || !!companiesError}
                 className="w-full h-16 bg-primary text-white font-black uppercase text-xs tracking-widest rounded-2xl shadow-xl gap-3"
               >
                 {isSubmitting ? (
