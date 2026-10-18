@@ -2,9 +2,9 @@
 
 ## Estado medido — marco de 70%
 
-A suíte final desta rodada passou com **2.617 testes em 260 arquivos**. Cobertura V8: **70,31% de linhas (14.955/21.268)**, 69,01% de instruções, 64,02% de ramos e 63,25% de funções. O piso de linhas do CI foi elevado para 70%, sem novas exclusões de fontes. As correções e limitações estão no [relatório do marco de 70%](marco-70-2026-10-18.md).
+A suíte final desta rodada passou com **2.635 testes em 261 arquivos**. Cobertura V8: **70,40% de linhas (14.975/21.269)**, 69,09% de instruções, 64,14% de ramos e 63,29% de funções. O piso de linhas do CI foi elevado para 70%, sem novas exclusões de fontes. As correções e limitações estão no [relatório do marco de 70%](marco-70-2026-10-18.md).
 
-O inventário contém 600 arquivos TypeScript/TSX de implementação e 123154 linhas físicas em `src`, além de 81 rotas de API e 111 páginas. Existem 217 arquivos com linhas instrumentadas e nenhuma linha executada. Varredura, cobertura e hashes não representam leitura manual integral nem homologação funcional. Linhas físicas e instrumentadas são medidas diferentes.
+O inventário contém 600 arquivos TypeScript/TSX de implementação e 123170 linhas físicas em `src`, além de 81 rotas de API e 111 páginas. Existem 217 arquivos com linhas instrumentadas e nenhuma linha executada. Varredura, cobertura e hashes não representam leitura manual integral nem homologação funcional. Linhas físicas e instrumentadas são medidas diferentes.
 
 A base desta rodada, `c2580a41c76b58af6af2755f8eecb3dd839f7543`, passou com 2.238 testes em 233 arquivos e 60,16% de linhas (12.591/20.929). A medição de 60,37% registrada na rodada anterior corresponde a uma base anterior às alterações dos relatórios financeiros; as comparações devem respeitar o denominador de cada base.
 
@@ -17,7 +17,7 @@ O JSON adjacente registra caminho, hash SHA-256, tamanho e cobertura por arquivo
 | `__tests__`    |        1 |                              9/9 |   100.00% |
 | `actions`      |       16 |                          249/411 |    60.58% |
 | `ai`           |       44 |                          424/659 |    64.34% |
-| `app`          |      211 |                        3806/6896 |    55.19% |
+| `app`          |      211 |                        3826/6897 |    55.47% |
 | `components`   |      120 |                        3960/5628 |    70.36% |
 | `contexts`     |        1 |                            45/47 |    95.74% |
 | `firebase`     |       14 |                          151/230 |    65.65% |

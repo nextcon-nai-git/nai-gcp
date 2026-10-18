@@ -3,26 +3,26 @@
   "baseMain": "c2580a41c76b58af6af2755f8eecb3dd839f7543",
   "scope": "TypeScript/TSX source under src excluding tests and declarations; inventory and automated coverage do not establish manual review or functional correctness.",
   "sourceFiles": 600,
-  "sourceLines": 123154,
+  "sourceLines": 123170,
   "apiRoutes": 81,
   "pages": 111,
-  "tests": 2617,
-  "testFiles": 260,
+  "tests": 2635,
+  "testFiles": 261,
   "coverageSummary": {
-    "statementsPercent": 69.01,
-    "statementsHit": 16238,
-    "statementsFound": 23528,
-    "branchesPercent": 64.02,
-    "branchesHit": 13377,
-    "branchesFound": 20893,
-    "functionsPercent": 63.25,
-    "functionsHit": 3557,
+    "statementsPercent": 69.09,
+    "statementsHit": 16258,
+    "statementsFound": 23529,
+    "branchesPercent": 64.14,
+    "branchesHit": 13405,
+    "branchesFound": 20899,
+    "functionsPercent": 63.29,
+    "functionsHit": 3559,
     "functionsFound": 5623,
-    "linesPercent": 70.31,
-    "linesHit": 14955,
-    "linesFound": 21268
+    "linesPercent": 70.4,
+    "linesHit": 14975,
+    "linesFound": 21269
   },
-  "zeroCoveredFiles": 217,
+  "zeroCoveredFiles": 216,
   "files": [
     {
       "path": "src/__tests__/avp-test-fixture.ts",
@@ -68,8 +68,8 @@
     },
     {
       "path": "src/actions/banks.ts",
-      "sha256": "311ac7a50e2911ee287af79809e98507a916f09affd527a89e90874166fb57cd",
-      "sourceLines": 267,
+      "sha256": "50ca1821c1841c6c1b852737037eb6c447495c7bb46a237c2efb4bc5c30e1878",
+      "sourceLines": 271,
       "automatedCoverage": {
         "functionsFound": 4,
         "functionsHit": 4,
@@ -2028,15 +2028,15 @@
     },
     {
       "path": "src/app/api/v1/bancos/route.ts",
-      "sha256": "0024841e8ac27150506a9b046547a12aaed67629c2e7c18ccb2934f31e2fbcc2",
-      "sourceLines": 101,
+      "sha256": "67c44e2eebb02f46f4fdd5cacbdc0cd0b62a0c3547875324cfd66f338ee4c00d",
+      "sourceLines": 114,
       "automatedCoverage": {
         "functionsFound": 2,
-        "functionsHit": 0,
-        "linesFound": 19,
-        "linesHit": 0,
-        "branchesFound": 24,
-        "branchesHit": 0
+        "functionsHit": 2,
+        "linesFound": 20,
+        "linesHit": 20,
+        "branchesFound": 30,
+        "branchesHit": 28
       },
       "manualReview": "not_asserted"
     },
@@ -2644,8 +2644,8 @@
     },
     {
       "path": "src/app/field-inspection/page.tsx",
-      "sha256": "3e23c07efd989529beb4e903f5d5d2469b91cdc72d0766f6921488dedce5862f",
-      "sourceLines": 702,
+      "sha256": "aa754f73a711b3df7168e972971700d60ebda03c05ec39c856da3d1359953928",
+      "sourceLines": 701,
       "automatedCoverage": {
         "functionsFound": 29,
         "functionsHit": 20,

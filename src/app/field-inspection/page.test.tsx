@@ -216,6 +216,16 @@ describe("field inspection boundaries", () => {
     await picture(new File([], "empty.jpg", { type: "image/jpeg" }));
     expect(m.toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: "Foto inválida" }));
   });
+  it("advertises the accepted photo formats and explains native mobile conversion", async () => {
+    await prepare();
+    for (const input of v.container.querySelectorAll('input[type="file"]')) {
+      expect(input.getAttribute("accept")).toBe("image/png,image/jpeg,image/webp");
+    }
+    expect(v.container.textContent).toContain("HEIC/HEIF");
+    await picture(new File(["native"], "photo.heic", { type: "image/heic" }));
+    expect(m.toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: "Foto inválida" }));
+    expect(v.container.querySelector("img")).toBeNull();
+  });
   it("includes GPS only after a successful device callback", async () => {
     await prepare();
     await v.click("Obter GPS");

@@ -371,7 +371,7 @@ function FieldInspectionSession() {
           {/* Inputs invisíveis: Câmera Nativa (capture) e Galeria de Fotos */}
           <input
             type="file"
-            accept="image/*"
+            accept="image/png,image/jpeg,image/webp"
             capture="environment"
             ref={cameraInputRef}
             onChange={handleImageCapture}
@@ -379,7 +379,7 @@ function FieldInspectionSession() {
           />
           <input
             type="file"
-            accept="image/*"
+            accept="image/png,image/jpeg,image/webp"
             ref={galleryInputRef}
             onChange={handleImageCapture}
             className="hidden"
@@ -394,9 +394,8 @@ function FieldInspectionSession() {
               <div className="space-y-1">
                 <p className="font-bold text-white text-base">Capturar Foto do Canteiro de Obras</p>
                 <p className="text-xs text-slate-400">
-                  Compatível com todos os smartphones{" "}
-                  <strong>Android (Samsung, Motorola, Xiaomi)</strong> e{" "}
-                  <strong>Apple iPhone</strong>
+                  Fotos PNG, JPEG ou WebP de até 10 MB. Se o Android ou iPhone gerar HEIC/HEIF,
+                  converta a foto para um dos formatos aceitos antes de selecionar.
                 </p>
               </div>
 

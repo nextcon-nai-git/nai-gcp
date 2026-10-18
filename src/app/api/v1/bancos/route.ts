@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { consultarBancosBrasil } from "@/actions/banks";
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
 
 /**
  * @fileOverview API Pública REST do Sistema Bancário do Brasil v1.
@@ -17,10 +22,14 @@ export async function GET(request: Request) {
     const limitRaw = searchParams.get("limit");
     const offsetRaw = searchParams.get("offset");
 
-    const limit = limitRaw ? parseInt(limitRaw, 10) : 100;
-    const offset = offsetRaw ? parseInt(offsetRaw, 10) : 0;
+    const limit = limitRaw === null ? 100 : Number(limitRaw);
+    const offset = offsetRaw === null ? 0 : Number(offsetRaw);
 
-    if (isNaN(limit) || limit < 1) {
+    if (
+      !Number.isSafeInteger(limit) ||
+      limit < 1 ||
+      (limitRaw !== null && !/^\d+$/.test(limitRaw))
+    ) {
       return NextResponse.json(
         { sucesso: false, mensagem: "O parâmetro 'limit' deve ser um inteiro maior ou igual a 1." },
         {
@@ -34,7 +43,11 @@ export async function GET(request: Request) {
       );
     }
 
-    if (isNaN(offset) || offset < 0) {
+    if (
+      !Number.isSafeInteger(offset) ||
+      offset < 0 ||
+      (offsetRaw !== null && !/^\d+$/.test(offsetRaw))
+    ) {
       return NextResponse.json(
         {
           sucesso: false,
@@ -59,7 +72,7 @@ export async function GET(request: Request) {
           sucesso: false,
           mensagem: result.mensagem || "Erro ao listar as instituições do sistema bancário.",
         },
-        { status: 500 }
+        { status: result.errorType === "validation" ? 400 : 500, headers: corsHeaders }
       );
     }
 
@@ -81,10 +94,10 @@ export async function GET(request: Request) {
         },
       }
     );
-  } catch (error: any) {
+  } catch {
     return NextResponse.json(
-      { sucesso: false, mensagem: "Erro interno no servidor de bancos.", detalhe: error.message },
-      { status: 500 }
+      { sucesso: false, mensagem: "Erro interno no servidor de bancos." },
+      { status: 500, headers: corsHeaders }
     );
   }
 }
