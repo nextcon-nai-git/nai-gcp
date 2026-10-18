@@ -26,9 +26,12 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireAuth(req);
     requireFinancialAccess(user);
-    return NextResponse.json(await saveProductionCommand(user, await limitedJson(req)), {
-      headers: privateHeaders,
-    });
+    return NextResponse.json(
+      await saveProductionCommand(user, await limitedJson(req, 256 * 1024)),
+      {
+        headers: privateHeaders,
+      }
+    );
   } catch (e) {
     return privateFailure(e);
   }

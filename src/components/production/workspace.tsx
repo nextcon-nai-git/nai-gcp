@@ -24,6 +24,13 @@ import {
   instructionVersion,
   type Stage,
 } from "@/lib/production/instructions";
+import { taskComplete } from "@/lib/production/obligations";
+import {
+  ObligationsFields,
+  readObligations,
+  RevisionObligationSelection,
+  ObligationTaskEditor,
+} from "./obligations-editor";
 import type { Extraction } from "@/lib/production/analysis";
 import type { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -401,8 +408,15 @@ const emptyTerms: Terms = {
   endsOn: "",
   paymentTerms: "",
   recurring: false,
+  obligations: [],
 };
-function TermsFields({ terms }: { terms: Terms }) {
+function TermsFields({
+  terms,
+  suggestions = [],
+}: {
+  terms: Terms;
+  suggestions?: Terms["obligations"];
+}) {
   return (
     <div className="grid gap-3 md:grid-cols-2">
       <TextField label="Escopo revisado" name="scope" defaultValue={terms.scope} required />
@@ -435,6 +449,7 @@ function TermsFields({ terms }: { terms: Terms }) {
         <input type="checkbox" name="recurring" defaultChecked={terms.recurring} />
         Contrato recorrente (conferido)
       </label>
+      <ObligationsFields initial={terms.obligations} suggestions={suggestions} />
     </div>
   );
 }
@@ -448,6 +463,7 @@ function readTerms(f: FormData): Terms {
     endsOn: value(f, "endsOn"),
     paymentTerms: value(f, "paymentTerms"),
     recurring: f.get("recurring") === "on",
+    obligations: readObligations(f),
   };
 }
 function SourceUpload({
@@ -597,7 +613,7 @@ function RecordForm({
     <Card>
       <CardHeader>
         <CardTitle>
-          {record ? "Anexar documento / aprovar aditivo" : "Cadastrar e gerar nove cards"}
+          {record ? "Anexar documento / aprovar aditivo" : "Cadastrar contrato e gerar tarefas"}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -675,6 +691,8 @@ function RecordForm({
                   endsOn: x.endsOn ?? old.endsOn,
                   paymentTerms: x.paymentTerms ?? old.paymentTerms,
                   recurring: x.recurring ?? old.recurring,
+                  // An addendum is a partial source, never a replacement for the contract.
+                  obligations: record ? old.obligations : x.obligations,
                 }));
                 setRevision((n) => n + 1);
               }}
@@ -743,7 +761,18 @@ function RecordForm({
             )}
             {(!record || document?.kind === "aditivo") && (
               <>
-                <TermsFields key={revision} terms={terms} />
+                {record && (
+                  <p className="text-sm">
+                    As obrigações vigentes foram mantidas. Confira as sugestões do aditivo e
+                    atualize a lista consolidada antes de aprovar esta versão. Remova um serviço
+                    somente quando o documento comprovar sua exclusão.
+                  </p>
+                )}
+                <TermsFields
+                  key={revision}
+                  terms={terms}
+                  suggestions={record ? extraction?.obligations : []}
+                />
                 <Field
                   name="effectiveOn"
                   label="Data de efeito desta versão (revisada)"
@@ -774,8 +803,8 @@ function RecordForm({
             />
             <label className="flex items-start gap-2 text-sm">
               <input key={String(revision) + document?.source.sha256} type="checkbox" required />
-              Conferi o cliente, o documento original e os dados. Autorizo salvar esta versão e
-              gerar as tarefas, sem autorizar envio externo.
+              Conferi o cliente, o documento original, os dados e as obrigações consolidadas.
+              Autorizo salvar esta versão e gerar as tarefas, sem autorizar envio externo.
             </label>
             {error && <p role="alert">{error}</p>}
             <Button type="submit">
@@ -894,7 +923,7 @@ function RecordView({
           }}
         >
           <fieldset disabled={disabled || !record.active} className="space-y-3">
-            <TermsFields terms={record.revisions.at(-1)!.terms} />
+            <TermsFields key={record.revisions.length} terms={record.revisions.at(-1)!.terms} />
             <Field
               name="effectiveOn"
               label="Data de efeito revisada"
@@ -1021,6 +1050,7 @@ function RecordView({
                   const f = new FormData(e.currentTarget);
                   await mutate({
                     action: "replan",
+                    obligationIds: f.getAll("obligationIds").map(String),
                     recordId: record.id,
                     cycleId: cycle.id,
                     revision: Number(value(f, "revision")),
@@ -1034,20 +1064,12 @@ function RecordView({
               }}
             >
               <fieldset className="space-y-3" disabled={disabled || !record.active}>
-                <label className="text-sm">
-                  Replanejar ciclo não iniciado com aditivo aprovado
-                  <select
-                    className={inputClass}
-                    name="revision"
-                    defaultValue={record.revisions.length - 1}
-                  >
-                    {record.revisions.map((r, n) => (
-                      <option key={n} value={n}>
-                        Revisão {n + 1} · efeito {r.effectiveOn}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <RevisionObligationSelection
+                  key={cycle.id + record.revisions.length}
+                  record={record}
+                  initialRevision={record.revisions.length - 1}
+                  selected={cycle.tasks.map((t) => t.obligation.id)}
+                />
                 <Field
                   name="value"
                   label="Valor revisado deste ciclo (R$); vazio = pendente"
@@ -1075,6 +1097,38 @@ function RecordView({
               Antecipação: {cycle.advanceEvidence || "Não autorizada; medição após entrega."}
             </p>
           </details>
+          <section aria-label="Tarefas por obrigação contratual">
+            <h2 className="mb-3 text-lg font-semibold">
+              Obrigações deste ciclo · {cycle.tasks.filter(taskComplete).length}/
+              {cycle.tasks.length} concluídas
+            </h2>
+            {cycle.tasks.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nenhuma obrigação estruturada neste ciclo. Confira o escopo contratado antes de
+                liberar a execução.
+              </p>
+            ) : (
+              <div className="grid gap-3 lg:grid-cols-2">
+                {cycle.tasks.map((task) => (
+                  <ObligationTaskEditor
+                    key={cycle.id + task.obligation.id + task.updatedAt}
+                    task={task}
+                    disabled={disabled || !record.active}
+                    save={(data, reason) =>
+                      mutate({
+                        action: "task",
+                        recordId: record.id,
+                        cycleId: cycle.id,
+                        taskId: task.obligation.id,
+                        data,
+                        reason,
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </section>
           {(["operacional", "faturamento"] as const).map((stage) => (
             <section key={stage}>
               <h2 className="mb-3 text-lg font-semibold">{stageNames[stage]}</h2>
@@ -1120,6 +1174,7 @@ function RecordView({
             try {
               await mutate({
                 action: "cycle",
+                obligationIds: f.getAll("obligationIds").map(String),
                 recordId: record.id,
                 cycleId: crypto.randomUUID(),
                 service: value(f, "service"),
@@ -1136,26 +1191,17 @@ function RecordView({
           <fieldset disabled={disabled || !record.active} className="grid gap-3 md:grid-cols-2">
             <Field name="service" label="Serviço" required />
             <Field name="period" label="Competência (AAAA-MM) ou número da ordem" required />
-            <label className="text-sm">
-              Versão contratual aplicável
-              <select
-                className={inputClass}
-                name="revision"
-                defaultValue={record.revisions.length - 1}
-              >
-                {record.revisions.map((r, i) => (
-                  <option key={i} value={i}>
-                    Revisão {i + 1} · efeito {r.effectiveOn}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <RevisionObligationSelection
+              key={record.revisions.length}
+              record={record}
+              initialRevision={record.revisions.length - 1}
+            />
             <Field name="value" label="Valor contratado para este ciclo (R$)" type="number" />
             <TextField
               name="advance"
               label="Cláusula e aprovação de sinal/antecipação (opcional)"
             />
-            <Button type="submit">Criar seis cards do ciclo</Button>
+            <Button type="submit">Criar ciclo e tarefas selecionadas</Button>
           </fieldset>
         </form>
       </details>

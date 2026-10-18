@@ -10,7 +10,7 @@ Entrada: `/production`, também vinculada no menu, em Contratos e em Agentes IA.
 4. Novos serviços/competências criam seis cards e selecionam explicitamente a versão contratual aplicável. A central não cria cobranças nem competências futuras silenciosamente.
 5. Medição, NF válida/cobrança e recebimentos conciliados são registrados com evidências distintas. Uma cláusula aprovada pode permitir medição antecipada; o ciclo somente encerra após entrega e quitação. A conclusão de um ciclo não encerra contrato recorrente. Negociações recusadas sem execução ou movimentação financeira podem ser encerradas com justificativa, sem simular conclusão de serviço.
 6. O vínculo opcional ao ERP valida contrato ativo e CNPJ do fluxo financeiro. Títulos devem ser recebíveis aprovados do mesmo contrato e valor; recebimentos e ajustes são conferidos contra baixas não estornadas ao salvar e ao encerrar. Juros e multas ficam no ERP, fora do principal do ciclo. Nenhum lançamento é criado ou alterado pela central.
-7. A aba Instruções de trabalho contém nove procedimentos v1.0 (entradas, quatro passos, responsáveis, saídas e exceções). A aba Agentes IA oferece NAI Comercial, NAI Operacional e NAI Faturamento, cada qual com contexto cadastrado no servidor e o procedimento da sua etapa.
+7. A aba Instruções de trabalho contém nove procedimentos v1.1 (entradas, quatro passos, responsáveis, saídas e exceções). A aba Agentes IA oferece NAI Comercial, NAI Operacional e NAI Faturamento, cada qual com contexto cadastrado no servidor e o procedimento da sua etapa.
 
 ## Limites explícitos
 
@@ -24,6 +24,18 @@ Entrada: `/production`, também vinculada no menu, em Contratos e em Agentes IA.
 
 ## Persistência e validação
 
-Acervo privado em `financial-operations/v1/production-central.json`, namespace já negado aos SDKs clientes pelas regras Storage. API autenticada em `/api/production`, com autorização antes de ler corpo ou dados; respostas privadas sem cache; comandos limitados a 64 KiB. Gravação usa compare-and-swap por geração, chave idempotente, hash da operação, ator e leitura de confirmação. Falha de leitura nunca recria um acervo vazio. Limites explícitos: 1.000 registros, 200 ciclos por registro, 100 documentos/versões, 20.000 eventos e 16 MiB por acervo; requer particionamento ao atingir limites.
+Acervo privado em `financial-operations/v1/production-central.json`, namespace já negado aos SDKs clientes pelas regras Storage. API autenticada em `/api/production`, com autorização antes de ler corpo ou dados; respostas privadas sem cache; comandos limitados a 256 KiB. Gravação usa compare-and-swap por geração, chave idempotente, hash da operação, ator e leitura de confirmação. Falha de leitura nunca recria um acervo vazio. Limites explícitos: 1.000 registros, 200 ciclos por registro, 100 documentos/versões, 20.000 eventos e 16 MiB por acervo; requer particionamento ao atingir limites.
 
 Testes cobrem ciclo completo, antecipação, pendências, duplicidade, imutabilidade dos aditivos, autorização, integridade do PDF, concorrência, replay, divergência do ERP, agentes sem ações externas e recuperação da interface após falha ambígua. A execução real dos agentes depende da configuração Genkit/Gemini do ambiente; testes automatizados não substituem uma consulta real homologada.
+
+## Obrigações contratuais por serviço — 18/10/2026
+
+A extração assistida agora propõe até 100 obrigações individuais, com tipo de serviço (PGR, PCMSO, ASO, LTCAT, AET, AEP, perícia ou outro), título de tarefa, página/cláusula e trecho da fonte. A prévia permite corrigir, adicionar ou remover itens antes da confirmação. Responsáveis não expressos e datas não inequívocas ficam pendentes; regras relativas e frequência são preservadas como texto para programação humana.
+
+O ciclo inicial recebe uma tarefa por obrigação aprovada, além das nove etapas gerais. O valor contratado permanece no ciclo e não é multiplicado pela quantidade de serviços. Cada tarefa tem responsável, prazo programado, checklist, bloqueio e evidência de execução/revisão técnica. Serviços condicionais preservam o evento de acionamento; somente quando essa condição está registrada é permitido justificar que não se aplica ao ciclo, com responsável e evidência. A execução depende da formalização e mobilização; concluir produção, entrega ou recebimento exige concluir todas as tarefas selecionadas. Antecipação financeira não dispensa entrega nem quitação.
+
+Ciclos adicionais e replanejamentos exigem seleção explícita das obrigações da versão aplicável. As datas programadas são definidas para o novo ciclo: não há repetição automática de obrigação pontual nem cálculo presumido de datas relativas. Aditivos mantêm os ciclos anteriores; a prévia de nova versão deve ser consolidada pelo responsável. Tarefas já atualizadas não são apagadas por revisão inicial ou replanejamento. Reabrir tarefas após conclusão da produção exige reabrir as etapas dependentes, com auditoria.
+
+Na extração de aditivos, a lista vigente permanece intacta mesmo quando o documento não contém serviços ou só altera parte deles. Sugestões ficam separadas: o revisor edita a obrigação existente ou adiciona um novo serviço com identificador próprio. Nenhuma sugestão substitui automaticamente a lista vigente. Extração e persistência compartilham a validação de identificadores únicos; respostas da IA com IDs repetidos são rejeitadas antes da prévia.
+
+Registros anteriores continuam legíveis, com listas vazias quando não há obrigações estruturadas. Não é inferido um plano a partir de texto histórico sem revisão. Os cards controlam o trabalho e suas referências: não criam documentos técnicos, ASOs, notas fiscais ou mensagens automaticamente. O envio permanece sujeito à autorização expressa do usuário.

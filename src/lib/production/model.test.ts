@@ -18,6 +18,7 @@ const terms = {
   endsOn: "",
   paymentTerms: "Mensal por medição",
   recurring: true,
+  obligations: [],
 };
 const document = {
   name: "contrato.pdf",
@@ -490,4 +491,230 @@ describe("production lifecycle", () => {
       expect(agentSystem(s)).toContain("RASCUNHO NÃO ENVIADO");
     }
   });
+});
+
+const obligations = [
+  {
+    id: "pgr",
+    title: "Elaborar PGR",
+    serviceType: "PGR",
+    owner: "Engenharia",
+    due: "2026-10-30",
+    trigger: "",
+    deadlineRule: "Entrega em 30/10/2026",
+    sourceReference: "Contrato, cláusula 4",
+    sourceExcerpt: "Elaborar PGR e realizar exames ASO.",
+  },
+  {
+    id: "aso",
+    title: "Realizar ASOs",
+    serviceType: "ASO",
+    owner: "",
+    due: "",
+    trigger: "",
+    deadlineRule: "Após solicitação do cliente",
+    sourceReference: "Contrato, cláusula 4",
+    sourceExcerpt: "Elaborar PGR e realizar exames ASO.",
+  },
+];
+function withTasks() {
+  const command = create();
+  if (command.action !== "create") throw new Error("fixture");
+  return apply(emptyBook(), { ...command, terms: { ...terms, obligations } });
+}
+function mobilizedTasks() {
+  let b = withTasks();
+  for (const id of ["budget", "proposal", "contract"] as const) b = finish(b, id);
+  return finish(b, "mobilize", "r1_initial");
+}
+function changeTask(b: ProductionBook, taskId = "pgr", patch: object = {}) {
+  return apply(b, {
+    action: "task",
+    cycleId: "r1_initial",
+    taskId,
+    data: {
+      owner: "Responsável técnico",
+      due: "2026-10-30",
+      status: "done",
+      checks: [true, true, true, true],
+      evidence: "Documento revisado e assinado, referência de teste",
+      blocker: "",
+      ...patch,
+    },
+    reason: "Conferência da obrigação",
+  });
+}
+describe("contract obligations through delivery and collection", () => {
+  it("creates separate PGR and ASO tasks without multiplying contract value or guessing dates", () => {
+    const b = withTasks(),
+      cycle = b.records[0].cycles[0];
+    expect(cycle.tasks).toHaveLength(2);
+    expect(cycle.tasks[0].obligation).toEqual(obligations[0]);
+    expect(cycle.tasks[0].due).toBe("2026-10-30");
+    expect(cycle.tasks[1].due).toBe("");
+    expect(cycle.tasks[1].owner).toBe("");
+    expect(cycle.contractedCents).toBe(10000);
+    expect(progress(b.records[0])).toEqual({ total: 11, completed: 0 });
+  });
+  it("requires contract release and mobilization before task execution", () => {
+    expect(() => changeTask(withTasks(), "pgr", { status: "doing" })).toThrow("Formalize");
+    expect(() => changeTask(withTasks())).toThrow("Formalize");
+    expect(changeTask(mobilizedTasks()).records[0].cycles[0].tasks[0].status).toBe("done");
+  });
+  it.each([{ owner: " " }, { due: "" }, { checks: [true, false, true, true] }, { evidence: " " }])(
+    "requires real scheduling and execution evidence: %j",
+    (patch) => {
+      expect(() => changeTask(mobilizedTasks(), "pgr", patch)).toThrow("Conclusão exige");
+    }
+  );
+  it("keeps execution and delivery blocked until every contractual service is complete", () => {
+    const b = changeTask(mobilizedTasks());
+    expect(() => finish(b, "produce", "r1_initial")).toThrow("obrigações contratuais");
+    const finished = changeTask(b, "aso");
+    const delivered = finish(finish(finished, "produce", "r1_initial"), "deliver", "r1_initial");
+    expect(delivered.records[0].cycles[0].cards[2].status).toBe("done");
+    expect(() => changeTask(delivered, "pgr", { status: "todo" })).toThrow("Reabra primeiro");
+    expect(() => apply(delivered, { action: "active", active: false, reason: "Encerrar" })).toThrow(
+      "pendentes"
+    );
+  });
+  it("blocks closing an advance-invoiced cycle while obligations remain open", () => {
+    let b = mobilizedTasks();
+    b.records[0].cycles[0].advanceEvidence = "Sinal aprovado em cláusula expressa";
+    b = apply(b, {
+      action: "billing",
+      cycleId: "r1_initial",
+      data: bill,
+      reason: "Medição aprovada",
+    });
+    b = finish(b, "measure", "r1_initial");
+    b = apply(b, {
+      action: "billing",
+      cycleId: "r1_initial",
+      data: {
+        ...bill,
+        invoicedCents: 10000,
+        receivedCents: 10000,
+        invoiceReference: "NF-teste-1",
+        invoiceEvidence: "Autorização fiscal",
+        receiptEvidence: "Extrato conciliado",
+      },
+      reason: "Antecipação conciliada",
+    });
+    b = finish(b, "invoice", "r1_initial");
+    expect(() => finish(b, "receive", "r1_initial")).toThrow("obrigações contratuais");
+  });
+  it("rejects forged task sources, invalid dates and tasks from another cycle", () => {
+    expect(() => changeTask(mobilizedTasks(), "pgr", { obligation: obligations[1] })).toThrow();
+    expect(() => changeTask(mobilizedTasks(), "pgr", { due: "2026-02-30" })).toThrow(
+      "Data inválida"
+    );
+    expect(() => changeTask(mobilizedTasks(), "unknown")).toThrow("não pertence");
+    expect(() => changeTask(mobilizedTasks(), "pgr", { status: "blocked", blocker: "" })).toThrow(
+      "bloqueio"
+    );
+  });
+  it("preserves task history against initial revision or replan", () => {
+    const planned = changeTask(withTasks(), "pgr", {
+      status: "todo",
+      evidence: "",
+      checks: [false, false, false, false],
+    });
+    expect(() =>
+      apply(planned, {
+        action: "revise",
+        terms: { ...terms, obligations: [] },
+        effectiveOn: "2026-10-01",
+        evidence: "Revisar",
+        reviewed: true,
+      })
+    ).toThrow("Revisão inicial");
+    let b = mobilizedTasks();
+    b = apply(b, {
+      action: "amend",
+      terms: { ...terms, obligations },
+      effectiveOn: "2026-11-01",
+      document: {
+        ...document,
+        kind: "aditivo",
+        source: {
+          ...document.source,
+          sha256: "b".repeat(64),
+          storagePath: "internos_nextcon/contract-sources/" + "b".repeat(64),
+        },
+      },
+      evidence: "Aditivo revisado",
+      reviewed: true,
+    });
+    expect(b.records[0].cycles[0].tasks[0].obligation).toEqual(obligations[0]);
+    const input = {
+      action: "cycle",
+      cycleId: "nov",
+      service: "Ciclo novembro",
+      period: "2026-11",
+      revision: 1,
+      contractedCents: 10000,
+      advanceEvidence: "",
+      obligationIds: ["aso"],
+    };
+    const next = apply(b, input);
+    expect(next.records[0].cycles[1].tasks.map((t) => t.obligation.id)).toEqual(["aso"]);
+    expect(next.records[0].cycles[1].tasks[0].due).toBe("");
+    expect(apply(b, { ...input, obligationIds: [] }).records[0].cycles[1].tasks).toEqual([]);
+    expect(() => apply(b, { ...input, obligationIds: ["missing"] })).toThrow("obrigações válidas");
+    expect(() => apply(b, { ...input, obligationIds: ["aso", "aso"] })).toThrow("sem repetição");
+  });
+  it("prevents reopening mobilization underneath completed work", () => {
+    const b = changeTask(mobilizedTasks());
+    const card = b.records[0].cycles[0].cards[0];
+    expect(() =>
+      apply(b, {
+        action: "card",
+        cycleId: "r1_initial",
+        card: { ...card, status: "todo" },
+        reason: "Replanejar",
+      })
+    ).toThrow("Reabra primeiro");
+  });
+  it("allows a full measured, delivered and reconciled cycle without closing recurrence", () => {
+    let b = changeTask(changeTask(mobilizedTasks()), "aso");
+    b = finish(finish(b, "produce", "r1_initial"), "deliver", "r1_initial");
+    b = apply(b, {
+      action: "billing",
+      cycleId: "r1_initial",
+      data: {
+        ...bill,
+        invoicedCents: 10000,
+        receivedCents: 10000,
+        invoiceReference: "NF-teste-2",
+        invoiceEvidence: "Autorização fiscal conferida",
+        receiptEvidence: "Extrato conciliado",
+      },
+      reason: "Valores conferidos",
+    });
+    for (const id of ["measure", "invoice", "receive"] as const) b = finish(b, id, "r1_initial");
+    expect(progress(b.records[0])).toEqual({ completed: 11, total: 11 });
+    expect(b.records[0].active).toBe(true);
+  });
+});
+
+it("resolves a conditional obligation only with its preserved trigger and explicit justification", () => {
+  const b = mobilizedTasks();
+  expect(() => changeTask(b, "pgr", { status: "na", evidence: "Não ocorreu" })).toThrow(
+    "Dispensa exige"
+  );
+  b.records[0].cycles[0].tasks[1].obligation.trigger = "Quando solicitado pelo cliente";
+  expect(() => changeTask(b, "aso", { status: "na", evidence: "" })).toThrow("Dispensa exige");
+  expect(() => changeTask(b, "aso", { status: "na", owner: "" })).toThrow("Dispensa exige");
+  let resolved = changeTask(b, "aso", {
+    status: "na",
+    evidence: "Nenhuma solicitação neste ciclo; fila conferida pelo gestor",
+    due: "",
+    checks: [false, false, false, false],
+  });
+  resolved = changeTask(resolved, "pgr");
+  resolved = finish(resolved, "produce", "r1_initial");
+  expect(resolved.records[0].cycles[0].cards[1].status).toBe("done");
+  expect(resolved.records[0].cycles[0].tasks[1].status).toBe("na");
+  expect(progress(resolved.records[0]).completed).toBe(7);
 });

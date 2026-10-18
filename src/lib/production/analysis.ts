@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ObligationsSchema } from "./obligations";
 /** Null denotes absent/unreadable information; no defaults become contract facts. */
 export const ExtractionSchema = z.object({
   clientName: z.string().max(180).nullable(),
@@ -11,6 +12,7 @@ export const ExtractionSchema = z.object({
   endsOn: z.string().max(10).nullable(),
   paymentTerms: z.string().max(2000).nullable(),
   recurring: z.boolean().nullable(),
+  obligations: ObligationsSchema,
   references: z
     .array(
       z.object({

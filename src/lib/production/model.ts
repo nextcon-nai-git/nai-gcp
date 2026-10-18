@@ -2,6 +2,14 @@ import { z } from "zod";
 import { isCalendarDate } from "@/lib/financial/omie-dre";
 import { isValidCnpj, normalizeCnpj } from "@/lib/cnpj";
 import { instructions, type CardId } from "./instructions";
+import {
+  ObligationsSchema,
+  TaskSchema,
+  TaskUpdateSchema,
+  makeTasks,
+  MAX_OBLIGATIONS,
+  taskComplete,
+} from "./obligations";
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 const label = z.string().trim().min(1).max(180);
 const note = z.string().trim().min(3).max(2000);
@@ -43,6 +51,7 @@ export const TermsSchema = z
     endsOn: optionalDate,
     paymentTerms: z.string().max(2000),
     recurring: z.boolean(),
+    obligations: ObligationsSchema,
   })
   .strict()
   .refine(
@@ -77,6 +86,7 @@ const CycleSchema = z.object({
   revision: z.number().int().nonnegative(),
   contractedCents: contracted.nullable(),
   cards: z.array(CardSchema).length(6),
+  tasks: z.array(TaskSchema).max(MAX_OBLIGATIONS).default([]),
   advanceEvidence: z.string().max(2000),
   measuredCents: cents,
   invoicedCents: cents,
@@ -149,7 +159,18 @@ export const CommandSchema = z.discriminatedUnion("action", [
   z
     .object({
       ...common,
+      action: z.literal("task"),
+      cycleId: id,
+      taskId: id,
+      data: TaskUpdateSchema,
+      reason: note,
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
       action: z.literal("replan"),
+      obligationIds: z.array(id).max(MAX_OBLIGATIONS).default([]),
       cycleId: id,
       revision: z.number().int().nonnegative(),
       contractedCents: contracted.nullable(),
@@ -200,6 +221,7 @@ export const CommandSchema = z.discriminatedUnion("action", [
     .object({
       ...common,
       action: z.literal("cycle"),
+      obligationIds: z.array(id).max(MAX_OBLIGATIONS).default([]),
       cycleId: id,
       service: label,
       period: label,
@@ -327,6 +349,7 @@ export function applyCommand(
           revision: 0,
           contractedCents: command.terms.valueCents,
           cards: makeCards(["mobilize", "produce", "deliver", "measure", "invoice", "receive"]),
+          tasks: makeTasks(command.terms.obligations),
           advanceEvidence: "",
           measuredCents: 0,
           invoicedCents: 0,
@@ -353,7 +376,11 @@ export function applyCommand(
         record.commercial.some(complete) ||
         record.cycles.length !== 1 ||
         record.cycles.some(
-          (c) => c.cards.some(complete) || c.measuredCents > 0 || c.invoicedCents > 0
+          (c) =>
+            c.cards.some(complete) ||
+            c.tasks.some((t) => t.updatedAt) ||
+            c.measuredCents > 0 ||
+            c.invoicedCents > 0
         )
       )
         fail(
@@ -369,6 +396,7 @@ export function applyCommand(
       });
       record.cycles[0].revision = record.revisions.length - 1;
       record.cycles[0].contractedCents = command.terms.valueCents;
+      record.cycles[0].tasks = makeTasks(command.terms.obligations);
     }
     if (command.action === "document" || command.action === "amend") {
       if (
@@ -422,6 +450,7 @@ export function applyCommand(
         revision: command.revision,
         contractedCents: command.contractedCents,
         cards: makeCards(["mobilize", "produce", "deliver", "measure", "invoice", "receive"]),
+        tasks: selectedTasks(record, command.revision, command.obligationIds),
         advanceEvidence: command.advanceEvidence,
         measuredCents: 0,
         invoicedCents: 0,
@@ -442,6 +471,7 @@ export function applyCommand(
         fail("Selecione uma revisão posterior aprovada.");
       if (
         cycle.cards.some((c) => c.status !== "todo" && c.status !== "blocked") ||
+        cycle.tasks.some((t) => t.updatedAt) ||
         cycle.measuredCents ||
         cycle.invoicedCents ||
         cycle.receivedCents ||
@@ -451,10 +481,43 @@ export function applyCommand(
         fail(
           "Somente ciclos ainda não iniciados e sem movimentação financeira podem ser replanejados. Preserve o histórico do trabalho executado."
         );
+      cycle.tasks = selectedTasks(record, command.revision, command.obligationIds);
       cycle.revision = command.revision;
       cycle.contractedCents = command.contractedCents;
       // An old advance authorization does not automatically authorize the amended terms.
       cycle.advanceEvidence = "";
+    }
+    if (command.action === "task") {
+      const cycle =
+        record.cycles.find((c) => c.id === command.cycleId) || fail("Ciclo não encontrado.");
+      const task =
+        cycle.tasks.find((t) => t.obligation.id === command.taskId) ||
+        fail("Tarefa não pertence a este ciclo.");
+      const data = command.data;
+      if (cycle.cards.some((c) => ["produce", "deliver", "receive"].includes(c.id) && complete(c)))
+        fail("Reabra primeiro a execução e suas etapas dependentes antes de alterar tarefas.");
+      if (
+        ["doing", "done"].includes(data.status) &&
+        (!record.commercial.every(complete) || !complete(cycle.cards[0]))
+      )
+        fail("Formalize o contrato e conclua a mobilização antes de executar tarefas.");
+      if (
+        data.status === "done" &&
+        (!data.owner.trim() ||
+          !data.due ||
+          data.evidence.trim().length < 3 ||
+          !data.checks.every(Boolean))
+      )
+        fail("Conclusão exige responsável, prazo, checklist e evidência da revisão técnica.");
+      if (
+        data.status === "na" &&
+        (!task.obligation.trigger.trim() || !data.owner.trim() || data.evidence.trim().length < 3)
+      )
+        fail(
+          "Dispensa exige condição contratual de acionamento, responsável e evidência de que não se aplica neste ciclo."
+        );
+      if (data.status === "blocked" && !data.blocker.trim()) fail("Descreva o bloqueio.");
+      Object.assign(task, data, { updatedAt: now });
     }
     if (command.action === "card") {
       const cycle = record.cycles.find((c) => c.id === command.cycleId);
@@ -475,6 +538,14 @@ export function applyCommand(
           !(card.id === "measure" && cycle?.advanceEvidence)
         )
           fail("Conclua a etapa anterior ou registre a antecipação contratual.");
+        if (
+          cycle &&
+          ["produce", "deliver", "receive"].includes(card.id) &&
+          cycle.tasks.some((t) => !taskComplete(t))
+        )
+          fail(
+            "Conclua as tarefas das obrigações contratuais antes de liberar a execução, entrega ou encerramento."
+          );
         if (card.id === "contract") {
           const terms = record.revisions.at(-1)!.terms;
           if (
@@ -518,7 +589,14 @@ export function applyCommand(
       if (!complete(card) && complete(cards[index])) {
         if (
           cards.slice(index + 1).some(complete) ||
-          (!cycle && record.cycles.some((c) => c.cards.some(complete)))
+          (!cycle &&
+            record.cycles.some(
+              (c) =>
+                c.cards.some(complete) || c.tasks.some((t) => ["doing", "done"].includes(t.status))
+            )) ||
+          (cycle &&
+            card.id === "mobilize" &&
+            cycle.tasks.some((t) => ["doing", "done"].includes(t.status)))
         )
           fail("Reabra primeiro as etapas dependentes, preservando a justificativa.");
       }
@@ -570,7 +648,7 @@ export function applyCommand(
       if (
         !command.active &&
         record.formalizedAt &&
-        record.cycles.some((c) => !c.cards.every(complete))
+        record.cycles.some((c) => !c.cards.every(complete) || c.tasks.some((t) => !taskComplete(t)))
       )
         fail("Existem ciclos pendentes. Resolva-os antes de encerrar o contrato.");
       if (
@@ -579,6 +657,7 @@ export function applyCommand(
         record.cycles.some(
           (c) =>
             c.cards.some((x) => x.status === "doing" || complete(x)) ||
+            c.tasks.some((t) => ["doing", "done"].includes(t.status)) ||
             c.measuredCents ||
             c.invoicedCents ||
             c.receivedCents ||
@@ -621,7 +700,11 @@ export function applyCommand(
 }
 export function progress(record: ProductionRecord) {
   const cards = [...record.commercial, ...record.cycles.flatMap((c) => c.cards)];
-  return { completed: cards.filter(complete).length, total: cards.length };
+  const tasks = record.cycles.flatMap((c) => c.tasks);
+  return {
+    completed: cards.filter(complete).length + tasks.filter(taskComplete).length,
+    total: cards.length + tasks.length,
+  };
 }
 export function totals(record: ProductionRecord) {
   return record.cycles.reduce(
@@ -635,3 +718,14 @@ export function totals(record: ProductionRecord) {
   );
 }
 export const instructionFor = (id: CardId) => instructions.find((i) => i.id === id)!;
+
+function selectedTasks(record: ProductionRecord, revision: number, ids: string[]) {
+  const obligations = record.revisions[revision].terms.obligations;
+  if (new Set(ids).size !== ids.length || ids.some((id) => !obligations.some((o) => o.id === id)))
+    fail("Selecione obrigações válidas e sem repetição para esta versão contratual.");
+  // New cycles need their own scheduled dates; an old contract date is not a new deadline.
+  return makeTasks(
+    obligations.filter((o) => ids.includes(o.id)),
+    false
+  );
+}
