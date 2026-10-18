@@ -3,18 +3,18 @@
   "baseMain": "e2990b34d87f315b737dbf9b3677a50fd817c288",
   "scope": "TypeScript/TSX source under src excluding tests and declarations; inventory and automated coverage do not establish manual review or functional correctness.",
   "sourceFiles": 593,
-  "sourceLines": 121961,
+  "sourceLines": 121987,
   "apiRoutes": 79,
   "pages": 110,
-  "tests": 1987,
-  "testFiles": 212,
+  "tests": 2006,
+  "testFiles": 213,
   "coverageSummary": {
-    "statementsPercent": 51.19,
-    "branchesPercent": 46.06,
-    "functionsPercent": 42.76,
-    "linesPercent": 52.05
+    "statementsPercent": 51.46,
+    "branchesPercent": 46.3,
+    "functionsPercent": 42.94,
+    "linesPercent": 52.31
   },
-  "zeroCoveredFiles": 259,
+  "zeroCoveredFiles": 258,
   "files": [
     {
       "path": "src/__tests__/avp-test-fixture.ts",
@@ -942,14 +942,14 @@
     },
     {
       "path": "src/app/action-plans/page.tsx",
-      "sha256": "ca2158aa77d3f59692c80dff441900b57d2c7f52444aee333f88657a0a3391eb",
+      "sha256": "178b89542caa09fbf9b6f3dca41f5f4f433d1bbb0db34c9ac374ffafd29b57c8",
       "sourceLines": 313,
       "automatedCoverage": {
         "functionsFound": 15,
         "functionsHit": 0,
         "linesFound": 69,
         "linesHit": 0,
-        "branchesFound": 84,
+        "branchesFound": 87,
         "branchesHit": 0
       },
       "manualReview": "not_asserted"
@@ -4666,8 +4666,8 @@
     },
     {
       "path": "src/components/layout/top-nav.tsx",
-      "sha256": "9e558fd0737ad48ae9884e4d4fdcf0282f05fd443f90d44b57033ddda64a90a2",
-      "sourceLines": 412,
+      "sha256": "03d1eb7a190f91dec62abdcc0ba0ca928eb7abb91a8b31b7c5fe28d2c9e6bc9d",
+      "sourceLines": 413,
       "automatedCoverage": {
         "functionsFound": 26,
         "functionsHit": 0,
@@ -5450,15 +5450,15 @@
     },
     {
       "path": "src/contexts/sgi-context.tsx",
-      "sha256": "ad4830a7e0aa826b65f63ac73ddb4f65492583f6a20a64cd937252c5b5b21565",
-      "sourceLines": 157,
+      "sha256": "8024cccef2a73276715c69db0b148342eb5b498c0984b280fa930c95848c4b19",
+      "sourceLines": 168,
       "automatedCoverage": {
         "functionsFound": 9,
         "functionsHit": 9,
-        "linesFound": 45,
-        "linesHit": 43,
-        "branchesFound": 65,
-        "branchesHit": 56
+        "linesFound": 47,
+        "linesHit": 45,
+        "branchesFound": 75,
+        "branchesHit": 68
       },
       "manualReview": "not_asserted"
     },
@@ -5744,15 +5744,15 @@
     },
     {
       "path": "src/hooks/use-pgr-workspace.ts",
-      "sha256": "9c5fffe92fde7554060152f5c16fe1c568b9f59360f3d90f9b068ddab61c35d0",
-      "sourceLines": 103,
+      "sha256": "741d6ef1c5123830b034bd1ca64df6497215d48c516dc85834801f0e28e49e39",
+      "sourceLines": 117,
       "automatedCoverage": {
-        "functionsFound": 9,
-        "functionsHit": 0,
-        "linesFound": 54,
-        "linesHit": 0,
-        "branchesFound": 44,
-        "branchesHit": 0
+        "functionsFound": 10,
+        "functionsHit": 10,
+        "linesFound": 49,
+        "linesHit": 49,
+        "branchesFound": 48,
+        "branchesHit": 44
       },
       "manualReview": "not_asserted"
     },

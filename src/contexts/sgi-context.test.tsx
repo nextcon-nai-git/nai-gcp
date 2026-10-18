@@ -5,6 +5,7 @@ import { SgiProvider, useSgi } from "./sgi-context";
 const state = vi.hoisted(() => ({
   role: "GUEST" as string | null,
   companyId: null as string | null,
+  tenantId: null as string | null,
   servedCompanies: [] as string[],
   isUserLoading: false,
 }));
@@ -41,6 +42,7 @@ beforeEach(() => {
   Object.assign(state, {
     role: "GUEST",
     companyId: null,
+    tenantId: null,
     servedCompanies: [],
     isUserLoading: false,
   });
@@ -121,5 +123,36 @@ describe("seleção SGI reflete autorização atual", () => {
     Object.assign(state, { role: "ADMIN", isUserLoading: true });
     await render();
     expect(last().activeClientId).toBe("unauthorized");
+  });
+  it.each([null, "", "nextcon"])(
+    "operações central pode navegar sem ganhar escopo clínico: %s",
+    async (companyId) => {
+      Object.assign(state, { role: "OPERATIONS", companyId });
+      await render();
+      expect(last()).toEqual({ activeClientId: "all", isGlobalStaff: false, isGlobalView: false });
+      await act(async () => container.querySelector("button")!.click());
+      expect(last().activeClientId).toBe("company-b");
+      expect(last().isGlobalStaff).toBe(false);
+    }
+  );
+  it.each(["OPERATIONS", "ADMIN"])("%s com tenantId não adquire navegação global", async (role) => {
+    Object.assign(state, { role, companyId: null, tenantId: "tenant-only" });
+    await render();
+    expect(last()).toEqual({
+      activeClientId: "tenant-only",
+      isGlobalStaff: false,
+      isGlobalView: false,
+    });
+    await act(async () => container.querySelector("button")!.click());
+    expect(last().activeClientId).toBe("tenant-only");
+  });
+  it("revoga o diretório global ao vincular operações a uma empresa", async () => {
+    Object.assign(state, { role: "OPERATIONS", companyId: null });
+    await render();
+    await act(async () => container.querySelector("button")!.click());
+    const start = seen.length;
+    state.companyId = "company-a";
+    await render();
+    expect(seen.slice(start).every((value) => value.activeClientId === "company-a")).toBe(true);
   });
 });

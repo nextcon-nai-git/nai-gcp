@@ -273,12 +273,12 @@ function EnterpriseOpsContent() {
         </div>
       </header>
 
-      {pgrSource && pgrTasks.error && (
+      {pgrSource && (pgrTasks.error || pgrCompanies.error) && (
         <p
           role="alert"
           className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
         >
-          {pgrTasks.error}
+          {pgrTasks.error || pgrCompanies.error}
         </p>
       )}
       <div className="min-h-[600px] glass-panel rounded-[3rem] p-8 relative flex flex-col items-center justify-center">

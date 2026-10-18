@@ -78,6 +78,7 @@ export function TopNav() {
     activeClientId,
     setActiveClientId,
     isGlobalStaff,
+    canBrowseAllCompanies,
     authorizedCompanies,
     isLoading: isSgiLoading,
   } = useSgi();
@@ -126,7 +127,7 @@ export function TopNav() {
     data: companies,
     isLoading: directoryLoading,
     error: directoryError,
-  } = useCompanyDirectory(db, user?.uid, isGlobalStaff, authorizedCompanies, !isSgiLoading);
+  } = useCompanyDirectory(db, user?.uid, canBrowseAllCompanies, authorizedCompanies, !isSgiLoading);
   const filteredCompanies = React.useMemo(
     () => companies.filter((company) => company.active !== false),
     [companies]
@@ -135,15 +136,15 @@ export function TopNav() {
   const activeCompanyName = React.useMemo(() => {
     if (directoryError) return "Não foi possível carregar unidades";
     if (directoryLoading) return "Carregando unidades...";
-    if (activeClientId === "all" && isGlobalStaff) return "Rede Global Nextcon";
+    if (activeClientId === "all" && canBrowseAllCompanies) return "Rede Global Nextcon";
     if (activeClientId === "unauthorized") return "Acesso Restrito";
     const found = filteredCompanies?.find((c) => c?.id === activeClientId);
     if (found) return found?.displayName || found?.name || found?.razaoSocial || found?.id;
     return "Selecione uma unidade autorizada";
-  }, [activeClientId, filteredCompanies, directoryError, directoryLoading, isGlobalStaff]);
+  }, [activeClientId, filteredCompanies, directoryError, directoryLoading, canBrowseAllCompanies]);
 
   const handleClientChange = (newClientId: string) => {
-    if (!isGlobalStaff && !authorizedCompanies.includes(newClientId)) return;
+    if (!canBrowseAllCompanies && !authorizedCompanies.includes(newClientId)) return;
     setActiveClientId(newClientId);
     if (!newClientId || newClientId === "all") {
       router.push("/");
@@ -210,7 +211,7 @@ export function TopNav() {
               </div>
             </SelectTrigger>
             <SelectContent className="rounded-xl border border-slate-200 shadow-2xl max-h-96 overflow-y-auto w-80">
-              {isGlobalStaff && (
+              {canBrowseAllCompanies && (
                 <SelectItem
                   value="all"
                   className="text-[10px] font-black uppercase text-primary border-b border-slate-100 py-2.5 cursor-pointer"

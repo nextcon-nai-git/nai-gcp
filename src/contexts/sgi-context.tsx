@@ -9,6 +9,7 @@ interface SgiContextType {
   isGlobalView: boolean;
   isStaff: boolean;
   isGlobalStaff: boolean;
+  canBrowseAllCompanies: boolean;
   isAuthorizedProvider: boolean;
   authorizedCompanies: string[];
   isLoading: boolean;
@@ -23,13 +24,14 @@ const SgiContext = React.createContext<SgiContextType | undefined>(undefined);
  * O frontend apenas reflete as permissões concedidas.
  */
 export function SgiProvider({ children }: { children: React.ReactNode }) {
-  const { role, companyId, servedCompanies, isUserLoading } = useUser();
+  const { role, companyId: legacyCompanyId, tenantId, servedCompanies, isUserLoading } = useUser();
+  const companyId = tenantId || legacyCompanyId;
   const [activeClientId, setActiveClientIdState] = React.useState<string>(() => {
     if (typeof window !== "undefined") {
       try {
         const saved = localStorage.getItem("nai_active_client_id");
         if (saved) return saved;
-      } catch (_) {}
+      } catch {}
     }
     return "all";
   });
@@ -56,26 +58,34 @@ export function SgiProvider({ children }: { children: React.ReactNode }) {
   const isGlobalStaff = React.useMemo(() => {
     return (
       !isUserLoading &&
-      ["SUPER_ADMIN", "ADMIN"].includes(roleUpper) &&
-      (!companyId || companyId === "")
+      (roleUpper === "SUPER_ADMIN" ||
+        (roleUpper === "ADMIN" && !tenantId && (!legacyCompanyId || legacyCompanyId === "nextcon")))
     );
-  }, [roleUpper, companyId, role, isUserLoading]);
+  }, [roleUpper, tenantId, legacyCompanyId, isUserLoading]);
+  // Operations may browse the operational directory without acquiring the
+  // global clinical/admin capability consumed by other pages.
+  const canBrowseAllCompanies =
+    isGlobalStaff ||
+    (!isUserLoading &&
+      roleUpper === "OPERATIONS" &&
+      !tenantId &&
+      (!legacyCompanyId || legacyCompanyId === "nextcon"));
 
   // Determina se o usuário possui qualquer papel técnico/administrativo
   const isAnyStaff = React.useMemo(
     () => ["SUPER_ADMIN", "ADMIN", "ENGINEER", "DOCTOR", "PROVIDER", "AUDITOR"].includes(roleUpper),
-    [roleUpper, role]
+    [roleUpper]
   );
 
   const setActiveClientId = React.useCallback(
     (id: string) => {
       // Validação de Tenant: Impede troca para empresas não autorizadas
-      if (isGlobalStaff) {
+      if (canBrowseAllCompanies) {
         setActiveClientIdState(id);
         if (typeof window !== "undefined") {
           try {
             localStorage.setItem("nai_active_client_id", id);
-          } catch (_) {}
+          } catch {}
         }
       } else if (
         (isProvider && allowedForProvider.includes(id)) ||
@@ -85,14 +95,14 @@ export function SgiProvider({ children }: { children: React.ReactNode }) {
         if (typeof window !== "undefined") {
           try {
             localStorage.setItem("nai_active_client_id", id);
-          } catch (_) {}
+          } catch {}
         }
       } else if (!isProvider && roleUpper && roleUpper !== "GUEST" && id === companyId) {
         setActiveClientIdState(id);
       }
     },
     [
-      isGlobalStaff,
+      canBrowseAllCompanies,
       companyId,
       isProvider,
       isScopedClinical,
@@ -106,7 +116,7 @@ export function SgiProvider({ children }: { children: React.ReactNode }) {
   // for an effect exposed the previous account's selection to data hooks.
   const scopedClientId = isUserLoading
     ? "unauthorized"
-    : isGlobalStaff
+    : canBrowseAllCompanies
       ? activeClientId
       : isProvider
         ? allowedForProvider.includes(activeClientId)
@@ -127,6 +137,7 @@ export function SgiProvider({ children }: { children: React.ReactNode }) {
       isGlobalView: isGlobalStaff && scopedClientId === "all",
       isStaff: isAnyStaff,
       isGlobalStaff,
+      canBrowseAllCompanies,
       isAuthorizedProvider: isProvider,
       authorizedCompanies: isScopedClinical ? allowedForDoctor : allowedForProvider,
       isLoading: isUserLoading,
@@ -135,7 +146,7 @@ export function SgiProvider({ children }: { children: React.ReactNode }) {
       scopedClientId,
       setActiveClientId,
       isGlobalStaff,
-      companyId,
+      canBrowseAllCompanies,
       isAnyStaff,
       isProvider,
       isScopedClinical,

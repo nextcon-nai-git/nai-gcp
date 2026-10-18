@@ -2,9 +2,9 @@
 
 ## Estado medido
 
-A revisão não está em 100%. O inventário contém 593 arquivos TypeScript/TSX de implementação e 121,961 linhas físicas em `src`, além de 79 rotas de API e 110 páginas. Todos foram incluídos na varredura de arquivos; isso não significa leitura manual integral.
+A revisão não está em 100%. O inventário contém 593 arquivos TypeScript/TSX de implementação e 121,987 linhas físicas em `src`, além de 79 rotas de API e 110 páginas. Todos foram incluídos na varredura de arquivos; isso não significa leitura manual integral.
 
-Suíte local: 1,987 testes em 212 arquivos passaram. Cobertura V8: 52.05% de linhas (10,755/20,660 instrumentadas), 51.19% de instruções, 46.06% de ramos e 42.76% de funções. Existem 259 arquivos com linhas instrumentadas e nenhuma linha executada. Linhas físicas e linhas instrumentadas são medidas diferentes.
+Suíte local: 2,006 testes em 213 arquivos passaram. Cobertura V8: 52.31% de linhas (10,806/20,657 instrumentadas), 51.46% de instruções, 46.3% de ramos e 42.94% de funções. Existem 258 arquivos com linhas instrumentadas e nenhuma linha executada. Linhas físicas e linhas instrumentadas são medidas diferentes.
 
 TypeScript passou. A análise ESLint global terminou sem erros e com 1.291 avisos antes da remoção dos imports ociosos da página AVP nesta revisão. Os arquivos alterados foram conferidos separadamente. Nenhum limite de qualidade ou regra de acesso foi relaxado.
 
@@ -19,9 +19,9 @@ O JSON adjacente registra caminho, hash SHA-256, tamanho e cobertura por arquivo
 | `ai`           |       44 |                          422/659 |     64.0% |
 | `app`          |      208 |                        1881/6623 |     28.4% |
 | `components`   |      119 |                        2250/5368 |     41.9% |
-| `contexts`     |        1 |                            43/45 |     95.6% |
+| `contexts`     |        1 |                            45/47 |     95.7% |
 | `firebase`     |       14 |                          151/230 |     65.7% |
-| `hooks`        |        9 |                          111/395 |     28.1% |
+| `hooks`        |        9 |                          160/390 |     41.0% |
 | `lib`          |      125 |                        3615/4308 |     83.9% |
 | `repositories` |        3 |                            48/48 |    100.0% |
 | `scripts`      |        2 |                             0/37 |      0.0% |
@@ -50,6 +50,8 @@ O JSON adjacente registra caminho, hash SHA-256, tamanho e cobertura por arquivo
 - As telas antigas de PEP estruturado, evolução e psicossocial usavam dados vazios ou números fixos. Agora explicitam as integrações ausentes, sem simular auditoria, notificações, assinatura ou transmissão ao eSocial. A consulta de enfermagem mostra até 200 registros com data de recebimento do servidor; registros legados sem essa data requerem revisão própria.
 - Livro Diário: testes reproduziram exposição do livro anterior durante a troca de conta, estado inadequado após logout e consultas iniciadas por uma importação que terminou após a saída. A interface é recriada por sessão e ignora a continuação obsoleta da importação. Doze testes de telas financeiras incluem erro de API, resposta atrasada e revogação do PDF.
 - Diretório de empresas: consultas restritas usam somente os IDs autorizados, em lotes de até 30. A interface aguarda todos os lotes, preserva falhas sem divulgar resultados parciais e elimina respostas da conta anterior. A navegação e o formulário clínico usam essa fonte; o seletor não promove cadastros locais sem persistência a unidades operacionais. A opção global só aparece no escopo global. Nove regressões cobrem assinaturas, troca de conta, revogação, falha parcial e limite de lote.
+- PGR: 10 dos 13 cenários novos falhavam antes da correção. A consulta agora isola a primeira renderização por conta, empresa e tipo de coleção; cancela leituras anteriores e não inicia uma requisição quando as credenciais só terminam após a saída. Uma resposta antiga não sobrepõe atualização mais recente. Erros de consulta e respostas malformadas são exibidos; a notificação de alteração de card só ocorre após persistência confirmada.
+- Revisão do PR #153: Operações central conserva o diretório geral sem receber o indicador de acesso clínico global. Seis regressões incluem tenantId sem companyId e revogação de escopo. O seletor usa uma capacidade específica de navegação, separada do acesso clínico/administrativo.
 - Publicação de regras e índices é separada do rollout do site. A integração de código e o build não comprovam que as regras propostas estejam ativas em produção.
 
 ## Verificação em produção
@@ -59,6 +61,8 @@ Os 51 destinos únicos do menu abriram com título de página e sem erro de carr
 A Central publicou instruções v1.1 e o formulário de obrigações individuais. Continuava sem registros. O AVP publicou a indicação de quantidades desconhecidas separadas dos exames confirmados. Nenhum registro real foi criado, alterado ou excluído; nenhuma comunicação externa foi enviada.
 
 A revisão visual encontrou números fixos no mapa AVP e seis entregas do workshop marcadas no código como concluídas. As correções do PR #150 foram confirmadas em produção: o mapa passou a usar as contagens da fila e o roteiro iniciou com 0 de 9 conferências locais. A persistência do roteiro do workshop não foi implementada; a tela agora identifica suas marcações como locais.
+
+O rollout do PR #152 também foi confirmado. O formulário publicado exige informar COREN e a consulta explicita seu limite e a ausência de transmissão ao eSocial. A aba PEP declara que a consulta estruturada ainda não está conectada; não presume ausência de histórico. Nenhum formulário clínico foi enviado.
 
 ## Pendências comprovadas
 
