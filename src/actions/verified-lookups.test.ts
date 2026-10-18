@@ -11,6 +11,33 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 describe("verified registry lookups", () => {
+  it.each(["network", "http", "invalid", "mixed"])(
+    "distinguishes %s provider failure from unknown CEP",
+    async (mode) => {
+      if (mode === "network") fetchMock.mockRejectedValue(Error("offline"));
+      if (mode === "http") fetchMock.mockResolvedValue({ ...response({}, false), status: 503 });
+      if (mode === "invalid") fetchMock.mockResolvedValue(response({}));
+      if (mode === "mixed")
+        fetchMock
+          .mockResolvedValue({ ...response({}, false), status: 404 })
+          .mockRejectedValueOnce(Error("timeout"));
+      expect(await buscarEnderecoPorCep("80000001")).toMatchObject({
+        sucesso: false,
+        erro: "CEP_UNAVAILABLE",
+      });
+    }
+  );
+  it("reports not found only when all providers confirm absence", async () => {
+    fetchMock
+      .mockResolvedValueOnce({ ...response({}, false), status: 404 })
+      .mockResolvedValueOnce(response({ erro: true }))
+      .mockResolvedValueOnce({ ...response({}, false), status: 404 })
+      .mockResolvedValueOnce(response({ status: 404 }));
+    expect(await buscarEnderecoPorCep("80000001")).toMatchObject({
+      sucesso: false,
+      erro: "CEP_NOT_FOUND",
+    });
+  });
   it.each(["", "1", "123456789"])("rejects invalid CEP %s without network", async (cep) => {
     expect((await buscarEnderecoPorCep(cep)).sucesso).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();

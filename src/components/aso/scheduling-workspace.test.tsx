@@ -209,6 +209,7 @@ describe("scheduling persistence and session boundaries", () => {
     expect(v.container.textContent).not.toContain("Kit Copiado!");
     await v.click("Copiar Kit");
     expect(v.container.textContent).toContain("Kit Copiado!");
+    expect(v.container.textContent).not.toContain("Não foi possível copiar");
     expect(m.copy.mock.lastCall![0]).toContain("Exame para revisão");
   });
   it("hides old requests and ignores stale create completion on logout", async () => {

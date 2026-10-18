@@ -870,7 +870,20 @@ export default function ProvidersManagement() {
             `${res.dados.logradouro}, ${res.dados.numero || ""} - ${res.dados.bairro || ""}`
           );
         toast({ title: "CNPJ Localizado" });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Consulta de CNPJ não concluída",
+          description:
+            res.mensagem || "Confira o CNPJ e tente novamente. Os dados foram preservados.",
+        });
       }
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Consulta de CNPJ indisponível",
+        description: "Tente novamente. Os dados do formulário foram preservados.",
+      });
     } finally {
       setIsFetchingCnpj(false);
     }
@@ -1456,6 +1469,7 @@ export default function ProvidersManagement() {
                                 size="icon"
                                 className="absolute right-2 top-2"
                                 onClick={handleFetchCnpj}
+                                aria-label="Buscar CNPJ"
                                 disabled={isFetchingCnpj}
                               >
                                 {isFetchingCnpj ? (

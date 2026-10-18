@@ -2,9 +2,9 @@
 
 ## Estado medido
 
-A revisão não está em 100%. O inventário contém 594 arquivos TypeScript/TSX de implementação e 122,065 linhas físicas em `src`, além de 79 rotas de API e 110 páginas. Todos foram incluídos na varredura de arquivos; isso não significa leitura manual integral.
+A revisão não está em 100%. O inventário contém 594 arquivos TypeScript/TSX de implementação e 122,130 linhas físicas em `src`, além de 79 rotas de API e 110 páginas. Todos foram incluídos na varredura de arquivos; isso não significa leitura manual integral.
 
-Suíte local: 2,219 testes em 231 arquivos passaram. Cobertura V8: 60.22% de linhas (12,505/20,765 instrumentadas), 59.13% de instruções, 53.37% de ramos e 50.65% de funções. Existem 233 arquivos com linhas instrumentadas e nenhuma linha executada. Linhas físicas e linhas instrumentadas são medidas diferentes.
+Suíte local: 2,234 testes em 232 arquivos passaram. Cobertura V8: 60.37% de linhas (12,551/20,790 instrumentadas), 59.28% de instruções, 53.56% de ramos e 50.69% de funções. Existem 232 arquivos com linhas instrumentadas e nenhuma linha executada. Linhas físicas e linhas instrumentadas são medidas diferentes.
 
 TypeScript e ESLint global passaram, sem erros; os avisos preexistentes de lint continuam registrados como pendência. Nenhuma exclusão de cobertura foi acrescentada. O mínimo de cobertura de linhas exigido no CI subiu de 30% para 60%; as regras de acesso do servidor não foram ampliadas.
 
@@ -15,10 +15,10 @@ O JSON adjacente registra caminho, hash SHA-256, tamanho e cobertura por arquivo
 | Diretório      | Arquivos | Linhas executadas/instrumentadas | Cobertura |
 | -------------- | -------: | -------------------------------: | --------: |
 | `__tests__`    |        1 |                              9/9 |    100.0% |
-| `actions`      |       16 |                          188/385 |     48.8% |
+| `actions`      |       16 |                          207/404 |     51.2% |
 | `ai`           |       44 |                          424/659 |     64.3% |
-| `app`          |      208 |                        2859/6665 |     42.9% |
-| `components`   |      119 |                        2656/5435 |     48.9% |
+| `app`          |      208 |                        2885/6670 |     43.3% |
+| `components`   |      119 |                        2657/5436 |     48.9% |
 | `contexts`     |        1 |                            45/47 |     95.7% |
 | `firebase`     |       14 |                          151/230 |     65.7% |
 | `hooks`        |        9 |                          247/390 |     63.3% |
@@ -67,7 +67,7 @@ O JSON adjacente registra caminho, hash SHA-256, tamanho e cobertura por arquivo
 
 ## Marco de 60% — continuidade após o PR #154
 
-- Base da rodada: `516f22c73f0eb0c7eee2787c0f31943ba8d3d967`, com 2.039 testes em 214 arquivos e 52,60% de cobertura de linhas. Foram acrescentados 180 testes em 17 arquivos, mantendo a seleção de fontes do V8. O percentual mede execução de linhas instrumentadas, não conclusão da revisão manual nem homologação de produção.
+- Base da rodada: `516f22c73f0eb0c7eee2787c0f31943ba8d3d967`, com 2.039 testes em 214 arquivos e 52,60% de cobertura de linhas. Foram acrescentados inicialmente 180 testes em 17 arquivos; a revisão do PR acrescentou mais 15 casos e um arquivo, mantendo a seleção de fontes do V8. O percentual mede execução de linhas instrumentadas, não conclusão da revisão manual nem homologação de produção.
 - Consultas de CEP e CNPJ deixam de inventar endereço, empresa, contato e situação ativa quando todos os provedores falham. Índices econômicos deixam de completar a resposta com valores fixos apresentados como atuais; retorno vazio, inválido ou indisponível gera falha explícita. As heurísticas existentes de grau de risco/SESMT/CIPA e inferência de website ainda exigem revisão própria: esta rodada não as valida como enquadramento técnico.
 - Clientes: a lista usa somente os cadastros persistidos no escopo consultado, sem misturar o cache global do navegador. Exclusão e ativação aguardam persistência; falhas não geram sucesso. Atualizar situação não recria empresa excluída. Novos cadastros deixam de receber conformidade fixa de 100%; a sincronização preserva os registros existentes. Foram mantidas as autoridades de acesso do servidor.
 - Colaboradores: o arquivamento otimista identifica empresa e colaborador juntos; IDs iguais em empresas diferentes não ocultam a outra ficha. NXC inicia e exibe ASO sem informação como PENDENTE, remove a conformidade eSocial fixa e ignora confirmação de gravação recebida após trocar de conta.
@@ -76,8 +76,9 @@ O JSON adjacente registra caminho, hash SHA-256, tamanho e cobertura por arquivo
 - Agendamento ASO: formulário começa sem empresa, função e riscos de exemplo. Erros são exibidos e liberam nova tentativa. Cópia de kit aguarda confirmação da área de transferência. O botão que apenas simulava resolver alertas fica desabilitado com a limitação explícita. As clínicas estáticas e os fluxos clínicos ainda não foram homologados por estes testes.
 - Navegação: sidebar respeita estado controlado e tem título acessível no painel móvel. Testes adicionais cobrem busca de comandos, notificações, dashboard, riscos, auditorias e validação/autenticidade/deduplicação de webhooks RD Conversas.
 - Evidência de regressão: 20 cenários direcionados foram executados contra os arquivos originais de `main` e todos falharam; os mesmos comportamentos passam com as correções. A suíte usa dados sintéticos e mocks de serviços externos e persistência: não comprova integrações reais nem realizou envio de e-mail ou alteração de registros reais.
+- Revisão do PR #155: seis apontamentos corrigidos. PDFs com extensão válida e MIME ausente/alternativo são normalizados como PDF antes da classificação e upload; tipos explicitamente incompatíveis continuam recusados. ASO pendente usa alerta amarelo, sem símbolo de aptidão. A sincronização global fica desabilitada para administradores restritos. Consulta de CEP diferencia ausência confirmada (404) de falha de provedores (503, sem cache e com indicação de nova tentativa). O formulário de prestador exibe falhas de CNPJ e preserva os campos. Uma cópia bem-sucedida limpa o erro da tentativa anterior. Mais 15 casos e asserções de regressão cobrem esses ajustes.
 - Regras/índices continuam com a pendência de credencial descrita abaixo. O rollout do aplicativo não será tratado como publicação de regras de segurança.
-- Verificação final local: suíte completa com 2.219 testes aprovada, cobertura de linhas de 60,22%, Prettier, ESLint sem erros, TypeScript e build de produção aprovados. Os 594 hashes do inventário correspondem aos arquivos desta rodada.
+- Verificação: a medição final da suíte está registrada no início deste relatório. Prettier, ESLint sem erros e TypeScript foram conferidos localmente. O primeiro commit do PR passou CI, Security, Firebase validation e RD Conversas; os checks serão repetidos no commit com os seis ajustes antes de integrar. Os 594 hashes do inventário correspondem aos arquivos desta rodada.
 - Autorização de integração: após o bloqueio inicial do envio pela revisão automática, o usuário autorizou explicitamente em 18/10/2026 enviar a revisão ao `nextcon-nai-git/nai-gcp`, abrir o PR e integrar/publicar após aprovação dos checks. A validação e o rollout remotos devem ser conferidos no commit final; a autorização não comprova sua conclusão.
 
 ## Verificação em produção

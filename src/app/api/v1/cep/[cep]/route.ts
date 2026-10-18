@@ -28,11 +28,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ cep:
     const result = await buscarEnderecoPorCep(cleanCep);
 
     if (!result.sucesso || !result.dados) {
+      const status =
+        result.erro === "CEP_NOT_FOUND" ? 404 : result.erro === "INVALID_CEP" ? 400 : 503;
       return NextResponse.json(
-        { sucesso: false, mensagem: result.mensagem || "CEP não localizado nos provedores." },
         {
-          status: 404,
+          sucesso: false,
+          erro: result.erro || "CEP_UNAVAILABLE",
+          mensagem: result.mensagem || "Consulta de CEP indisponível.",
+        },
+        {
+          status,
           headers: {
+            "Cache-Control": "no-store",
+            ...(status === 503 ? { "Retry-After": "60" } : {}),
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type",

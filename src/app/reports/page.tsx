@@ -103,26 +103,34 @@ function ReportsSession() {
   const handleAiClassification = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || busy.current) return;
-    if (file.type !== "application/pdf" || file.size <= 0 || file.size >= 10 * 1024 * 1024) {
+    const isPdf =
+      file.type === "application/pdf" ||
+      (/\.pdf$/i.test(file.name) &&
+        ["", "application/x-pdf", "application/octet-stream"].includes(file.type));
+    if (!isPdf || file.size <= 0 || file.size >= 10 * 1024 * 1024) {
       toast({ variant: "destructive", title: "Selecione um PDF não vazio e inferior a 10 MB." });
       return;
     }
     busy.current = true;
     setIsClassifying(true);
+    const pdfFile =
+      file.type === "application/pdf"
+        ? file
+        : new File([file], file.name, { type: "application/pdf", lastModified: file.lastModified });
 
     try {
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
         reader.onerror = () => reject(new Error("Falha ao ler o arquivo para triagem."));
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(pdfFile);
       });
 
       const token = await getActionIdToken();
       if (!mounted.current) return;
       const result = await classifyDocument({ pdfDataUri: base64, fileName: file.name }, token);
       if (!mounted.current) return;
-      setClassifiedResult({ ...result, file });
+      setClassifiedResult({ ...result, file: pdfFile });
       toast({
         title: "Documento Classificado!",
         description: `Detectado como ${result.docType.toUpperCase()} da empresa ${result.companyName}.`,

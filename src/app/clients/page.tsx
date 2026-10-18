@@ -447,7 +447,7 @@ function ClientsSession() {
         <div className="flex gap-2 flex-wrap">
           <Button
             onClick={handleSyncCompanies}
-            disabled={isSubmitting || !canManage}
+            disabled={isSubmitting || !canManage || !isGlobalStaff}
             variant="outline"
             className="border-accent text-accent hover:bg-accent/10 h-12 px-6 rounded-2xl font-black uppercase text-[10px] tracking-widest gap-2 shadow-sm"
           >

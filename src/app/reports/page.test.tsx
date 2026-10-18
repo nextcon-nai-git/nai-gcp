@@ -130,6 +130,24 @@ describe("report archive", () => {
       expect.objectContaining({ title: "Unidade não selecionada" })
     );
   });
+  it.each(["", "application/x-pdf", "application/octet-stream"])(
+    "accepts a PDF with browser type %s and normalizes its upload metadata",
+    async (type) => {
+      await v.render(<Page />);
+      await upload(new File(["%PDF-1.7 synthetic"], "synthetic.PDF", { type }));
+      expect(m.classify).toHaveBeenCalledOnce();
+      await v.click("Confirmar armazenamento");
+      expect(m.upload.mock.calls[0][1]).toMatchObject({
+        name: "synthetic.PDF",
+        type: "application/pdf",
+      });
+    }
+  );
+  it("rejects an explicitly non-PDF media type even with a PDF suffix", async () => {
+    await v.render(<Page />);
+    await upload(new File(["x"], "wrong.pdf", { type: "image/png" }));
+    expect(m.classify).not.toHaveBeenCalled();
+  });
   it("keeps successful classification when storage fails and allows retry", async () => {
     await v.render(<Page />);
     await upload();

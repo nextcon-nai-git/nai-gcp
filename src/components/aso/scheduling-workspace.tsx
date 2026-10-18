@@ -234,6 +234,7 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
     try {
       await navigator.clipboard.writeText(text);
       if (!mounted.current) return;
+      setOperationError("");
       setCopiedKit(true);
       clearTimeout(copyTimer.current);
       copyTimer.current = setTimeout(() => setCopiedKit(false), 3000);

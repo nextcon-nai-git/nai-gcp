@@ -82,6 +82,11 @@ describe("internal employee page", () => {
     expect(v.container.querySelectorAll("tbody tr")).toHaveLength(2);
     expect(v.container.querySelector("tbody tr")?.textContent).toContain("PENDENTE");
     expect(v.container.querySelector("tbody tr")?.textContent).not.toContain("APTO");
+    const pending = [...v.container.querySelectorAll("tbody tr:first-child td div")].find(
+      (el) => el.textContent?.trim() === "PENDENTE"
+    );
+    expect(pending?.className).toContain("text-amber-400");
+    expect(pending?.className).not.toContain("emerald");
     await v.input('input[placeholder^="Buscar por nome"]', "Consultor");
     expect(v.container.textContent).not.toContain("Pessoa sintética");
     expect(v.container.textContent).toContain("Prestador sintético");

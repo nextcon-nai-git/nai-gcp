@@ -164,6 +164,7 @@ describe("persisted client directory", () => {
     expect(m.query.mock.lastCall![0].constraints).toContainEqual(["__name__", "==", "a"]);
     expect(v.container.textContent).not.toContain("Empresa sintética inativa");
     expect(v.button("Nova Unidade").disabled).toBe(true);
+    expect(v.button("Sincronizar Clientes").disabled).toBe(true);
     expect(v.button("Editar Empresa sintética A").disabled).toBe(false);
   });
   it("does not allow writes from a clinical role", async () => {

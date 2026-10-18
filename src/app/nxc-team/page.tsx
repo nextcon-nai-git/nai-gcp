@@ -469,7 +469,16 @@ function NcxTeamSession() {
                   </TableCell>
 
                   <TableCell className="text-center">
-                    <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[8px] font-black uppercase">
+                    <Badge
+                      className={cn(
+                        "border text-[8px] font-black uppercase",
+                        emp.asoStatus === "APTO"
+                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                          : emp.asoStatus === "INAPTO"
+                            ? "bg-red-500/10 text-red-400 border-red-500/30"
+                            : "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                      )}
+                    >
                       {emp.asoStatus === "APTO" && <CheckCircle2 size={10} className="mr-1" />}
                       {emp.asoStatus || "PENDENTE"}
                     </Badge>

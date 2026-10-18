@@ -37,6 +37,8 @@ const mocks = vi.hoisted(() => ({
     error: null as Error | null,
   },
   useCollection: vi.fn(),
+  enrich: vi.fn(),
+  toast: vi.fn(),
 }));
 
 vi.mock("@/firebase", () => ({
@@ -52,11 +54,11 @@ vi.mock("@/firebase", () => ({
 vi.mock("@/contexts/sgi-context", () => ({
   useSgi: () => ({ activeClientId: mocks.activeClientId }),
 }));
-vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: mocks.toast }) }));
 vi.mock("@/ai/flows/provider-contract-analysis-flow", () => ({
   analyzeProviderContract: vi.fn(),
 }));
-vi.mock("@/actions/company-enrichment", () => ({ enriquecerDadosEmpresa: vi.fn() }));
+vi.mock("@/actions/company-enrichment", () => ({ enriquecerDadosEmpresa: mocks.enrich }));
 vi.mock("firebase/firestore", () => ({
   collection: (_db: unknown, name: string) => ({ name }),
   query: (collection: unknown, ...constraints: unknown[]) => ({ collection, constraints }),
@@ -100,6 +102,8 @@ beforeEach(() => {
     error: null,
   };
   mocks.useCollection.mockClear();
+  mocks.enrich.mockReset();
+  mocks.toast.mockReset();
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -190,6 +194,45 @@ describe("providers page authorization state", () => {
 });
 
 describe("provider council fields", () => {
+  it.each(["unavailable", "rejected"])(
+    "shows CNPJ %s failure and preserves values for retry",
+    async (mode) => {
+      mocks.session.isUserLoading = false;
+      await act(async () => root.render(<ProvidersManagement />));
+      const create = [...container.querySelectorAll("button")].find((b) =>
+        b.textContent?.includes("Novo Credenciamento")
+      );
+      await act(async () => create?.click());
+      await changeInput("cnpj", "11222333000181");
+      await changeInput("name", "Nome preservado");
+      if (mode === "unavailable")
+        mocks.enrich.mockResolvedValueOnce({
+          sucesso: false,
+          mensagem: "Fonte externa indisponível",
+        });
+      else mocks.enrich.mockRejectedValueOnce(Error("network"));
+      const lookup = document.body.querySelector<HTMLButtonElement>('[aria-label="Buscar CNPJ"]')!;
+      await act(async () => lookup.click());
+      expect(mocks.toast).toHaveBeenLastCalledWith(
+        expect.objectContaining({ variant: "destructive" })
+      );
+      if (mode === "unavailable")
+        expect(mocks.toast.mock.lastCall![0].description).toBe("Fonte externa indisponível");
+      expect(document.querySelector<HTMLInputElement>('input[name="name"]')?.value).toBe(
+        "Nome preservado"
+      );
+      expect(lookup.disabled).toBe(false);
+      mocks.enrich.mockResolvedValueOnce({
+        sucesso: true,
+        dados: { razaoSocial: "Empresa sintética" },
+      });
+      await act(async () => lookup.click());
+      expect(mocks.toast).toHaveBeenLastCalledWith({ title: "CNPJ Localizado" });
+      expect(document.querySelector<HTMLInputElement>('input[name="name"]')?.value).toBe(
+        "EMPRESA SINTÉTICA"
+      );
+    }
+  );
   it("opens the new provider form with independent council and RQE fields", async () => {
     mocks.session.isUserLoading = false;
     await act(async () => root.render(<ProvidersManagement />));
