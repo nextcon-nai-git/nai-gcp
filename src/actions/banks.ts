@@ -168,8 +168,19 @@ export async function consultarBancosBrasil(
   options: SearchBanksOptions = {}
 ): Promise<ActionResult<BanksQueryResult>> {
   try {
-    const limit = Math.max(1, options.limit ? Number(options.limit) : 100);
-    const offset = Math.max(0, options.offset ? Number(options.offset) : 0);
+    const limit = options.limit ?? 100;
+    const offset = options.offset ?? 0;
+    if (!Number.isSafeInteger(limit) || limit < 1 || !Number.isSafeInteger(offset) || offset < 0) {
+      return { sucesso: false, mensagem: "Limite e deslocamento devem ser inteiros válidos." };
+    }
+    const rawCode =
+      options.code === undefined || options.code === null ? "" : String(options.code).trim();
+    if (rawCode && !/^\d{1,3}$/.test(rawCode)) {
+      return { sucesso: false, mensagem: "Código bancário inválido." };
+    }
+    if (options.ispb && !/^\d{1,8}$/.test(options.ispb)) {
+      return { sucesso: false, mensagem: "ISPB inválido." };
+    }
 
     let bancosList: BankItem[] = [];
     let provedorName = "Banco Central do Brasil / BrasilAPI";
@@ -205,10 +216,7 @@ export async function consultarBancosBrasil(
     // 3. Aplica Filtros de Busca
     const nameFilter = options.name ? removeAccents(options.name) : "";
     const ispbFilter = options.ispb ? options.ispb.replace(/\D/g, "") : "";
-    const codeFilter =
-      options.code !== undefined && options.code !== null
-        ? String(options.code).replace(/\D/g, "")
-        : "";
+    const codeFilter = rawCode ? String(Number(rawCode)) : "";
 
     const filtered = bancosList.filter((b) => {
       // Filtro por Código COMPE

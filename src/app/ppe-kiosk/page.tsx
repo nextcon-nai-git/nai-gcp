@@ -36,6 +36,7 @@ import { STORAGE_PATHS } from "@/lib/storage-paths";
 import { collection, query, orderBy, addDoc, serverTimestamp } from "firebase/firestore";
 import { useSgi } from "@/contexts/sgi-context";
 import { cn } from "@/lib/utils";
+import { useCompanyDirectory } from "@/hooks/use-company-directory";
 
 /**
  * @fileOverview Quiosque Digital de EPI - NR-06 v2.8
@@ -44,11 +45,29 @@ import { cn } from "@/lib/utils";
  */
 
 export default function PpeKiosk() {
+  const { user } = useUser();
+  const { activeClientId, authorizedCompanies, canBrowseAllCompanies } = useSgi();
+  return (
+    <PpeKioskSession
+      key={JSON.stringify([user?.uid, activeClientId, authorizedCompanies, canBrowseAllCompanies])}
+    />
+  );
+}
+
+function PpeKioskSession() {
   const { toast } = useToast();
   const { user } = useUser();
   const db = useFirestore();
   const storage = useStorage();
-  const { activeClientId, isGlobalStaff } = useSgi();
+  const { activeClientId, authorizedCompanies, canBrowseAllCompanies } = useSgi();
+  const active = React.useRef(true);
+  const capturePending = React.useRef(false);
+  React.useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
 
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
@@ -67,11 +86,11 @@ export default function PpeKiosk() {
   const [biometricToken, setBiometricToken] = React.useState("");
 
   // Query para carregar Empresas / Clientes do Firestore
-  const companiesQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return query(collection(db, "companies"), orderBy("name", "asc"));
-  }, [db]);
-  const { data: companies, isLoading: loadingCompanies } = useCollection(companiesQuery);
+  const {
+    data: companies,
+    isLoading: loadingCompanies,
+    error: companiesError,
+  } = useCompanyDirectory(db, user?.uid, canBrowseAllCompanies, authorizedCompanies);
 
   // Atualiza empresa selecionada com base no SGI Context inicial se aplicável
   React.useEffect(() => {
@@ -79,23 +98,27 @@ export default function PpeKiosk() {
       activeClientId &&
       activeClientId !== "all" &&
       activeClientId !== "unauthorized" &&
-      !selectedCompanyId
+      !selectedCompanyId &&
+      companies.some((c) => c.id === activeClientId)
     ) {
       setSelectedCompanyId(activeClientId);
-    } else if (companies && companies.length > 0 && !selectedCompanyId) {
-      setSelectedCompanyId(companies[0].id);
     }
   }, [activeClientId, companies, selectedCompanyId]);
 
   // Query reativa para buscar colaboradores da Empresa Selecionada
   const employeesQuery = useMemoFirebase(() => {
-    if (!db || !selectedCompanyId) return null;
+    if (!db || !user || !selectedCompanyId || !companies.some((c) => c.id === selectedCompanyId))
+      return null;
     return query(
       collection(db, "companies", selectedCompanyId, "employees"),
       orderBy("name", "asc")
     );
-  }, [db, selectedCompanyId]);
-  const { data: employees, isLoading: loadingEmployees } = useCollection(employeesQuery);
+  }, [db, user, selectedCompanyId, companies]);
+  const {
+    data: employees,
+    isLoading: loadingEmployees,
+    error: employeesError,
+  } = useCollection(employeesQuery);
 
   // Objetos selecionados
   const currentCompany = React.useMemo(() => {
@@ -107,17 +130,25 @@ export default function PpeKiosk() {
   }, [employees, selectedEmployeeId]);
 
   React.useEffect(() => {
+    let closed = false;
+    let cameraStream: MediaStream | undefined;
     if (step === 2) {
       const getCameraPermission = async () => {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: "user" },
           });
+          if (closed) {
+            stream.getTracks().forEach((track) => track.stop());
+            return;
+          }
+          cameraStream = stream;
           setHasCameraPermission(true);
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
           }
         } catch (error) {
+          if (closed) return;
           setHasCameraPermission(false);
           toast({
             variant: "destructive",
@@ -129,6 +160,7 @@ export default function PpeKiosk() {
       const getGeoLocation = () => {
         if ("geolocation" in navigator) {
           navigator.geolocation.getCurrentPosition((position) => {
+            if (closed) return;
             setLocation(
               `${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}`
             );
@@ -139,15 +171,22 @@ export default function PpeKiosk() {
       getGeoLocation();
       setTimestamp(new Date().toLocaleString("pt-BR"));
     }
+    return () => {
+      closed = true;
+      cameraStream?.getTracks().forEach((track) => track.stop());
+    };
   }, [step, toast]);
 
   const handleCapture = async () => {
+    if (capturePending.current) return;
     if (
       !selectedCompanyId ||
       !selectedEmployeeId ||
       !user ||
       !db ||
       !storage ||
+      !currentCompany ||
+      !currentEmployee ||
       !epiDescription.trim() ||
       !caNumber.trim()
     ) {
@@ -159,6 +198,7 @@ export default function PpeKiosk() {
       });
       return;
     }
+    capturePending.current = true;
     setIsCapturing(true);
     try {
       const video = videoRef.current;
@@ -178,6 +218,7 @@ export default function PpeKiosk() {
         `${deliveryId}.png`
       );
       await uploadString(ref(storage, evidencePath), imgData, "data_url");
+      if (!active.current) return;
       await addDoc(collection(db, "companies", selectedCompanyId, "ppe_deliveries"), {
         id: deliveryId,
         companyId: selectedCompanyId,
@@ -197,6 +238,7 @@ export default function PpeKiosk() {
         status: "ENTREGUE",
         caStatus: "PENDENTE_VERIFICACAO",
       });
+      if (!active.current) return;
       setCapturedImage(imgData);
       setBiometricToken(deliveryId);
       setStep(3);
@@ -206,13 +248,15 @@ export default function PpeKiosk() {
           "Registro e evidência fotográfica salvos. A validade do CA precisa ser verificada.",
       });
     } catch (error) {
+      if (!active.current) return;
       toast({
         variant: "destructive",
         title: "A entrega não foi confirmada",
         description: error instanceof Error ? error.message : "Revise a conexão e tente novamente.",
       });
     } finally {
-      setIsCapturing(false);
+      capturePending.current = false;
+      if (active.current) setIsCapturing(false);
     }
   };
 
@@ -236,7 +280,7 @@ export default function PpeKiosk() {
     doc.text(`EPI Entregue: ${epiDescription}`, 20, 105);
     doc.text(`Certificado de Aprovação (C.A.): ${caNumber}`, 20, 115);
     doc.text(`Data/Hora: ${timestamp}`, 20, 125);
-    doc.text(`GPS: ${location || "Capturado via Quiosque"}`, 20, 135);
+    doc.text(`GPS: ${location || "Não informado"}`, 20, 135);
     doc.text(`ID da evidência fotográfica: ${biometricToken}`, 20, 145);
 
     doc.setFont("helvetica", "normal");
@@ -270,9 +314,12 @@ export default function PpeKiosk() {
           Quiosque Digital EPI 2026
         </h1>
         <p className="text-muted-foreground text-sm uppercase font-bold tracking-widest">
-          Atribuição em Pasta Mestre & Assinatura Biométrica
+          Registro de entrega com evidência fotográfica
         </p>
       </div>
+      {(companiesError || employeesError) && (
+        <p role="alert">Não foi possível consultar os dados. Atualize e tente novamente.</p>
+      )}
 
       <Card className="card-shadow border-none overflow-hidden bg-white rounded-[2.5rem]">
         {step === 1 && (
@@ -318,7 +365,7 @@ export default function PpeKiosk() {
                         value={c.id}
                         className="text-xs font-bold uppercase py-3"
                       >
-                        {c.name} {c.cnpj ? `(${c.cnpj})` : ""}
+                        {c.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -396,7 +443,15 @@ export default function PpeKiosk() {
 
             <Button
               className="w-full h-16 text-lg font-black uppercase tracking-widest bg-primary text-white shadow-xl rounded-2xl transition-all hover:scale-[1.01]"
-              disabled={!selectedCompanyId || !selectedEmployeeId}
+              disabled={
+                !user ||
+                !currentCompany ||
+                !currentEmployee ||
+                !epiDescription.trim() ||
+                !caNumber.trim() ||
+                !!companiesError ||
+                !!employeesError
+              }
               onClick={() => setStep(2)}
             >
               Prosseguir para Registro Fotográfico
@@ -419,7 +474,7 @@ export default function PpeKiosk() {
                 </p>
               </div>
               <Badge className="bg-primary text-accent border-none font-black text-[9px] uppercase px-3 h-6">
-                NR-06 Bio
+                Evidência fotográfica
               </Badge>
             </div>
 
@@ -452,7 +507,7 @@ export default function PpeKiosk() {
                 ) : (
                   <Camera className="size-8 text-accent" />
                 )}
-                CONFIRMAR E ASSINAR BIOMETRIA
+                CONFIRMAR ENTREGA COM FOTO
               </Button>
               <p className="text-[10px] text-center text-muted-foreground uppercase font-bold tracking-widest">
                 Ao clicar, você confirma o recebimento do EPI {epiDescription} e autoriza a
@@ -469,10 +524,10 @@ export default function PpeKiosk() {
             </div>
             <div className="space-y-2">
               <h2 className="text-3xl font-black text-primary uppercase">
-                Entrega Validada e Salva!
+                Entrega registrada e salva!
               </h2>
               <p className="text-muted-foreground text-sm font-medium italic">
-                "O recibo com a evidência biométrica foi arquivado na pasta mestre de{" "}
+                "O registro com a evidência fotográfica foi arquivado para{" "}
                 <strong>{currentCompany?.name}</strong> para o colaborador{" "}
                 <strong>{currentEmployee?.name}</strong>."
               </p>
@@ -483,7 +538,7 @@ export default function PpeKiosk() {
                 className="h-14 rounded-2xl font-black uppercase text-[10px] tracking-widest gap-2 border-primary text-primary"
                 onClick={generateReceiptPDF}
               >
-                <FileDown className="size-4 text-accent" /> Baixar Recibo Assinado (PDF)
+                <FileDown className="size-4 text-accent" /> Baixar Recibo da Entrega (PDF)
               </Button>
               <Button
                 variant="ghost"
@@ -503,12 +558,11 @@ export default function PpeKiosk() {
       <Alert className="bg-blue-50 border-blue-100 rounded-2xl">
         <ShieldAlert className="h-4 w-4 text-primary" />
         <AlertTitle className="text-primary font-bold uppercase text-[10px] tracking-widest">
-          Salvaguarda Legal NR-06 & eSocial S-2240
+          Registro da entrega
         </AlertTitle>
         <AlertDescription className="text-xs text-primary/70">
-          As fotos de identificação facial e geolocalizações são vinculadas diretamente à subcoleção
-          `companies/{selectedCompanyId || "companyId"}/ppe_deliveries` de acordo com a LGPD e
-          normas do Ministério do Trabalho.
+          A fotografia documenta a entrega. Ela não realiza autenticação biométrica. A validade do
+          CA exige conferência própria; este fluxo não transmite eventos ao eSocial.
         </AlertDescription>
       </Alert>
     </div>

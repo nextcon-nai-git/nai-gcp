@@ -31,21 +31,37 @@ import { cn } from "@/lib/utils";
 import { useUser } from "@/firebase";
 
 export default function MedicalCertificatesPage() {
+  const { user } = useUser();
+  return <MedicalCertificatesSession key={user?.uid || "signed-out"} />;
+}
+function MedicalCertificatesSession() {
   const { toast } = useToast();
   const { user } = useUser();
+  const active = React.useRef(true);
+  const pending = React.useRef(false);
+  React.useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const [isAnalyzing, setIsAnalyzing] = React.useState(false);
   const [result, setResult] = React.useState<ValidatorOutput | null>(null);
   const [dragActive, setDragActive] = React.useState(false);
 
   const handleFile = async (file: File) => {
     if (!file) return;
-    if (!user) return;
+    if (!user || pending.current) return;
+    if (!file.size) {
+      toast({ variant: "destructive", title: "Arquivo vazio" });
+      return;
+    }
     if (file.size > 10 * 1024 * 1024) {
       toast({ variant: "destructive", title: "Arquivo acima de 10 MB" });
       return;
     }
 
-    if (!file.type.includes("pdf") && !file.type.includes("image")) {
+    if (!["application/pdf", "image/png", "image/jpeg", "image/webp"].includes(file.type)) {
       toast({
         variant: "destructive",
         title: "Formato inválido",
@@ -54,6 +70,7 @@ export default function MedicalCertificatesPage() {
       return;
     }
 
+    pending.current = true;
     setIsAnalyzing(true);
     setResult(null);
 
@@ -65,18 +82,23 @@ export default function MedicalCertificatesPage() {
         reader.readAsDataURL(file);
       });
 
+      if (!active.current) return;
+      const token = await user.getIdToken();
+      if (!active.current) return;
       const analysis = await validateMedicalCertificate({
         fileDataUri: base64,
         fileName: file.name,
-        idToken: await user.getIdToken(),
+        idToken: token,
       });
+      if (!active.current) return;
       setResult(analysis);
 
       if (analysis.authenticity === "forged") {
         toast({
           variant: "destructive",
-          title: "Alerta de Fraude!",
-          description: "A NAI detectou sinais críticos de falsificação.",
+          title: "Indícios para revisão",
+          description:
+            "A análise visual apontou possíveis sinais de adulteração. Confirme com revisão humana.",
         });
       } else {
         toast({
@@ -86,6 +108,7 @@ export default function MedicalCertificatesPage() {
         });
       }
     } catch (error: any) {
+      if (!active.current) return;
       console.error("[Medical Certificate Validation Error]:", error);
       toast({
         variant: "destructive",
@@ -93,7 +116,8 @@ export default function MedicalCertificatesPage() {
         description: error?.message || "Não foi possível validar o atestado.",
       });
     } finally {
-      setIsAnalyzing(false);
+      pending.current = false;
+      if (active.current) setIsAnalyzing(false);
     }
   };
 
@@ -257,7 +281,7 @@ export default function MedicalCertificatesPage() {
                           <XCircle className="size-8 text-red-600" />
                         )}
                         {result.authenticity === "legitimate"
-                          ? "Legítimo"
+                          ? "Sem sinais aparentes de adulteração"
                           : result.authenticity === "suspicious"
                             ? "Suspeito"
                             : result.authenticity === "forged"

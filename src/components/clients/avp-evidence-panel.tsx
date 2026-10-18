@@ -19,6 +19,10 @@ import { z } from "zod";
 type Stored = AvpEvidence & { uploaded?: boolean };
 export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
   const { user } = useUser();
+  return <AvpEvidenceSession key={JSON.stringify([user?.uid, kind])} kind={kind} />;
+}
+function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
+  const { user } = useUser();
   const [records, setRecords] = React.useState<Stored[]>([]);
   const [pending, setPending] = React.useState<AvpEvidence[]>([]);
   const [message, setMessage] = React.useState("");
@@ -28,6 +32,14 @@ export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
   const [basis, setBasis] = React.useState("unit");
   const [above, setAbove] = React.useState(false);
   const [page, setPage] = React.useState(1);
+  const active = React.useRef(true);
+  const mutating = React.useRef(false);
+  React.useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const owner = React.useRef(user?.uid);
   const refreshVersion = React.useRef(0);
   owner.current = user?.uid;
@@ -35,12 +47,18 @@ export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
     async (init?: RequestInit, query = "") => {
       if (!user) throw new Error("Entre no NAI para consultar evidências.");
       const token = await user.getIdToken();
+      if (!active.current) throw new Error("Sessão encerrada.");
       const response = await fetch("/api/clients/grupo-avp/evidence" + query, {
         ...init,
         headers: { ...init?.headers, Authorization: `Bearer ${token}` },
         cache: "no-store",
       });
+      if (!active.current) throw new Error("Sessão encerrada.");
       if (!response.ok) {
+        if ([401, 403].includes(response.status)) {
+          setRecords([]);
+          setPending([]);
+        }
         const data = await response.json();
         throw new Error(data.error || "Não foi possível concluir.");
       }
@@ -59,7 +77,8 @@ export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
         const data = await (
           await api(undefined, cursor ? "?cursor=" + encodeURIComponent(cursor) : "")
         ).json();
-        if (owner.current !== uid || refreshVersion.current !== version) return false;
+        if (!active.current || owner.current !== uid || refreshVersion.current !== version)
+          return false;
         loaded.push(...data.records);
         cursor = data.nextCursor ?? null;
         if (cursor) {
@@ -67,13 +86,13 @@ export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
           seen.add(cursor);
         }
       } while (cursor);
-      if (owner.current === uid && refreshVersion.current === version) {
+      if (active.current && owner.current === uid && refreshVersion.current === version) {
         setRecords(loaded);
         setMessage("");
       }
       return true;
     } catch (e) {
-      if (owner.current === uid && refreshVersion.current === version)
+      if (active.current && owner.current === uid && refreshVersion.current === version)
         setMessage(e instanceof Error ? e.message : "Erro na consulta.");
       return false;
     }
@@ -97,6 +116,7 @@ export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
         .array(AvpEvidenceSchema)
         .max(3000)
         .parse(JSON.parse(await file.text()).records);
+      if (!active.current) return;
       const selection = data.filter((r) => r.kind === kind);
       if (new Set(selection.map((r) => r.id)).size !== selection.length)
         throw new Error("Há IDs repetidos no índice.");
@@ -105,18 +125,22 @@ export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
         `${selection.length} evidências prontas para importar. Nenhum registro foi salvo ainda.`
       );
     } catch (e) {
+      if (!active.current) return;
       setPending([]);
       setMessage(e instanceof Error ? e.message : "Índice inválido.");
     }
   }
   async function save() {
-    const uid = user?.uid;
+    if (!user || mutating.current) return;
+    mutating.current = true;
+    const uid = user.uid;
     setBusy(true);
     let added = 0,
       unchanged = 0;
     try {
       for (let i = 0; i < pending.length; i += 100) {
-        if (owner.current !== uid) throw new Error("A sessão mudou. Reabra a importação.");
+        if (!active.current || owner.current !== uid)
+          throw new Error("A sessão mudou. Reabra a importação.");
         const result = await (
           await api({
             method: "POST",
@@ -124,33 +148,39 @@ export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
             body: JSON.stringify({ records: pending.slice(i, i + 100) }),
           })
         ).json();
+        if (!active.current) return;
         added += result.added;
         unchanged += result.unchanged;
         setMessage(`${added} salvos; ${unchanged} já existentes.`);
       }
+      if (!active.current) return;
       setPending([]);
+      if (!active.current) return;
       const refreshed = await refresh();
-      if (owner.current === uid)
+      if (active.current && owner.current === uid)
         setMessage(
           `Importação confirmada: ${added} salvos; ${unchanged} já existentes.${refreshed ? "" : " Não foi possível atualizar a consulta. Use Atualizar evidências."}`
         );
     } catch (e) {
+      if (!active.current) return;
       setMessage(
         `${added} salvos nesta tentativa. ${e instanceof Error ? e.message : "Falha na importação."} O índice pode ser reenviado sem duplicar os registros confirmados.`
       );
     } finally {
-      setBusy(false);
+      mutating.current = false;
+      if (active.current) setBusy(false);
     }
   }
   async function uploadFiles(files: FileList | null) {
-    if (!files) return;
+    if (!files || !user || mutating.current) return;
+    mutating.current = true;
     setBusy(true);
     let saved = 0;
     const failures: string[] = [];
     const uid = user?.uid;
     try {
       for (const file of Array.from(files)) {
-        if (owner.current !== uid) throw new Error("A sessão mudou.");
+        if (!active.current || owner.current !== uid) throw new Error("A sessão mudou.");
         const matches = records.filter(
           (r): r is AvpAsoEvidence & { uploaded?: boolean } =>
             r.kind === "aso" && r.fileName === file.name
@@ -165,27 +195,33 @@ export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
             form.set("id", r.id);
             form.set("file", file);
             await api({ method: "POST", body: form });
+            if (!active.current) return;
             saved++;
           } catch (e) {
             failures.push(`${file.name}: ${e instanceof Error ? e.message : "falhou"}`);
           }
         }
+        if (!active.current) return;
         setMessage(`${saved} PDFs anexados. ${failures.length} pendências.`);
       }
+      if (!active.current) return;
       const refreshed = await refresh();
-      if (owner.current === uid)
+      if (active.current && owner.current === uid)
         setMessage(
           `${saved} PDFs anexados com confirmação.${failures.length ? " Pendências: " + failures.join("; ") : ""}${refreshed ? "" : " Não foi possível atualizar a consulta. Use Atualizar evidências."}`
         );
     } catch (e) {
+      if (!active.current) return;
       setMessage(e instanceof Error ? e.message : "Falha no envio.");
     } finally {
-      setBusy(false);
+      mutating.current = false;
+      if (active.current) setBusy(false);
     }
   }
   async function openDocument(id: string, fileName: string) {
     try {
       const blob = await (await api(undefined, "?document=" + id)).blob();
+      if (!active.current) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -193,6 +229,7 @@ export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (e) {
+      if (!active.current) return;
       setMessage(e instanceof Error ? e.message : "Documento indisponível.");
     }
   }

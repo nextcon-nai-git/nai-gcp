@@ -70,9 +70,23 @@ import Link from "next/link";
 
 export default function PpeManagement() {
   const { user } = useUser();
+  const { activeClientId } = useSgi();
+  return <PpeManagementSession key={JSON.stringify([user?.uid, activeClientId])} />;
+}
+function PpeManagementSession() {
+  const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
-  const { activeClientId } = useSgi();
+  const { activeClientId, canBrowseAllCompanies } = useSgi();
+  const active = React.useRef(true);
+  const saving = React.useRef(false);
+  const analyzing = React.useRef(false);
+  React.useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
 
   const [activeTab, setActiveTab] = React.useState<"deliveries" | "catalog">("deliveries");
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -89,14 +103,14 @@ export default function PpeManagement() {
   const [extractedData, setExtractedData] = React.useState<ExtractPpeSheetOutput | null>(null);
   const [isSaving, setIsSaving] = React.useState(false);
 
-  // Catálogo em memória (iniciado com o catálogo oficial NR-06)
+  // Catálogo de referência em memória; não representa consulta ao MTE
   const [catalog, setCatalog] = React.useState<PpeCatalogItem[]>(INITIAL_PPE_CATALOG);
 
   // Novo formulário de entrega
   const [deliveryForm, setDeliveryForm] = React.useState({
     employeeName: "",
     cpfMatricula: "",
-    roleName: "Operador de Máquinas",
+    roleName: "",
     selectedPpeId: INITIAL_PPE_CATALOG[0].id,
     quantity: 1,
     reason: "NOVA_ADMISSAO" as const,
@@ -117,17 +131,18 @@ export default function PpeManagement() {
 
   // Consulta reativa Firestore isolada por tenant
   const deliveriesQuery = useMemoFirebase(() => {
-    if (!db || activeClientId === "unauthorized" || !activeClientId) return null;
+    if (!db || !user || activeClientId === "unauthorized" || !activeClientId) return null;
     if (activeClientId === "all") {
+      if (!canBrowseAllCompanies) return null;
       return query(collectionGroup(db, "ppe_deliveries"), orderBy("deliveredAt", "desc"));
     }
     return query(
       collection(db, "companies", activeClientId, "ppe_deliveries"),
       orderBy("deliveredAt", "desc")
     );
-  }, [db, activeClientId]);
+  }, [db, user, activeClientId, canBrowseAllCompanies]);
 
-  const { data: rawDeliveries, isLoading } = useCollection(deliveriesQuery);
+  const { data: rawDeliveries, isLoading, error: deliveriesError } = useCollection(deliveriesQuery);
 
   const deliveries = React.useMemo(() => {
     if (!rawDeliveries) return [];
@@ -166,9 +181,8 @@ export default function PpeManagement() {
     if (!rawDeliveries) return { total: 0, caValid: 0, caWarning: 0 };
     return {
       total: rawDeliveries.length,
-      caValid: rawDeliveries.filter(
-        (d: any) => d.caStatus === "VALID" || d.caStatus === "VALIDO" || !d.caStatus
-      ).length,
+      caValid: rawDeliveries.filter((d: any) => d.caStatus === "VALID" || d.caStatus === "VALIDO")
+        .length,
       caWarning: rawDeliveries.filter(
         (d: any) =>
           d.caStatus === "WARNING" || d.caStatus === "VENCENDO_30D" || d.caStatus === "VENCIDO"
@@ -179,7 +193,14 @@ export default function PpeManagement() {
   // Submissão de entrega digital NR-06
   const handleCreateDigitalDelivery = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!db || !activeClientId || activeClientId === "all" || activeClientId === "unauthorized") {
+    if (saving.current) return;
+    if (
+      !user ||
+      !db ||
+      !activeClientId ||
+      activeClientId === "all" ||
+      activeClientId === "unauthorized"
+    ) {
       toast({
         variant: "destructive",
         title: "Empresa não selecionada",
@@ -189,6 +210,15 @@ export default function PpeManagement() {
       return;
     }
 
+    if (
+      !Number.isInteger(deliveryForm.quantity) ||
+      deliveryForm.quantity < 1 ||
+      deliveryForm.quantity > 50 ||
+      !deliveryForm.deliveryDate
+    ) {
+      toast({ variant: "destructive", title: "Confira a quantidade e a data da entrega" });
+      return;
+    }
     const payloadCheck = {
       employeeName: deliveryForm.employeeName,
       cpfMatricula: deliveryForm.cpfMatricula,
@@ -207,6 +237,7 @@ export default function PpeManagement() {
       return;
     }
 
+    saving.current = true;
     setIsSaving(true);
     try {
       const now = new Date().toISOString();
@@ -232,8 +263,8 @@ export default function PpeManagement() {
         fabricanteMarca: selectedPpe.manufacturer,
         deliveredAt: deliveryForm.deliveryDate,
         quantity: Number(deliveryForm.quantity),
-        signed: true,
-        signatureType: "DIGITAL",
+        signed: false,
+        signatureType: "PENDING",
         signatureHash,
         termAccepted: true,
         reason: deliveryForm.reason,
@@ -243,9 +274,11 @@ export default function PpeManagement() {
 
       await addDoc(collection(db, "companies", activeClientId, "ppe_deliveries"), newRecord);
 
+      if (!active.current) return;
       toast({
-        title: "Ficha de EPI Assinada Digitalmente!",
-        description: `Termo registrado com Hash SHA-256: ${signatureHash.substring(0, 16)}...`,
+        title: "Entrega registrada; assinatura pendente",
+        description:
+          "O aceite e o resumo de integridade foram registrados. Não houve assinatura digital nem transmissão ao eSocial.",
       });
 
       setIsNewDeliveryOpen(false);
@@ -256,9 +289,15 @@ export default function PpeManagement() {
         termAccepted: false,
       });
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Erro ao gravar entrega", description: err.message });
+      if (active.current)
+        toast({
+          variant: "destructive",
+          title: "Erro ao gravar entrega",
+          description: err.message,
+        });
     } finally {
-      setIsSaving(false);
+      saving.current = false;
+      if (active.current) setIsSaving(false);
     }
   };
 
@@ -278,7 +317,7 @@ export default function PpeManagement() {
       caNumber: newPpeForm.caNumber,
       caExpirationDate: newPpeForm.caExpirationDate,
       caStatus: status,
-      manufacturer: newPpeForm.manufacturer || "Fabricante Certificado",
+      manufacturer: newPpeForm.manufacturer || "Não informado",
       compatibleRoles: newPpeForm.compatibleRoles
         .split(",")
         .map((r) => r.trim())
@@ -289,8 +328,8 @@ export default function PpeManagement() {
 
     setCatalog((prev) => [newItem, ...prev]);
     toast({
-      title: "EPI Cadastrado no Catálogo",
-      description: `C.A. nº ${newItem.caNumber} associado com status ${status}.`,
+      title: "EPI adicionado nesta sessão",
+      description: "Catálogo temporário: não foi salvo no servidor nem conferido no MTE.",
     });
     setIsNewPpeOpen(false);
     setNewPpeForm({
@@ -306,6 +345,7 @@ export default function PpeManagement() {
 
   // Scanner OCR de Ficha
   const handleAnalyzePpeSheet = async () => {
+    if (!user || analyzing.current) return;
     if (!rawPpeInput.trim()) {
       toast({
         variant: "destructive",
@@ -314,27 +354,35 @@ export default function PpeManagement() {
       });
       return;
     }
+    analyzing.current = true;
     setIsAnalyzing(true);
     try {
-      const result = await extractPpeSheetData(rawPpeInput, await getActionIdToken());
+      const token = await getActionIdToken();
+      if (!active.current) return;
+      const result = await extractPpeSheetData(rawPpeInput, token);
+      if (!active.current) return;
       setExtractedData(result);
       toast({
         title: "Ficha Leitora Concluída",
         description: `A NAI identificou ${result.itens.length} EPIs para ${result.nomeColaborador}.`,
       });
     } catch (e: any) {
+      if (!active.current) return;
       toast({
         variant: "destructive",
         title: "Erro na Análise de IA",
         description: e.message || "Não foi possível ler os dados da ficha.",
       });
     } finally {
-      setIsAnalyzing(false);
+      analyzing.current = false;
+      if (active.current) setIsAnalyzing(false);
     }
   };
 
   const handleSaveDeliveries = async () => {
+    if (saving.current) return;
     if (
+      !user ||
       !db ||
       !extractedData ||
       !activeClientId ||
@@ -348,6 +396,26 @@ export default function PpeManagement() {
       return;
     }
 
+    if (
+      !extractedData.itens.length ||
+      extractedData.itens.some(
+        (item) =>
+          !item.epiNome ||
+          !item.numeroCA ||
+          !item.dataEntrega ||
+          !Number.isInteger(item.quantidade) ||
+          item.quantidade < 1
+      )
+    ) {
+      toast({
+        variant: "destructive",
+        title: "Confira os itens extraídos",
+        description:
+          "Cada item precisa de nome, C.A., data e quantidade inteira positiva. Revise a transcrição.",
+      });
+      return;
+    }
+    saving.current = true;
     setIsSaving(true);
     try {
       const batch = writeBatch(db);
@@ -359,31 +427,35 @@ export default function PpeManagement() {
           companyId: activeClientId,
           employeeName: extractedData.nomeColaborador,
           cpfMatricula: extractedData.cpfMatricula || "",
-          setorFuncao: extractedData.setorFuncao || "GERAL",
+          setorFuncao: extractedData.setorFuncao || "",
           epiNome: item.epiNome,
           numeroCA: item.numeroCA,
-          fabricanteMarca: item.fabricanteMarca || "PADRÃO",
-          deliveredAt: item.dataEntrega || now.split("T")[0],
-          quantity: item.quantidade || 1,
-          signed: item.assinado,
-          caStatus: "VALIDO",
+          fabricanteMarca: item.fabricanteMarca || "",
+          deliveredAt: item.dataEntrega,
+          quantity: item.quantidade,
+          signed: false,
+          signatureDetectedByOcr: item.assinado,
+          caStatus: "PENDENTE_VERIFICACAO",
           createdAt: now,
           createdVia: "NAI_VISION_AI",
         });
       });
 
       await batch.commit();
+      if (!active.current) return;
       toast({
-        title: "Ficha Sincronizada",
-        description: `${extractedData.itens.length} EPIs gravados com sucesso no banco e eSocial S-2240.`,
+        title: "Itens registrados para conferência",
+        description: `${extractedData.itens.length} itens salvos no NAI. C.A. e assinatura pendentes de conferência; sem transmissão ao eSocial.`,
       });
       setIsScanOpen(false);
       setExtractedData(null);
       setRawPpeInput("");
     } catch (e: any) {
+      if (!active.current) return;
       toast({ variant: "destructive", title: "Erro ao Salvar", description: e.message });
     } finally {
-      setIsSaving(false);
+      saving.current = false;
+      if (active.current) setIsSaving(false);
     }
   };
 
@@ -393,7 +465,7 @@ export default function PpeManagement() {
       case "VALID":
         return (
           <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[8px] font-black uppercase">
-            C.A. Válido (MTE)
+            C.A. com validade informada
           </Badge>
         );
       case "VENCENDO_30D":
@@ -418,7 +490,7 @@ export default function PpeManagement() {
       default:
         return (
           <Badge className="bg-slate-100 text-slate-700 text-[8px] font-black uppercase">
-            C.A. Regular
+            C.A. a verificar
           </Badge>
         );
     }
@@ -429,14 +501,14 @@ export default function PpeManagement() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6">
         <div className="space-y-1">
           <Badge className="bg-primary text-accent border-none font-black text-[8px] tracking-[0.3em] mb-1 px-3 h-5 uppercase">
-            NR-06 & S-2240 COMPLIANCE ENGINE
+            REGISTRO DE ENTREGA DE EPI
           </Badge>
           <h1 className="text-3xl font-headline font-black text-primary tracking-tight uppercase leading-none">
             Controle Digital de EPI/EPC
           </h1>
           <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest flex items-center gap-2 mt-1">
             <ShieldCheck className="size-3 text-emerald-500" /> Catálogo Estruturado de C.A.s,
-            Assinatura Digital e Rastreio MTE
+            Aceite e Conferência Documental
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -453,8 +525,8 @@ export default function PpeManagement() {
                   <ShieldCheck className="size-5 text-accent" /> Ficha de Entrega de EPI (NR-06)
                 </DialogTitle>
                 <DialogDescription className="text-white/80 text-xs">
-                  Registro de entrega com validação em tempo real de C.A. e termo digital de guarda
-                  e conservação.
+                  Registro de entrega e aceite. Confira o C.A. na fonte oficial e obtenha a
+                  assinatura do trabalhador.
                 </DialogDescription>
               </DialogHeader>
 
@@ -522,7 +594,7 @@ export default function PpeManagement() {
                 {/* Seleção do EPI a partir do Catálogo Estruturado */}
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase text-slate-500">
-                    Selecione o EPI Certificado (NR-06) *
+                    Selecione o EPI do catálogo de referência *
                   </label>
                   <select
                     className="w-full h-11 px-3 border rounded-xl text-xs font-bold bg-white text-slate-800"
@@ -544,7 +616,7 @@ export default function PpeManagement() {
                   <div className="p-4 rounded-xl bg-slate-50 border space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-black uppercase text-slate-500">
-                        Validação Oficial do MTE:
+                        Validade cadastrada (sem consulta ao MTE):
                       </span>
                       {renderCaBadge(selectedPpeStatus)}
                     </div>
@@ -563,7 +635,7 @@ export default function PpeManagement() {
                       </div>
                       <div>
                         <span className="text-[9px] text-slate-400 font-bold block uppercase">
-                          Validade MTE:
+                          Validade informada:
                         </span>
                         <strong className="text-slate-700 font-mono">
                           {selectedPpe.caExpirationDate}
@@ -660,7 +732,7 @@ export default function PpeManagement() {
                     ) : (
                       <Save className="size-4" />
                     )}
-                    Assinar e Registrar Entrega
+                    Registrar Entrega
                   </Button>
                 </div>
               </form>
@@ -673,7 +745,7 @@ export default function PpeManagement() {
             className="h-11 px-5 border-primary text-primary font-black uppercase text-[10px] gap-2 rounded-xl"
           >
             <Link href="/ppe-kiosk">
-              <Fingerprint className="size-4 text-accent" /> Quiosque Biométrico
+              <Fingerprint className="size-4 text-accent" /> Quiosque Fotográfico
             </Link>
           </Button>
 
@@ -716,7 +788,7 @@ export default function PpeManagement() {
                     />
                     <Button
                       onClick={handleAnalyzePpeSheet}
-                      disabled={isAnalyzing || !rawPpeInput.trim()}
+                      disabled={!user || isAnalyzing || !rawPpeInput.trim()}
                       className="w-full h-14 bg-primary text-white font-black uppercase text-xs rounded-2xl shadow-xl gap-3"
                     >
                       {isAnalyzing ? (
@@ -724,7 +796,7 @@ export default function PpeManagement() {
                       ) : (
                         <Sparkles className="size-5 text-accent" />
                       )}
-                      Analisar Ficha e Validar C.A. com NAI Vision AI
+                      Extrair dados da ficha
                     </Button>
                   </div>
                 ) : (
@@ -790,7 +862,7 @@ export default function PpeManagement() {
                       </Button>
                       <Button
                         onClick={handleSaveDeliveries}
-                        disabled={isSaving}
+                        disabled={!user || isSaving}
                         className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] h-12 rounded-xl shadow-lg gap-2"
                       >
                         {isSaving ? (
@@ -798,7 +870,7 @@ export default function PpeManagement() {
                         ) : (
                           <Save className="size-4" />
                         )}
-                        Salvar e Sincronizar eSocial
+                        Salvar itens para conferência
                       </Button>
                     </div>
                   </div>
@@ -809,6 +881,16 @@ export default function PpeManagement() {
         </div>
       </header>
 
+      {deliveriesError && (
+        <p role="alert">
+          Não foi possível consultar as entregas. Tente novamente antes de concluir que a lista está
+          vazia.
+        </p>
+      )}
+      <p className="text-sm text-muted-foreground">
+        Catálogo de referência temporário. Validade calculada a partir da data informada; C.A.,
+        assinatura e transmissão externa exigem conferência própria.
+      </p>
       {/* Alerta de C.A.s em Risco (MTE) se houver */}
       {catalogStats.expiringSoon > 0 && (
         <div className="bg-amber-50 border border-amber-300 p-4 rounded-2xl flex items-center justify-between gap-4">

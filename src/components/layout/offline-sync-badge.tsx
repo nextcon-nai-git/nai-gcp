@@ -5,8 +5,21 @@ import { Wifi, WifiOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { offlineStorage } from "@/lib/offline-storage";
 import { useToast } from "@/hooks/use-toast";
+import { useUser } from "@/firebase";
+import { useSgi } from "@/contexts/sgi-context";
 
 export function OfflineSyncBadge() {
+  const { user } = useUser();
+  const { activeClientId } = useSgi();
+  return (
+    <ScopedOfflineBadge
+      key={JSON.stringify([user?.uid, activeClientId])}
+      userId={user?.uid || ""}
+      companyId={activeClientId}
+    />
+  );
+}
+function ScopedOfflineBadge({ userId, companyId }: { userId: string; companyId: string }) {
   const [isOnline, setIsOnline] = React.useState(true);
   const [pendingCount, setPendingCount] = React.useState(0);
   const { toast } = useToast();
@@ -15,11 +28,13 @@ export function OfflineSyncBadge() {
     if (typeof window === "undefined") return;
 
     setIsOnline(navigator.onLine);
-    setPendingCount(offlineStorage.getPendingCount());
+    const scope = { userId, companyId };
+    setPendingCount(offlineStorage.getPendingCount(scope));
 
     const handleOnline = () => {
       setIsOnline(true);
-      const count = offlineStorage.getPendingCount();
+      const count = offlineStorage.getPendingCount(scope);
+      setPendingCount(count);
       if (count > 0) {
         setPendingCount(count);
         toast({
@@ -43,7 +58,7 @@ export function OfflineSyncBadge() {
     window.addEventListener("offline", handleOffline);
 
     const interval = setInterval(() => {
-      setPendingCount(offlineStorage.getPendingCount());
+      setPendingCount(offlineStorage.getPendingCount(scope));
     }, 4000);
 
     return () => {
@@ -51,7 +66,7 @@ export function OfflineSyncBadge() {
       window.removeEventListener("offline", handleOffline);
       clearInterval(interval);
     };
-  }, [toast]);
+  }, [toast, userId, companyId]);
 
   if (!isOnline) {
     return (

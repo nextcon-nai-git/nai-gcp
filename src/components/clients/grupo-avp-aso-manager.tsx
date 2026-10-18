@@ -289,6 +289,18 @@ export function GrupoAvpAsoManager({
     setCurrentPage(1);
   }, [searchTerm, statusFilter, responsibleFilter, urgencyFilter, ufFilter, pageSize, costFilter]);
 
+  const copyText = async (text: string, title: string, description?: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title, description });
+    } catch {
+      toast({
+        title: "Não foi possível copiar",
+        description: "Verifique a permissão do navegador e tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
   // Copiar Informações para WhatsApp
   const handleCopyAsoDetails = (item: GrupoAvpAso) => {
     const text =
@@ -310,11 +322,11 @@ export function GrupoAvpAsoManager({
         : "") +
       (item.oQueFazer ? `📝 *Observação:* ${item.oQueFazer}\n` : "");
 
-    navigator.clipboard.writeText(text);
-    toast({
-      title: "Copiado com Sucesso! 📋",
-      description: `Dados de ${item.colaborador} prontos para envio via WhatsApp ou E-mail.`,
-    });
+    void copyText(
+      text,
+      "Copiado com Sucesso! 📋",
+      `Dados de ${item.colaborador} prontos para envio via WhatsApp ou E-mail.`
+    );
   };
 
   // Exporta somente a seleção atual, com caracteres e fórmulas tratados como texto.
@@ -1276,8 +1288,7 @@ export function GrupoAvpAsoManager({
                           size="sm"
                           variant="ghost"
                           onClick={() => {
-                            navigator.clipboard.writeText(selectedAso.chavePix);
-                            toast({ title: "Chave PIX copiada!" });
+                            void copyText(selectedAso.chavePix, "Chave PIX copiada!");
                           }}
                           className="h-7 text-[10px] gap-1"
                         >

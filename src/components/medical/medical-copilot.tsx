@@ -20,7 +20,17 @@ interface MedicalCopilotProps {
   className?: string;
 }
 
-export default function MedicalCopilot({ pacienteId, className }: MedicalCopilotProps) {
+export default function MedicalCopilot(props: MedicalCopilotProps) {
+  const { user } = useUser();
+  const { activeClientId } = useSgi();
+  return (
+    <MedicalCopilotSession
+      key={JSON.stringify([user?.uid, activeClientId, props.pacienteId])}
+      {...props}
+    />
+  );
+}
+function MedicalCopilotSession({ pacienteId, className }: MedicalCopilotProps) {
   const { user } = useUser();
   const { activeClientId } = useSgi();
   const [messages, setMessages] = React.useState<Message[]>([
@@ -33,6 +43,16 @@ export default function MedicalCopilot({ pacienteId, className }: MedicalCopilot
   const [input, setInput] = React.useState("");
   const [isTyping, setIsTyping] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const active = React.useRef(true);
+  const pending = React.useRef(false);
+  const controller = React.useRef<AbortController | null>(null);
+  React.useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+      controller.current?.abort();
+    };
+  }, []);
 
   // Auto-scroll para a última mensagem
   React.useEffect(() => {
@@ -43,11 +63,20 @@ export default function MedicalCopilot({ pacienteId, className }: MedicalCopilot
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isTyping || !user || !activeClientId || activeClientId === "all") return;
+    if (
+      !input.trim() ||
+      pending.current ||
+      !user ||
+      !pacienteId ||
+      !activeClientId ||
+      ["all", "unauthorized"].includes(activeClientId)
+    )
+      return;
+    pending.current = true;
 
     const userContent = input;
-    const userMessageId = Date.now().toString();
-    const aiMessageId = (Date.now() + 1).toString();
+    const userMessageId = crypto.randomUUID();
+    const aiMessageId = crypto.randomUUID();
 
     setInput("");
 
@@ -61,12 +90,17 @@ export default function MedicalCopilot({ pacienteId, className }: MedicalCopilot
     setIsTyping(true);
 
     try {
+      const token = await user.getIdToken();
+      if (!active.current) return;
+      const abort = new AbortController();
+      controller.current = abort;
       const response = await fetch("/api/medical-assistant", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${await user.getIdToken()}`,
+          Authorization: `Bearer ${token}`,
         },
+        signal: abort.signal,
         body: JSON.stringify({
           mensagemMedico: userContent,
           pacienteId: pacienteId,
@@ -74,6 +108,7 @@ export default function MedicalCopilot({ pacienteId, className }: MedicalCopilot
         }),
       });
 
+      if (!active.current) return;
       if (!response.ok) throw new Error("Falha na conexão com o motor NAI");
       if (!response.body) throw new Error("Stream de dados inacessível");
 
@@ -83,6 +118,10 @@ export default function MedicalCopilot({ pacienteId, className }: MedicalCopilot
 
       while (true) {
         const { done, value } = await reader.read();
+        if (!active.current) {
+          await reader.cancel();
+          return;
+        }
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
@@ -94,7 +133,7 @@ export default function MedicalCopilot({ pacienteId, className }: MedicalCopilot
         );
       }
     } catch (error) {
-      console.error("Erro no chat clínico:", error);
+      if (!active.current) return;
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === aiMessageId
@@ -107,7 +146,8 @@ export default function MedicalCopilot({ pacienteId, className }: MedicalCopilot
         )
       );
     } finally {
-      setIsTyping(false);
+      pending.current = false;
+      if (active.current) setIsTyping(false);
     }
   };
 
@@ -204,7 +244,15 @@ export default function MedicalCopilot({ pacienteId, className }: MedicalCopilot
         />
         <Button
           type="submit"
-          disabled={isTyping || !input.trim()}
+          aria-label="Enviar pergunta clínica"
+          disabled={
+            isTyping ||
+            !input.trim() ||
+            !user ||
+            !pacienteId ||
+            !activeClientId ||
+            ["all", "unauthorized"].includes(activeClientId)
+          }
           className="size-12 p-0 bg-primary text-white rounded-xl hover:bg-primary/90 shadow-xl shadow-primary/10 shrink-0 transition-transform active:scale-95"
         >
           {isTyping ? (

@@ -13,21 +13,45 @@ export interface PendingOfflineItem {
   status: "PENDING" | "SYNCING" | "SYNCED" | "ERROR";
 }
 
-const STORAGE_KEY = "nai_offline_queue_v1";
+export interface OfflineScope {
+  userId: string;
+  companyId: string;
+}
+function storageKey(scope?: OfflineScope): string | null {
+  if (
+    !scope?.userId?.trim() ||
+    !scope.companyId?.trim() ||
+    ["all", "unauthorized"].includes(scope.companyId)
+  )
+    return null;
+  return `nai_offline_queue_v2:${encodeURIComponent(scope.userId)}:${encodeURIComponent(scope.companyId)}`;
+}
 
 export const offlineStorage = {
-  getQueue(): PendingOfflineItem[] {
+  getQueue(scope?: OfflineScope): PendingOfflineItem[] {
     if (typeof window === "undefined") return [];
+    const key = storageKey(scope);
+    if (!key) return [];
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
+      const raw = localStorage.getItem(key);
+      const items = raw ? JSON.parse(raw) : [];
+      return Array.isArray(items)
+        ? items.filter(
+            (item) =>
+              item &&
+              typeof item.id === "string" &&
+              ["PENDING", "SYNCING", "SYNCED", "ERROR"].includes(item.status)
+          )
+        : [];
     } catch {
       return [];
     }
   },
 
-  addItem(type: PendingOfflineItem["type"], data: any): PendingOfflineItem {
-    const queue = this.getQueue();
+  addItem(type: PendingOfflineItem["type"], data: any, scope: OfflineScope): PendingOfflineItem {
+    const key = storageKey(scope);
+    if (!key) throw new Error("Selecione uma conta e empresa para salvar a cópia local.");
+    const queue = this.getQueue(scope);
     const newItem: PendingOfflineItem = {
       id: `OFFLINE-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       type,
@@ -37,23 +61,26 @@ export const offlineStorage = {
     };
     queue.push(newItem);
     if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(queue));
+      localStorage.setItem(key, JSON.stringify(queue));
     }
     return newItem;
   },
 
-  removeItem(id: string) {
+  removeItem(id: string, scope?: OfflineScope) {
     if (typeof window === "undefined") return;
-    const queue = this.getQueue().filter((i) => i.id !== id);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(queue));
+    const key = storageKey(scope);
+    if (!key) return;
+    const queue = this.getQueue(scope).filter((i) => i.id !== id);
+    localStorage.setItem(key, JSON.stringify(queue));
   },
 
-  clearQueue() {
+  clearQueue(scope?: OfflineScope) {
     if (typeof window === "undefined") return;
-    localStorage.removeItem(STORAGE_KEY);
+    const key = storageKey(scope);
+    if (key) localStorage.removeItem(key);
   },
 
-  getPendingCount(): number {
-    return this.getQueue().filter((i) => i.status === "PENDING").length;
+  getPendingCount(scope?: OfflineScope): number {
+    return this.getQueue(scope).filter((i) => i.status === "PENDING").length;
   },
 };

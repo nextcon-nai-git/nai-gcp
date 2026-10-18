@@ -493,7 +493,7 @@ export function GrupoAvpQueueMap({
     });
   };
 
-  const handleCopyLocalityInfo = (loc: AvpLocalityAggregate) => {
+  const handleCopyLocalityInfo = async (loc: AvpLocalityAggregate) => {
     const clinicInfo = localityClinicsMap.get(loc.key);
     const lines = [
       `*NAI - GRUPO AVP | Telemetria do Polo ${loc.cidade} / ${loc.uf}*`,
@@ -510,7 +510,12 @@ export function GrupoAvpQueueMap({
           `  - Nº ${a.numero} | ${a.colaborador} (${a.tipoExame}) - Status: ${a.status} - Resp: ${a.responsavel}`
       ),
     ];
-    navigator.clipboard.writeText(lines.join("\n"));
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+    } catch {
+      toast({ variant: "destructive", title: "Não foi possível copiar" });
+      return;
+    }
     setCopiedText(loc.key);
     toast({
       title: "Resumo Copiado!",
@@ -519,9 +524,14 @@ export function GrupoAvpQueueMap({
     setTimeout(() => setCopiedText(null), 2500);
   };
 
-  const handleCopyCredenciamento = (cidade: string, uf: string) => {
+  const handleCopyCredenciamento = async (cidade: string, uf: string) => {
     const msg = generateWhatsAppCredenciamentoMessage(cidade, uf);
-    navigator.clipboard.writeText(msg);
+    try {
+      await navigator.clipboard.writeText(msg);
+    } catch {
+      toast({ variant: "destructive", title: "Não foi possível copiar" });
+      return;
+    }
     toast({
       title: "Proposta B2B Copiada!",
       description: `Mensagem de credenciamento copiada para envio às clínicas de ${cidade}/${uf}.`,

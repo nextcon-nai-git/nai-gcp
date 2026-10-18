@@ -1,4 +1,6 @@
 "use client";
+import { useUser } from "@/firebase";
+import { useSgi } from "@/contexts/sgi-context";
 import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
@@ -88,6 +90,20 @@ const QUICK_OBJECTIVES = [
 ];
 
 export default function KnowledgeBase() {
+  const { user } = useUser();
+  const { activeClientId } = useSgi();
+  return <KnowledgeBaseSession key={JSON.stringify([user?.uid, activeClientId])} />;
+}
+function KnowledgeBaseSession() {
+  const { user } = useUser();
+  const active = React.useRef(true);
+  const pending = React.useRef(false);
+  React.useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const { toast } = useToast();
   const [query, setQuery] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
@@ -122,19 +138,23 @@ export default function KnowledgeBase() {
 
   const handleSend = async (text?: string) => {
     const inputContent = text || query;
-    if (!inputContent.trim() || isLoading) return;
+    if (!user || !inputContent.trim() || pending.current) return;
+    pending.current = true;
 
     setQuery("");
     setMessages((prev) => [
       ...prev,
-      { id: Date.now().toString(), role: "user", content: inputContent },
+      { id: crypto.randomUUID(), role: "user", content: inputContent },
     ]);
     setIsLoading(true);
 
     try {
-      const result = await runKnowledgeAssistant({ query: inputContent }, await getActionIdToken());
+      const token = await getActionIdToken();
+      if (!active.current) return;
+      const result = await runKnowledgeAssistant({ query: inputContent }, token);
+      if (!active.current) return;
       const aiMsg: Message = {
-        id: (Date.now() + 1).toString(),
+        id: crypto.randomUUID(),
         role: "ai",
         content: result.answer,
         references: result.references,
@@ -142,9 +162,11 @@ export default function KnowledgeBase() {
       };
       setMessages((prev) => [...prev, aiMsg]);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro na NAI", description: error.message });
+      if (active.current)
+        toast({ variant: "destructive", title: "Erro na NAI", description: error.message });
     } finally {
-      setIsLoading(false);
+      pending.current = false;
+      if (active.current) setIsLoading(false);
     }
   };
 
@@ -299,7 +321,8 @@ export default function KnowledgeBase() {
               <Button
                 type="submit"
                 className="h-14 w-14 p-0 bg-primary rounded-2xl shadow-lg"
-                disabled={isLoading || !query}
+                aria-label="Enviar consulta"
+                disabled={!user || isLoading || !query.trim()}
               >
                 <Send className="size-6 text-accent" />
               </Button>

@@ -80,6 +80,22 @@ type ImportedAso = {
 };
 
 export default function ClinicalWorkspace() {
+  const { user, role, companyId, servedCompanies } = useUser();
+  const { activeClientId } = useSgi();
+  return (
+    <ClinicalWorkspaceSession
+      key={JSON.stringify([user?.uid, role, companyId, servedCompanies, activeClientId])}
+    />
+  );
+}
+function ClinicalWorkspaceSession() {
+  const active = React.useRef(true);
+  React.useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const { toast } = useToast();
   const { role, user, companyId: userCompanyId, servedCompanies, isUserLoading } = useUser();
   const db = useFirestore();
@@ -328,6 +344,7 @@ export default function ClinicalWorkspace() {
     setBusyAppointmentId(appt.id);
     try {
       await advanceClinicalAppointment(db, appt.companyId, appt.id, next);
+      if (!active.current) return;
       if (next === "Em Espera") {
         toast({
           title: "Check-in Realizado",
@@ -337,6 +354,7 @@ export default function ClinicalWorkspace() {
         openAsoWorkflow({ ...appt, status: "Em Atendimento" });
       }
     } catch {
+      if (!active.current) return;
       toast({
         variant: "destructive",
         title: "Não foi possível atualizar o atendimento",
@@ -344,7 +362,7 @@ export default function ClinicalWorkspace() {
       });
     } finally {
       appointmentMutationPending.current = false;
-      setBusyAppointmentId(null);
+      if (active.current) setBusyAppointmentId(null);
     }
   };
 
@@ -401,8 +419,10 @@ export default function ClinicalWorkspace() {
         companyId: selectedApptForSign.companyId,
         cardId: selectedAsoCardId,
       });
+      const headers = await pgrRequestHeaders(user);
+      if (!active.current || !isCurrentRequest() || controller.signal.aborted) return;
       const response = await fetch(`/api/clinical/aso/original?${params}`, {
-        headers: await pgrRequestHeaders(user),
+        headers,
         cache: "no-store",
         signal: controller.signal,
       });
@@ -525,6 +545,7 @@ export default function ClinicalWorkspace() {
     setIsScheduling(true);
     try {
       const result = await createClinicalAppointment(db, newAppt);
+      if (!active.current) return;
 
       toast({
         title: "Exame Agendado",
@@ -539,6 +560,7 @@ export default function ClinicalWorkspace() {
         time: "08:00",
       });
     } catch {
+      if (!active.current) return;
       toast({
         variant: "destructive",
         title: "Erro ao Agendar",
@@ -547,7 +569,7 @@ export default function ClinicalWorkspace() {
       });
     } finally {
       schedulingPending.current = false;
-      setIsScheduling(false);
+      if (active.current) setIsScheduling(false);
     }
   };
 
