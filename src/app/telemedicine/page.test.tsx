@@ -185,8 +185,8 @@ describe("Administrative telemedicine appointments", () => {
       },
     ];
     await v.render(<Page />);
-    const links = [...v.container.querySelectorAll<HTMLAnchorElement>("a")].filter((a) =>
-      a.href.includes("meet.google.com")
+    const links = [...v.container.querySelectorAll<HTMLAnchorElement>("a")].filter(
+      (a) => new URL(a.href).hostname === "meet.google.com"
     );
     expect(links).toHaveLength(1);
     expect(links[0].rel).toBe("noopener noreferrer");
