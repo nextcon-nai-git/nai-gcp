@@ -23,6 +23,11 @@ const money = (cents: number) =>
   (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const links = [
   [
+    "/financial/relatorios",
+    "Relatórios financeiros",
+    "PDFs de referência e planos de redução de custos",
+  ],
+  [
     "/financial/operacoes",
     "ERP financeiro NAI",
     "Cadastros, compras, vendas, tesouraria e relatórios",

@@ -54,7 +54,7 @@ export const FinancialActionEvidenceSchema = z
     sourceSha256: hash.optional(),
     page: z.number().int().min(1).max(30000).optional(),
     document: z
-      .object({ kind: z.enum(["ledger", "balance"]), id: hash })
+      .object({ kind: z.enum(["ledger", "balance", "report"]), id: hash })
       .strict()
       .optional(),
   })

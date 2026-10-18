@@ -322,7 +322,12 @@ function FinancialActionsSession({ user }: { user: User | null }) {
     setSourceBusy(true);
     setEditError("");
     try {
-      const segment = evidence.document.kind === "ledger" ? "ledger" : "balances";
+      const segment =
+        evidence.document.kind === "ledger"
+          ? "ledger"
+          : evidence.document.kind === "report"
+            ? "reports"
+            : "balances";
       const blob = await (
         await api(`/api/financial/${segment}/${evidence.document.id}?source=1`)
       ).blob();
@@ -364,6 +369,9 @@ function FinancialActionsSession({ user }: { user: User | null }) {
           <ClipboardList size={20} /> ACOMPANHAMENTO FINANCEIRO
         </div>
         <h1 className="text-3xl font-bold">Ações financeiras</h1>
+        <Link href="/financial/relatorios" className="text-sm font-medium text-cyan-300 underline">
+          Relatórios e PDFs de referência
+        </Link>
         <p className="mt-3 max-w-2xl text-slate-300">
           Transforme análises em prioridades com responsáveis sugeridos, prazos e evidências.
           Acompanhe as conferências até concluir cada decisão.
