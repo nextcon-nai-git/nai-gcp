@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -63,11 +63,20 @@ const SidebarProvider = React.forwardRef<
     const isMobile = useIsMobile();
     const [openMobile, setOpenMobile] = React.useState(false);
 
-    const [open, setOpen] = React.useState(defaultOpen);
+    const [internalOpen, setInternalOpen] = React.useState(defaultOpen);
+    const open = openProp ?? internalOpen;
+    const setOpen = React.useCallback(
+      (value: boolean | ((current: boolean) => boolean)) => {
+        const next = typeof value === "function" ? value(open) : value;
+        if (setOpenProp) setOpenProp(next);
+        if (openProp === undefined) setInternalOpen(next);
+      },
+      [open, openProp, setOpenProp]
+    );
 
     const toggleSidebar = React.useCallback(() => {
       return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
-    }, [isMobile, setOpenMobile]);
+    }, [isMobile, setOpenMobile, setOpen]);
 
     React.useEffect(() => {
       const handleKeyDown = (event: KeyboardEvent) => {
@@ -93,7 +102,7 @@ const SidebarProvider = React.forwardRef<
         setOpenMobile,
         toggleSidebar,
       }),
-      [state, open, isMobile, openMobile, toggleSidebar]
+      [state, open, isMobile, openMobile, toggleSidebar, setOpen]
     );
 
     return (
@@ -173,6 +182,7 @@ const Sidebar = React.forwardRef<
             }
             side={side}
           >
+            <SheetTitle className="sr-only">Menu de navegação</SheetTitle>
             <div className="flex h-full w-full flex-col bg-sidebar">{children}</div>
           </SheetContent>
         </Sheet>

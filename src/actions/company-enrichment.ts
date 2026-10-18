@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview NAI Enrichment Engine - Processamento de CNPJ e enquadramento de NRs (Receita Federal API).
- * Utiliza cadeia de resiliência multi-API (MinhaReceita, BrasilAPI, ReceitaWS) com fallback inteligente.
+ * Consulta MinhaReceita, BrasilAPI e ReceitaWS; informa falha quando nenhuma fonte responde.
  */
 
 import { ActionResult } from "@/types/schema";
@@ -74,7 +74,7 @@ export async function enriquecerDadosEmpresa(
             municipio: json1.municipio || "",
             uf: json1.uf || "",
             cep: json1.cep || "",
-            descricao_situacao_cadastral: json1.descricao_situacao_cadastral || "ATIVA",
+            descricao_situacao_cadastral: json1.descricao_situacao_cadastral || "Não informada",
           };
           sourceName = "MinhaReceita";
         }
@@ -125,7 +125,7 @@ export async function enriquecerDadosEmpresa(
               municipio: json3.municipio || "",
               uf: json3.uf || "",
               cep: json3.cep || "",
-              descricao_situacao_cadastral: json3.situacao || "ATIVA",
+              descricao_situacao_cadastral: json3.situacao || "Não informada",
             };
             sourceName = "ReceitaWS";
           }
@@ -135,24 +135,12 @@ export async function enriquecerDadosEmpresa(
       }
     }
 
-    // 4. FALLBACK INTELIGENTE (Se o CNPJ for novo ou APIs estivem temporariamente indisponíveis)
     if (!rawData) {
-      rawData = {
-        razao_social: `EMPRESA CNPJ ${cleanCnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")}`,
-        nome_fantasia: `UNIDADE ${cleanCnpj.substring(0, 8)}`,
-        cnae_fiscal: "6209100",
-        cnae_fiscal_descricao: "Suporte Técnico, TI e Serviços Especializados",
-        email: "contato@empresa.com.br",
-        ddd_telefone_1: "(11) 3000-0000",
-        logradouro: "Avenida Paulista",
-        numero: "1000",
-        bairro: "Bela Vista",
-        municipio: "São Paulo",
-        uf: "SP",
-        cep: "01310-100",
-        descricao_situacao_cadastral: "ATIVA",
+      return {
+        sucesso: false,
+        mensagem:
+          "Não foi possível consultar este CNPJ nas fontes externas. Confira o número e tente novamente; nenhum dado foi preenchido.",
       };
-      sourceName = "NAI Fallback Engine";
     }
 
     const cnaePrincipal = String(rawData.cnae_fiscal || "");
@@ -226,7 +214,7 @@ export async function enriquecerDadosEmpresa(
         email,
         telefone,
         website,
-        situacaoCadastral: rawData.descricao_situacao_cadastral || "ATIVA",
+        situacaoCadastral: rawData.descricao_situacao_cadastral || "Não informada",
         logradouro,
         numero,
         bairro,

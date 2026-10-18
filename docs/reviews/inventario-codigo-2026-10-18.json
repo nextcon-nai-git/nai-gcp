@@ -1,20 +1,20 @@
 {
   "date": "2026-10-18",
-  "baseMain": "2e091445a5ecd00994ad2bdc90be759b74f5bea4",
+  "baseMain": "516f22c73f0eb0c7eee2787c0f31943ba8d3d967",
   "scope": "TypeScript/TSX source under src excluding tests and declarations; inventory and automated coverage do not establish manual review or functional correctness.",
   "sourceFiles": 594,
-  "sourceLines": 122129,
+  "sourceLines": 122065,
   "apiRoutes": 79,
   "pages": 110,
-  "tests": 2039,
-  "testFiles": 214,
+  "tests": 2219,
+  "testFiles": 231,
   "coverageSummary": {
-    "statementsPercent": 51.76,
-    "branchesPercent": 46.53,
-    "functionsPercent": 43.21,
-    "linesPercent": 52.6
+    "statementsPercent": 59.13,
+    "branchesPercent": 53.37,
+    "functionsPercent": 50.65,
+    "linesPercent": 60.22
   },
-  "zeroCoveredFiles": 257,
+  "zeroCoveredFiles": 233,
   "files": [
     {
       "path": "src/__tests__/avp-test-fixture.ts",
@@ -32,15 +32,15 @@
     },
     {
       "path": "src/actions/address-lookup.ts",
-      "sha256": "ebd8112064b1b17f96ce9d089d884ebad7bcafb88a9ad146ac06aa15599bff14",
-      "sourceLines": 193,
+      "sha256": "0dbf83c3e898a2de083697ebee25e10f11b8ed8b6bd73b76e16952f539194f5c",
+      "sourceLines": 186,
       "automatedCoverage": {
         "functionsFound": 1,
-        "functionsHit": 0,
-        "linesFound": 47,
-        "linesHit": 0,
+        "functionsHit": 1,
+        "linesFound": 45,
+        "linesHit": 44,
         "branchesFound": 93,
-        "branchesHit": 0
+        "branchesHit": 77
       },
       "manualReview": "not_asserted"
     },
@@ -74,15 +74,15 @@
     },
     {
       "path": "src/actions/company-enrichment.ts",
-      "sha256": "233a0d3f237a751b5fa2d6cda28356f07e623059c07615fe87f51613712fd5e2",
-      "sourceLines": 246,
+      "sha256": "c324219f5b68cbe9a30f4bc125f7276455e03291b3f60934dbfaba009b81c865",
+      "sourceLines": 234,
       "automatedCoverage": {
         "functionsFound": 4,
-        "functionsHit": 0,
-        "linesFound": 63,
-        "linesHit": 0,
+        "functionsHit": 4,
+        "linesFound": 62,
+        "linesHit": 59,
         "branchesFound": 136,
-        "branchesHit": 0
+        "branchesHit": 111
       },
       "manualReview": "not_asserted"
     },
@@ -116,15 +116,15 @@
     },
     {
       "path": "src/actions/economic-rates.ts",
-      "sha256": "936a478767a23016337aac9703095371618c2d45335d21e4f578889a30892135",
-      "sourceLines": 186,
+      "sha256": "69f8566c09e84183116ec67b3e882f9abb64247b949a1940c7e2d38c6890eb2f",
+      "sourceLines": 103,
       "automatedCoverage": {
         "functionsFound": 3,
-        "functionsHit": 0,
-        "linesFound": 19,
-        "linesHit": 0,
-        "branchesFound": 26,
-        "branchesHit": 0
+        "functionsHit": 3,
+        "linesFound": 16,
+        "linesHit": 15,
+        "branchesFound": 28,
+        "branchesHit": 24
       },
       "manualReview": "not_asserted"
     },
@@ -822,9 +822,9 @@
         "functionsFound": 0,
         "functionsHit": 0,
         "linesFound": 3,
-        "linesHit": 0,
+        "linesHit": 2,
         "branchesFound": 7,
-        "branchesHit": 0
+        "branchesHit": 6
       },
       "manualReview": "not_asserted"
     },
@@ -2206,11 +2206,11 @@
       "sourceLines": 654,
       "automatedCoverage": {
         "functionsFound": 34,
-        "functionsHit": 0,
+        "functionsHit": 22,
         "linesFound": 103,
-        "linesHit": 0,
+        "linesHit": 83,
         "branchesFound": 78,
-        "branchesHit": 0
+        "branchesHit": 52
       },
       "manualReview": "not_asserted"
     },
@@ -2258,15 +2258,15 @@
     },
     {
       "path": "src/app/client-center/page.tsx",
-      "sha256": "3d4d1e34a245ad124433936a1843dc808a03f857819cc7c3ddc24c3f7f5015e5",
-      "sourceLines": 670,
+      "sha256": "9c9daf414e073c40d1aaa6104c12df774864264755ca5def1645695eadf2552d",
+      "sourceLines": 672,
       "automatedCoverage": {
         "functionsFound": 43,
-        "functionsHit": 0,
-        "linesFound": 126,
-        "linesHit": 0,
-        "branchesFound": 123,
-        "branchesHit": 0
+        "functionsHit": 35,
+        "linesFound": 128,
+        "linesHit": 118,
+        "branchesFound": 125,
+        "branchesHit": 106
       },
       "manualReview": "not_asserted"
     },
@@ -2314,15 +2314,15 @@
     },
     {
       "path": "src/app/clients/page.tsx",
-      "sha256": "6e84e0b47e7cfa38d567a8479ed05457931fdaba26a476e793c5392687faf39d",
-      "sourceLines": 1358,
+      "sha256": "c8d7501c975d6b578876b4cf00268776e89269a09ccb649cc59cb123eb9fa107",
+      "sourceLines": 1256,
       "automatedCoverage": {
-        "functionsFound": 70,
-        "functionsHit": 0,
-        "linesFound": 293,
-        "linesHit": 0,
-        "branchesFound": 302,
-        "branchesHit": 0
+        "functionsFound": 69,
+        "functionsHit": 42,
+        "linesFound": 239,
+        "linesHit": 141,
+        "branchesFound": 317,
+        "branchesHit": 165
       },
       "manualReview": "not_asserted"
     },
@@ -2524,15 +2524,15 @@
     },
     {
       "path": "src/app/employees/page.tsx",
-      "sha256": "07e8d7b4b66067bc33d983d5021dff7aaf3e2b751aa38d4cd04cbb8c77a03eb0",
-      "sourceLines": 925,
+      "sha256": "855f4937e85a771224093d7afc2f181e509a421a57516e264060e9a06a0a8609",
+      "sourceLines": 930,
       "automatedCoverage": {
         "functionsFound": 46,
-        "functionsHit": 0,
-        "linesFound": 168,
-        "linesHit": 0,
-        "branchesFound": 181,
-        "branchesHit": 0
+        "functionsHit": 24,
+        "linesFound": 173,
+        "linesHit": 116,
+        "branchesFound": 187,
+        "branchesHit": 109
       },
       "manualReview": "not_asserted"
     },
@@ -2678,15 +2678,15 @@
     },
     {
       "path": "src/app/financial/monthly-billing/page.tsx",
-      "sha256": "ada762e8bed282a19dbe18be3df3c80392b0f303a24ccdf3c7bf60c9ee5a4e8a",
-      "sourceLines": 306,
+      "sha256": "5969379ad0f202bd5e9b44cf70352fd6387e92769423d3d19e1d6a810c21585c",
+      "sourceLines": 325,
       "automatedCoverage": {
-        "functionsFound": 26,
-        "functionsHit": 0,
-        "linesFound": 81,
-        "linesHit": 0,
-        "branchesFound": 70,
-        "branchesHit": 0
+        "functionsFound": 28,
+        "functionsHit": 25,
+        "linesFound": 98,
+        "linesHit": 94,
+        "branchesFound": 93,
+        "branchesHit": 71
       },
       "manualReview": "not_asserted"
     },
@@ -2734,15 +2734,15 @@
     },
     {
       "path": "src/app/financial/omie/page.tsx",
-      "sha256": "0281fd760e16e9e9a3cac33b8ebe2fa77e78a088e8268e3750857a54046c4bb3",
-      "sourceLines": 344,
+      "sha256": "534b2a9f6c4eef8da319d17f4ea3fce4217ba79a1c22b50cfdc09898dc697c35",
+      "sourceLines": 357,
       "automatedCoverage": {
-        "functionsFound": 27,
-        "functionsHit": 0,
-        "linesFound": 90,
-        "linesHit": 0,
-        "branchesFound": 78,
-        "branchesHit": 0
+        "functionsFound": 30,
+        "functionsHit": 26,
+        "linesFound": 99,
+        "linesHit": 93,
+        "branchesFound": 94,
+        "branchesHit": 74
       },
       "manualReview": "not_asserted"
     },
@@ -2902,15 +2902,15 @@
     },
     {
       "path": "src/app/integrations/soc/page.tsx",
-      "sha256": "65f61d3a7ecdcd3d8f99888995651df4980ad601331e491d78080be2235dbb76",
-      "sourceLines": 430,
+      "sha256": "25eaecabc0f0d80dd48285c33ed6b4e828b8192780996712ae209c4026ecdc0f",
+      "sourceLines": 444,
       "automatedCoverage": {
-        "functionsFound": 29,
-        "functionsHit": 0,
-        "linesFound": 95,
-        "linesHit": 0,
-        "branchesFound": 92,
-        "branchesHit": 0
+        "functionsFound": 32,
+        "functionsHit": 30,
+        "linesFound": 105,
+        "linesHit": 101,
+        "branchesFound": 104,
+        "branchesHit": 87
       },
       "manualReview": "not_asserted"
     },
@@ -3308,15 +3308,15 @@
     },
     {
       "path": "src/app/nxc-team/page.tsx",
-      "sha256": "81450ab7c8d974c080d3876fabd6bdc8211fe16851d9c597803f3cc31c4fb6ce",
-      "sourceLines": 1190,
+      "sha256": "f5f8b745e8885ccec940e63d63363effe329de43864b0da99c235f52b5beece8",
+      "sourceLines": 1209,
       "automatedCoverage": {
-        "functionsFound": 36,
-        "functionsHit": 0,
-        "linesFound": 87,
-        "linesHit": 0,
-        "branchesFound": 194,
-        "branchesHit": 0
+        "functionsFound": 39,
+        "functionsHit": 25,
+        "linesFound": 98,
+        "linesHit": 74,
+        "branchesFound": 206,
+        "branchesHit": 53
       },
       "manualReview": "not_asserted"
     },
@@ -3490,15 +3490,15 @@
     },
     {
       "path": "src/app/reports/page.tsx",
-      "sha256": "b16bbd9ddd6c3d7b8883d972a059324fc4d0d1d47ae9cb96970b4473f2c570aa",
-      "sourceLines": 425,
+      "sha256": "f36ddda04ee5ce423253382f6d91a722b1cdea509265a7bad3ccd8167b47d157",
+      "sourceLines": 466,
       "automatedCoverage": {
-        "functionsFound": 15,
-        "functionsHit": 0,
-        "linesFound": 61,
-        "linesHit": 0,
-        "branchesFound": 68,
-        "branchesHit": 0
+        "functionsFound": 19,
+        "functionsHit": 15,
+        "linesFound": 89,
+        "linesHit": 83,
+        "branchesFound": 106,
+        "branchesHit": 78
       },
       "manualReview": "not_asserted"
     },
@@ -3592,11 +3592,11 @@
       "sourceLines": 563,
       "automatedCoverage": {
         "functionsFound": 30,
-        "functionsHit": 0,
+        "functionsHit": 25,
         "linesFound": 81,
-        "linesHit": 0,
+        "linesHit": 75,
         "branchesFound": 87,
-        "branchesHit": 0
+        "branchesHit": 74
       },
       "manualReview": "not_asserted"
     },
@@ -3896,15 +3896,15 @@
     },
     {
       "path": "src/components/aso/scheduling-workspace.tsx",
-      "sha256": "07a60534f654fcbc3858d66bfe451df90ed4d3733c79ea99d17812132fd5a0a3",
-      "sourceLines": 1016,
+      "sha256": "25b4a09c300fe319fcb7e9c1f8978c2365d6d9dbe7b71966edb30021844105f9",
+      "sourceLines": 1033,
       "automatedCoverage": {
-        "functionsFound": 56,
-        "functionsHit": 0,
-        "linesFound": 120,
-        "linesHit": 0,
-        "branchesFound": 92,
-        "branchesHit": 0
+        "functionsFound": 63,
+        "functionsHit": 52,
+        "linesFound": 150,
+        "linesHit": 141,
+        "branchesFound": 130,
+        "branchesHit": 100
       },
       "manualReview": "not_asserted"
     },
@@ -4628,11 +4628,11 @@
       "sourceLines": 609,
       "automatedCoverage": {
         "functionsFound": 29,
-        "functionsHit": 0,
+        "functionsHit": 19,
         "linesFound": 71,
-        "linesHit": 0,
+        "linesHit": 53,
         "branchesFound": 101,
-        "branchesHit": 0
+        "branchesHit": 60
       },
       "manualReview": "not_asserted"
     },
@@ -5272,11 +5272,11 @@
       "sourceLines": 26,
       "automatedCoverage": {
         "functionsFound": 1,
-        "functionsHit": 0,
+        "functionsHit": 1,
         "linesFound": 4,
-        "linesHit": 0,
+        "linesHit": 4,
         "branchesFound": 4,
-        "branchesHit": 0
+        "branchesHit": 3
       },
       "manualReview": "not_asserted"
     },
@@ -5286,9 +5286,9 @@
       "sourceLines": 122,
       "automatedCoverage": {
         "functionsFound": 6,
-        "functionsHit": 1,
+        "functionsHit": 4,
         "linesFound": 24,
-        "linesHit": 19,
+        "linesHit": 22,
         "branchesFound": 1,
         "branchesHit": 1
       },
@@ -5296,15 +5296,15 @@
     },
     {
       "path": "src/components/ui/sidebar.tsx",
-      "sha256": "430d6c5edb284cdc6f600b51ed67dd0a179143e6e94e2654164fe6ad7a39a930",
-      "sourceLines": 708,
+      "sha256": "b15c3d781b1da51c550b5a187f442542d28c83250ee94ab0e368eb4f222fb77e",
+      "sourceLines": 718,
       "automatedCoverage": {
-        "functionsFound": 33,
-        "functionsHit": 0,
-        "linesFound": 117,
-        "linesHit": 0,
-        "branchesFound": 66,
-        "branchesHit": 0
+        "functionsFound": 34,
+        "functionsHit": 34,
+        "linesFound": 122,
+        "linesHit": 121,
+        "branchesFound": 74,
+        "branchesHit": 62
       },
       "manualReview": "not_asserted"
     },
@@ -5314,9 +5314,9 @@
       "sourceLines": 7,
       "automatedCoverage": {
         "functionsFound": 1,
-        "functionsHit": 0,
+        "functionsHit": 1,
         "linesFound": 1,
-        "linesHit": 0,
+        "linesHit": 1,
         "branchesFound": 0,
         "branchesHit": 0
       },
@@ -5706,11 +5706,11 @@
       "sourceLines": 66,
       "automatedCoverage": {
         "functionsFound": 6,
-        "functionsHit": 0,
+        "functionsHit": 5,
         "linesFound": 36,
-        "linesHit": 0,
+        "linesHit": 36,
         "branchesFound": 30,
-        "branchesHit": 0
+        "branchesHit": 26
       },
       "manualReview": "not_asserted"
     },
@@ -5762,11 +5762,11 @@
       "sourceLines": 189,
       "automatedCoverage": {
         "functionsFound": 18,
-        "functionsHit": 0,
+        "functionsHit": 18,
         "linesFound": 52,
-        "linesHit": 0,
+        "linesHit": 51,
         "branchesFound": 20,
-        "branchesHit": 0
+        "branchesHit": 16
       },
       "manualReview": "not_asserted"
     },
@@ -6406,11 +6406,11 @@
       "sourceLines": 140,
       "automatedCoverage": {
         "functionsFound": 7,
-        "functionsHit": 6,
+        "functionsHit": 7,
         "linesFound": 26,
-        "linesHit": 24,
+        "linesHit": 26,
         "branchesFound": 30,
-        "branchesHit": 25
+        "branchesHit": 26
       },
       "manualReview": "not_asserted"
     },
@@ -6576,7 +6576,7 @@
         "functionsFound": 1,
         "functionsHit": 0,
         "linesFound": 5,
-        "linesHit": 0,
+        "linesHit": 1,
         "branchesFound": 6,
         "branchesHit": 0
       },
@@ -6896,11 +6896,11 @@
       "sourceLines": 218,
       "automatedCoverage": {
         "functionsFound": 9,
-        "functionsHit": 0,
-        "linesFound": 97,
-        "linesHit": 0,
+        "functionsHit": 9,
+        "linesFound": 96,
+        "linesHit": 95,
         "branchesFound": 114,
-        "branchesHit": 0
+        "branchesHit": 111
       },
       "manualReview": "not_asserted"
     },
@@ -6996,7 +6996,7 @@
         "functionsFound": 1,
         "functionsHit": 0,
         "linesFound": 2,
-        "linesHit": 0,
+        "linesHit": 2,
         "branchesFound": 0,
         "branchesHit": 0
       },
@@ -7372,11 +7372,11 @@
       "sourceLines": 72,
       "automatedCoverage": {
         "functionsFound": 5,
-        "functionsHit": 3,
+        "functionsHit": 5,
         "linesFound": 9,
-        "linesHit": 7,
+        "linesHit": 9,
         "branchesFound": 16,
-        "branchesHit": 8
+        "branchesHit": 16
       },
       "manualReview": "not_asserted"
     },

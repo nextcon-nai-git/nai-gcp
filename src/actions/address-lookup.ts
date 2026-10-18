@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview NAI Multi-Provider CEP Lookup Engine.
- * Fonte principal: OpenCEP, com fallback automático em ViaCEP, BrasilAPI v2, ApiCEP e NAI Fallback.
+ * Fonte principal: OpenCEP, com tentativas adicionais em ViaCEP, BrasilAPI v2 e ApiCEP.
  */
 
 import { ActionResult } from "@/types/schema";
@@ -145,19 +145,12 @@ export async function buscarEnderecoPorCep(cep: string): Promise<ActionResult<Ad
       }
     }
 
-    // 5. PROVEDOR 5 (FALLBACK LOCAL NAI)
     if (!resultData) {
-      const formattedCep = `${cleanCep.slice(0, 5)}-${cleanCep.slice(5)}`;
-      resultData = {
-        cep: formattedCep,
-        logradouro: "Endereço Mapeado",
-        complemento: "",
-        bairro: "Centro",
-        localidade: "São Paulo",
-        uf: "SP",
-        ibge: "",
+      return {
+        sucesso: false,
+        mensagem:
+          "CEP não localizado ou consulta indisponível. Confira o CEP e tente novamente; nenhum endereço foi presumido.",
       };
-      providerName = "NAI Local CEP Engine";
     }
 
     const formattedCep = resultData.cep || `${cleanCep.slice(0, 5)}-${cleanCep.slice(5)}`;
@@ -177,8 +170,8 @@ export async function buscarEnderecoPorCep(cep: string): Promise<ActionResult<Ad
         logradouro: resultData.logradouro || "",
         complemento: resultData.complemento || "",
         bairro: resultData.bairro || "",
-        localidade: resultData.localidade || "São Paulo",
-        uf: resultData.uf || "SP",
+        localidade: resultData.localidade || "",
+        uf: resultData.uf || "",
         ibge: resultData.ibge || "",
         providerUtilizado: providerName,
         enderecoFormatado,

@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useUser } from "@/firebase";
@@ -15,14 +15,26 @@ const money = (cents: number) =>
 const cnpjLabel = (cnpj: string) =>
   cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
 export default function MonthlyBillingPage() {
+  const { user, role, isUserLoading } = useUser();
+  if (isUserLoading) return <p role="status">Verificando acesso…</p>;
+  if (!user) return <p>Entre no NAI para consultar o faturamento.</p>;
+  if (role !== "SUPER_ADMIN") return <p role="alert">Esta área exige administrador global.</p>;
   return (
     <Suspense fallback={<p>Carregando faturamento mensal...</p>}>
-      <MonthlyBilling />
+      <MonthlyBilling key={user.uid} />
     </Suspense>
   );
 }
 function MonthlyBilling() {
   const { user, role } = useUser();
+  const mounted = useRef(true);
+  const inFlight = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const params = useSearchParams();
   const [groupId, setGroupId] = useState(params.get("group") || "");
   const [view, setView] = useState<MonthlyBillingView | null>(null);
@@ -37,13 +49,14 @@ function MonthlyBilling() {
     async (signal?: AbortSignal) => {
       if (!user) return;
       const token = await user.getIdToken();
+      if (!mounted.current || signal?.aborted) return;
       const response = await fetch(
         `/api/financial/monthly-billing?group=${encodeURIComponent(groupId)}`,
         { cache: "no-store", headers: { Authorization: `Bearer ${token}` }, signal }
       );
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Falha ao consultar o faturamento.");
-      if (!signal?.aborted) setView(body);
+      if (mounted.current && !signal?.aborted) setView(body);
       return body as MonthlyBillingView;
     },
     [user, groupId]
@@ -66,12 +79,14 @@ function MonthlyBilling() {
     return () => controller.abort();
   }, [load]);
   async function save() {
-    if (!user || !review || !view?.group || view.group.id !== groupId) return;
+    if (!user || !review || !view?.group || view.group.id !== groupId || inFlight.current) return;
+    inFlight.current = true;
     setSaving(true);
     setError("");
     setSuccess("");
     try {
       const token = await user.getIdToken();
+      if (!mounted.current) return;
       const response = await fetch("/api/financial/monthly-billing", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -85,7 +100,9 @@ function MonthlyBilling() {
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Não foi possível gravar o lote.");
+      if (!mounted.current) return;
       const saved = await load();
+      if (!mounted.current) return;
       if (
         !saved ||
         !review.every((row) =>
@@ -103,9 +120,11 @@ function MonthlyBilling() {
       setReview(null);
       setPaste("");
     } catch (e) {
+      if (!mounted.current) return;
       setError(e instanceof Error ? e.message : "Falha ao salvar.");
     } finally {
-      setSaving(false);
+      inFlight.current = false;
+      if (mounted.current) setSaving(false);
     }
   }
   return (

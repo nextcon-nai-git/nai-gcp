@@ -51,8 +51,26 @@ import {
 } from "lucide-react";
 
 export default function SchedulingWorkspace() {
-  const { activeClientId } = useSgi();
   const { user } = useUser();
+  if (!user) return <p>Entre no NAI para acessar os agendamentos.</p>;
+  return <SchedulingSession key={user.uid} />;
+}
+
+function SchedulingSession() {
+  const { user } = useUser();
+  const mounted = React.useRef(true);
+  const operations = React.useRef(new Set<string>());
+  const copyTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  React.useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      clearTimeout(copyTimer.current);
+    };
+  }, []);
+  const [operationError, setOperationError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [advancing, setAdvancing] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<
     "kanban" | "nova_solicitacao" | "kit_digital" | "clinicas" | "supervisor"
@@ -65,16 +83,15 @@ export default function SchedulingWorkspace() {
 
   // Form State
   const [formData, setFormData] = useState({
-    companyName: "CETESB - Cia Ambiental do Estado de SP",
-    cnpj: "43.050.496/0001-11",
+    companyName: "",
+    cnpj: "",
     employeeName: "",
     cpf: "",
-    roleTitle: "Operador de Usinagem & Prensa",
-    department: "Manutenção & Operações",
+    roleTitle: "",
+    department: "",
     examType: "admissional" as ExamType,
-    declaredRisks:
-      "Ruído contínuo > 85 dBA (NR-15), Postura em pé prolongada (NR-17), Manuseio de Óleos Minerais",
-    userPrompt: "Agendar exame admissional com urgência na região da Paulista.",
+    declaredRisks: "",
+    userPrompt: "",
   });
 
   const [aiAnalysisResult, setAiAnalysisResult] = useState<AsoSystemOrchestratorOutput | null>(
@@ -90,7 +107,10 @@ export default function SchedulingWorkspace() {
       if (inFlight) return;
       inFlight = true;
       try {
-        const res = await getAsoRequestsAction(await user.getIdToken());
+        const token = await user.getIdToken();
+        if (disposed) return;
+        const res = await getAsoRequestsAction(token);
+        if (!res.success) throw new Error("Consulta não concluída");
         if (!disposed && res.success) {
           setRequests(res.data);
           setLoadError("");
@@ -115,100 +135,87 @@ export default function SchedulingWorkspace() {
     };
   }, [user]);
 
-  const handleRunAiTriage = async () => {
+  async function perform(key: string, action: (token: string) => Promise<void>) {
+    if (!user || operations.current.has(key)) return;
+    operations.current.add(key);
+    setOperationError("");
+    setNotice("");
+    try {
+      const token = await user.getIdToken();
+      if (mounted.current) await action(token);
+    } catch (error) {
+      if (mounted.current)
+        setOperationError(
+          error instanceof Error ? error.message : "Operação não concluída. Tente novamente."
+        );
+    } finally {
+      operations.current.delete(key);
+      if (mounted.current) {
+        if (key === "triage") setAnalyzingAi(false);
+        else if (key === "create") setLoading(false);
+        else setAdvancing(null);
+      }
+    }
+  }
+
+  const handleRunAiTriage = () => {
     setAnalyzingAi(true);
     setAiAnalysisResult(null);
-
-    const risksList = formData.declaredRisks
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    const res = await runAsoOrchestratorAnalysisAction(
-      formData.userPrompt,
-      formData.companyName,
-      formData.employeeName,
-      formData.roleTitle,
-      formData.examType,
-      await user!.getIdToken()
-    );
-
-    setAnalyzingAi(false);
-    if (res.success && res.data) {
-      setAiAnalysisResult(res.data);
-    } else {
-      alert(res.error || "Erro na análise de triagem dos Agentes de IA.");
-    }
+    return perform("triage", async (token) => {
+      const res = await runAsoOrchestratorAnalysisAction(
+        formData.userPrompt,
+        formData.companyName,
+        formData.employeeName,
+        formData.roleTitle,
+        formData.examType,
+        token
+      );
+      if (!res.success || !res.data) throw new Error(res.error || "Erro na análise de triagem.");
+      if (mounted.current) setAiAnalysisResult(res.data);
+    });
   };
 
-  const handleCreateRequest = async (e: React.FormEvent) => {
+  const handleCreateRequest = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
-    const risksList = formData.declaredRisks
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    const res = await createAsoRequestAction(
-      {
-        companyName: formData.companyName,
-        cnpj: formData.cnpj,
-        employeeName: formData.employeeName,
-        cpf: formData.cpf,
-        roleTitle: formData.roleTitle,
-        department: formData.department,
-        examType: formData.examType,
-        declaredRisks: risksList,
-        userPrompt: formData.userPrompt,
-      },
-      await user!.getIdToken()
-    );
-
-    setLoading(false);
-    if (res.success && res.data) {
-      setRequests((prev) => [res.data!, ...prev]);
+    return perform("create", async (token) => {
+      const res = await createAsoRequestAction(
+        {
+          ...formData,
+          declaredRisks: formData.declaredRisks
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
+        },
+        token
+      );
+      if (!res.success || !res.data)
+        throw new Error(res.error || "Erro ao criar solicitação de ASO.");
+      if (!mounted.current) return;
+      setRequests((prev) => [res.data!, ...prev.filter((r) => r.id !== res.data!.id)]);
       setSelectedRequest(res.data);
       setActiveTab("kanban");
-      alert(
-        `Solicitação de ASO ${res.data.id} criada com sucesso! Processada pelos 7 Agentes de IA.`
+      setNotice(
+        `Solicitação de ASO ${res.data.id} registrada. Confira os dados e as sugestões antes de prosseguir.`
       );
-    } else {
-      alert(res.error || "Erro ao criar solicitação de ASO.");
-    }
+    });
   };
 
-  const handleAdvanceStep = async (reqId: string, currentStep: AsoPipelineStep) => {
-    const pipelineOrder: AsoPipelineStep[] = [
-      "solicitado",
-      "validando",
-      "exames_definidos",
-      "clinica_selecionada",
-      "agendado",
-      "kit_montado",
-      "kit_enviado",
-      "clinica_confirmou",
-      "exame_realizado",
-      "aso_concluido",
-    ];
-
-    const currIdx = pipelineOrder.indexOf(currentStep);
-    if (currIdx === -1 || currIdx >= pipelineOrder.length - 1) return;
-
-    const nextStep = pipelineOrder[currIdx + 1];
-
-    const res = await advancePipelineStepAction(reqId, nextStep, await user!.getIdToken());
-    if (res.success && res.data) {
+  const handleAdvanceStep = (reqId: string, currentStep: AsoPipelineStep) => {
+    const order = Object.keys(PIPELINE_STEPS_CONFIG) as AsoPipelineStep[];
+    const index = order.indexOf(currentStep);
+    if (index < 0 || index >= order.length - 1) return;
+    setAdvancing(reqId);
+    return perform(`advance:${reqId}`, async (token) => {
+      const res = await advancePipelineStepAction(reqId, order[index + 1], token);
+      if (!res.success || !res.data) throw new Error(res.error || "Erro ao avançar etapa.");
+      if (!mounted.current) return;
       setRequests((prev) => prev.map((r) => (r.id === reqId ? res.data! : r)));
-      if (selectedRequest?.id === reqId) {
-        setSelectedRequest(res.data);
-      }
-    } else {
-      alert(res.error || "Erro ao avançar etapa.");
-    }
+      setSelectedRequest((current) => (current?.id === reqId ? res.data! : current));
+    });
   };
 
-  const copyKitText = (kit: DigitalKit) => {
+  const copyKitText = async (kit: DigitalKit) => {
     const text = `=== GUIA DE ENCAMINHAMENTO OCUPACIONAL NAI (${kit.guiaNumber}) ===
 Empresa: ${kit.companyDetails.name} (CNPJ: ${kit.companyDetails.cnpj})
 Trabalhador: ${kit.employeeDetails.name} (CPF: ${kit.employeeDetails.cpf})
@@ -224,9 +231,15 @@ ${kit.examList.map((e) => `- [${e.code}] ${e.name} (${e.mandatory})\n  Preparo: 
 ${kit.clinicInstructions.map((i) => `• ${i}`).join("\n")}
 Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
 
-    navigator.clipboard.writeText(text);
-    setCopiedKit(true);
-    setTimeout(() => setCopiedKit(false), 3000);
+    try {
+      await navigator.clipboard.writeText(text);
+      if (!mounted.current) return;
+      setCopiedKit(true);
+      clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopiedKit(false), 3000);
+    } catch {
+      if (mounted.current) setOperationError("Não foi possível copiar o kit. Tente novamente.");
+    }
   };
 
   // KPIs
@@ -275,6 +288,8 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
           </div>
         </div>
 
+        {operationError && <p role="alert">{operationError}</p>}
+        {notice && <p role="status">{notice}</p>}
         {loadError && (
           <p role="alert" className="text-sm text-amber-300">
             {loadError}
@@ -464,6 +479,7 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                                 </span>
 
                                 <button
+                                  disabled={advancing !== null || req.status === "aso_concluido"}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleAdvanceStep(req.id, req.status);
@@ -745,7 +761,7 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                         </span>
                       </h3>
                       <p className="text-xs text-cyan-400 font-medium">
-                        Guia Oficial NAI para Clínica Parceira • Solicitante:{" "}
+                        Minuta para conferência antes do envio • Solicitante:{" "}
                         {selectedRequest.companyName}
                       </p>
                     </div>
@@ -995,10 +1011,11 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                       </div>
 
                       <button
-                        onClick={() => alert(`Alerta ${alt.id} resolvido pelo Supervisor.`)}
+                        disabled
+                        title="Resolução de alertas ainda não conectada à gravação."
                         className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
                       >
-                        Aprovar & Resolver
+                        Resolução pendente
                       </button>
                     </div>
                   ))
