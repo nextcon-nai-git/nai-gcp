@@ -1,79 +1,81 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
-  DocumentReference,
   onSnapshot,
-  DocumentData,
-  FirestoreError,
-  DocumentSnapshot,
+  type DocumentReference,
+  type DocumentData,
+  type FirestoreError,
 } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 
-/** Utility type to add an 'id' field to a given type T. */
 type WithId<T> = T & { id: string };
-
-/**
- * Interface for the return value of the useDoc hook.
- * @template T Type of the document data.
- */
 export interface UseDocResult<T> {
-  data: WithId<T> | null; // Document data with ID, or null.
-  isLoading: boolean; // True if loading.
-  error: FirestoreError | Error | null; // Error object, or null.
+  data: WithId<T> | null;
+  isLoading: boolean;
+  error: FirestoreError | Error | null;
 }
 
-/**
- * React hook to subscribe to a single Firestore document in real-time.
- */
-export function useDoc<T = any>(
+/** Keep each result bound to its document so changing clients cannot display stale data. */
+export function useDoc<T = DocumentData>(
   memoizedDocRef: DocumentReference<DocumentData> | null | undefined
 ): UseDocResult<T> {
-  type StateDataType = WithId<T> | null;
-
-  const [data, setData] = useState<StateDataType>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<FirestoreError | Error | null>(null);
+  const target = memoizedDocRef ?? null;
+  const subscriptionKey = useMemo(() => ({ target }), [target]);
+  const [state, setState] = useState<{
+    key: typeof subscriptionKey | null;
+    result: UseDocResult<T>;
+  }>({
+    key: null,
+    result: { data: null, isLoading: false, error: null },
+  });
 
   useEffect(() => {
-    if (!memoizedDocRef) {
-      setData(null);
-      setIsLoading(false);
-      setError(null);
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    const unsubscribe = onSnapshot(
-      memoizedDocRef,
-      (snapshot: DocumentSnapshot<DocumentData>) => {
-        if (snapshot.exists()) {
-          setData({ ...(snapshot.data() as T), id: snapshot.id });
-        } else {
-          setData(null);
+    if (!target) return;
+    let closed = false;
+    let unsubscribe = () => {};
+    const receive = (result: UseDocResult<T>) => {
+      if (!closed) setState({ key: subscriptionKey, result });
+    };
+    try {
+      unsubscribe = onSnapshot(
+        target,
+        (snapshot) =>
+          receive({
+            data: snapshot.exists() ? { ...(snapshot.data() as T), id: snapshot.id } : null,
+            isLoading: false,
+            error: null,
+          }),
+        (serverError) => {
+          if (closed) return;
+          let error: Error = serverError;
+          if (serverError.code === "permission-denied") {
+            try {
+              error = new FirestorePermissionError({ operation: "get", path: target.path });
+              errorEmitter.emit("permission-error", error as FirestorePermissionError);
+            } catch {
+              // A diagnostic listener must not hide the original database failure.
+              error = serverError;
+            }
+          }
+          receive({ data: null, isLoading: false, error });
         }
-        setError(null);
-        setIsLoading(false);
-      },
-      (serverError: FirestoreError) => {
-        const contextualError = new FirestorePermissionError({
-          operation: "get",
-          path: memoizedDocRef.path,
-        });
+      );
+    } catch (error) {
+      receive({
+        data: null,
+        isLoading: false,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
+    return () => {
+      closed = true;
+      unsubscribe();
+    };
+  }, [target, subscriptionKey]);
 
-        setError(contextualError);
-        setData(null);
-        setIsLoading(false);
-
-        errorEmitter.emit("permission-error", contextualError);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [memoizedDocRef]);
-
-  return { data, isLoading, error };
+  if (!target) return { data: null, isLoading: false, error: null };
+  if (state.key !== subscriptionKey) return { data: null, isLoading: true, error: null };
+  return state.result;
 }
