@@ -2,11 +2,11 @@
 
 ## Estado medido
 
-A revisão não está em 100%. O inventário contém 594 arquivos TypeScript/TSX de implementação e 122,129 linhas físicas em `src`, além de 79 rotas de API e 110 páginas. Todos foram incluídos na varredura de arquivos; isso não significa leitura manual integral.
+A revisão não está em 100%. O inventário contém 594 arquivos TypeScript/TSX de implementação e 122,130 linhas físicas em `src`, além de 79 rotas de API e 110 páginas. Todos foram incluídos na varredura de arquivos; isso não significa leitura manual integral.
 
-Suíte local: 2,039 testes em 214 arquivos passaram. Cobertura V8: 52.6% de linhas (10,895/20,709 instrumentadas), 51.76% de instruções, 46.53% de ramos e 43.21% de funções. Existem 257 arquivos com linhas instrumentadas e nenhuma linha executada. Linhas físicas e linhas instrumentadas são medidas diferentes.
+Suíte local: 2,234 testes em 232 arquivos passaram. Cobertura V8: 60.37% de linhas (12,551/20,790 instrumentadas), 59.28% de instruções, 53.56% de ramos e 50.69% de funções. Existem 232 arquivos com linhas instrumentadas e nenhuma linha executada. Linhas físicas e linhas instrumentadas são medidas diferentes.
 
-TypeScript passou. A análise ESLint global terminou sem erros e com 1.291 avisos antes da remoção dos imports ociosos da página AVP nesta revisão. Os arquivos alterados foram conferidos separadamente. Nenhum limite de qualidade ou regra de acesso foi relaxado.
+TypeScript e ESLint global passaram, sem erros; os avisos preexistentes de lint continuam registrados como pendência. Nenhuma exclusão de cobertura foi acrescentada. O mínimo de cobertura de linhas exigido no CI subiu de 30% para 60%; as regras de acesso do servidor não foram ampliadas.
 
 O JSON adjacente registra caminho, hash SHA-256, tamanho e cobertura por arquivo, incluindo explicitamente que revisão manual não foi afirmada. Não contém dados de clientes, documentos reais ou credenciais.
 
@@ -15,14 +15,14 @@ O JSON adjacente registra caminho, hash SHA-256, tamanho e cobertura por arquivo
 | Diretório      | Arquivos | Linhas executadas/instrumentadas | Cobertura |
 | -------------- | -------: | -------------------------------: | --------: |
 | `__tests__`    |        1 |                              9/9 |    100.0% |
-| `actions`      |       16 |                           70/391 |     17.9% |
-| `ai`           |       44 |                          422/659 |     64.0% |
-| `app`          |      208 |                        1881/6637 |     28.3% |
-| `components`   |      119 |                        2333/5400 |     43.2% |
+| `actions`      |       16 |                          207/404 |     51.2% |
+| `ai`           |       44 |                          424/659 |     64.3% |
+| `app`          |      208 |                        2885/6670 |     43.3% |
+| `components`   |      119 |                        2657/5436 |     48.9% |
 | `contexts`     |        1 |                            45/47 |     95.7% |
 | `firebase`     |       14 |                          151/230 |     65.7% |
-| `hooks`        |        9 |                          160/390 |     41.0% |
-| `lib`          |      126 |                        3621/4314 |     83.9% |
+| `hooks`        |        9 |                          247/390 |     63.3% |
+| `lib`          |      126 |                        3723/4313 |     86.3% |
 | `repositories` |        3 |                            48/48 |    100.0% |
 | `scripts`      |        2 |                             0/37 |      0.0% |
 | `services`     |       45 |                        2143/2496 |     85.9% |
@@ -65,6 +65,22 @@ O JSON adjacente registra caminho, hash SHA-256, tamanho e cobertura por arquivo
 - Remover um vínculo não exclui o objeto armazenado. Uploads cuja vinculação falha e rascunhos abandonados podem deixar objetos sem vínculo; limpeza requer política de retenção e autorização próprias. URLs locais legadas não são recuperadas automaticamente.
 - A tentativa autorizada de publicação de regras/índices, workflow #380 (`39124531480`), passou testes/build e falhou antes do deploy: `FIREBASE_SERVICE_ACCOUNT_JSON ausente ou inválido`. É necessário corrigir a credencial no GitHub Actions. O rollout do site de #153 foi concluído; isso não comprova publicação das regras/índices.
 
+## Marco de 60% — continuidade após o PR #154
+
+- Base da rodada: `516f22c73f0eb0c7eee2787c0f31943ba8d3d967`, com 2.039 testes em 214 arquivos e 52,60% de cobertura de linhas. Foram acrescentados inicialmente 180 testes em 17 arquivos; a revisão do PR acrescentou mais 15 casos e um arquivo, mantendo a seleção de fontes do V8. O percentual mede execução de linhas instrumentadas, não conclusão da revisão manual nem homologação de produção.
+- Consultas de CEP e CNPJ deixam de inventar endereço, empresa, contato e situação ativa quando todos os provedores falham. Índices econômicos deixam de completar a resposta com valores fixos apresentados como atuais; retorno vazio, inválido ou indisponível gera falha explícita. As heurísticas existentes de grau de risco/SESMT/CIPA e inferência de website ainda exigem revisão própria: esta rodada não as valida como enquadramento técnico.
+- Clientes: a lista usa somente os cadastros persistidos no escopo consultado, sem misturar o cache global do navegador. Exclusão e ativação aguardam persistência; falhas não geram sucesso. Atualizar situação não recria empresa excluída. Novos cadastros deixam de receber conformidade fixa de 100%; a sincronização preserva os registros existentes. Foram mantidas as autoridades de acesso do servidor.
+- Colaboradores: o arquivamento otimista identifica empresa e colaborador juntos; IDs iguais em empresas diferentes não ocultam a outra ficha. NXC inicia e exibe ASO sem informação como PENDENTE, remove a conformidade eSocial fixa e ignora confirmação de gravação recebida após trocar de conta.
+- Central, relatórios, faturamento mensal, Omie, SOC e agendamento: testes exercitam troca de conta/empresa, token atrasado, falhas e respostas antigas. As correções impedem as continuações identificadas depois da saída e bloqueiam envios duplicados. Operações já enviadas ao servidor não são desfeitas pela troca de sessão.
+- Relatórios: PDF não vazio e inferior a 10 MiB; confirmação somente após upload e vínculo. Mudança de sessão/empresa interrompe a continuação do upload antes de gravar metadados. Objetos já armazenados podem ficar sem vínculo; limpeza continua dependente de política própria.
+- Agendamento ASO: formulário começa sem empresa, função e riscos de exemplo. Erros são exibidos e liberam nova tentativa. Cópia de kit aguarda confirmação da área de transferência. O botão que apenas simulava resolver alertas fica desabilitado com a limitação explícita. As clínicas estáticas e os fluxos clínicos ainda não foram homologados por estes testes.
+- Navegação: sidebar respeita estado controlado e tem título acessível no painel móvel. Testes adicionais cobrem busca de comandos, notificações, dashboard, riscos, auditorias e validação/autenticidade/deduplicação de webhooks RD Conversas.
+- Evidência de regressão: 20 cenários direcionados foram executados contra os arquivos originais de `main` e todos falharam; os mesmos comportamentos passam com as correções. A suíte usa dados sintéticos e mocks de serviços externos e persistência: não comprova integrações reais nem realizou envio de e-mail ou alteração de registros reais.
+- Revisão do PR #155: seis apontamentos corrigidos. PDFs com extensão válida e MIME ausente/alternativo são normalizados como PDF antes da classificação e upload; tipos explicitamente incompatíveis continuam recusados. ASO pendente usa alerta amarelo, sem símbolo de aptidão. A sincronização global fica desabilitada para administradores restritos. Consulta de CEP diferencia ausência confirmada (404) de falha de provedores (503, sem cache e com indicação de nova tentativa). O formulário de prestador exibe falhas de CNPJ e preserva os campos. Uma cópia bem-sucedida limpa o erro da tentativa anterior. Mais 15 casos e asserções de regressão cobrem esses ajustes.
+- Regras/índices continuam com a pendência de credencial descrita abaixo. O rollout do aplicativo não será tratado como publicação de regras de segurança.
+- Verificação: a medição final da suíte está registrada no início deste relatório. Prettier, ESLint sem erros e TypeScript foram conferidos localmente. O primeiro commit do PR passou CI, Security, Firebase validation e RD Conversas; os checks serão repetidos no commit com os seis ajustes antes de integrar. Os 594 hashes do inventário correspondem aos arquivos desta rodada.
+- Autorização de integração: após o bloqueio inicial do envio pela revisão automática, o usuário autorizou explicitamente em 18/10/2026 enviar a revisão ao `nextcon-nai-git/nai-gcp`, abrir o PR e integrar/publicar após aprovação dos checks. A validação e o rollout remotos devem ser conferidos no commit final; a autorização não comprova sua conclusão.
+
 ## Verificação em produção
 
 Os 51 destinos únicos do menu abriram com título de página e sem erro de carregamento no momento da captura. Essa inspeção é de navegação, não homologação das 110 páginas nem de todas as operações. Doze telas ainda exibiam carregamento de dados na primeira captura; Central e SOC foram conferidos novamente após o carregamento.
@@ -90,23 +106,23 @@ O rollout do PR #152 também foi confirmado. O formulário publicado exige infor
 
 | Arquivo                                                   | Linhas instrumentadas |
 | --------------------------------------------------------- | --------------------: |
-| `src/app/clients/page.tsx`                                |                   293 |
-| `src/app/employees/page.tsx`                              |                   168 |
 | `src/app/ppe-management/page.tsx`                         |                   144 |
-| `src/app/client-center/page.tsx`                          |                   126 |
-| `src/components/aso/scheduling-workspace.tsx`             |                   120 |
 | `src/app/ppe-kiosk/page.tsx`                              |                   118 |
-| `src/components/ui/sidebar.tsx`                           |                   117 |
 | `src/app/cassi-billing/page.tsx`                          |                   115 |
 | `src/app/field-inspection/page.tsx`                       |                   115 |
-| `src/app/audits/page.tsx`                                 |                   103 |
 | `src/app/absenteeism/page.tsx`                            |                   101 |
 | `src/components/clients/grupo-avp-credenciamento-hub.tsx` |                    97 |
-| `src/lib/integrations/rd-conversas-webhook.ts`            |                    97 |
-| `src/app/integrations/soc/page.tsx`                       |                    95 |
 | `src/app/whatsapp-hub/page.tsx`                           |                    91 |
-| `src/app/financial/omie/page.tsx`                         |                    90 |
-| `src/app/nxc-team/page.tsx`                               |                    87 |
 | `src/components/dashboard/executive-dashboard.tsx`        |                    84 |
 | `src/app/clients/cassi/page.tsx`                          |                    83 |
 | `src/components/commercial/nai-floating-widget.tsx`       |                    82 |
+| `src/components/layout/top-nav.tsx`                       |                    80 |
+| `src/app/developer/page.tsx`                              |                    75 |
+| `src/components/clients/client-documents.tsx`             |                    70 |
+| `src/app/action-plans/page.tsx`                           |                    69 |
+| `src/app/agentes-ia/page.tsx`                             |                    65 |
+| `src/app/checklists/page.tsx`                             |                    65 |
+| `src/app/contracts/page.tsx`                              |                    63 |
+| `src/components/ui/chart.tsx`                             |                    63 |
+| `src/app/time-tracking/page.tsx`                          |                    61 |
+| `src/components/kanban/kanban-board.tsx`                  |                    61 |

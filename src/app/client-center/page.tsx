@@ -128,10 +128,12 @@ function Workspace({ companyId, token }: { companyId: string; token: () => Promi
     if (pending.current?.fingerprint !== fingerprint)
       pending.current = { fingerprint, id: crypto.randomUUID() };
     try {
+      const idToken = await currentToken.current();
+      if (!mounted.current) return;
       const response = await fetch("/api/client-center", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${await currentToken.current()}`,
+          Authorization: `Bearer ${idToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ ...fields, requestId: pending.current.id }),

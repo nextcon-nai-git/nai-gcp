@@ -29,7 +29,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { useFirestore, useCollection, useMemoFirebase, useStorage } from "@/firebase";
+import { useFirestore, useCollection, useMemoFirebase, useStorage, useUser } from "@/firebase";
 import {
   collection,
   query,
@@ -48,6 +48,22 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import Link from "next/link";
 
 export default function ReportsCenter() {
+  const { user } = useUser();
+  const { activeClientId } = useSgi();
+  if (!user) return <p>Entre no NAI para consultar documentos.</p>;
+  if (!activeClientId || activeClientId === "unauthorized")
+    return <p>Selecione uma empresa autorizada.</p>;
+  return <ReportsSession key={`${user.uid}:${activeClientId}`} />;
+}
+function ReportsSession() {
+  const mounted = React.useRef(true);
+  const busy = React.useRef(false);
+  React.useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const { toast } = useToast();
   const db = useFirestore();
   const storage = useStorage();
@@ -70,7 +86,11 @@ export default function ReportsCenter() {
     );
   }, [db, activeClientId]);
 
-  const { data: reports, isLoading: loadingReports } = useCollection(reportsQuery);
+  const {
+    data: reports,
+    isLoading: loadingReports,
+    error: reportsError,
+  } = useCollection(reportsQuery);
 
   const filteredReports = React.useMemo(() => {
     if (!reports) return [];
@@ -82,39 +102,54 @@ export default function ReportsCenter() {
 
   const handleAiClassification = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || busy.current) return;
+    const isPdf =
+      file.type === "application/pdf" ||
+      (/\.pdf$/i.test(file.name) &&
+        ["", "application/x-pdf", "application/octet-stream"].includes(file.type));
+    if (!isPdf || file.size <= 0 || file.size >= 10 * 1024 * 1024) {
+      toast({ variant: "destructive", title: "Selecione um PDF não vazio e inferior a 10 MB." });
+      return;
+    }
+    busy.current = true;
     setIsClassifying(true);
+    const pdfFile =
+      file.type === "application/pdf"
+        ? file
+        : new File([file], file.name, { type: "application/pdf", lastModified: file.lastModified });
 
     try {
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
         reader.onerror = () => reject(new Error("Falha ao ler o arquivo para triagem."));
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(pdfFile);
       });
 
-      const result = await classifyDocument(
-        { pdfDataUri: base64, fileName: file.name },
-        await getActionIdToken()
-      );
-      setClassifiedResult({ ...result, file });
+      const token = await getActionIdToken();
+      if (!mounted.current) return;
+      const result = await classifyDocument({ pdfDataUri: base64, fileName: file.name }, token);
+      if (!mounted.current) return;
+      setClassifiedResult({ ...result, file: pdfFile });
       toast({
         title: "Documento Classificado!",
         description: `Detectado como ${result.docType.toUpperCase()} da empresa ${result.companyName}.`,
       });
     } catch (error: any) {
-      console.error("[Document Classifier Error]:", error);
+      if (!mounted.current) return;
       toast({
         variant: "destructive",
         title: "Erro na Triagem IA",
         description: error?.message || "Não foi possível classificar o documento.",
       });
     } finally {
-      setIsClassifying(false);
+      busy.current = false;
+      if (mounted.current) setIsClassifying(false);
     }
   };
 
   const handleProtocolDocument = async () => {
+    if (busy.current) return;
     if (
       !classifiedResult?.file ||
       !db ||
@@ -129,6 +164,7 @@ export default function ReportsCenter() {
       return;
     }
 
+    busy.current = true;
     setIsUploading(true);
     try {
       if (!storage) throw new Error("Armazenamento indisponível. Tente novamente.");
@@ -139,7 +175,9 @@ export default function ReportsCenter() {
       );
       const storageRef = ref(storage, path);
       await uploadBytes(storageRef, classifiedResult.file);
+      if (!mounted.current) return;
       const url = await getDownloadURL(storageRef);
+      if (!mounted.current) return;
 
       await addDoc(collection(db, "companies", activeClientId, "reports"), {
         name: classifiedResult.file.name,
@@ -152,6 +190,7 @@ export default function ReportsCenter() {
         serverTimestamp: serverTimestamp(),
       });
 
+      if (!mounted.current) return;
       toast({
         title: "Laudo Protocolado com Sucesso!",
         description: "Documento armazenado e classificado no acervo SGI. Revisão técnica pendente.",
@@ -159,9 +198,11 @@ export default function ReportsCenter() {
       setIsUploadOpen(false);
       setClassifiedResult(null);
     } catch (e: any) {
+      if (!mounted.current) return;
       toast({ variant: "destructive", title: "Erro no Protocolo", description: e.message });
     } finally {
-      setIsUploading(false);
+      busy.current = false;
+      if (mounted.current) setIsUploading(false);
     }
   };
 
@@ -221,7 +262,12 @@ export default function ReportsCenter() {
               </Button>
             </>
           )}
-          <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
+          <Dialog
+            open={isUploadOpen}
+            onOpenChange={(open) => {
+              if (!busy.current) setIsUploadOpen(open);
+            }}
+          >
             <DialogTrigger asChild>
               <Button className="gradient-nextcon text-white h-11 px-8 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg gap-2">
                 <Plus className="size-4" /> Adicionar ao acervo
@@ -294,6 +340,9 @@ export default function ReportsCenter() {
         </div>
       </header>
 
+      {reportsError && (
+        <p role="alert">Não foi possível consultar o acervo. Recarregue para tentar novamente.</p>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {loadingReports ? (
           <div className="col-span-full py-20 text-center">
@@ -362,7 +411,7 @@ export default function ReportsCenter() {
             </Card>
           ))
         )}
-        {(!reports || reports.length === 0) && !loadingReports && (
+        {(!reports || reports.length === 0) && !loadingReports && !reportsError && (
           <div className="col-span-full py-32 text-center opacity-20 flex flex-col items-center gap-4">
             <FileSearch className="size-16" />
             <p className="font-black uppercase text-xs tracking-widest">Nenhum laudo protocolado</p>

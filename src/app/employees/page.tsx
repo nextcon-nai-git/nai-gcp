@@ -191,8 +191,10 @@ function EmployeesList() {
     setLoadingGlobalEmployees(true);
     void (async () => {
       try {
+        const token = await user.getIdToken();
+        if (controller.signal.aborted) return;
         const response = await fetch("/api/employees?company=all", {
-          headers: { Authorization: `Bearer ${await user.getIdToken()}` },
+          headers: { Authorization: `Bearer ${token}` },
           cache: "no-store",
           signal: controller.signal,
         });
@@ -302,7 +304,7 @@ function EmployeesList() {
 
       const empRef = doc(db, "companies", companyId, "employees", emp.id);
       await updateDoc(empRef, { isArchived: true, archivedAt: serverTimestamp() });
-      setOptimisticDeletedIds((prev) => [...prev, emp.id]);
+      setOptimisticDeletedIds((prev) => [...prev, `${companyId}:${emp.id}`]);
 
       toast({
         title: "Colaborador arquivado",
@@ -323,7 +325,8 @@ function EmployeesList() {
   const undefinedRoleEmployees = React.useMemo(() => {
     if (!employees) return [];
     return employees.filter((emp) => {
-      if (optimisticDeletedIds.includes(emp.id)) return false;
+      if (optimisticDeletedIds.includes(`${emp.companyId || activeClientId}:${emp.id}`))
+        return false;
       const rawRole = (emp.job_role?.title || emp.jobRole || emp.role || emp.cargo || "")
         .toLowerCase()
         .trim();
@@ -336,14 +339,15 @@ function EmployeesList() {
         rawRole === "sem cargo"
       );
     });
-  }, [employees, optimisticDeletedIds]);
+  }, [employees, optimisticDeletedIds, activeClientId]);
 
   const filteredEmployees = React.useMemo(() => {
     if (!employees) return [];
     const term = searchTerm.toLowerCase();
     return employees
       .filter((emp) => {
-        if (optimisticDeletedIds.includes(emp.id)) return false;
+        if (optimisticDeletedIds.includes(`${emp.companyId || activeClientId}:${emp.id}`))
+          return false;
 
         if (activeClientId && activeClientId !== "all" && activeClientId !== "unauthorized") {
           if (emp.companyId && emp.companyId !== activeClientId) return false;
@@ -908,6 +912,7 @@ function EmployeesList() {
 
 export default function EmployeesPage() {
   const { user } = useUser();
+  const { activeClientId } = useSgi();
   if (!user) return null;
   return (
     <React.Suspense
@@ -918,7 +923,7 @@ export default function EmployeesPage() {
       }
     >
       <div className="pb-20 animate-in fade-in duration-500">
-        <EmployeesList key={user.uid} />
+        <EmployeesList key={`${user.uid}:${activeClientId}`} />
       </div>
     </React.Suspense>
   );

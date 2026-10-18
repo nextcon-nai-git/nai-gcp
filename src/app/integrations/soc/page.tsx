@@ -65,6 +65,18 @@ const today = () =>
 
 export default function SocPage() {
   const { user } = useUser();
+  if (!user) return <p>Entre no NAI para consultar.</p>;
+  return <Session key={user.uid} />;
+}
+function Session() {
+  const { user } = useUser();
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const identity = useRef(user?.uid);
   identity.current = user?.uid;
   const [config, setConfig] = useState<Configuration | null>(null);
@@ -94,6 +106,7 @@ export default function SocPage() {
     (async () => {
       try {
         const token = await user.getIdToken();
+        if (!mounted.current) throw new Error("Sessão encerrada.");
         const response = await fetch("/api/integrations/soc", {
           cache: "no-store",
           headers: { Authorization: `Bearer ${token}` },
@@ -127,6 +140,7 @@ export default function SocPage() {
     setBusy(true);
     try {
       const token = await user.getIdToken();
+      if (!mounted.current) throw new Error("Sessão encerrada.");
       const params = new URLSearchParams({ resource, companyId, start, end, employeeIds });
       const response = await fetch(`/api/integrations/soc?${params}`, {
         cache: "no-store",
@@ -137,7 +151,7 @@ export default function SocPage() {
         throw Error(
           (data.code ? `${data.code}: ` : "") + (data.error || "Consulta não concluída.")
         );
-      if (identity.current !== uid) return;
+      if (!mounted.current || identity.current !== uid) return;
       setRows(data.data);
       if (resource !== "runs")
         setVerified((previous) => ({ ...previous, [resource]: data.checkedAt }));
@@ -147,10 +161,10 @@ export default function SocPage() {
           : `Consulta respondida pelo SOC em ${new Date(data.checkedAt).toLocaleString("pt-BR")}. ${data.recorded ? "Resumo registrado." : "O resumo não pôde ser registrado no monitoramento."}`
       );
     } catch (e) {
-      if (identity.current === uid)
+      if (mounted.current && identity.current === uid)
         setError(e instanceof Error ? e.message : "Consulta não concluída.");
     } finally {
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   }
   const ready = resource === "runs" || !!config?.resources[resource]?.configured;

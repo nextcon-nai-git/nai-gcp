@@ -9,6 +9,18 @@ import type { OmieConnection, OmiePage } from "@/lib/financial/omie";
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 export default function OmieFinancialPage() {
   const { user } = useUser();
+  if (!user) return <p>Entre no NAI para consultar.</p>;
+  return <Session key={user.uid} />;
+}
+function Session() {
+  const { user } = useUser();
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const [connection, setConnection] = useState<OmieConnection | null>(null);
   const [result, setResult] = useState<OmiePage | null>(null);
   const [kind, setKind] = useState("receivable"),
@@ -25,6 +37,7 @@ export default function OmieFinancialPage() {
     async (query = "", init?: RequestInit) => {
       if (!user) throw new Error("Entre no NAI para acessar o financeiro.");
       const token = await user.getIdToken();
+      if (!mounted.current) throw new Error("Sessão encerrada.");
       const response = await fetch(`/api/financial/omie${query}`, {
         ...init,
         cache: "no-store",
@@ -93,12 +106,12 @@ export default function OmieFinancialPage() {
     setSecret("");
     try {
       const data = await api("", { method: "POST", body: payload });
-      if (current === generation.current) setConnection(data);
+      if (mounted.current && current === generation.current) setConnection(data);
     } catch (e) {
-      if (current === generation.current)
+      if (mounted.current && current === generation.current)
         setError(e instanceof Error ? e.message : "Falha na conexão.");
     } finally {
-      if (current === generation.current) setBusy(false);
+      if (mounted.current && current === generation.current) setBusy(false);
     }
   }
   async function disconnect() {
@@ -113,16 +126,16 @@ export default function OmieFinancialPage() {
     setError("");
     try {
       const data = await api("", { method: "DELETE" });
-      if (current === generation.current) {
+      if (mounted.current && current === generation.current) {
         setConnection(data);
         setResult(null);
         setConsent(false);
       }
     } catch (e) {
-      if (current === generation.current)
+      if (mounted.current && current === generation.current)
         setError(e instanceof Error ? e.message : "Falha ao desconectar.");
     } finally {
-      if (current === generation.current) setBusy(false);
+      if (mounted.current && current === generation.current) setBusy(false);
     }
   }
   return (

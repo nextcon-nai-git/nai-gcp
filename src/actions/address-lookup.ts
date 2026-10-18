@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview NAI Multi-Provider CEP Lookup Engine.
- * Fonte principal: OpenCEP, com fallback automático em ViaCEP, BrasilAPI v2, ApiCEP e NAI Fallback.
+ * Fonte principal: OpenCEP, com tentativas adicionais em ViaCEP, BrasilAPI v2 e ApiCEP.
  */
 
 import { ActionResult } from "@/types/schema";
@@ -28,12 +28,14 @@ export async function buscarEnderecoPorCep(cep: string): Promise<ActionResult<Ad
     if (cleanCep.length !== 8) {
       return {
         sucesso: false,
+        erro: "INVALID_CEP",
         mensagem: "CEP inválido. Digite exatamente 8 números.",
       };
     }
 
     let resultData: Partial<AddressLookupData> | null = null;
     let providerName = "";
+    let providerUnavailable = false;
 
     // 1. PROVEDOR 1 (PRINCIPAL): OpenCEP
     try {
@@ -56,10 +58,14 @@ export async function buscarEnderecoPorCep(cep: string): Promise<ActionResult<Ad
             ibge: json1.ibge || "",
           };
           providerName = "OpenCEP";
+        } else {
+          providerUnavailable = true;
         }
+      } else if (res1.status !== 404) {
+        providerUnavailable = true;
       }
-    } catch (e) {
-      // Avança para o próximo provider
+    } catch {
+      providerUnavailable = true;
     }
 
     // 2. PROVEDOR 2 (FALLBACK 1): ViaCEP
@@ -83,10 +89,14 @@ export async function buscarEnderecoPorCep(cep: string): Promise<ActionResult<Ad
               ibge: json2.ibge || "",
             };
             providerName = "ViaCEP";
+          } else if (json2?.erro !== true) {
+            providerUnavailable = true;
           }
+        } else if (res2.status !== 404) {
+          providerUnavailable = true;
         }
-      } catch (e) {
-        // Avança para o próximo provider
+      } catch {
+        providerUnavailable = true;
       }
     }
 
@@ -110,10 +120,14 @@ export async function buscarEnderecoPorCep(cep: string): Promise<ActionResult<Ad
               ibge: "",
             };
             providerName = "BrasilAPI CEP";
+          } else {
+            providerUnavailable = true;
           }
+        } else if (res3.status !== 404) {
+          providerUnavailable = true;
         }
-      } catch (e) {
-        // Avança para o próximo provider
+      } catch {
+        providerUnavailable = true;
       }
     }
 
@@ -127,7 +141,11 @@ export async function buscarEnderecoPorCep(cep: string): Promise<ActionResult<Ad
         );
         if (res4.ok) {
           const json4 = await res4.json();
-          if (json4 && json4.code) {
+          if (
+            json4 &&
+            typeof json4.code === "string" &&
+            json4.code.replace(/\D/g, "") === cleanCep
+          ) {
             resultData = {
               cep: json4.code,
               logradouro: json4.address || "",
@@ -138,26 +156,25 @@ export async function buscarEnderecoPorCep(cep: string): Promise<ActionResult<Ad
               ibge: "",
             };
             providerName = "ApiCEP";
+          } else if (json4?.status !== 404) {
+            providerUnavailable = true;
           }
+        } else if (res4.status !== 404) {
+          providerUnavailable = true;
         }
-      } catch (e) {
-        // Avança para o fallback local
+      } catch {
+        providerUnavailable = true;
       }
     }
 
-    // 5. PROVEDOR 5 (FALLBACK LOCAL NAI)
     if (!resultData) {
-      const formattedCep = `${cleanCep.slice(0, 5)}-${cleanCep.slice(5)}`;
-      resultData = {
-        cep: formattedCep,
-        logradouro: "Endereço Mapeado",
-        complemento: "",
-        bairro: "Centro",
-        localidade: "São Paulo",
-        uf: "SP",
-        ibge: "",
+      return {
+        sucesso: false,
+        erro: providerUnavailable ? "CEP_UNAVAILABLE" : "CEP_NOT_FOUND",
+        mensagem: providerUnavailable
+          ? "Consulta de CEP indisponível. Tente novamente; nenhum endereço foi presumido."
+          : "CEP não localizado nos provedores. Confira o número informado.",
       };
-      providerName = "NAI Local CEP Engine";
     }
 
     const formattedCep = resultData.cep || `${cleanCep.slice(0, 5)}-${cleanCep.slice(5)}`;
@@ -177,8 +194,8 @@ export async function buscarEnderecoPorCep(cep: string): Promise<ActionResult<Ad
         logradouro: resultData.logradouro || "",
         complemento: resultData.complemento || "",
         bairro: resultData.bairro || "",
-        localidade: resultData.localidade || "São Paulo",
-        uf: resultData.uf || "SP",
+        localidade: resultData.localidade || "",
+        uf: resultData.uf || "",
         ibge: resultData.ibge || "",
         providerUtilizado: providerName,
         enderecoFormatado,
@@ -187,6 +204,7 @@ export async function buscarEnderecoPorCep(cep: string): Promise<ActionResult<Ad
   } catch (error: any) {
     return {
       sucesso: false,
+      erro: "CEP_UNAVAILABLE",
       mensagem: error.message || "Erro ao consultar o CEP nos provedores.",
     };
   }

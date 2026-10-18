@@ -99,7 +99,7 @@ const nxcEmployeeSchema = z.object({
   phone: z.string().optional(),
   unit: z.string().optional(),
   admissionDate: z.string().optional(),
-  asoStatus: z.string().default("APTO"),
+  asoStatus: z.string().default("PENDENTE"),
   status: z.string().default("ATIVO"),
 });
 
@@ -126,6 +126,14 @@ function NcxTeamSession() {
   const { toast } = useToast();
   const db = useFirestore();
 
+  const mounted = React.useRef(true);
+  const saving = React.useRef(false);
+  React.useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [contractFilter, setContractTypeFilter] = React.useState("ALL");
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
@@ -140,7 +148,7 @@ function NcxTeamSession() {
     return query(collection(db, "nxc_employees"), orderBy("name", "asc"));
   }, [db]);
 
-  const { data: dbEmployees, isLoading } = useCollection<any>(employeesQuery);
+  const { data: dbEmployees, isLoading, error: loadError } = useCollection<any>(employeesQuery);
 
   // Combine pre-seeded initial staff with Firestore collection
   const allEmployees = React.useMemo(() => {
@@ -179,7 +187,7 @@ function NcxTeamSession() {
       phone: "",
       unit: "Matriz Nextcon",
       admissionDate: new Date().toISOString().split("T")[0],
-      asoStatus: "APTO",
+      asoStatus: "PENDENTE",
       status: "ATIVO",
     },
   });
@@ -197,7 +205,7 @@ function NcxTeamSession() {
         phone: editingEmployee.phone || "",
         unit: editingEmployee.unit || "Matriz Nextcon",
         admissionDate: editingEmployee.admissionDate || "",
-        asoStatus: editingEmployee.asoStatus || "APTO",
+        asoStatus: editingEmployee.asoStatus || "PENDENTE",
         status: editingEmployee.status || "ATIVO",
       });
     } else {
@@ -211,14 +219,15 @@ function NcxTeamSession() {
         phone: "",
         unit: "Matriz Nextcon",
         admissionDate: new Date().toISOString().split("T")[0],
-        asoStatus: "APTO",
+        asoStatus: "PENDENTE",
         status: "ATIVO",
       });
     }
   }, [editingEmployee, form, isDialogOpen]);
 
   const onSubmit = async (values: NcxEmployeeFormValues) => {
-    if (isAttachmentBusy) return;
+    if (isAttachmentBusy || saving.current) return;
+    saving.current = true;
     try {
       if (!db) throw new Error("Banco de dados indisponível.");
       const payload = { ...values, documents: uploadedDocs, updatedAt: serverTimestamp() };
@@ -227,6 +236,7 @@ function NcxTeamSession() {
       } else {
         await addDoc(collection(db, "nxc_employees"), { ...payload, createdAt: serverTimestamp() });
       }
+      if (!mounted.current) return;
       toast({
         title: "Colaborador salvo",
         description: "A ficha e os vínculos dos anexos foram gravados.",
@@ -234,12 +244,15 @@ function NcxTeamSession() {
       setIsDialogOpen(false);
       setEditingEmployee(null);
     } catch {
+      if (!mounted.current) return;
       toast({
         variant: "destructive",
         title: "Ficha não salva",
         description:
           "Revise sua conexão e permissão. Os dados foram mantidos no formulário para nova tentativa.",
       });
+    } finally {
+      saving.current = false;
     }
   };
 
@@ -315,7 +328,7 @@ function NcxTeamSession() {
           </div>
           <p className="text-3xl font-black text-emerald-400 mt-2">{cltCount}</p>
           <span className="text-[9px] text-emerald-300/70 font-bold uppercase">
-            Inclui João da Cocel
+            Conforme cadastros consultados
           </span>
         </Card>
 
@@ -339,13 +352,18 @@ function NcxTeamSession() {
             </span>
             <ShieldCheck className="text-amber-400 size-5" />
           </div>
-          <p className="text-3xl font-black text-amber-400 mt-2">100%</p>
+          <p className="text-3xl font-black text-amber-400 mt-2">
+            {allEmployees.filter((e) => !e.asoStatus || e.asoStatus === "PENDENTE").length}
+          </p>
           <span className="text-[9px] text-amber-300/70 font-bold uppercase">
-            Conformidade eSocial
+            Sem situação de ASO confirmada
           </span>
         </Card>
       </div>
 
+      {loadError && (
+        <p role="alert">Não foi possível consultar a equipe. Recarregue para tentar novamente.</p>
+      )}
       {/* FILTER & SEARCH CONTROLS */}
       <Card className="bg-slate-900/40 border-slate-800 rounded-2xl p-4 shadow-md">
         <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -451,8 +469,18 @@ function NcxTeamSession() {
                   </TableCell>
 
                   <TableCell className="text-center">
-                    <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[8px] font-black uppercase">
-                      <CheckCircle2 size={10} className="mr-1" /> {emp.asoStatus || "APTO"}
+                    <Badge
+                      className={cn(
+                        "border text-[8px] font-black uppercase",
+                        emp.asoStatus === "APTO"
+                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                          : emp.asoStatus === "INAPTO"
+                            ? "bg-red-500/10 text-red-400 border-red-500/30"
+                            : "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                      )}
+                    >
+                      {emp.asoStatus === "APTO" && <CheckCircle2 size={10} className="mr-1" />}
+                      {emp.asoStatus || "PENDENTE"}
                     </Badge>
                   </TableCell>
 
