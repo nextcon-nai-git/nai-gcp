@@ -1,3 +1,4 @@
+import { limitedFormData } from "@/lib/http/private-api";
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getStorage } from "firebase-admin/storage";
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest, context: Context) {
     const companyRef = adminDb.collection("companies").doc(id);
     const company = await companyRef.get();
     if (!company.exists) throw new AuthError("Cliente não encontrado.", 404);
-    const form = await request.formData();
+    const form = await limitedFormData(request, 16 * 1024 * 1024);
     const file = form.get("source");
     if (!(file instanceof File) || file.size > 15 * 1024 * 1024)
       throw badRequest("Selecione um PDF de até 15 MB.");
