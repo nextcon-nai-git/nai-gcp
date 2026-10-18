@@ -11,7 +11,7 @@ import {
   deleteDoc,
   query,
   where,
-  limit,
+  runTransaction,
   DocumentData,
   Firestore,
   serverTimestamp,
@@ -46,7 +46,7 @@ export abstract class BaseFirestoreRepository<T extends { id: string }> implemen
     if (!snap.exists()) {
       return null;
     }
-    return { id: snap.id, ...snap.data() } as T;
+    return { ...snap.data(), id: snap.id } as T;
   }
 
   async list(filters?: Record<string, unknown>): Promise<T[]> {
@@ -61,18 +61,29 @@ export abstract class BaseFirestoreRepository<T extends { id: string }> implemen
     }
 
     const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as T);
+    return snap.docs.map((d) => ({ ...d.data(), id: d.id }) as T);
   }
 
   async create(data: Omit<T, "id">, customId?: string): Promise<string> {
     const colRef = collection(this.db, this.collectionName);
     const docRef = customId ? doc(colRef, customId) : doc(colRef);
 
-    await setDoc(docRef, {
+    const record = {
       ...data,
       createdAt: new Date().toISOString(),
       serverTimestamp: serverTimestamp(),
-    });
+    };
+    if (customId) {
+      await runTransaction(this.db, async (transaction) => {
+        if ((await transaction.get(docRef)).exists())
+          throw new Error(
+            "Já existe um registro com este identificador. Use a edição para alterá-lo."
+          );
+        transaction.set(docRef, record);
+      });
+    } else {
+      await setDoc(docRef, record);
+    }
 
     return docRef.id;
   }
@@ -89,5 +100,16 @@ export abstract class BaseFirestoreRepository<T extends { id: string }> implemen
   async delete(id: string): Promise<void> {
     const docRef = doc(this.db, this.collectionName, id);
     await deleteDoc(docRef);
+  }
+
+  protected requireCompanyId(companyId: string): void {
+    if (
+      typeof companyId !== "string" ||
+      !companyId.trim() ||
+      companyId !== companyId.trim() ||
+      companyId.length > 128 ||
+      /[\/\\\u0000-\u001f]/.test(companyId)
+    )
+      throw new Error("Informe uma empresa válida para consultar os registros.");
   }
 }

@@ -26,6 +26,7 @@ export class IncidentRepository extends BaseFirestoreRepository<IncidentRecord> 
   }
 
   async listByCompany(companyId: string): Promise<IncidentRecord[]> {
+    this.requireCompanyId(companyId);
     return this.list({ companyId });
   }
 }
