@@ -1,18 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  UploadCloud,
-  FileText,
-  Trash2,
-  Eye,
-  CheckCircle2,
-  Loader2,
-  Paperclip,
-  FileCheck,
-  AlertCircle,
-  Download,
-} from "lucide-react";
+import { UploadCloud, FileText, Trash2, Eye, Loader2, Paperclip, FileCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -23,10 +12,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { firebaseConfig } from "@/firebase/config";
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { cn } from "@/lib/utils";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { useStorage, useUser } from "@/firebase";
+import { canManageEmployeeDocuments } from "@/lib/auth/employee-document-access";
 
 function safeDocumentUrl(raw: string): string | undefined {
   try {
@@ -47,10 +35,19 @@ export interface EmployeeDocument {
   uploadedAt: string;
 }
 
+export type EmployeeDocumentChange = { type: "add" | "remove"; document: EmployeeDocument };
+
 interface DocumentUploadFieldProps {
   employeeId?: string;
+  companyId?: string;
+  internal?: boolean;
+  draft?: boolean;
+  onBusyChange?: (busy: boolean) => void;
   documents?: EmployeeDocument[];
-  onDocumentsChange?: (updatedDocs: EmployeeDocument[]) => void;
+  onDocumentsChange?: (
+    updatedDocs: EmployeeDocument[],
+    change: EmployeeDocumentChange
+  ) => void | Promise<void>;
   readOnly?: boolean;
 }
 
@@ -65,91 +62,159 @@ const DOCUMENT_CATEGORIES = [
   "Outros Documentos CLT",
 ];
 
-export function DocumentUploadField({
-  employeeId = "temp",
+export function DocumentUploadField(props: DocumentUploadFieldProps) {
+  const { user } = useUser();
+  return (
+    <DocumentUploadSession
+      key={JSON.stringify([
+        user?.uid,
+        props.internal ? "internal" : props.companyId,
+        props.employeeId || "draft",
+      ])}
+      {...props}
+    />
+  );
+}
+
+function DocumentUploadSession({
+  employeeId,
+  companyId,
+  internal = false,
+  draft = false,
+  onBusyChange,
   documents = [],
   onDocumentsChange,
   readOnly = false,
 }: DocumentUploadFieldProps) {
   const { toast } = useToast();
+  const storage = useStorage();
+  const profile = useUser();
+  const { user } = profile;
+  const [draftId] = React.useState(() => `draft_${crypto.randomUUID()}`);
   const [docList, setDocList] = React.useState<EmployeeDocument[]>(documents);
   const [selectedCategory, setSelectedCategory] = React.useState<string>("RG / CPF");
   const [isUploading, setIsUploading] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-
+  const busy = React.useRef(false);
+  const mounted = React.useRef(true);
   React.useEffect(() => {
-    setDocList(documents || []);
-  }, [documents]);
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setIsUploading(true);
-    const file = files[0];
-    const fileId = `doc_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-    const formattedSize = (file.size / 1024 / 1024).toFixed(2) + " MB";
-    const uploadedAt =
-      new Date().toLocaleDateString("pt-BR") +
-      " " +
-      new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-
-    let downloadUrl = "";
-
-    try {
-      // Attempt Firebase Storage Upload
-      const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-      const storage = getStorage(app, firebaseConfig.storageBucket);
-      const storageRef = ref(storage, `employee_documents/${employeeId}/${fileId}_${file.name}`);
-
-      const snapshot = await uploadBytes(storageRef, file);
-      downloadUrl = await getDownloadURL(snapshot.ref);
-    } catch (err) {
-      console.warn(
-        "[Storage Fallback] Firebase Storage indisponível, utilizando fallback resiliente local.",
-        err
-      );
-      // Evita gravar megabytes de Base64 diretamente no documento do Firestore (limite rígido de 1MB por doc)
-      if (file.size < 300 * 1024) {
-        downloadUrl = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = () => resolve(URL.createObjectURL(file));
-          reader.readAsDataURL(file);
-        });
-      } else {
-        downloadUrl = URL.createObjectURL(file);
-      }
-    }
-
-    const newDoc: EmployeeDocument = {
-      id: fileId,
-      name: file.name,
-      category: selectedCategory,
-      url: downloadUrl,
-      size: formattedSize,
-      type: file.type,
-      uploadedAt,
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      onBusyChange?.(false);
     };
-
-    const updated = [...docList, newDoc];
-    setDocList(updated);
-    if (onDocumentsChange) onDocumentsChange(updated);
-
-    toast({
-      title: "Documento Anexado",
-      description: `${file.name} salvo na categoria [${selectedCategory}].`,
-    });
-
-    setIsUploading(false);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [onBusyChange]);
+  React.useEffect(() => {
+    setDocList(documents);
+  }, [documents]);
+  const canEdit =
+    !!user &&
+    !readOnly &&
+    !!onDocumentsChange &&
+    canManageEmployeeDocuments(profile, { internal, companyId });
+  const finish = () => {
+    busy.current = false;
+    if (mounted.current) {
+      onBusyChange?.(false);
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || busy.current || !canEdit) return;
+    busy.current = true;
+    onBusyChange?.(true);
+    setIsUploading(true);
+    try {
+      if (
+        file.size <= 0 ||
+        file.size >= 10 * 1024 * 1024 ||
+        !["application/pdf", "image/png", "image/jpeg"].includes(file.type)
+      ) {
+        throw new Error("Selecione um PDF, PNG ou JPG com tamanho inferior a 10 MB.");
+      }
+      const owner = employeeId || (draft && internal ? draftId : "");
+      const validSegment = (value: string | undefined) =>
+        !!value && !/[\/]/.test(value) && ![".", "..", "all", "unauthorized"].includes(value);
+      if (!validSegment(owner) || (!internal && !validSegment(companyId))) {
+        throw new Error("Não foi possível identificar a empresa e o colaborador do anexo.");
+      }
+      const fileId = crypto.randomUUID();
+      const prefix = internal
+        ? `internos_nextcon/colaboradores/${owner}`
+        : `clientes/${companyId}/colaboradores/${owner}`;
+      const snapshot = await uploadBytes(ref(storage, `${prefix}/${fileId}`), file);
+      if (!mounted.current) return;
+      const url = await getDownloadURL(snapshot.ref);
+      if (!mounted.current) return;
+      if (!safeDocumentUrl(url))
+        throw new Error("O armazenamento não retornou um endereço válido.");
+      const updated = [
+        ...docList,
+        {
+          id: fileId,
+          name: file.name,
+          category: selectedCategory,
+          url,
+          size: (file.size / 1024 / 1024).toFixed(2) + " MB",
+          type: file.type,
+          uploadedAt: new Date().toISOString(),
+        },
+      ];
+      await onDocumentsChange!(updated, { type: "add", document: updated[updated.length - 1] });
+      if (!mounted.current) return;
+      const added = updated[updated.length - 1];
+      setDocList((current) => [...current.filter((item) => item.id !== added.id), added]);
+      toast({
+        title: draft ? "Anexo preparado" : "Documento anexado",
+        description: draft
+          ? "Salve o colaborador para vincular este anexo à ficha."
+          : "O anexo foi vinculado à ficha do colaborador.",
+      });
+    } catch (error) {
+      if (mounted.current)
+        toast({
+          variant: "destructive",
+          title: "Anexo não vinculado",
+          description:
+            error instanceof Error && !("code" in error)
+              ? error.message
+              : "Não foi possível salvar o anexo. Verifique sua conexão e permissão e tente novamente.",
+        });
+    } finally {
+      finish();
+    }
   };
 
-  const handleDelete = (id: string) => {
-    const updated = docList.filter((d) => d.id !== id);
-    setDocList(updated);
-    if (onDocumentsChange) onDocumentsChange(updated);
-    toast({ title: "Documento Removido", description: "O documento foi removido da ficha." });
+  const handleDelete = async (id: string) => {
+    if (busy.current || !canEdit) return;
+    busy.current = true;
+    onBusyChange?.(true);
+    setIsUploading(true);
+    try {
+      const updated = docList.filter((item) => item.id !== id);
+      const document = docList.find((item) => item.id === id);
+      if (!document) return;
+      await onDocumentsChange!(updated, { type: "remove", document });
+      if (!mounted.current) return;
+      setDocList((current) => current.filter((item) => item.id !== id));
+      toast({
+        title: "Vínculo removido",
+        description: draft
+          ? "Salve o colaborador para confirmar a alteração."
+          : "O anexo foi desvinculado da ficha. O arquivo permanece no armazenamento.",
+      });
+    } catch {
+      if (mounted.current)
+        toast({
+          variant: "destructive",
+          title: "Não foi possível remover o vínculo",
+          description: "O anexo foi mantido na ficha. Tente novamente.",
+        });
+    } finally {
+      finish();
+    }
   };
 
   return (
@@ -164,7 +229,7 @@ export function DocumentUploadField({
         </span>
       </div>
 
-      {!readOnly && (
+      {canEdit && (
         <div className="p-4 bg-slate-900/90 border border-slate-800 rounded-2xl space-y-3 shadow-inner">
           <div className="flex flex-col sm:flex-row items-center gap-3">
             <div className="w-full sm:w-1/2">
@@ -190,7 +255,7 @@ export function DocumentUploadField({
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileUpload}
-                accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                accept=".pdf,.png,.jpg,.jpeg"
                 className="hidden"
               />
               <Button
@@ -210,8 +275,8 @@ export function DocumentUploadField({
           </div>
 
           <p className="text-[9px] text-slate-400 italic">
-            * Suporta PDF, PNG, JPG ou DOCX até 15MB por arquivo. Todos os anexos são armazenados no
-            dossiê eSocial do colaborador.
+            * PDF, PNG ou JPG com tamanho inferior a 10 MB. Anexar um arquivo não realiza envio ao
+            eSocial.
           </p>
         </div>
       )}
@@ -262,12 +327,14 @@ export function DocumentUploadField({
                 >
                   <Eye size={12} /> Ver
                 </a>
-                {!readOnly && (
+                {canEdit && (
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
                     onClick={() => handleDelete(doc.id)}
+                    disabled={isUploading}
+                    aria-label={`Remover vínculo de ${doc.name}`}
                     className="size-8 text-slate-400 hover:text-red-400 hover:bg-red-950/30 rounded-lg"
                   >
                     <Trash2 size={14} />
