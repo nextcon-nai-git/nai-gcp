@@ -29,6 +29,7 @@ export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
   const [above, setAbove] = React.useState(false);
   const [page, setPage] = React.useState(1);
   const owner = React.useRef(user?.uid);
+  const refreshVersion = React.useRef(0);
   owner.current = user?.uid;
   const api = React.useCallback(
     async (init?: RequestInit, query = "") => {
@@ -49,18 +50,43 @@ export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
   );
   const refresh = React.useCallback(async () => {
     const uid = user?.uid;
+    const version = ++refreshVersion.current;
     try {
-      const data = await (await api()).json();
-      if (owner.current === uid) setRecords(data.records);
+      const loaded: Stored[] = [];
+      let cursor: string | null = null;
+      const seen = new Set<string>();
+      do {
+        const data = await (
+          await api(undefined, cursor ? "?cursor=" + encodeURIComponent(cursor) : "")
+        ).json();
+        if (owner.current !== uid || refreshVersion.current !== version) return false;
+        loaded.push(...data.records);
+        cursor = data.nextCursor ?? null;
+        if (cursor) {
+          if (seen.has(cursor)) throw new Error("Paginação inconsistente. Atualize a consulta.");
+          seen.add(cursor);
+        }
+      } while (cursor);
+      if (owner.current === uid && refreshVersion.current === version) {
+        setRecords(loaded);
+        setMessage("");
+      }
+      return true;
     } catch (e) {
-      if (owner.current === uid) setMessage(e instanceof Error ? e.message : "Erro na consulta.");
+      if (owner.current === uid && refreshVersion.current === version)
+        setMessage(e instanceof Error ? e.message : "Erro na consulta.");
+      return false;
     }
   }, [api, user?.uid]);
   React.useEffect(() => {
+    const guard = refreshVersion;
     setRecords([]);
     setPending([]);
     setMessage("");
     if (user) void refresh();
+    return () => {
+      guard.current++;
+    };
   }, [refresh, user]);
   React.useEffect(() => setPage(1), [kind, search, band, basis, above]);
   async function readIndex(file?: File) {
@@ -103,8 +129,11 @@ export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
         setMessage(`${added} salvos; ${unchanged} já existentes.`);
       }
       setPending([]);
-      await refresh();
-      setMessage(`Importação confirmada: ${added} salvos; ${unchanged} já existentes.`);
+      const refreshed = await refresh();
+      if (owner.current === uid)
+        setMessage(
+          `Importação confirmada: ${added} salvos; ${unchanged} já existentes.${refreshed ? "" : " Não foi possível atualizar a consulta. Use Atualizar evidências."}`
+        );
     } catch (e) {
       setMessage(
         `${added} salvos nesta tentativa. ${e instanceof Error ? e.message : "Falha na importação."} O índice pode ser reenviado sem duplicar os registros confirmados.`
@@ -143,23 +172,24 @@ export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
         }
         setMessage(`${saved} PDFs anexados. ${failures.length} pendências.`);
       }
-      await refresh();
-      setMessage(
-        `${saved} PDFs anexados com confirmação.${failures.length ? " Pendências: " + failures.join("; ") : ""}`
-      );
+      const refreshed = await refresh();
+      if (owner.current === uid)
+        setMessage(
+          `${saved} PDFs anexados com confirmação.${failures.length ? " Pendências: " + failures.join("; ") : ""}${refreshed ? "" : " Não foi possível atualizar a consulta. Use Atualizar evidências."}`
+        );
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Falha no envio.");
     } finally {
       setBusy(false);
     }
   }
-  async function openDocument(id: string) {
+  async function openDocument(id: string, fileName: string) {
     try {
       const blob = await (await api(undefined, "?document=" + id)).blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "ASO.pdf";
+      a.download = fileName;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (e) {
@@ -247,9 +277,17 @@ export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
               <strong className="text-2xl">
                 {confirmed
                   .filter((r) => r.unitCents != null && r.unitCents > 4000)
-                  .reduce((s, r) => s + (r.quantity || 1), 0)}
+                  .reduce((s, r) => s + (r.quantity ?? 0), 0)}
               </strong>
-              <p className="text-xs">Somente valores unitários apurados</p>
+              <p className="text-xs">
+                Somente quantidades confirmadas.{" "}
+                {
+                  confirmed.filter(
+                    (r) => r.unitCents != null && r.unitCents > 4000 && r.quantity == null
+                  ).length
+                }{" "}
+                pagamentos acima de R$ 40 com quantidade desconhecida.
+              </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -444,7 +482,7 @@ export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
                     <Button
                       variant="outline"
                       disabled={!r.uploaded}
-                      onClick={() => void openDocument(r.id)}
+                      onClick={() => void openDocument(r.id, r.fileName)}
                     >
                       {r.uploaded ? "Abrir ASO" : "Pendente de anexo"}
                     </Button>

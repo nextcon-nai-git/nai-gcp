@@ -74,7 +74,8 @@ export const AvpAsoEvidenceSchema = z
     uf: text(2),
     fileName: z
       .string()
-      .regex(/^[a-zA-Z0-9_.-]+\.pdf$/)
+      .min(5)
+      .regex(/^[^\\/\x00-\x1f\x7f<>:"|?*]+\.pdf$/i)
       .max(180),
     fileHash: hash,
     review: z.enum(["Recebido", "Conferir vínculo", "Conferir retificação"]),
@@ -98,9 +99,9 @@ export function avpEvidenceCsv(records: AvpPayment[]) {
     r.city,
     r.uf,
     r.employees,
-    r.amountCents / 100,
+    (r.amountCents / 100).toFixed(2).replace(".", ","),
     r.quantity,
-    r.unitCents == null ? "" : r.unitCents / 100,
+    r.unitCents == null ? "" : (r.unitCents / 100).toFixed(2).replace(".", ","),
     AVP_COST_BANDS[avpCostBand(r.unitCents)].label,
     r.confirmation,
     r.scope,

@@ -12,7 +12,8 @@ const parse = (rows: string[]) =>
     { id: "101", name: "Empresa Teste" },
     "2026-10-16",
     "2026-11-15",
-    "2026-10-16T15:00:00Z"
+    "2026-10-16T15:00:00Z",
+    [{ id: "101", name: "Empresa Teste" }]
   );
 describe("SOC convocation import", () => {
   it("classifies explicit due dates at the boundaries and never invents absent dates", () => {
@@ -86,4 +87,32 @@ describe("SOC convocation import", () => {
       socDashboardSchema.safeParse({ ...snapshot, examSummaries: [summary, summary] }).success
     ).toBe(false);
   });
+});
+
+it("rejects duplicate headers renamed by Papa Parse", () => {
+  expect(() =>
+    importSocConvocation(
+      header + ",Situação\n" + row("1", "") + ",Inativo",
+      { id: "101", name: "Empresa Teste" },
+      "2026-10-16",
+      "2026-11-15",
+      "2026-10-16T15:00:00Z",
+      [{ id: "101", name: "Empresa Teste" }]
+    )
+  ).toThrow("Layout inválido");
+});
+it("rejects ambiguous company names instead of assigning counts to an arbitrary SOC code", () => {
+  expect(() =>
+    importSocConvocation(
+      header + "\n" + row("1", ""),
+      { id: "101", name: "Empresa Teste" },
+      "2026-10-16",
+      "2026-11-15",
+      "2026-10-16T15:00:00Z",
+      [
+        { id: "101", name: "Empresa Teste" },
+        { id: "102", name: "EMPRESA  TESTE" },
+      ]
+    )
+  ).toThrow("repetido");
 });

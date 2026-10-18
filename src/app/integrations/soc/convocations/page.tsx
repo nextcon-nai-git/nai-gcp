@@ -18,7 +18,8 @@ type Snapshot = {
   summary: ReturnType<typeof summarizeConvocations>;
 };
 export default function ConvocationsPage() {
-  const { user } = useUser();
+  const { user, role, tenantId } = useUser();
+  const canImport = !!user && (role === "SUPER_ADMIN" || (role === "ADMIN" && !tenantId));
   const identity = useRef(user?.uid);
   identity.current = user?.uid;
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
@@ -58,7 +59,7 @@ export default function ConvocationsPage() {
     });
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
   async function upload(file: File | undefined) {
-    if (!file || !user || busy) return;
+    if (!file || !user || !canImport || busy) return;
     const uid = user.uid;
     setBusy(true);
     setError("");
@@ -76,10 +77,19 @@ export default function ConvocationsPage() {
       const data = await response.json();
       if (!response.ok) throw Error(data.error || "Importação não concluída.");
       if (identity.current !== uid) return;
-      await load();
-      setNotice(
-        `Importação salva: ${data.summary.rows} linhas. Os dados foram relidos do servidor.`
-      );
+      setNotice(`Importação salva: ${data.summary.rows} linhas.`);
+      try {
+        await load();
+        if (identity.current === uid)
+          setNotice(
+            `Importação salva: ${data.summary.rows} linhas. Os dados foram relidos do servidor.`
+          );
+      } catch {
+        if (identity.current === uid)
+          setError(
+            "A importação foi salva, mas não foi possível atualizar a consulta. Use Recarregar base salva."
+          );
+      }
     } catch (e) {
       if (identity.current === uid)
         setError(e instanceof Error ? e.message : "Falha na importação.");
@@ -117,23 +127,28 @@ export default function ConvocationsPage() {
         </p>
       </header>
       <section className="rounded-lg border p-4 space-y-3" aria-label="Importar convocações">
-        <label className="block font-medium" htmlFor="convocation-file">
-          Importar CSV de convocação do Grupo AVP
-        </label>
-        <Input
-          id="convocation-file"
-          type="file"
-          accept=".csv,text/csv"
-          disabled={!user || busy}
-          onChange={(e) => {
-            void upload(e.target.files?.[0]);
-            e.target.value = "";
-          }}
-        />
-        <p className="text-sm text-muted-foreground">
-          Até 4 MB e 15.000 linhas, com as 17 colunas originais. A importação atualiza esta base;
-          mantém a versão anterior arquivada. Não altera a fila da planilha nem emite convocações.
-        </p>
+        {canImport && (
+          <>
+            <label className="block font-medium" htmlFor="convocation-file">
+              Importar CSV de convocação do Grupo AVP
+            </label>
+            <Input
+              id="convocation-file"
+              type="file"
+              accept=".csv,text/csv"
+              disabled={!user || busy}
+              onChange={(e) => {
+                void upload(e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+            <p className="text-sm text-muted-foreground">
+              Até 4 MB e 15.000 linhas, com as 17 colunas originais. A importação atualiza esta
+              base; mantém a versão anterior arquivada. Não altera a fila da planilha nem emite
+              convocações.
+            </p>
+          </>
+        )}
         <Button
           disabled={!user || busy}
           variant="outline"

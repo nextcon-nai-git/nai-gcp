@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { CalendarDays, Stethoscope } from "lucide-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
@@ -9,8 +10,12 @@ import {
   type AsoWorkspaceView,
 } from "@/lib/aso-workspace-navigation";
 import { cn } from "@/lib/utils";
-import ClinicalWorkspace from "./clinical-workspace";
-import SchedulingWorkspace from "./scheduling-workspace";
+const ClinicalWorkspace = dynamic(() => import("./clinical-workspace"), {
+  loading: () => <p role="status">Carregando clínica…</p>,
+});
+const SchedulingWorkspace = dynamic(() => import("./scheduling-workspace"), {
+  loading: () => <p role="status">Carregando agendamento…</p>,
+});
 
 const areas = [
   { id: "agendamento" as const, label: "Agendamento e kits", icon: CalendarDays },

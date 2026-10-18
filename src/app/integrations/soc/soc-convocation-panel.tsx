@@ -22,11 +22,13 @@ export function SocConvocationPanel({
   canPublish,
   busy,
   onDraft,
+  isDraft = false,
 }: {
   snapshot: SocDashboardSnapshot;
   canPublish: boolean;
   busy: boolean;
   onDraft: (draft: SocDashboardSnapshot) => void;
+  isDraft?: boolean;
 }) {
   const [companyId, setCompanyId] = useState("");
   const [reference, setReference] = useState(today);
@@ -59,7 +61,16 @@ export function SocConvocationPanel({
       } catch {
         text = new TextDecoder("windows-1252").decode(buffer);
       }
-      setPreview(importSocConvocation(text, company, reference, end));
+      setPreview(
+        importSocConvocation(
+          text,
+          company,
+          reference,
+          end,
+          new Date().toISOString(),
+          snapshot.activeCompanies
+        )
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível ler o CSV.");
     } finally {
@@ -72,6 +83,11 @@ export function SocConvocationPanel({
         <CardTitle>Convocação de exames por cliente</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {isDraft && (
+          <p role="status" className="text-sm font-medium">
+            Prévia não publicada. Revise e confirme a publicação abaixo para salvar estes resumos.
+          </p>
+        )}
         <p className="text-sm">
           <strong>
             {summaries.length} de {snapshot.activeCompanies.length}

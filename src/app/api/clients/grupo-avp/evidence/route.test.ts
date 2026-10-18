@@ -108,3 +108,50 @@ describe("private AVP evidence", () => {
     expect(m.update).not.toHaveBeenCalled();
   });
 });
+
+it("paginates a collection beyond 3,000 records using stable IDs", async () => {
+  const ids = Array.from({ length: 3501 }, (_, n) => n.toString(16).padStart(64, "0"));
+  let start = 0;
+  const query = {
+    orderBy: vi.fn().mockReturnThis(),
+    startAfter: vi.fn((cursor: string) => {
+      start = ids.indexOf(cursor) + 1;
+      return query;
+    }),
+    limit: vi.fn().mockReturnThis(),
+    get: vi.fn(async () => {
+      const page = ids.slice(start, start + 501);
+      return {
+        size: page.length,
+        docs: page.map((id) => ({ id, data: () => ({ clinic: "Teste" }) })),
+      };
+    }),
+  };
+  m.collection.mockReturnValue({ doc: () => ({ collection: () => query }) });
+  let cursor: string | null = null;
+  const loaded: string[] = [];
+  do {
+    const response = await GET(new NextRequest(url + (cursor ? "?cursor=" + cursor : "")));
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    loaded.push(...data.records.map((r: { id: string }) => r.id));
+    cursor = data.nextCursor;
+  } while (cursor);
+  expect(loaded).toEqual(ids);
+  expect(query.get).toHaveBeenCalledTimes(8);
+});
+it("rejects an invalid pagination cursor before reading records", async () => {
+  expect((await GET(new NextRequest(url + "?cursor=../invalid"))).status).toBe(400);
+  expect(m.collection).not.toHaveBeenCalled();
+});
+it("bounds the streamed JSON body without relying on Content-Length", async () => {
+  const response = await POST(
+    new NextRequest(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: " ".repeat(500001),
+    })
+  );
+  expect(response.status).toBe(413);
+  expect(m.transaction).not.toHaveBeenCalled();
+});
