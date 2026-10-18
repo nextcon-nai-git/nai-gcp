@@ -90,3 +90,39 @@ describe("medical assistant audit", () => {
     expect(mocks.generate).not.toHaveBeenCalled();
   });
 });
+
+describe("medical assistant request bounds", () => {
+  it("cancels an oversized streaming request before reading clinical history", async () => {
+    const cancel = vi.fn();
+    const req = new NextRequest("https://nai.test/api/medical-assistant", {
+      method: "POST",
+      body: new ReadableStream({
+        pull(controller) {
+          controller.enqueue(new Uint8Array(9000));
+        },
+        cancel,
+      }),
+      duplex: "half",
+    } as ConstructorParameters<typeof NextRequest>[1]);
+    const response = await POST(req);
+    expect(response.status).toBe(413);
+    expect(cancel).toHaveBeenCalled();
+    expect(mocks.history).not.toHaveBeenCalled();
+    expect(mocks.generate).not.toHaveBeenCalled();
+  });
+  it.each([
+    "{",
+    "null",
+    "[]",
+    "42",
+    JSON.stringify({ ...body, mensagemMedico: " " }),
+    JSON.stringify({ ...body, companyId: 42 }),
+  ])("rejects malformed input %s", async (payload) => {
+    const response = await POST(
+      new NextRequest("https://nai.test/api/medical-assistant", { method: "POST", body: payload })
+    );
+    expect(response.status).toBe(400);
+    expect(mocks.history).not.toHaveBeenCalled();
+    expect(mocks.audit).not.toHaveBeenCalled();
+  });
+});

@@ -28,7 +28,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore, useMemoFirebase, useCollection } from "@/firebase";
@@ -36,20 +43,14 @@ import { collection, addDoc, serverTimestamp, query, orderBy, where } from "fire
 import { useSgi } from "@/contexts/sgi-context";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { Input } from "@/components/ui/input";
+import {
+  nursingAttendanceSchema,
+  buildNursingAttendance,
+  type NursingAttendanceValues,
+} from "@/lib/medical/nursing-attendance";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-
-const attendanceSchema = z.object({
-  companyId: z.string().min(1, "Selecione a unidade"),
-  employeeId: z.string().min(1, "Selecione um colaborador"),
-  complaint: z.string().min(3, "Descreva a queixa"),
-  conduct: z.enum(["observation", "work", "emergency"]),
-  care_lines: z.array(z.string()).default([]),
-  coren: z.string().default("808295"),
-});
-
-type AttendanceFormValues = z.infer<typeof attendanceSchema>;
 
 const CARE_LINE_GROUPS = [
   {
@@ -84,27 +85,33 @@ const CARE_LINE_GROUPS = [
 
 export function NewAttendanceModal() {
   const { toast } = useToast();
-  const { user } = useUser();
+  const { user, role } = useUser();
   const db = useFirestore();
   const { isGlobalStaff, authorizedCompanies } = useSgi();
 
   const [isOpen, setIsOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  const form = useForm<AttendanceFormValues>({
-    resolver: zodResolver(attendanceSchema),
+  const form = useForm<NursingAttendanceValues>({
+    resolver: zodResolver(nursingAttendanceSchema),
     defaultValues: {
       companyId: "",
       employeeId: "",
       complaint: "",
       care_lines: [],
       conduct: "observation",
-      coren: "808295",
+      coren: "",
     },
   });
 
   const companiesQuery = useMemoFirebase(() => {
-    if (!db) return null;
+    if (
+      !db ||
+      !["SUPER_ADMIN", "ADMIN", "DOCTOR", "NURSE", "HEALTH_PROFESSIONAL", "PROVIDER"].includes(
+        role || ""
+      )
+    )
+      return null;
     if (isGlobalStaff) {
       return query(collection(db, "companies"), orderBy("name", "asc"));
     }
@@ -112,43 +119,54 @@ export function NewAttendanceModal() {
       return query(collection(db, "companies"), where("__name__", "in", authorizedCompanies));
     }
     return null;
-  }, [db, isGlobalStaff, authorizedCompanies]);
+  }, [db, role, isGlobalStaff, authorizedCompanies]);
   const { data: companies } = useCollection(companiesQuery);
 
+  const companyId = form.watch("companyId");
   const employeesQuery = useMemoFirebase(
     () =>
-      !db || !form.watch("companyId")
+      !db || !companyId
         ? null
-        : query(
-            collection(db, "companies", form.watch("companyId"), "employees"),
-            orderBy("name", "asc")
-          ),
-    [db, form.watch("companyId")]
+        : query(collection(db, "companies", companyId, "employees"), orderBy("name", "asc")),
+    [db, companyId]
   );
-  const { data: employees } = useCollection(employeesQuery);
+  const { data: employees, isLoading: loadingEmployees } = useCollection(employeesQuery);
 
-  async function onFormSubmit(values: AttendanceFormValues) {
-    if (!db) return;
+  async function onFormSubmit(values: NursingAttendanceValues) {
+    if (!db || isSubmitting) return;
     setIsSubmitting(true);
     try {
+      if (loadingEmployees || !companies?.some((c) => c.id === values.companyId))
+        throw new Error("Aguarde o carregamento e selecione uma unidade disponível.");
       const emp = employees?.find((e) => e.id === values.employeeId);
+      const record = buildNursingAttendance(values, emp, user);
       await addDoc(collection(db, "nursing_attendances"), {
-        ...values,
-        employeeName: emp?.name || "Colaborador",
-        nurseName: user?.displayName || "Enfermeira NAI",
-        status_esocial: "Pendente",
-        createdAt: new Date().toISOString(),
+        ...record,
         timestamp: serverTimestamp(),
       });
-      toast({ title: "Atendimento Protocolado" });
+      toast({
+        title: "Atendimento salvo",
+        description: "Registro armazenado. Nenhuma transmissão ao eSocial foi realizada.",
+      });
       setIsOpen(false);
       form.reset();
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao Salvar" });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Atendimento não salvo",
+        description: error instanceof Error ? error.message : "Tente novamente.",
+      });
     } finally {
       setIsSubmitting(false);
     }
   }
+
+  if (
+    !["SUPER_ADMIN", "ADMIN", "DOCTOR", "NURSE", "HEALTH_PROFESSIONAL", "PROVIDER"].includes(
+      role || ""
+    )
+  )
+    return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -171,7 +189,7 @@ export function NewAttendanceModal() {
                 Prontuário & Triagem NAI
               </DialogTitle>
               <DialogDescription className="text-white/60 font-bold uppercase text-[10px] mt-1 tracking-widest">
-                Abertura de evolução clínica e social v2.7.
+                Registro de atendimento de enfermagem.
               </DialogDescription>
             </div>
           </div>
@@ -192,7 +210,13 @@ export function NewAttendanceModal() {
                       <FormLabel className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">
                         Unidade
                       </FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          form.setValue("employeeId", "");
+                        }}
+                        value={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none font-bold shadow-inner">
                             <SelectValue placeholder="Selecione..." />
@@ -206,6 +230,7 @@ export function NewAttendanceModal() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -220,7 +245,7 @@ export function NewAttendanceModal() {
                       <Select
                         onValueChange={field.onChange}
                         value={field.value}
-                        disabled={!form.watch("companyId")}
+                        disabled={!companyId || loadingEmployees}
                       >
                         <FormControl>
                           <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none font-bold shadow-inner">
@@ -235,10 +260,25 @@ export function NewAttendanceModal() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
+
+              <FormField
+                control={form.control}
+                name="coren"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>COREN e UF do profissional responsável</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Informe seu registro profissional" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}
@@ -264,12 +304,12 @@ export function NewAttendanceModal() {
                   Conduta Inicial
                 </label>
                 <div className="flex gap-2">
-                  {["observation", "work", "emergency"].map((c) => (
+                  {(["observation", "work", "emergency"] as const).map((c) => (
                     <Button
                       key={c}
                       type="button"
                       variant={form.watch("conduct") === c ? "default" : "outline"}
-                      onClick={() => form.setValue("conduct", c as any)}
+                      onClick={() => form.setValue("conduct", c)}
                       className={cn(
                         "flex-1 h-11 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
                         form.watch("conduct") === c ? "bg-primary" : "border-slate-100 bg-slate-50"
@@ -323,6 +363,7 @@ export function NewAttendanceModal() {
                                   <FormLabel className="text-[11px] font-bold text-slate-600 uppercase cursor-pointer leading-tight">
                                     {item.label}
                                   </FormLabel>
+                                  <FormMessage />
                                 </FormItem>
                               )}
                             />
@@ -338,7 +379,7 @@ export function NewAttendanceModal() {
             <div className="lg:col-span-12 pt-8 border-t flex flex-col items-center gap-4">
               <Button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || loadingEmployees}
                 className="w-full h-16 bg-primary text-white font-black uppercase text-xs tracking-widest rounded-2xl shadow-xl gap-3"
               >
                 {isSubmitting ? (
@@ -346,10 +387,10 @@ export function NewAttendanceModal() {
                 ) : (
                   <Save className="size-5 text-accent" />
                 )}
-                Salvar Atendimento e Protocolar PEP
+                Salvar Atendimento
               </Button>
               <p className="text-[8px] text-slate-300 font-black uppercase tracking-[0.4em]">
-                Sincronização Segura HIPAA v2.7
+                O registro informado deve pertencer ao profissional responsável.
               </p>
             </div>
           </form>
