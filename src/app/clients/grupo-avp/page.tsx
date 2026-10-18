@@ -50,42 +50,42 @@ export default function GrupoAvpClientHubPage() {
       owner: "Relacionamento NEXTCON",
       title: "Disponibilizar gravação do workshop",
       desc: "Enviar o vídeo da reunião para que os participantes possam assistir novamente.",
-      done: true,
+      done: false,
     },
     {
       id: "nxt-2",
       owner: "Relacionamento NEXTCON",
       title: "Enviar material de apoio & Planilha",
       desc: "Disponibilizar via e-mail a planilha de agendamento em lote, manual e apresentação.",
-      done: true,
+      done: false,
     },
     {
       id: "nxt-3",
       owner: "Relacionamento NEXTCON",
       title: "Disponibilizar link de presença & Feedback",
       desc: "Enviar formulário para confirmação de presença e avaliação do treinamento.",
-      done: true,
+      done: false,
     },
     {
       id: "nxt-4",
       owner: "Relacionamento NEXTCON",
       title: "Compartilhar vídeos em pasta na nuvem",
       desc: "Criar pasta em nuvem para disponibilizar as gravações do 1º e 2º dia de workshop.",
-      done: true,
+      done: false,
     },
     {
       id: "nxt-5",
       owner: "Relacionamento NEXTCON",
       title: "Enviar orientações e contatos oficiais",
       desc: "Disponibilizar material com instruções de agendamento e contatos NextCon.",
-      done: true,
+      done: false,
     },
     {
       id: "nxt-6",
       owner: "Relacionamento NEXTCON",
       title: "Corrigir slide e reenviar versão retificada",
       desc: "Realizar retificação do arquivo apresentado e encaminhar aos participantes.",
-      done: true,
+      done: false,
     },
     {
       id: "avp-1",
@@ -262,7 +262,7 @@ export default function GrupoAvpClientHubPage() {
             >
               <Building2 size={15} /> Credenciamento Brasil (WhatsApp 1-Clique)
               <Badge className="bg-emerald-600 text-white text-[9px] h-4 px-1.5 rounded-full font-bold">
-                117+ Clínicas
+                Consultar catálogo
               </Badge>
             </TabsTrigger>
 
@@ -682,26 +682,29 @@ export default function GrupoAvpClientHubPage() {
                   Alinhamento de Implantação
                 </span>
                 <h3 className="text-2xl font-black font-headline text-primary uppercase mt-1">
-                  Checklist de Próximas Etapas do Workshop
+                  Roteiro de Conferência do Workshop
                 </h3>
                 <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">
-                  Acompanhamento de entregáveis entre a equipe NextCon e os coordenadores do Grupo
-                  AVP
+                  Conferência apenas nesta sessão: as marcações não são salvas nem comprovam
+                  entregas. Registre a execução e suas evidências na Central de Contratos e
+                  Produção.
                 </p>
               </div>
 
               <Badge className="bg-primary text-white font-black text-xs px-3.5 h-8">
-                {tasks.filter((t) => t.done).length} de {tasks.length} Ações Concluídas
+                {tasks.filter((t) => t.done).length} de {tasks.length} conferidos nesta sessão
               </Badge>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {tasks.map((task) => (
-                <div
+                <button
+                  type="button"
+                  aria-pressed={task.done}
                   key={task.id}
                   onClick={() => toggleTask(task.id)}
                   className={cn(
-                    "p-5 rounded-3xl border-2 transition-all cursor-pointer flex items-start gap-4",
+                    "p-5 rounded-3xl border-2 transition-all cursor-pointer flex items-start gap-4 text-left",
                     task.done
                       ? "bg-emerald-50/40 border-emerald-200"
                       : "bg-slate-50 border-slate-200 hover:border-slate-300"
@@ -743,7 +746,7 @@ export default function GrupoAvpClientHubPage() {
                       {task.desc}
                     </p>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </Card>

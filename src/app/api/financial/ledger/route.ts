@@ -1,3 +1,4 @@
+import { limitedFormData } from "@/lib/http/private-api";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { requireFinancialAccess } from "@/lib/auth/financial-access";
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
     requireFinancialAccess(user);
     const length = Number(request.headers.get("content-length") || "0");
     if (length > 24 * 1024 * 1024) throw badRequest("Limite de 24 MB excedido.");
-    const form = await request.formData();
+    const form = await limitedFormData(request, 24 * 1024 * 1024);
     const data = form.get("data"),
       source = form.get("source");
     if (

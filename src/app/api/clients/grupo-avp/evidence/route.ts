@@ -8,7 +8,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { requireAvpAccess, canAccessAvpEvidence } from "@/lib/auth/avp-access";
 import { AuthError, badRequest, forbidden } from "@/lib/auth/errors";
 import { AvpEvidenceSchema } from "@/lib/avp-evidence";
-import { limitedBytes, limitedJson } from "@/lib/http/private-api";
+import { limitedFormData, limitedJson } from "@/lib/http/private-api";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -85,10 +85,7 @@ export async function POST(req: NextRequest) {
     if (req.headers.get("content-type")?.includes("multipart/form-data")) {
       if (Number(req.headers.get("content-length") || 0) > 16000000)
         throw badRequest("PDF excede 15 MB.");
-      const bytesWithBoundary = await limitedBytes(req, 16000000);
-      const form = await new Response(new Uint8Array(bytesWithBoundary), {
-        headers: { "Content-Type": req.headers.get("content-type")! },
-      }).formData();
+      const form = await limitedFormData(req, 16000000);
       const file = form.get("file");
       const id = form.get("id");
       if (

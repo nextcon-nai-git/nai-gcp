@@ -1,20 +1,20 @@
 {
   "date": "2026-10-18",
-  "baseMain": "1e8cbee60b7239c19309929b62cb9ab1a051c5a2",
+  "baseMain": "48fa6a91893663aef9192eace10423cbc1e76ce1",
   "scope": "TypeScript/TSX source under src excluding tests and declarations; inventory and automated coverage do not establish manual review or functional correctness.",
   "sourceFiles": 591,
-  "sourceLines": 123669,
+  "sourceLines": 123040,
   "apiRoutes": 79,
   "pages": 110,
-  "tests": 1786,
-  "testFiles": 193,
+  "tests": 1843,
+  "testFiles": 200,
   "coverageSummary": {
-    "statementsPercent": 47.01,
-    "branchesPercent": 42.36,
-    "functionsPercent": 38.83,
-    "linesPercent": 47.8
+    "statementsPercent": 48.87,
+    "branchesPercent": 44.29,
+    "functionsPercent": 40.28,
+    "linesPercent": 49.68
   },
-  "zeroCoveredFiles": 287,
+  "zeroCoveredFiles": 273,
   "files": [
     {
       "path": "src/__tests__/avp-test-fixture.ts",
@@ -1124,26 +1124,26 @@
     },
     {
       "path": "src/app/api/ai-classify-document/route.ts",
-      "sha256": "ff89abf13952de10b4d04b0a4aa6a8737aecdc9bf4768fcec1210917b76e45fe",
-      "sourceLines": 256,
+      "sha256": "6dabb5e8e2f42d86e35683b8c71f5c1c2f024df37bc2817fe9c5bf915f1a2fef",
+      "sourceLines": 29,
       "automatedCoverage": {
-        "linesFound": 98,
-        "linesHit": 0,
+        "linesFound": 6,
+        "linesHit": 6,
         "functionsFound": 1,
-        "functionsHit": 0,
-        "branchesFound": 104,
-        "branchesHit": 0
+        "functionsHit": 1,
+        "branchesFound": 2,
+        "branchesHit": 2
       },
       "manualReview": "not_asserted"
     },
     {
       "path": "src/app/api/ai-classify-document/save/route.ts",
-      "sha256": "a1e5e0fdfd52c16163719d07ddd26f69590d46603caf802a0c97e1d071b732ab",
-      "sourceLines": 14,
+      "sha256": "9d7f81dfe08d000354bd505b9187e637f3bc17b0e467351d9814a4af73685297",
+      "sourceLines": 1,
       "automatedCoverage": {
-        "linesFound": 2,
+        "linesFound": 0,
         "linesHit": 0,
-        "functionsFound": 2,
+        "functionsFound": 0,
         "functionsHit": 0,
         "branchesFound": 0,
         "branchesHit": 0
@@ -1180,8 +1180,8 @@
     },
     {
       "path": "src/app/api/clients/[id]/documents/route.ts",
-      "sha256": "2283b44035e7d5310613bdd15cc413af32dfd3aec7902350ca7968be97025c7f",
-      "sourceLines": 155,
+      "sha256": "6bba12d5620a09ee6296c1197586d2abc08447360fbb7fe5dd9861b2db40b6ca",
+      "sourceLines": 156,
       "automatedCoverage": {
         "linesFound": 65,
         "linesHit": 54,
@@ -1208,11 +1208,11 @@
     },
     {
       "path": "src/app/api/clients/grupo-avp/evidence/route.ts",
-      "sha256": "1d1ca56e49561c208df540ce046ea187db674b7d3f446d32cc4323e7f1899e7c",
-      "sourceLines": 171,
+      "sha256": "9ab37008661cc0ac9237982e4e80ee4efc3d9efe93ce1f189fa2fee9d2ac91f6",
+      "sourceLines": 168,
       "automatedCoverage": {
-        "linesFound": 79,
-        "linesHit": 62,
+        "linesFound": 78,
+        "linesHit": 61,
         "functionsFound": 11,
         "functionsHit": 10,
         "branchesFound": 57,
@@ -1348,8 +1348,8 @@
     },
     {
       "path": "src/app/api/financial/balances/route.ts",
-      "sha256": "df160d8248c69bfc3f8599b90b52e9c25da06f4133e0ae939ae003708cc80a08",
-      "sourceLines": 47,
+      "sha256": "aa3aca3a2af1362c02a95df49b502c50f019e4054d33c857c51dd4bbc2f76421",
+      "sourceLines": 48,
       "automatedCoverage": {
         "linesFound": 18,
         "linesHit": 13,
@@ -1390,8 +1390,8 @@
     },
     {
       "path": "src/app/api/financial/ledger/route.ts",
-      "sha256": "2106ee2174d7bd985306d799b50b09fb9404105dcb128971b37c5fcf46843ddc",
-      "sourceLines": 56,
+      "sha256": "292442a8bb341a71287c5822f5f6a87ef74a6739eb8033c35dcf8b4e7191029a",
+      "sourceLines": 57,
       "automatedCoverage": {
         "linesFound": 22,
         "linesHit": 13,
@@ -1810,15 +1810,15 @@
     },
     {
       "path": "src/app/api/pgr/analyze/route.ts",
-      "sha256": "15a574f5401a78273151e87ea0a277b02bf078a8c5b9d6ddf288b41d45a96546",
-      "sourceLines": 37,
+      "sha256": "655c9ea75156253dc186952e1e766fe95d4d4d5c0157ef48cf1e7fa7be91603f",
+      "sourceLines": 38,
       "automatedCoverage": {
         "linesFound": 15,
-        "linesHit": 8,
+        "linesHit": 12,
         "functionsFound": 1,
         "functionsHit": 1,
         "branchesFound": 12,
-        "branchesHit": 2
+        "branchesHit": 6
       },
       "manualReview": "not_asserted"
     },
@@ -1852,8 +1852,8 @@
     },
     {
       "path": "src/app/api/pgr/save/route.ts",
-      "sha256": "4d1505e7fa8feed21524674856d90b3e5d32e79c2099826e482f09be96aa7474",
-      "sourceLines": 49,
+      "sha256": "53c24312fe990db0a8056d2ae9af953d03cfa53a5aec3138ef05c206f4b0d07d",
+      "sourceLines": 50,
       "automatedCoverage": {
         "linesFound": 15,
         "linesHit": 12,
@@ -2300,15 +2300,15 @@
     },
     {
       "path": "src/app/clients/grupo-avp/page.tsx",
-      "sha256": "1517bb99ccab17f1f1ee019ec53b0b24e8622819955f68cb7ea549d2ce38c0c2",
-      "sourceLines": 754,
+      "sha256": "c987af18f692be3c7edc94390225de756beeb68fa113a94cb4020077b08289c1",
+      "sourceLines": 757,
       "automatedCoverage": {
         "linesFound": 20,
-        "linesHit": 0,
+        "linesHit": 14,
         "functionsFound": 11,
-        "functionsHit": 0,
+        "functionsHit": 7,
         "branchesFound": 20,
-        "branchesHit": 0
+        "branchesHit": 18
       },
       "manualReview": "not_asserted"
     },
@@ -3802,7 +3802,7 @@
       "sourceLines": 32,
       "automatedCoverage": {
         "linesFound": 11,
-        "linesHit": 0,
+        "linesHit": 1,
         "functionsFound": 4,
         "functionsHit": 0,
         "branchesFound": 2,
@@ -3927,8 +3927,8 @@
       "sha256": "a0ce24d7724b13546f039cc43e5f3b7dc3c9c5a8b9ec068fe1de509abac2adc2",
       "sourceLines": 519,
       "automatedCoverage": {
-        "linesFound": 157,
-        "linesHit": 77,
+        "linesFound": 158,
+        "linesHit": 78,
         "functionsFound": 43,
         "functionsHit": 20,
         "branchesFound": 139,
@@ -3994,15 +3994,15 @@
     },
     {
       "path": "src/components/clients/grupo-avp-queue-map.tsx",
-      "sha256": "36d21a34c92bb3aa77a3be4ace07cdffdb0928275219ff9fa1db8577aa3897ce",
+      "sha256": "8735a84503d31fea243b9adf0eef5042ed8b0cfeeef2c8f77c29793298b57b65",
       "sourceLines": 1892,
       "automatedCoverage": {
         "linesFound": 332,
-        "linesHit": 0,
+        "linesHit": 148,
         "functionsFound": 105,
-        "functionsHit": 0,
-        "branchesFound": 366,
-        "branchesHit": 0
+        "functionsHit": 44,
+        "branchesFound": 372,
+        "branchesHit": 175
       },
       "manualReview": "not_asserted"
     },
@@ -4078,14 +4078,14 @@
     },
     {
       "path": "src/components/dashboard/ai-document-dispatcher.tsx",
-      "sha256": "eee14bec43c36fa27340eddb9be37aecdb3d3677d96a8a0406bb46099f16bd05",
-      "sourceLines": 439,
+      "sha256": "0175d7fc07f2e7f575412325efe7a92399c91f1120d602041037a059f73830ad",
+      "sourceLines": 28,
       "automatedCoverage": {
-        "linesFound": 81,
-        "linesHit": 0,
-        "functionsFound": 17,
-        "functionsHit": 0,
-        "branchesFound": 78,
+        "linesFound": 1,
+        "linesHit": 1,
+        "functionsFound": 1,
+        "functionsHit": 1,
+        "branchesFound": 0,
         "branchesHit": 0
       },
       "manualReview": "not_asserted"
@@ -5482,7 +5482,7 @@
       "sourceLines": 30,
       "automatedCoverage": {
         "linesFound": 4,
-        "linesHit": 0,
+        "linesHit": 1,
         "functionsFound": 2,
         "functionsHit": 0,
         "branchesFound": 0,
@@ -5552,7 +5552,7 @@
       "sourceLines": 19,
       "automatedCoverage": {
         "linesFound": 2,
-        "linesHit": 0,
+        "linesHit": 1,
         "functionsFound": 1,
         "functionsHit": 0,
         "branchesFound": 0,
@@ -5566,7 +5566,7 @@
       "sourceLines": 79,
       "automatedCoverage": {
         "linesFound": 25,
-        "linesHit": 0,
+        "linesHit": 1,
         "functionsFound": 5,
         "functionsHit": 0,
         "branchesFound": 4,
@@ -5580,7 +5580,7 @@
       "sourceLines": 18,
       "automatedCoverage": {
         "linesFound": 1,
-        "linesHit": 0,
+        "linesHit": 1,
         "functionsFound": 0,
         "functionsHit": 0,
         "branchesFound": 0,
@@ -5594,7 +5594,7 @@
       "sourceLines": 32,
       "automatedCoverage": {
         "linesFound": 7,
-        "linesHit": 0,
+        "linesHit": 1,
         "functionsFound": 2,
         "functionsHit": 0,
         "branchesFound": 2,
@@ -5608,7 +5608,7 @@
       "sourceLines": 29,
       "automatedCoverage": {
         "linesFound": 4,
-        "linesHit": 0,
+        "linesHit": 1,
         "functionsFound": 3,
         "functionsHit": 0,
         "branchesFound": 0,
@@ -5636,7 +5636,7 @@
       "sourceLines": 146,
       "automatedCoverage": {
         "linesFound": 26,
-        "linesHit": 0,
+        "linesHit": 9,
         "functionsFound": 10,
         "functionsHit": 0,
         "branchesFound": 33,
@@ -6172,7 +6172,7 @@
         "functionsFound": 8,
         "functionsHit": 8,
         "branchesFound": 26,
-        "branchesHit": 22
+        "branchesHit": 23
       },
       "manualReview": "not_asserted"
     },
@@ -6270,7 +6270,7 @@
         "functionsFound": 9,
         "functionsHit": 9,
         "branchesFound": 79,
-        "branchesHit": 51
+        "branchesHit": 68
       },
       "manualReview": "not_asserted"
     },
@@ -6794,15 +6794,15 @@
     },
     {
       "path": "src/lib/http/private-api.ts",
-      "sha256": "8fec555991a34edf7a9aeae2229c42fa2d7db485a535a92b068f445d49729a66",
-      "sourceLines": 49,
+      "sha256": "1d6720c53a3466cc31bf2f25295978259e6ad864273b8f2fd531458148c606f3",
+      "sourceLines": 66,
       "automatedCoverage": {
-        "linesFound": 23,
-        "linesHit": 22,
-        "functionsFound": 3,
-        "functionsHit": 3,
-        "branchesFound": 13,
-        "branchesHit": 11
+        "linesFound": 32,
+        "linesHit": 32,
+        "functionsFound": 4,
+        "functionsHit": 4,
+        "branchesFound": 19,
+        "branchesHit": 18
       },
       "manualReview": "not_asserted"
     },
@@ -7694,11 +7694,11 @@
       "sourceLines": 268,
       "automatedCoverage": {
         "linesFound": 113,
-        "linesHit": 0,
+        "linesHit": 113,
         "functionsFound": 20,
-        "functionsHit": 0,
+        "functionsHit": 20,
         "branchesFound": 103,
-        "branchesHit": 0
+        "branchesHit": 94
       },
       "manualReview": "not_asserted"
     },

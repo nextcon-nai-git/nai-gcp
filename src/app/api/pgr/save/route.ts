@@ -1,3 +1,4 @@
+import { limitedFormData } from "@/lib/http/private-api";
 import { requirePgrAppCheck } from "@/lib/auth/require-pgr-app-check";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
     requirePgrRole(user);
     if (Number(request.headers.get("content-length")) > PGR_MAX_FILE_BYTES + 65536)
       return NextResponse.json({ error: "Arquivo acima de 12 MB." }, { status: 413 });
-    const form = await request.formData();
+    const form = await limitedFormData(request, PGR_MAX_FILE_BYTES + 65536);
     const file = form.get("file");
     if (!(file instanceof File) || file.size > PGR_MAX_FILE_BYTES)
       return NextResponse.json(

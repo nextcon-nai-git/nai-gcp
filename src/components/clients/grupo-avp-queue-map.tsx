@@ -46,10 +46,8 @@ import {
 import {
   BRAZIL_STATES_PATHS,
   BrazilStatePath,
-  BRAZIL_STATE_VIEWBOXES,
   getStateViewBox,
   getCityViewBox,
-  StateViewBoxData,
 } from "@/lib/brazil-states-paths";
 import { AVP_COST_BANDS, avpCostBand } from "@/lib/avp-evidence";
 import { avpCostSummary, formatBrlCents } from "@/lib/avp-costs";
@@ -80,7 +78,7 @@ const REGION_VIEWBOXES: Record<
     w: 330,
     h: 360,
     viewBox: "460 140 330 360",
-    label: "Nordeste (42 Polos)",
+    label: "Nordeste",
   },
   Sudeste: {
     x: 380,
@@ -88,17 +86,17 @@ const REGION_VIEWBOXES: Record<
     w: 340,
     h: 280,
     viewBox: "380 370 340 280",
-    label: "Sudeste (28 Polos)",
+    label: "Sudeste",
   },
-  Sul: { x: 300, y: 540, w: 260, h: 260, viewBox: "300 540 260 260", label: "Sul (12 Polos)" },
-  Norte: { x: 30, y: 20, w: 560, h: 410, viewBox: "30 20 560 410", label: "Norte (19 Polos)" },
+  Sul: { x: 300, y: 540, w: 260, h: 260, viewBox: "300 540 260 260", label: "Sul" },
+  Norte: { x: 30, y: 20, w: 560, h: 410, viewBox: "30 20 560 410", label: "Norte" },
   "Centro-Oeste": {
     x: 230,
     y: 240,
     w: 360,
     h: 380,
     viewBox: "230 240 360 380",
-    label: "Centro-Oeste (3 Polos)",
+    label: "Centro-Oeste",
   },
 };
 
@@ -1123,7 +1121,6 @@ export function GrupoAvpQueueMap({
                   {Object.values(BRAZIL_STATES_PATHS).map((state: BrazilStatePath) => {
                     const stateUf = state.sigla;
                     const stateAsos = ufStats.asosByUf[stateUf] || 0;
-                    const statePoles = ufStats.polesByUf[stateUf] || 0;
                     const isHovered = hoveredUf === stateUf;
                     const isSelected = selectedState === stateUf;
 
@@ -1517,18 +1514,21 @@ export function GrupoAvpQueueMap({
 
             {/* HUD FLUTUANTE INFERIOR COM DICAS DE NAVEGAÇÃO E TELEMETRIA */}
             <div className="mt-4 pt-4 border-t border-slate-800/80 flex flex-wrap items-center justify-between text-[11px] text-slate-400 font-medium">
-              <div className="flex flex-wrap items-center gap-4">
+              <div
+                aria-label="Totais da fila no mapa"
+                className="flex flex-wrap items-center gap-4"
+              >
                 <span className="flex items-center gap-1.5">
                   <span className="size-2 rounded-full bg-emerald-500" />
-                  <span>86 Agendados</span>
+                  <span>{globalStatusCounts.AGENDADO || 0} Agendados</span>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="size-2 rounded-full bg-amber-500" />
-                  <span>88 Não Iniciados</span>
+                  <span>{globalStatusCounts["NÃO INICIADO"] || 0} Não Iniciados</span>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="size-2 rounded-full bg-rose-500 animate-pulse" />
-                  <span>44 Urgentes</span>
+                  <span>{globalStatusCounts.URGENTE || 0} Urgentes</span>
                 </span>
               </div>
               <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1">

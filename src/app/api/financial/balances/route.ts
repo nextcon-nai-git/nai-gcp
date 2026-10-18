@@ -1,3 +1,4 @@
+import { limitedFormData } from "@/lib/http/private-api";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { requireFinancialAccess } from "@/lib/auth/financial-access";
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
     requireFinancialAccess(user);
     if (Number(request.headers.get("content-length") || "0") > 11 * 1024 * 1024)
       throw badRequest("Limite de upload excedido.");
-    const form = await request.formData();
+    const form = await limitedFormData(request, 11 * 1024 * 1024);
     const source = form.get("source");
     if (!(source instanceof File) || source.size > 10 * 1024 * 1024)
       throw badRequest("Selecione um PDF de até 10 MB.");

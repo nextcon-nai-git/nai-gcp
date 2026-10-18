@@ -47,3 +47,20 @@ export async function limitedJson(request: NextRequest, max = 65536) {
     throw badRequest("JSON inválido.");
   }
 }
+
+/** Bounds multipart input even when Content-Length is missing or understated. */
+export async function limitedFormData(request: NextRequest, max: number) {
+  const contentType = request.headers.get("content-type") || "";
+  if (!/^multipart\/form-data(?:;|$)/i.test(contentType))
+    throw badRequest("Envie o arquivo como formulário multipart.");
+  if (Number(request.headers.get("content-length")) > max)
+    throw new AuthError("Arquivo ou solicitação acima do limite.", 413);
+  const bytes = await limitedBytes(request, max);
+  try {
+    return await new Response(new Uint8Array(bytes), {
+      headers: { "Content-Type": contentType },
+    }).formData();
+  } catch {
+    throw badRequest("Formulário de upload inválido.");
+  }
+}
