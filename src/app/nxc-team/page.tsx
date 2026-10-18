@@ -70,7 +70,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useCollection, useFirestore } from "@/firebase";
+import { useCollection, useFirestore, useUser } from "@/firebase";
 import {
   collection,
   query,
@@ -118,6 +118,11 @@ const SEED_NXC_EMPLOYEES = [] as {
 }[];
 
 export default function NcxTeamPage() {
+  const { user } = useUser();
+  return user ? <NcxTeamSession key={user.uid} /> : null;
+}
+
+function NcxTeamSession() {
   const { toast } = useToast();
   const db = useFirestore();
 

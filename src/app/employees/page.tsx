@@ -894,6 +894,8 @@ function EmployeesList() {
 }
 
 export default function EmployeesPage() {
+  const { user } = useUser();
+  if (!user) return null;
   return (
     <React.Suspense
       fallback={
@@ -903,7 +905,7 @@ export default function EmployeesPage() {
       }
     >
       <div className="pb-20 animate-in fade-in duration-500">
-        <EmployeesList />
+        <EmployeesList key={user.uid} />
       </div>
     </React.Suspense>
   );

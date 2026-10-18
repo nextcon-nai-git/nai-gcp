@@ -210,6 +210,30 @@ describe("employee document persistence", () => {
     expect(container.querySelector("input")).toBeNull();
     expect(container.querySelector('[aria-label="Remover vínculo de existing.pdf"]')).toBeNull();
   });
+  it("preserves a concurrent attachment received while metadata is saving", async () => {
+    const pending = deferred();
+    const save = () => pending.promise;
+    await render({ onDocumentsChange: save });
+    await upload();
+    await render({
+      onDocumentsChange: save,
+      documents: [original, { ...original, id: "other", name: "concurrent.pdf" }],
+    });
+    await act(async () => pending.resolve(undefined));
+    expect(container.textContent).toContain("new.pdf");
+    expect(container.textContent).toContain("concurrent.pdf");
+  });
+  it("does not write metadata after leaving during URL retrieval", async () => {
+    const pending = deferred();
+    const save = vi.fn();
+    mocks.url.mockReturnValue(pending.promise);
+    await render({ onDocumentsChange: save });
+    await upload();
+    await render({ employeeId: "other", onDocumentsChange: save });
+    await act(async () => pending.resolve("https://example.com/new.pdf"));
+    expect(save).not.toHaveBeenCalled();
+    expect(mocks.toast).not.toHaveBeenCalled();
+  });
   it("does not offer writes without an authenticated user", async () => {
     mocks.user = null;
     await render();

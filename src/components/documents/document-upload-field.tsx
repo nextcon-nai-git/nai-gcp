@@ -65,7 +65,11 @@ export function DocumentUploadField(props: DocumentUploadFieldProps) {
   const { user } = useUser();
   return (
     <DocumentUploadSession
-      key={`${user?.uid || "anonymous"}:${props.internal ? "internal" : props.companyId}:${props.employeeId || "draft"}`}
+      key={JSON.stringify([
+        user?.uid,
+        props.internal ? "internal" : props.companyId,
+        props.employeeId || "draft",
+      ])}
       {...props}
     />
   );
@@ -154,7 +158,8 @@ function DocumentUploadSession({
       ];
       await onDocumentsChange!(updated, { type: "add", document: updated[updated.length - 1] });
       if (!mounted.current) return;
-      setDocList(updated);
+      const added = updated[updated.length - 1];
+      setDocList((current) => [...current.filter((item) => item.id !== added.id), added]);
       toast({
         title: draft ? "Anexo preparado" : "Documento anexado",
         description: draft
@@ -187,7 +192,7 @@ function DocumentUploadSession({
       if (!document) return;
       await onDocumentsChange!(updated, { type: "remove", document });
       if (!mounted.current) return;
-      setDocList(updated);
+      setDocList((current) => current.filter((item) => item.id !== id));
       toast({
         title: "Vínculo removido",
         description: draft

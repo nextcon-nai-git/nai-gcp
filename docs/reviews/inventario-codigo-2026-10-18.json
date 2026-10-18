@@ -3,16 +3,16 @@
   "baseMain": "2e091445a5ecd00994ad2bdc90be759b74f5bea4",
   "scope": "TypeScript/TSX source under src excluding tests and declarations; inventory and automated coverage do not establish manual review or functional correctness.",
   "sourceFiles": 593,
-  "sourceLines": 122061,
+  "sourceLines": 122073,
   "apiRoutes": 79,
   "pages": 110,
-  "tests": 2023,
+  "tests": 2025,
   "testFiles": 214,
   "coverageSummary": {
     "statementsPercent": 51.75,
-    "branchesPercent": 46.51,
-    "functionsPercent": 43.17,
-    "linesPercent": 52.61
+    "branchesPercent": 46.5,
+    "functionsPercent": 43.21,
+    "linesPercent": 52.6
   },
   "zeroCoveredFiles": 257,
   "files": [
@@ -2524,14 +2524,14 @@
     },
     {
       "path": "src/app/employees/page.tsx",
-      "sha256": "4d80db8477b0b662270aa2ace7c15b666b97608f71e9232139050c27e4b5a8fb",
-      "sourceLines": 910,
+      "sha256": "a36dc9b2ada095a69d1d830838ce1f3548156c94a0aeca7e6ad689aa76563fed",
+      "sourceLines": 912,
       "automatedCoverage": {
         "functionsFound": 45,
         "functionsHit": 0,
-        "linesFound": 162,
+        "linesFound": 164,
         "linesHit": 0,
-        "branchesFound": 175,
+        "branchesFound": 177,
         "branchesHit": 0
       },
       "manualReview": "not_asserted"
@@ -3308,14 +3308,14 @@
     },
     {
       "path": "src/app/nxc-team/page.tsx",
-      "sha256": "9fe60466cd0b404d5f79251e32720bea242e0e8b2bd1bbecdc79ff508e718338",
-      "sourceLines": 1178,
+      "sha256": "61811095e9f30f7784845974158d9fccd71083b39cbb7c949ec4627795641440",
+      "sourceLines": 1183,
       "automatedCoverage": {
-        "functionsFound": 35,
+        "functionsFound": 36,
         "functionsHit": 0,
-        "linesFound": 84,
+        "linesFound": 86,
         "linesHit": 0,
-        "branchesFound": 188,
+        "branchesFound": 190,
         "branchesHit": 0
       },
       "manualReview": "not_asserted"
@@ -4190,15 +4190,15 @@
     },
     {
       "path": "src/components/documents/document-upload-field.tsx",
-      "sha256": "c14fb16e1eccaacbd9f4633d5947ac6c759a15db2174ca7373307c1fd54c4ea1",
-      "sourceLines": 339,
+      "sha256": "ce2905299bdd1fd204173c0ec7491fca6ddc3a0097a3a6c10d0754e66eb49bc0",
+      "sourceLines": 344,
       "automatedCoverage": {
-        "functionsFound": 17,
-        "functionsHit": 16,
-        "linesFound": 83,
-        "linesHit": 81,
-        "branchesFound": 90,
-        "branchesHit": 79
+        "functionsFound": 21,
+        "functionsHit": 20,
+        "linesFound": 84,
+        "linesHit": 82,
+        "branchesFound": 88,
+        "branchesHit": 78
       },
       "manualReview": "not_asserted"
     },
