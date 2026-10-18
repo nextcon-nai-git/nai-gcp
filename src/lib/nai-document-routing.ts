@@ -94,6 +94,32 @@ const documentPatterns: {
 const referenceHeading =
   /^(?:indice|sumario|referencias?|bibliografia|quadro de documentos|relacao de documentos|documentos (?:relacionados|vinculados|de referencia|complementares))\b/;
 
+function headingTitle(lines: string[], spec: (typeof documentPatterns)[number]) {
+  let title = "";
+  for (const line of lines.slice(0, 4)) {
+    if (!line || referenceHeading.test(normalizePgrText(line)) || /\.{4}|_{4}/.test(line)) break;
+    title = compact(`${title} ${line}`);
+    const normalized = normalizePgrText(title);
+    const match = spec.title.exec(normalized);
+    if (!match) continue;
+    // A title must start on the first line. Short prose prefixes ("O Programa…")
+    // are not headings, even when a PDF wraps the sentence across several lines.
+    if (match.index >= normalizePgrText(lines[0]).length) return null;
+    const prefix = normalized.slice(0, match.index).trim();
+    const headingPrefix =
+      /^(?:(?:titulo|documento|tipo de documento)\s*:|\d+(?:\.\d+)*[.)]?\s*[-–—:]?)?$/;
+    const acronymPrefix = spec.acronym ? new RegExp(`^${spec.acronym}\\s*[-–—:]$`) : null;
+    if (!headingPrefix.test(prefix) && !acronymPrefix?.test(prefix)) return null;
+    // Check only the line completing the title, not the paragraph after it.
+    // A parenthesized acronym may end a heading, but must not hide prose after it.
+    let suffix = normalized.slice(match.index + match[0].length).trim();
+    if (spec.acronym) suffix = suffix.replace(new RegExp(`^\\(\\s*${spec.acronym}\\s*\\)\\s*`), "");
+    if (suffix && !/^(?:[. ]*$|[-–—:/]|\d{4}(?:\b|$))/.test(suffix)) return null;
+    return title;
+  }
+  return null;
+}
+
 /** Titles and document structure are evidence; filenames and active clients are never inputs. */
 export function classifyNaiDocument(pages: PgrPage[]): NaiDocument {
   const candidates: {
@@ -117,22 +143,9 @@ export function classifyNaiDocument(pages: PgrPage[]): NaiDocument {
         /^(?:referencias?|bibliografia|consultar|ver |conforme |solicitar|anexo\b)/.test(normalized)
       )
         continue;
-      // PDF text runs frequently split a cover title across several lines. Join only
-      // a short window on the same physical page, stopping before reference sections.
-      const titleLines = lines.slice(lineIndex, lineIndex + 4);
-      const referenceIndex = titleLines.findIndex((item) =>
-        referenceHeading.test(normalizePgrText(item))
-      );
-      const title = compact(
-        titleLines.slice(0, referenceIndex < 0 ? undefined : referenceIndex).join(" ")
-      );
-      const normalizedTitle = normalizePgrText(title);
       for (const spec of documentPatterns) {
-        const match = spec.title.exec(normalizedTitle);
-        const fullTitle =
-          !!match &&
-          match.index < normalized.length &&
-          (match.index < 12 || /^(?:titulo|documento|tipo de documento)\s*:/.test(normalized));
+        const title = headingTitle(lines.slice(lineIndex, lineIndex + 4), spec);
+        const fullTitle = title !== null;
         const acronymTitle =
           !!spec.acronym &&
           new RegExp(
@@ -143,7 +156,7 @@ export function classifyNaiDocument(pages: PgrPage[]): NaiDocument {
           tipo: spec.tipo,
           score: (fullTitle ? 90 : 70) + (page.numero === 1 ? 30 : 0) + (lineIndex < 12 ? 15 : 0),
           pagina: page.numero,
-          trecho: fullTitle ? title.slice(0, match!.index + match![0].length) : line.slice(0, 1200),
+          trecho: (title || line).slice(0, 1200),
           fullTitle,
         });
       }
@@ -179,8 +192,12 @@ export function classifyNaiDocument(pages: PgrPage[]): NaiDocument {
     ).values(),
   ].sort((a, b) => b.score - a.score);
   const best = unique[0];
+  const fullTitleTypes = new Set(
+    candidates.filter((item) => item.fullTitle).map((item) => item.tipo)
+  );
   const ambiguous =
-    !!best && unique.some((item) => item.tipo !== best.tipo && best.score - item.score <= 15);
+    fullTitleTypes.size > 1 ||
+    (!!best && unique.some((item) => item.tipo !== best.tipo && best.score - item.score <= 15));
   const tipo = best && !ambiguous ? best.tipo : "OUTRO";
   const clinical =
     hasNaiClinicalData(pages) ||

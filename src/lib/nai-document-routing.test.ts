@@ -9,6 +9,39 @@ import { getNaiDocument, PgrAnalysisOutputSchema } from "./pgr-schema";
 
 describe("NAI importa: classificação pelo conteúdo", () => {
   it.each([
+    "O Programa de Controle Médico de Saúde\nOcupacional (PCMSO) deve estar articulado ao PGR",
+    "Programa de Controle Médico de Saúde\nOcupacional (PCMSO) deve estar articulado ao PGR",
+    "O Atestado de Saúde Ocupacional é emitido pelo médico.",
+    "Atestado de Saúde\nOcupacional deve ser solicitado após os exames.",
+    "A Perícia Médica pode ser solicitada quando necessária.",
+  ])("não transforma menção em prosa em título clínico: %s", (mention) => {
+    expect(
+      classifyNaiDocument([{ numero: 1, texto: "PROGRAMA DE GERENCIAMENTO DE RISCOS\n" + mention }])
+    ).toMatchObject({ tipo: "PGR", statusClassificacao: "identificado", acesso: "sst" });
+  });
+
+  it.each([
+    "Título: Programa de Controle Médico de Saúde\nOcupacional (PCMSO)",
+    "1. Programa de Controle Médico de Saúde\nOcupacional — 2026",
+    "Programa de Controle Médico de Saúde\nOcupacional\nO programa estabelece o acompanhamento dos trabalhadores.",
+  ])("mantém títulos clínicos válidos e sua restrição: %s", (texto) => {
+    expect(classifyNaiDocument([{ numero: 1, texto }])).toMatchObject({
+      tipo: "PCMSO",
+      statusClassificacao: "identificado",
+      acesso: "clinico_restrito",
+    });
+  });
+
+  it("preserva conflito entre títulos completos em páginas distantes", () => {
+    expect(
+      classifyNaiDocument([
+        { numero: 1, texto: "Programa de Gerenciamento de Riscos" },
+        { numero: 25, texto: "ANÁLISE ERGONÔMICA\nDO TRABALHO" },
+      ])
+    ).toMatchObject({ tipo: "OUTRO", statusClassificacao: "ambiguo", agenteResponsavel: null });
+  });
+
+  it.each([
     ["PROGRAMA DE\nGERENCIAMENTO DE\nRISCOS", "PGR"],
     ["LAUDO TÉCNICO DAS\nCONDIÇÕES AMBIENTAIS\nDO TRABALHO", "LTCAT"],
     ["PROGRAMA DE CONTROLE\nMÉDICO DE SAÚDE\nOCUPACIONAL", "PCMSO"],

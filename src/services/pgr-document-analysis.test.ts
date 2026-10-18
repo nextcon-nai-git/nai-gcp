@@ -14,6 +14,94 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("IA PGR com limites", () => {
+  it.each(["identificado", "nao_identificado"] as const)(
+    "preserva ambiguidade textual quando a triagem retorna %s",
+    async (statusClassificacao) => {
+      mocks.readPages.mockResolvedValue([
+        {
+          numero: 1,
+          texto: "PROGRAMA DE GERENCIAMENTO DE RISCOS\nANÁLISE ERGONÔMICA\nDO TRABALHO",
+        },
+      ]);
+      mocks.generate.mockResolvedValue({
+        output: {
+          tipo: statusClassificacao === "identificado" ? "PGR" : "OUTRO",
+          statusClassificacao,
+          contemDadosClinicosIndividuais: false,
+          evidencias: [{ pagina: 1, trecho: "PROGRAMA DE GERENCIAMENTO DE RISCOS" }],
+        },
+      });
+      const result = await analyzePgrDocument({
+        pdfDataUri: "data:application/pdf;base64,aGVsbG8=",
+      });
+      expect(result.documento).toMatchObject({
+        tipo: "OUTRO",
+        statusClassificacao: "ambiguo",
+        agenteResponsavel: null,
+      });
+      expect(result.documento?.evidencias).toHaveLength(2);
+      expect(result.analiseAgente?.status).toBe("pendente");
+      expect(mocks.generate).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it("não bloqueia PGR por menção clínica em frase quebrada entre linhas", async () => {
+    const source =
+      "PROGRAMA DE GERENCIAMENTO DE RISCOS\nO Programa de Controle Médico de Saúde\nOcupacional (PCMSO) deve estar articulado ao PGR\n" +
+      text;
+    mocks.readPages.mockResolvedValue([{ numero: 1, texto: source }]);
+    mocks.generate
+      .mockResolvedValueOnce({
+        output: {
+          tipo: "PGR",
+          statusClassificacao: "identificado",
+          contemDadosClinicosIndividuais: false,
+        },
+      })
+      .mockResolvedValueOnce({ output: parsePgrDocumentPages([{ numero: 1, texto: source }]) });
+    const result = await analyzePgrDocument({ pdfDataUri: "data:application/pdf;base64,aGVsbG8=" });
+    expect(result.documento).toMatchObject({ tipo: "PGR", acesso: "sst" });
+    expect(result.analiseAgente?.status).toBe("concluida");
+    expect(mocks.generate).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([false, true])(
+    "preserva acesso clínico em documento misto (autorizado: %s)",
+    async (allowClinical) => {
+      mocks.readPages.mockResolvedValue([
+        {
+          numero: 1,
+          texto: "PROGRAMA DE GERENCIAMENTO DE RISCOS\nATESTADO DE SAÚDE\nOCUPACIONAL",
+        },
+      ]);
+      mocks.generate.mockResolvedValue({
+        output: {
+          tipo: "PGR",
+          statusClassificacao: "identificado",
+          contemDadosClinicosIndividuais: false,
+          evidencias: [{ pagina: 1, trecho: "PROGRAMA DE GERENCIAMENTO DE RISCOS" }],
+        },
+      });
+      const pending = analyzePgrDocument({
+        pdfDataUri: "data:application/pdf;base64,aGVsbG8=",
+        allowClinical,
+      });
+      if (allowClinical) {
+        const result = await pending;
+        expect(result.documento).toMatchObject({
+          tipo: "OUTRO",
+          statusClassificacao: "ambiguo",
+          acesso: "clinico_restrito",
+          agenteResponsavel: null,
+        });
+        expect(result.analiseAgente?.status).toBe("pendente");
+      } else {
+        await expect(pending).rejects.toMatchObject({ status: 403 });
+      }
+      expect(mocks.generate).toHaveBeenCalledTimes(1);
+    }
+  );
+
   it("envia texto com páginas físicas junto ao PDF e repete triagem inconclusiva", async () => {
     const source = "PROGRAMA DE\nGERENCIAMENTO DE\nRISCOS\n" + text;
     mocks.readPages.mockResolvedValue([{ numero: 1, texto: source }]);
