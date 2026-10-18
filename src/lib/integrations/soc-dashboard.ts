@@ -18,10 +18,14 @@ export const reportStatuses = {
 } as const;
 
 const count = z.number().int().min(0).max(20000);
+const timestamp = z
+  .string()
+  .datetime({ offset: true })
+  .refine((value) => Number.isFinite(Date.parse(value)), "Data e fuso horário inválidos");
 export const socExamSummarySchema = z
   .object({
     companyId: id,
-    importedAt: z.string().datetime({ offset: true }),
+    importedAt: timestamp,
     referenceDate: day,
     dueSoonEnd: day,
     source: z.literal("SOC · Convocação de Exames CSV"),
@@ -79,7 +83,7 @@ export const socDashboardSchema = z
   .object({
     schemaVersion: z.literal(1),
     source: z.literal("SOC · consulta manual"),
-    observedAt: z.string().datetime({ offset: true }),
+    observedAt: timestamp,
     dueSoonEnd: day,
     inactiveExcluded: z.number().int().min(0).max(100_000),
     activeCompanies: z
@@ -141,6 +145,18 @@ export const socDashboardSchema = z
   });
 
 export type SocDashboardSnapshot = z.infer<typeof socDashboardSchema>;
+/** Omission in an older JSON export does not authorize deleting imported coverage. */
+export function consolidateSocSnapshot(
+  next: SocDashboardSnapshot,
+  previous?: SocDashboardSnapshot
+) {
+  return socDashboardSchema.parse({
+    ...next,
+    ...(next.examSummaries === undefined && previous?.examSummaries !== undefined
+      ? { examSummaries: previous.examSummaries }
+      : {}),
+  });
+}
 export type SocDashboardResponse = {
   snapshot: SocDashboardSnapshot | null;
   version: string | null;

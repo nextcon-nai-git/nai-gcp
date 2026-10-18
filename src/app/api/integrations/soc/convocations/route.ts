@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { AuthError } from "@/lib/auth/errors";
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     const metadata = head.data()!;
     const chunks = await root()
       .collection("imports")
-      .doc(metadata.hash)
+      .doc(metadata.importId || metadata.hash)
       .collection("chunks")
       .orderBy("index")
       .get();
@@ -47,6 +47,9 @@ export async function POST(req: NextRequest) {
     requireSocAccess(user);
     if (!["SUPER_ADMIN", "ADMIN"].includes(user.role))
       throw new AuthError("Somente administradores internos podem importar esta base.", 403);
+    const previous = await root().get();
+    const previousData = previous.data();
+    const expectedImport = previousData?.importId || previousData?.hash || null;
     if (!req.headers.get("content-type")?.startsWith("text/csv"))
       throw new AuthError("Envie um CSV.", 415);
     const reader = req.body?.getReader();
@@ -79,6 +82,7 @@ export async function POST(req: NextRequest) {
       new Date()
     );
     const metadata = {
+      importId: randomUUID(),
       hash,
       importedAt: new Date().toISOString(),
       importedBy: user.uid,
@@ -92,14 +96,23 @@ export async function POST(req: NextRequest) {
       batch.set(
         root()
           .collection("imports")
-          .doc(hash)
+          .doc(metadata.importId)
           .collection("chunks")
           .doc(String(i / 100).padStart(4, "0")),
         { index: i / 100, rows: rows.slice(i, i + 100) }
       );
-    batch.set(root().collection("imports").doc(hash), metadata);
+    batch.set(root().collection("imports").doc(metadata.importId), metadata);
     await batch.commit();
-    await root().set(metadata);
+    await adminDb.runTransaction(async (transaction) => {
+      const latest = await transaction.get(root());
+      const current = latest.data();
+      if ((current?.importId || current?.hash || null) !== expectedImport)
+        throw new AuthError(
+          "Outra importação foi publicada durante o envio. Recarregue e confira a base antes de tentar novamente.",
+          409
+        );
+      transaction.set(root(), metadata);
+    });
     return reply({ imported: true, summary: metadata.summary, importedAt: metadata.importedAt });
   } catch (e) {
     return fail(e);

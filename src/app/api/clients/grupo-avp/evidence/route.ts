@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getStorage } from "firebase-admin/storage";
+import { FieldPath } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase-admin";
 import { firebaseConfig } from "@/firebase/config";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { requireAvpAccess } from "@/lib/auth/avp-access";
+import { requireAvpAccess, canAccessAvpEvidence } from "@/lib/auth/avp-access";
 import { AuthError, badRequest, forbidden } from "@/lib/auth/errors";
 import { AvpEvidenceSchema } from "@/lib/avp-evidence";
+import { limitedBytes, limitedJson } from "@/lib/http/private-api";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -22,10 +24,7 @@ const filePath = (hash: string) => `avp-evidence/v1/${hash}.pdf`;
 async function access(req: NextRequest) {
   const user = await requireAuth(req);
   requireAvpAccess(user);
-  if (
-    !["SUPER_ADMIN", "ADMIN", "OPERATIONS"].includes(user.role) ||
-    (user.role !== "SUPER_ADMIN" && user.tenantId)
-  )
+  if (!canAccessAvpEvidence(user))
     throw forbidden(
       "Evidências financeiras e ASOs são restritos à equipe operacional interna autorizada."
     );
@@ -63,11 +62,17 @@ export async function GET(req: NextRequest) {
         },
       });
     }
-    const docs = await collection().orderBy("createdAt", "desc").limit(3001).get();
-    if (docs.size > 3000)
-      throw badRequest("O limite de consulta foi atingido. Refine a consulta antes de continuar.");
+    const cursor = req.nextUrl.searchParams.get("cursor");
+    if (cursor !== null && !/^[a-f0-9]{64}$/.test(cursor)) throw badRequest("Cursor inválido.");
+    let query = collection().orderBy(FieldPath.documentId());
+    if (cursor) query = query.startAfter(cursor);
+    const docs = await query.limit(501).get();
+    const page = docs.docs.slice(0, 500);
     return NextResponse.json(
-      { records: docs.docs.map((d) => ({ ...d.data(), id: d.id })) },
+      {
+        records: page.map((d) => ({ ...d.data(), id: d.id })),
+        nextCursor: docs.size > 500 ? page.at(-1)!.id : null,
+      },
       { headers }
     );
   } catch (e) {
@@ -80,7 +85,10 @@ export async function POST(req: NextRequest) {
     if (req.headers.get("content-type")?.includes("multipart/form-data")) {
       if (Number(req.headers.get("content-length") || 0) > 16000000)
         throw badRequest("PDF excede 15 MB.");
-      const form = await req.formData();
+      const bytesWithBoundary = await limitedBytes(req, 16000000);
+      const form = await new Response(new Uint8Array(bytesWithBoundary), {
+        headers: { "Content-Type": req.headers.get("content-type")! },
+      }).formData();
       const file = form.get("file");
       const id = form.get("id");
       if (
@@ -120,11 +128,10 @@ export async function POST(req: NextRequest) {
       }
       return NextResponse.json({ saved: true, id }, { headers });
     }
-    const raw = await req.text();
-    if (Buffer.byteLength(raw) > 500000) throw badRequest("Lote excede o limite.");
+    const payload = await limitedJson(req, 500000);
     let records;
     try {
-      records = z.array(AvpEvidenceSchema).min(1).max(100).parse(JSON.parse(raw).records);
+      records = z.array(AvpEvidenceSchema).min(1).max(100).parse(payload.records);
     } catch {
       throw badRequest("Confira o índice: até 100 registros válidos por lote.");
     }

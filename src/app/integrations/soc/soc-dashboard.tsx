@@ -10,6 +10,7 @@ import {
   SOC_DASHBOARD_MAX_BYTES,
   reportStatuses,
   socDashboardSchema,
+  consolidateSocSnapshot,
   summarizeSocDashboard,
   type SocDashboardResponse,
   type SocDashboardSnapshot,
@@ -90,7 +91,6 @@ export function SocDashboard() {
   async function importFile(file: File | undefined) {
     if (!file || !user) return;
     const uid = user.uid;
-    setDraft(null);
     setError("");
     setNotice("");
     try {
@@ -101,7 +101,11 @@ export function SocDashboard() {
         throw Error(
           "Arquivo fora do formato de levantamento SOC. Confira campos, datas e códigos únicos."
         );
-      if (identity.current === uid) setDraft(parsed.data);
+      const consolidated = consolidateSocSnapshot(
+        parsed.data,
+        draft ?? data?.snapshot ?? undefined
+      );
+      if (identity.current === uid) setDraft(consolidated);
     } catch (error) {
       if (identity.current === uid)
         setError(
@@ -254,7 +258,8 @@ export function SocDashboard() {
           </div>
           <SocConvocationPanel
             key={`${owner}:${visibleData.version}`}
-            snapshot={snapshot}
+            snapshot={draft ?? snapshot}
+            isDraft={!!draft}
             canPublish={visibleData.canPublish}
             busy={publishing}
             onDraft={(value) => {

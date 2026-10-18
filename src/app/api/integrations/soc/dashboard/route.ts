@@ -8,6 +8,7 @@ import {
   SOC_DASHBOARD_MAX_BYTES,
   socDashboardSchema,
   socDashboardWriteSchema,
+  consolidateSocSnapshot,
 } from "@/lib/integrations/soc-dashboard";
 
 export const runtime = "nodejs";
@@ -104,7 +105,7 @@ export async function PUT(req: NextRequest) {
     const version = randomUUID();
     const savedAt = new Date().toISOString();
     const ref = document();
-    await adminDb.runTransaction(async (transaction) => {
+    const savedSnapshot = await adminDb.runTransaction(async (transaction) => {
       const previous = await transaction.get(ref);
       const data = previous.data();
       if ((data?.version ?? null) !== expectedVersion)
@@ -114,9 +115,19 @@ export async function PUT(req: NextRequest) {
         Date.parse(snapshot.observedAt) < Date.parse(data.snapshot.observedAt)
       )
         throw new AuthError("Este levantamento é anterior ao já publicado.", 409);
-      transaction.set(ref, { snapshot, version, savedAt, updatedBy: user.uid });
+      let consolidated;
+      try {
+        consolidated = consolidateSocSnapshot(snapshot, data?.snapshot);
+      } catch {
+        throw new AuthError(
+          "O levantamento removeria empresas com resumos importados. Revise explicitamente a carteira e os resumos antes de publicar.",
+          400
+        );
+      }
+      transaction.set(ref, { snapshot: consolidated, version, savedAt, updatedBy: user.uid });
+      return consolidated;
     });
-    return reply({ snapshot, version, savedAt, canPublish: true });
+    return reply({ snapshot: savedSnapshot, version, savedAt, canPublish: true });
   } catch (error) {
     return failure(error);
   }

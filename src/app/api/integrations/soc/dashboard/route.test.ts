@@ -157,3 +157,57 @@ describe("protected SOC dashboard", () => {
     expect(await response.text()).not.toContain("private database");
   });
 });
+
+const summary = {
+  companyId: "101",
+  importedAt: "2026-01-15T12:00:00Z",
+  referenceDate: "2026-01-15",
+  dueSoonEnd: "2026-02-14",
+  source: "SOC · Convocação de Exames CSV",
+  total: 2,
+  overdue: 1,
+  dueSoon: 1,
+  later: 0,
+  unknown: 0,
+  excludedInactive: 0,
+  duplicates: 0,
+};
+it("preserves coverage when an older JSON layout omits summaries", async () => {
+  const version = "9ae33640-8042-4bcb-8ed1-611fdb552a8c";
+  mocks.get.mockResolvedValue({
+    data: () => ({ version, snapshot: { ...snapshot, examSummaries: [summary] } }),
+  });
+  const response = await PUT(write({ expectedVersion: version }));
+  expect(response.status).toBe(200);
+  expect((await response.json()).snapshot.examSummaries).toEqual([summary]);
+  expect(mocks.set.mock.calls[0][1].snapshot.examSummaries).toEqual([summary]);
+});
+it("rejects removing companies with preserved coverage unless summaries are explicitly consolidated", async () => {
+  const version = "9ae33640-8042-4bcb-8ed1-611fdb552a8c";
+  mocks.get.mockResolvedValue({
+    data: () => ({ version, snapshot: { ...snapshot, examSummaries: [summary] } }),
+  });
+  expect(
+    (
+      await PUT(
+        write({
+          expectedVersion: version,
+          snapshot: { ...snapshot, activeCompanies: [{ id: "102", name: "Outra" }] },
+        })
+      )
+    ).status
+  ).toBe(400);
+  expect(mocks.set).not.toHaveBeenCalled();
+});
+it.each(["importedAt", "observedAt"])(
+  "rejects invalid offsets in %s before persistence",
+  async (field) => {
+    const bad = "2026-01-15T12:00:00+24:00";
+    const candidate =
+      field === "observedAt"
+        ? { ...snapshot, observedAt: bad }
+        : { ...snapshot, examSummaries: [{ ...summary, importedAt: bad }] };
+    expect((await PUT(write({ snapshot: candidate }))).status).toBe(400);
+    expect(mocks.set).not.toHaveBeenCalled();
+  }
+);

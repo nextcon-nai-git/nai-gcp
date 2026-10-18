@@ -10,6 +10,7 @@ const m = vi.hoisted(() => ({
   set: vi.fn(),
   batchSet: vi.fn(),
   commit: vi.fn(),
+  transaction: vi.fn(),
 }));
 vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: m.auth }));
 vi.mock("@/lib/firebase-admin", () => {
@@ -18,6 +19,7 @@ vi.mock("@/lib/firebase-admin", () => {
     adminDb: {
       collection: () => ({ doc: () => ref }),
       batch: () => ({ set: m.batchSet, commit: m.commit }),
+      runTransaction: m.transaction,
     },
   };
 });
@@ -39,7 +41,8 @@ const request = (body = Papa.unparse([row])) =>
 beforeEach(() => {
   vi.resetAllMocks();
   m.auth.mockResolvedValue({ uid: "admin", role: "ADMIN", tenantId: null });
-  m.get.mockResolvedValue({ exists: false });
+  m.get.mockResolvedValue({ exists: false, data: () => undefined });
+  m.transaction.mockImplementation((callback) => callback({ get: m.get, set: m.set }));
 });
 describe("convocation import access and persistence", () => {
   it("rejects unauthenticated access and client tenants before storage", async () => {
@@ -70,6 +73,7 @@ describe("convocation import access and persistence", () => {
       expect.objectContaining({ rows: [row] })
     );
     expect(m.set).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ group: "GRUPO_AVP", importedBy: "admin" })
     );
     expect(m.commit.mock.invocationCallOrder[0]).toBeLessThan(m.set.mock.invocationCallOrder[0]);
@@ -80,4 +84,21 @@ describe("convocation import access and persistence", () => {
     expect((await POST(request())).status).toBe(500);
     expect(m.set).not.toHaveBeenCalled();
   });
+});
+
+it("refuses a stale publication after another import changed the active pointer", async () => {
+  m.get
+    .mockResolvedValueOnce({ data: () => ({ hash: "old" }) })
+    .mockResolvedValueOnce({ data: () => ({ importId: "newer" }) });
+  expect((await POST(request())).status).toBe(409);
+  expect(m.commit).toHaveBeenCalledOnce();
+  expect(m.set).not.toHaveBeenCalled();
+});
+it("preserves separate audit metadata for repeated hashes", async () => {
+  expect((await POST(request())).status).toBe(200);
+  expect((await POST(request())).status).toBe(200);
+  const metadata = m.batchSet.mock.calls.map(([, data]) => data).filter((data) => data.importId);
+  expect(metadata).toHaveLength(2);
+  expect(metadata[0].hash).toBe(metadata[1].hash);
+  expect(metadata[0].importId).not.toBe(metadata[1].importId);
 });

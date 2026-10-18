@@ -4,34 +4,19 @@ import * as React from "react";
 import Link from "next/link";
 import {
   Building2,
-  Users,
-  MapPin,
   Clock,
-  Phone,
   Mail,
   MessageSquare,
-  CheckCircle2,
-  AlertTriangle,
-  FileText,
   Calendar,
   ShieldCheck,
-  Sparkles,
   Send,
   ExternalLink,
-  Download,
   Copy,
   Check,
-  ArrowRight,
-  Layers,
-  Stethoscope,
-  AlertCircle,
-  HelpCircle,
-  Video,
   ListTodo,
-  UserCheck,
   FileSpreadsheet,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -42,8 +27,12 @@ import { AvpSchedulingRequestForm } from "@/components/clients/avp-scheduling-re
 import { GrupoAvpCredenciamentoHub } from "@/components/clients/grupo-avp-credenciamento-hub";
 
 import { AvpEvidencePanel } from "@/components/clients/avp-evidence-panel";
+import { useUser } from "@/firebase";
+import { canAccessAvpEvidence } from "@/lib/auth/avp-access";
 
 export default function GrupoAvpClientHubPage() {
+  const session = useUser();
+  const canSeeEvidence = !!session.user && canAccessAvpEvidence(session);
   const { toast } = useToast();
   const [copiedChannel, setCopiedChannel] = React.useState<string | null>(null);
 
@@ -256,12 +245,16 @@ export default function GrupoAvpClientHubPage() {
               </Badge>
             </TabsTrigger>
 
-            <TabsTrigger value="payments" className="rounded-xl py-2.5 px-4 text-xs font-bold">
-              Pagamentos às clínicas
-            </TabsTrigger>
-            <TabsTrigger value="documents" className="rounded-xl py-2.5 px-4 text-xs font-bold">
-              ASOs recebidos
-            </TabsTrigger>
+            {canSeeEvidence && (
+              <>
+                <TabsTrigger value="payments" className="rounded-xl py-2.5 px-4 text-xs font-bold">
+                  Pagamentos às clínicas
+                </TabsTrigger>
+                <TabsTrigger value="documents" className="rounded-xl py-2.5 px-4 text-xs font-bold">
+                  ASOs recebidos
+                </TabsTrigger>
+              </>
+            )}
 
             <TabsTrigger
               value="credenciamento"
@@ -322,12 +315,16 @@ export default function GrupoAvpClientHubPage() {
           <GrupoAvpAsoManager onQueueSummaryChange={setQueueSummary} />
         </TabsContent>
 
-        <TabsContent value="payments">
-          <AvpEvidencePanel kind="payment" />
-        </TabsContent>
-        <TabsContent value="documents">
-          <AvpEvidencePanel kind="aso" />
-        </TabsContent>
+        {canSeeEvidence && (
+          <>
+            <TabsContent value="payments">
+              <AvpEvidencePanel kind="payment" />
+            </TabsContent>
+            <TabsContent value="documents">
+              <AvpEvidencePanel kind="aso" />
+            </TabsContent>
+          </>
+        )}
 
         {/* TAB 1.5: CENTRAL NACIONAL DE CREDENCIAMENTO BRASIL (WHATSAPP 1-CLIQUE) */}
         <TabsContent value="credenciamento" className="space-y-6 focus-visible:outline-none">

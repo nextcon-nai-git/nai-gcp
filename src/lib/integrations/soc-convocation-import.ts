@@ -34,8 +34,14 @@ export function importSocConvocation(
   company: { id: string; name: string },
   referenceDate: string,
   dueSoonEnd: string,
-  importedAt = new Date().toISOString()
+  importedAt: string,
+  portfolio: readonly { id: string; name: string }[]
 ): SocExamSummary {
+  const matches = portfolio.filter((c) => normalize(c.name) === normalize(company.name));
+  if (matches.length !== 1 || matches[0].id !== company.id)
+    throw Error(
+      "Apelido de empresa ausente ou repetido na carteira. Este layout não contém código SOC único; confirme a identificação na origem antes de importar."
+    );
   if (new TextEncoder().encode(csv).length > SOC_CONVOCATION_MAX_BYTES)
     throw Error("CSV acima de 16 MB. Divida a exportação por empresa.");
   const parsed = Papa.parse<Record<string, string>>(csv.replace(/^\uFEFF/, ""), {
@@ -45,6 +51,7 @@ export function importSocConvocation(
   });
   if (
     parsed.errors.length ||
+    Object.keys(parsed.meta.renamedHeaders || {}).length > 0 ||
     !columns.every((c) => parsed.meta.fields?.includes(c)) ||
     new Set(parsed.meta.fields).size !== parsed.meta.fields?.length
   )
