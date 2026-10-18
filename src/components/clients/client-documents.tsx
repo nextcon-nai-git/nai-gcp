@@ -8,6 +8,12 @@ import { parseActionLines, type ClientDocument } from "@/lib/client-documents";
 
 export function ClientDocuments({ companyId }: { companyId: string }) {
   const { user } = useUser();
+  return (
+    <ClientDocumentsSession key={JSON.stringify([user?.uid, companyId])} companyId={companyId} />
+  );
+}
+function ClientDocumentsSession({ companyId }: { companyId: string }) {
+  const { user } = useUser();
   const [documents, setDocuments] = useState<ClientDocument[]>([]);
   const [source, setSource] = useState<File | null>(null);
   const [actions, setActions] = useState("");
@@ -16,14 +22,24 @@ export function ClientDocuments({ companyId }: { companyId: string }) {
   const [error, setError] = useState("");
   const [pdf, setPdf] = useState<string | null>(null);
   const chooser = useRef<HTMLInputElement>(null);
+  const active = useRef(true);
+  const pending = useRef(false);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const endpoint = `/api/clients/${encodeURIComponent(companyId)}/documents`;
   const request = useCallback(
     async (url: string, options: RequestInit = {}) => {
       if (!user) throw new Error("Entre no NAI para acessar os documentos.");
+      const token = await user.getIdToken();
+      if (!active.current) throw new Error("Sessão encerrada.");
       const response = await fetch(url, {
         ...options,
         cache: "no-store",
-        headers: { Authorization: `Bearer ${await user.getIdToken()}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok)
         throw new Error((await response.json()).error || "Falha ao acessar documentos.");
@@ -59,6 +75,7 @@ export function ClientDocuments({ companyId }: { companyId: string }) {
     [pdf]
   );
   async function save() {
+    if (!user || pending.current) return;
     if (!source) {
       setError("Selecione o PDF original.");
       return;
@@ -72,6 +89,7 @@ export function ClientDocuments({ companyId }: { companyId: string }) {
       );
       return;
     }
+    pending.current = true;
     setBusy(true);
     setError("");
     setNotice("");
@@ -80,7 +98,7 @@ export function ClientDocuments({ companyId }: { companyId: string }) {
       data.append("source", source);
       data.append("actions", JSON.stringify(parsed));
       const saved = await (await request(endpoint, { method: "POST", body: data })).json();
-      setDocuments((await (await request(endpoint)).json()).documents);
+      if (!active.current) return;
       setNotice(
         saved.alreadySaved
           ? `Documento já cadastrado, com ${saved.taskCount} cards. Nenhuma duplicação criada.`
@@ -89,21 +107,28 @@ export function ClientDocuments({ companyId }: { companyId: string }) {
       setSource(null);
       setActions("");
       if (chooser.current) chooser.current.value = "";
+      const refreshed = await (await request(endpoint)).json();
+      if (active.current) setDocuments(refreshed.documents);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível salvar.");
+      if (active.current) setError(e instanceof Error ? e.message : "Não foi possível salvar.");
     } finally {
-      setBusy(false);
+      pending.current = false;
+      if (active.current) setBusy(false);
     }
   }
   async function open(id: string) {
+    if (!user || pending.current) return;
+    pending.current = true;
     setBusy(true);
     setError("");
     try {
-      setPdf(URL.createObjectURL(await (await request(`${endpoint}?pdf=${id}`)).blob()));
+      const blob = await (await request(`${endpoint}?pdf=${id}`)).blob();
+      if (active.current) setPdf(URL.createObjectURL(blob));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível abrir.");
+      if (active.current) setError(e instanceof Error ? e.message : "Não foi possível abrir.");
     } finally {
-      setBusy(false);
+      pending.current = false;
+      if (active.current) setBusy(false);
     }
   }
   return (
@@ -190,7 +215,7 @@ export function ClientDocuments({ companyId }: { companyId: string }) {
             esses campos após confirmar os marcos contratuais. Reenvios do mesmo PDF não duplicam os
             cards.
           </p>
-          <Button disabled={busy || !source} onClick={() => void save()}>
+          <Button disabled={busy || !source || !user} onClick={() => void save()}>
             {busy ? "Salvando…" : "Salvar documento e criar cards"}
           </Button>
         </div>

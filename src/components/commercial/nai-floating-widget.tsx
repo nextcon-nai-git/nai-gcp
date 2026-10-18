@@ -1,4 +1,6 @@
 "use client";
+import { useUser } from "@/firebase";
+import { useSgi } from "@/contexts/sgi-context";
 import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
@@ -90,6 +92,18 @@ interface Message {
 }
 
 export function NaiFloatingWidget() {
+  const { user } = useUser();
+  const { activeClientId } = useSgi();
+  return <NaiFloatingWidgetSession key={JSON.stringify([user?.uid, activeClientId])} />;
+}
+function NaiFloatingWidgetSession() {
+  const active = React.useRef(true);
+  React.useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const [isOpen, setIsOpen] = React.useState(false);
   const [chatMode, setChatMode] = React.useState(false);
   const [selectedSkill, setSelectedSkill] = React.useState<SkillItem | null>(null);
@@ -144,7 +158,9 @@ export function NaiFloatingWidget() {
 
       const fullQuery = `ESPECIALIDADE SELECIONADA: ${currentSkill.title}\n\nHISTÓRICO:\n${contextPrompt}\n\nNOVA MENSAGEM DO CLIENTE: ${userText}\n\nINSTRUÇÃO: Como NAI (consultora especialista de SST da Nextcon), responda de forma muito atenciosa, analisando a resposta do cliente. Se ele já forneceu os dados (ramo, colaboradores, local), monte uma síntese e indique próximos passos. Não invente preços, clínicas, disponibilidade, confirmações, envios ou garantias de conformidade; este chat não executa agendamentos ou envios. Não solicite CPF nem dados de saúde. Se faltou algo, pergunte objetivamente para concluir a proposta.`;
 
-      const res = await runKnowledgeAssistant({ query: fullQuery }, await getActionIdToken());
+      const token = await getActionIdToken();
+      if (!active.current) throw new Error("Sessão encerrada");
+      const res = await runKnowledgeAssistant({ query: fullQuery }, token);
       if (res && res.answer) {
         return { content: res.answer, advice: res.advice };
       }
@@ -168,16 +184,17 @@ export function NaiFloatingWidget() {
     if (!customText) setInput("");
 
     // Add user message
-    const userMsg: Message = { id: Date.now().toString(), role: "user", content: textToSend };
+    const userMsg: Message = { id: crypto.randomUUID(), role: "user", content: textToSend };
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
     setIsLoading(true);
 
     try {
       const response = await generateResponse(textToSend, selectedSkill, updatedMessages);
+      if (!active.current) return;
 
       const aiMsg: Message = {
-        id: (Date.now() + 1).toString(),
+        id: crypto.randomUUID(),
         role: "ai",
         content: response.content,
         advice: response.advice,
@@ -186,16 +203,19 @@ export function NaiFloatingWidget() {
 
       setMessages((prev) => [...prev, aiMsg]);
 
+      const token = await getActionIdToken();
+      if (!active.current) return;
       const saved = await salvarLeadNai(
         {
           skillTitle: selectedSkill.title,
           userText: textToSend,
           aiResponse: response.content,
         },
-        await getActionIdToken()
+        token
       );
       if (!saved.sucesso) throw new Error("Não foi possível salvar a conversa.");
     } catch {
+      if (!active.current) return;
       setMessages((prev) => [
         ...prev,
         {
@@ -208,7 +228,7 @@ export function NaiFloatingWidget() {
       ]);
     } finally {
       sendingRef.current = false;
-      setIsLoading(false);
+      if (active.current) setIsLoading(false);
     }
   };
 

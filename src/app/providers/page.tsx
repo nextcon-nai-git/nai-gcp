@@ -199,12 +199,30 @@ function RatingStars({
 }
 
 export default function ProvidersManagement() {
+  const { user, role, companyId, tenantId } = useUser();
+  const { activeClientId } = useSgi();
+  return (
+    <ProvidersManagementSession
+      key={JSON.stringify([user?.uid, role, companyId, tenantId, activeClientId])}
+    />
+  );
+}
+function ProvidersManagementSession() {
   const { toast } = useToast();
   const { user, role, companyId, tenantId, isUserLoading, userError } = useUser();
   const db = useFirestore();
   const storage = useStorage();
   const { activeClientId } = useSgi();
   const [isPending, startTransition] = React.useTransition();
+  const activeSession = React.useRef(true);
+  const savePending = React.useRef(false);
+  const csvPending = React.useRef(false);
+  React.useEffect(() => {
+    activeSession.current = true;
+    return () => {
+      activeSession.current = false;
+    };
+  }, []);
 
   const [searchTerm, setSearchTerm] = React.useState("");
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
@@ -245,7 +263,7 @@ export default function ProvidersManagement() {
   const [providerQueryVersion, setProviderQueryVersion] = React.useState(0);
 
   const providersQuery = useMemoFirebase(() => {
-    if (!db || isUserLoading || !isGlobalAdmin) return null;
+    if (!user || !db || isUserLoading || !isGlobalAdmin) return null;
     return query(collection(db, "providers"), orderBy("name", "asc"));
   }, [db, isUserLoading, isGlobalAdmin, user?.uid, providerQueryVersion]);
 
@@ -278,11 +296,13 @@ export default function ProvidersManagement() {
         },
         verify: { isDeleted: true, active: false },
       });
+      if (!activeSession.current) return;
       toast({
         title: "Cadastro Arquivado",
         description: `${provider.name || "Prestador"} foi arquivado após confirmação da gravação.`,
       });
     } catch (err: any) {
+      if (!activeSession.current) return;
       toast({
         variant: "destructive",
         title: "Falha ao arquivar cadastro",
@@ -292,7 +312,7 @@ export default function ProvidersManagement() {
   };
 
   const companiesQuery = useMemoFirebase(() => {
-    if (!db || isUserLoading || !isGlobalAdmin) return null;
+    if (!user || !db || isUserLoading || !isGlobalAdmin) return null;
     return query(collection(db, "companies"), orderBy("name", "asc"));
   }, [db, isUserLoading, isGlobalAdmin, user?.uid, providerQueryVersion]);
   const {
@@ -430,7 +450,7 @@ export default function ProvidersManagement() {
 
   const handleAiContractUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !file.type.includes("pdf")) {
+    if (!file || file.type !== "application/pdf") {
       toast({
         variant: "destructive",
         title: "Apenas PDF",
@@ -439,15 +459,24 @@ export default function ProvidersManagement() {
       return;
     }
 
+    if (file.size === 0 || file.size > 10 * 1024 * 1024) {
+      toast({
+        variant: "destructive",
+        title: "PDF inválido",
+        description: "Use um PDF não vazio de até 10 MB.",
+      });
+      return;
+    }
     setIsAiAnalyzing(true);
     setIsCreateOpen(true);
 
     try {
       const base64 = await readFileAsDataURL(file);
-      const result = await analyzeProviderContract(
-        { pdfDataUri: base64 },
-        await getActionIdToken()
-      );
+      if (!activeSession.current) return;
+      const token = await getActionIdToken();
+      if (!activeSession.current) return;
+      const result = await analyzeProviderContract({ pdfDataUri: base64 }, token);
+      if (!activeSession.current) return;
 
       if (result) {
         form.setValue("name", result.name.toUpperCase());
@@ -465,13 +494,14 @@ export default function ProvidersManagement() {
         });
       }
     } catch {
+      if (!activeSession.current) return;
       toast({
         variant: "destructive",
         title: "Falha na Análise",
         description: "Não foi possível concluir a análise. Tente novamente ou contate o suporte.",
       });
     } finally {
-      setIsAiAnalyzing(false);
+      if (activeSession.current) setIsAiAnalyzing(false);
       if (e.target) e.target.value = "";
     }
   };
@@ -504,6 +534,7 @@ export default function ProvidersManagement() {
       header: true,
       skipEmptyLines: true,
       complete: (result) => {
+        if (!activeSession.current) return;
         const preview = previewProviderCsvRows(result.data, [
           ...providers,
           ...importedCsvIdentities.current.values(),
@@ -522,6 +553,7 @@ export default function ProvidersManagement() {
         input.value = "";
       },
       error: (error) => {
+        if (!activeSession.current) return;
         setCsvPreview({ rows: [], errors: [error.message] });
         setIsImportingCsv(false);
         input.value = "";
@@ -531,123 +563,142 @@ export default function ProvidersManagement() {
 
   const confirmCsvImport = async () => {
     if (!db || !isGlobalAdmin || !providers || !csvPreview || csvPreview.errors.length > 0) return;
+    if (csvPending.current) return;
+    csvPending.current = true;
     setIsImportingCsv(true);
-    const previousResults = new Map<number, ProviderCsvImportResult>(
-      (csvPreview.results || []).map((result) => [result.rowNumber, result])
-    );
-    const results: ProviderCsvImportResult[] = [];
-    const store = createFirestoreProviderReservationStore(db);
+    try {
+      const previousResults = new Map<number, ProviderCsvImportResult>(
+        (csvPreview.results || []).map((result) => [result.rowNumber, result])
+      );
+      const results: ProviderCsvImportResult[] = [];
+      const store = createFirestoreProviderReservationStore(db);
 
-    for (const row of csvPreview.rows) {
-      const previous = previousResults.get(row.rowNumber);
-      if (
-        previous &&
-        (previous.status === "confirmed" ||
-          previous.status === "duplicate" ||
-          (previous.status !== "not_committed" &&
-            previous.status !== "committed_unconfirmed" &&
-            previous.status !== "outcome_unknown"))
-      ) {
-        results.push(previous);
-        continue;
-      }
-      if (!row.record) {
-        if (previous) results.push(previous);
-        else
+      for (const row of csvPreview.rows) {
+        if (!activeSession.current) return;
+        const previous = previousResults.get(row.rowNumber);
+        if (
+          previous &&
+          (previous.status === "confirmed" ||
+            previous.status === "duplicate" ||
+            (previous.status !== "not_committed" &&
+              previous.status !== "committed_unconfirmed" &&
+              previous.status !== "outcome_unknown"))
+        ) {
+          results.push(previous);
+          continue;
+        }
+        if (!row.record) {
+          if (previous) results.push(previous);
+          else
+            results.push({
+              rowNumber: row.rowNumber,
+              status: "not_committed",
+              message: row.errors.join(" "),
+            });
+          continue;
+        }
+        if (!row.attemptId) {
           results.push({
             rowNumber: row.rowNumber,
             status: "not_committed",
-            message: row.errors.join(" "),
+            message: "Intento sem identificador. Reabra a prévia para gerar uma nova chave.",
           });
-        continue;
-      }
-      if (!row.attemptId) {
+          continue;
+        }
+
+        const identityHash = await hashProviderIdentifier(row.record.cnpj);
+        if (!activeSession.current) return;
+        const providerId = providerIdForIdentityHash(identityHash);
+        const providerRef = doc(db, "providers", providerId);
+        const reservationRef = doc(db, "provider_tax_id_reservations", identityHash);
+        const legacyProviderRefs = providers
+          .filter(
+            (provider: ProviderItem) =>
+              (provider.cnpj || "").replace(/[^a-z\d]/gi, "").toUpperCase() === row.record?.cnpj ||
+              (provider.taxIdStatus === "verified" &&
+                normalizeProviderName(provider.name || "") ===
+                  normalizeProviderName(row.record?.name || ""))
+          )
+          .map((provider: ProviderItem) => doc(db, "providers", provider.id));
+        const providerData = {
+          ...row.record,
+          id: providerId,
+          taxIdStatus: "pending_verification",
+          active: false,
+          isDeleted: false,
+          importAttemptId: row.attemptId,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          version: "3.3",
+          revision: 1,
+        };
+        const outcome = await reserveAndWriteProvider({
+          store,
+          reservationRef,
+          providerRef,
+          legacyProviderRefs,
+          attemptId: row.attemptId,
+          identifier: row.record.cnpj,
+          identityHash,
+          providerData,
+        });
+        if (!activeSession.current) return;
+        if (outcome.status === "confirmed") {
+          importedCsvIdentities.current.set(row.record.cnpj, {
+            name: row.record.name,
+            cnpj: row.record.cnpj,
+            taxIdStatus: "pending_verification",
+          });
+        }
         results.push({
           rowNumber: row.rowNumber,
-          status: "not_committed",
-          message: "Intento sem identificador. Reabra a prévia para gerar uma nova chave.",
+          status: outcome.status,
+          message:
+            outcome.status === "duplicate"
+              ? "Documento reservado por outro cadastro ou já existente; nenhum cadastro foi sobrescrito."
+              : outcome.status === "not_committed"
+                ? "A transação não foi gravada. O mesmo intento pode ser tentado novamente."
+                : outcome.status === "committed_unconfirmed"
+                  ? "A gravação foi confirmada pela transação, mas a releitura do servidor falhou. Repita o mesmo intento para confirmar."
+                  : outcome.status === "outcome_unknown"
+                    ? "O resultado do commit é desconhecido. Repita o mesmo intento; não será criado outro documento."
+                    : undefined,
         });
-        continue;
       }
 
-      const identityHash = await hashProviderIdentifier(row.record.cnpj);
-      const providerId = providerIdForIdentityHash(identityHash);
-      const providerRef = doc(db, "providers", providerId);
-      const reservationRef = doc(db, "provider_tax_id_reservations", identityHash);
-      const legacyProviderRefs = providers
-        .filter(
-          (provider: ProviderItem) =>
-            (provider.cnpj || "").replace(/[^a-z\d]/gi, "").toUpperCase() === row.record?.cnpj ||
-            (provider.taxIdStatus === "verified" &&
-              normalizeProviderName(provider.name || "") ===
-                normalizeProviderName(row.record?.name || ""))
-        )
-        .map((provider: ProviderItem) => doc(db, "providers", provider.id));
-      const providerData = {
-        ...row.record,
-        id: providerId,
-        taxIdStatus: "pending_verification",
-        active: false,
-        isDeleted: false,
-        importAttemptId: row.attemptId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        version: "3.3",
-        revision: 1,
-      };
-      const outcome = await reserveAndWriteProvider({
-        store,
-        reservationRef,
-        providerRef,
-        legacyProviderRefs,
-        attemptId: row.attemptId,
-        identifier: row.record.cnpj,
-        identityHash,
-        providerData,
+      setCsvPreview({ ...csvPreview, results });
+      const saved = results.filter((result) => result.status === "confirmed").length;
+      const unresolved = results.filter(
+        (result) => result.status === "committed_unconfirmed" || result.status === "outcome_unknown"
+      ).length;
+      const failed = results.length - saved - unresolved;
+      toast({
+        variant: failed > 0 || unresolved > 0 ? "destructive" : "default",
+        title: unresolved
+          ? "Confirmação pendente"
+          : failed > 0
+            ? "Importação parcial"
+            : "Importação confirmada",
+        description: `${saved} linhas confirmadas por releitura do servidor; ${unresolved} commits sem confirmação; ${failed} não gravadas. Nenhuma conta de acesso foi criada.`,
       });
-      if (outcome.status === "confirmed") {
-        importedCsvIdentities.current.set(row.record.cnpj, {
-          name: row.record.name,
-          cnpj: row.record.cnpj,
-          taxIdStatus: "pending_verification",
+    } catch (error) {
+      if (activeSession.current)
+        toast({
+          variant: "destructive",
+          title: "Importação não concluída",
+          description:
+            error instanceof Error
+              ? error.message
+              : "Repita a tentativa para conferir o resultado.",
         });
-      }
-      results.push({
-        rowNumber: row.rowNumber,
-        status: outcome.status,
-        message:
-          outcome.status === "duplicate"
-            ? "Documento reservado por outro cadastro ou já existente; nenhum cadastro foi sobrescrito."
-            : outcome.status === "not_committed"
-              ? "A transação não foi gravada. O mesmo intento pode ser tentado novamente."
-              : outcome.status === "committed_unconfirmed"
-                ? "A gravação foi confirmada pela transação, mas a releitura do servidor falhou. Repita o mesmo intento para confirmar."
-                : outcome.status === "outcome_unknown"
-                  ? "O resultado do commit é desconhecido. Repita o mesmo intento; não será criado outro documento."
-                  : undefined,
-      });
+    } finally {
+      csvPending.current = false;
+      if (activeSession.current) setIsImportingCsv(false);
     }
-
-    setCsvPreview({ ...csvPreview, results });
-    const saved = results.filter((result) => result.status === "confirmed").length;
-    const unresolved = results.filter(
-      (result) => result.status === "committed_unconfirmed" || result.status === "outcome_unknown"
-    ).length;
-    const failed = results.length - saved - unresolved;
-    toast({
-      variant: failed > 0 || unresolved > 0 ? "destructive" : "default",
-      title: unresolved
-        ? "Confirmação pendente"
-        : failed > 0
-          ? "Importação parcial"
-          : "Importação confirmada",
-      description: `${saved} linhas confirmadas por releitura do servidor; ${unresolved} commits sem confirmação; ${failed} não gravadas. Nenhuma conta de acesso foi criada.`,
-    });
-    setIsImportingCsv(false);
   };
 
   async function handleSave(values: ProviderFormValues) {
-    if (!db || !storage || !isGlobalAdmin) return;
+    if (!user || !db || !storage || !isGlobalAdmin || savePending.current) return;
     if (!providers || providersError) {
       toast({
         variant: "destructive",
@@ -656,6 +707,7 @@ export default function ProvidersManagement() {
       });
       return;
     }
+    savePending.current = true;
     setIsSubmitting(true);
 
     try {
@@ -704,6 +756,7 @@ export default function ProvidersManagement() {
       const identityHash = submittedIdentifier
         ? await hashProviderIdentifier(submittedIdentifier)
         : await hashProviderIdentifier(`draft-${createAttemptId}`);
+      if (!activeSession.current) return;
       const providerId = editingProvider?.id || providerIdForIdentityHash(identityHash);
       let finalContractUrl = values.contractUrl;
       let finalPhotoUrl = values.photoUrl;
@@ -714,21 +767,27 @@ export default function ProvidersManagement() {
           ref(storage, `providers/contracts/${providerId}_${Date.now()}.pdf`),
           tempContract
         );
+        if (!activeSession.current) return;
         finalContractUrl = await getDownloadURL(snap.ref);
+        if (!activeSession.current) return;
       }
       if (tempPhoto) {
         const snap = await uploadBytes(
           ref(storage, `providers/photos/${providerId}_${Date.now()}`),
           tempPhoto
         );
+        if (!activeSession.current) return;
         finalPhotoUrl = await getDownloadURL(snap.ref);
+        if (!activeSession.current) return;
       }
       if (tempCouncilCard) {
         const snap = await uploadBytes(
           ref(storage, `providers/council/${providerId}_${Date.now()}`),
           tempCouncilCard
         );
+        if (!activeSession.current) return;
         finalCouncilCardUrl = await getDownloadURL(snap.ref);
+        if (!activeSession.current) return;
       }
 
       const data: Record<string, unknown> = {
@@ -833,6 +892,7 @@ export default function ProvidersManagement() {
         active = false;
       }
 
+      if (!activeSession.current) return;
       toast({
         title: "Registro Protocolado",
         description: `Cadastro profissional gravado e relido. ${
@@ -848,9 +908,11 @@ export default function ProvidersManagement() {
       manualProviderAttempts.current.delete(createAttemptKey);
       form.reset();
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Erro na Gravação", description: e.message });
+      if (activeSession.current)
+        toast({ variant: "destructive", title: "Erro na Gravação", description: e.message });
     } finally {
-      setIsSubmitting(false);
+      savePending.current = false;
+      if (activeSession.current) setIsSubmitting(false);
     }
   }
 
@@ -860,6 +922,7 @@ export default function ProvidersManagement() {
     setIsFetchingCnpj(true);
     try {
       const res = await enriquecerDadosEmpresa(cnpj, 0);
+      if (!activeSession.current || form.getValues("cnpj")?.replace(/\D/g, "") !== cnpj) return;
       if (res.sucesso && res.dados) {
         if (res.dados.razaoSocial) form.setValue("name", res.dados.razaoSocial.toUpperCase());
         if (res.dados.municipio) form.setValue("city", res.dados.municipio);
@@ -879,13 +942,14 @@ export default function ProvidersManagement() {
         });
       }
     } catch {
+      if (!activeSession.current) return;
       toast({
         variant: "destructive",
         title: "Consulta de CNPJ indisponível",
         description: "Tente novamente. Os dados do formulário foram preservados.",
       });
     } finally {
-      setIsFetchingCnpj(false);
+      if (activeSession.current) setIsFetchingCnpj(false);
     }
   };
 
@@ -897,13 +961,23 @@ export default function ProvidersManagement() {
       const res = await fetch(`https://brasilapi.com.br/api/cep/v1/${cep}`);
       if (res.ok) {
         const data = await res.json();
+        if (!activeSession.current || form.getValues("cep")?.replace(/\D/g, "") !== cep) return;
         form.setValue("city", data.city);
         form.setValue("state", data.state);
         form.setValue("address", `${data.street || ""} - ${data.neighborhood || ""}`);
         toast({ title: "Endereço Localizado" });
+      } else {
+        throw new Error("Consulta de CEP indisponível.");
       }
+    } catch {
+      if (activeSession.current)
+        toast({
+          variant: "destructive",
+          title: "Consulta de CEP indisponível",
+          description: "Confira o CEP e tente novamente. Os dados foram preservados.",
+        });
     } finally {
-      setIsFetchingCep(false);
+      if (activeSession.current) setIsFetchingCep(false);
     }
   };
 
@@ -1711,6 +1785,7 @@ export default function ProvidersManagement() {
                                     size="icon"
                                     className="absolute right-2 top-2"
                                     onClick={handleFetchCep}
+                                    aria-label="Buscar CEP"
                                     disabled={isFetchingCep}
                                   >
                                     <Search size={16} />

@@ -1,33 +1,33 @@
 # Revisão verificável do NAI — 18/10/2026
 
-## Estado medido
+## Estado medido — marco de 70%
 
-A revisão não está em 100%. O inventário contém 594 arquivos TypeScript/TSX de implementação e 122,130 linhas físicas em `src`, além de 79 rotas de API e 110 páginas. Todos foram incluídos na varredura de arquivos; isso não significa leitura manual integral.
+A suíte final desta rodada passou com **2.635 testes em 261 arquivos**. Cobertura V8: **70,40% de linhas (14.975/21.269)**, 69,09% de instruções, 64,14% de ramos e 63,29% de funções. O piso de linhas do CI foi elevado para 70%, sem novas exclusões de fontes. As correções e limitações estão no [relatório do marco de 70%](marco-70-2026-10-18.md).
 
-Suíte local: 2,234 testes em 232 arquivos passaram. Cobertura V8: 60.37% de linhas (12,551/20,790 instrumentadas), 59.28% de instruções, 53.56% de ramos e 50.69% de funções. Existem 232 arquivos com linhas instrumentadas e nenhuma linha executada. Linhas físicas e linhas instrumentadas são medidas diferentes.
+O inventário contém 600 arquivos TypeScript/TSX de implementação e 123170 linhas físicas em `src`, além de 81 rotas de API e 111 páginas. Existem 217 arquivos com linhas instrumentadas e nenhuma linha executada. Varredura, cobertura e hashes não representam leitura manual integral nem homologação funcional. Linhas físicas e instrumentadas são medidas diferentes.
 
-TypeScript e ESLint global passaram, sem erros; os avisos preexistentes de lint continuam registrados como pendência. Nenhuma exclusão de cobertura foi acrescentada. O mínimo de cobertura de linhas exigido no CI subiu de 30% para 60%; as regras de acesso do servidor não foram ampliadas.
+A base desta rodada, `c2580a41c76b58af6af2755f8eecb3dd839f7543`, passou com 2.238 testes em 233 arquivos e 60,16% de linhas (12.591/20.929). A medição de 60,37% registrada na rodada anterior corresponde a uma base anterior às alterações dos relatórios financeiros; as comparações devem respeitar o denominador de cada base.
 
-O JSON adjacente registra caminho, hash SHA-256, tamanho e cobertura por arquivo, incluindo explicitamente que revisão manual não foi afirmada. Não contém dados de clientes, documentos reais ou credenciais.
+O JSON adjacente registra caminho, hash SHA-256, tamanho e cobertura por arquivo, sem afirmar revisão manual. Os dados dos testes são sintéticos; os artefatos desta revisão não incluem registros operacionais reais nem credenciais. As regras de acesso do servidor não foram ampliadas.
 
 ## Cobertura por diretório
 
 | Diretório      | Arquivos | Linhas executadas/instrumentadas | Cobertura |
 | -------------- | -------: | -------------------------------: | --------: |
-| `__tests__`    |        1 |                              9/9 |    100.0% |
-| `actions`      |       16 |                          207/404 |     51.2% |
-| `ai`           |       44 |                          424/659 |     64.3% |
-| `app`          |      208 |                        2885/6670 |     43.3% |
-| `components`   |      119 |                        2657/5436 |     48.9% |
-| `contexts`     |        1 |                            45/47 |     95.7% |
-| `firebase`     |       14 |                          151/230 |     65.7% |
-| `hooks`        |        9 |                          247/390 |     63.3% |
-| `lib`          |      126 |                        3723/4313 |     86.3% |
-| `repositories` |        3 |                            48/48 |    100.0% |
-| `scripts`      |        2 |                             0/37 |      0.0% |
-| `services`     |       45 |                        2143/2496 |     85.9% |
-| `styles`       |        1 |                             0/33 |      0.0% |
-| `types`        |        5 |                            12/18 |     66.7% |
+| `__tests__`    |        1 |                              9/9 |   100.00% |
+| `actions`      |       16 |                          249/411 |    60.58% |
+| `ai`           |       44 |                          424/659 |    64.34% |
+| `app`          |      211 |                        3826/6897 |    55.47% |
+| `components`   |      120 |                        3960/5628 |    70.36% |
+| `contexts`     |        1 |                            45/47 |    95.74% |
+| `firebase`     |       14 |                          151/230 |    65.65% |
+| `hooks`        |        9 |                          247/390 |    63.33% |
+| `lib`          |      127 |                        3824/4327 |    88.38% |
+| `repositories` |        3 |                            48/48 |   100.00% |
+| `scripts`      |        2 |                             0/37 |     0.00% |
+| `services`     |       46 |                        2180/2535 |    86.00% |
+| `styles`       |        1 |                             0/33 |     0.00% |
+| `types`        |        5 |                            12/18 |    66.67% |
 
 ## Correções desta rodada
 
@@ -106,19 +106,11 @@ O rollout do PR #152 também foi confirmado. O formulário publicado exige infor
 
 | Arquivo                                                   | Linhas instrumentadas |
 | --------------------------------------------------------- | --------------------: |
-| `src/app/ppe-management/page.tsx`                         |                   144 |
-| `src/app/ppe-kiosk/page.tsx`                              |                   118 |
 | `src/app/cassi-billing/page.tsx`                          |                   115 |
-| `src/app/field-inspection/page.tsx`                       |                   115 |
 | `src/app/absenteeism/page.tsx`                            |                   101 |
 | `src/components/clients/grupo-avp-credenciamento-hub.tsx` |                    97 |
 | `src/app/whatsapp-hub/page.tsx`                           |                    91 |
-| `src/components/dashboard/executive-dashboard.tsx`        |                    84 |
 | `src/app/clients/cassi/page.tsx`                          |                    83 |
-| `src/components/commercial/nai-floating-widget.tsx`       |                    82 |
-| `src/components/layout/top-nav.tsx`                       |                    80 |
-| `src/app/developer/page.tsx`                              |                    75 |
-| `src/components/clients/client-documents.tsx`             |                    70 |
 | `src/app/action-plans/page.tsx`                           |                    69 |
 | `src/app/agentes-ia/page.tsx`                             |                    65 |
 | `src/app/checklists/page.tsx`                             |                    65 |
@@ -126,3 +118,11 @@ O rollout do PR #152 também foi confirmado. O formulário publicado exige infor
 | `src/components/ui/chart.tsx`                             |                    63 |
 | `src/app/time-tracking/page.tsx`                          |                    61 |
 | `src/components/kanban/kanban-board.tsx`                  |                    61 |
+| `src/app/comercial/page.tsx`                              |                    60 |
+| `src/components/layout/app-sidebar.tsx`                   |                    60 |
+| `src/components/ui/carousel.tsx`                          |                    56 |
+| `src/app/medical/biomechanics/page.tsx`                   |                    55 |
+| `src/actions/holidays.ts`                                 |                    52 |
+| `src/components/clients/grupo-avp-redundancy-modal.tsx`   |                    49 |
+| `src/components/kanban/task-create-dialog.tsx`            |                    47 |
+| `src/components/providers/occupational-clinics-map.tsx`   |                    44 |

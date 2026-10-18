@@ -32,7 +32,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useSgi } from "@/contexts/sgi-context";
-import { REAL_COMPANIES } from "@/lib/real-data";
+import { useUser, useFirestore } from "@/firebase";
+import { useCompanyDirectory } from "@/hooks/use-company-directory";
 import {
   analyzeFieldInspectionPhoto,
   FieldInspectionReport,
@@ -41,7 +42,29 @@ import { offlineStorage } from "@/lib/offline-storage";
 import { useToast } from "@/hooks/use-toast";
 
 export default function FieldInspectionPage() {
+  const { user } = useUser();
   const { activeClientId } = useSgi();
+  return <FieldInspectionSession key={JSON.stringify([user?.uid, activeClientId])} />;
+}
+function FieldInspectionSession() {
+  const { user } = useUser();
+  const db = useFirestore();
+  const { activeClientId, canBrowseAllCompanies, authorizedCompanies } = useSgi();
+  const { data: companies } = useCompanyDirectory(
+    db,
+    user?.uid,
+    canBrowseAllCompanies,
+    authorizedCompanies
+  );
+  const active = React.useRef(true);
+  const pending = React.useRef(false);
+  const imageVersion = React.useRef(0);
+  React.useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const { toast } = useToast();
 
   // Referências para Câmera Direta e Galeria (compatibilidade total Android + iOS)
@@ -49,7 +72,7 @@ export default function FieldInspectionPage() {
   const galleryInputRef = React.useRef<HTMLInputElement>(null);
 
   const [selectedImage, setSelectedImage] = React.useState<string | null>(null);
-  const [locationName, setLocationName] = React.useState("Canteiro de Obras Principal");
+  const [locationName, setLocationName] = React.useState("");
   const [notes, setNotes] = React.useState("");
   const [isAnalyzing, setIsAnalyzing] = React.useState(false);
   const [report, setReport] = React.useState<FieldInspectionReport | null>(null);
@@ -82,12 +105,8 @@ export default function FieldInspectionPage() {
   }, []);
 
   const currentCompany = React.useMemo(() => {
-    if (!activeClientId || activeClientId === "all") {
-      return REAL_COMPANIES[0] || { name: "CONSTRUFAM ENGENHARIA E CONSTRUÇÕES LTDA" };
-    }
-    const found = REAL_COMPANIES.find((c) => c.id === activeClientId);
-    return found || { name: activeClientId };
-  }, [activeClientId]);
+    return companies.find((c) => c.id === activeClientId);
+  }, [activeClientId, companies]);
 
   // Capturar coordenadas GPS do dispositivo
   const handleGetGps = () => {
@@ -103,6 +122,7 @@ export default function FieldInspectionPage() {
     setIsCapturingGps(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        if (!active.current) return;
         const coords = {
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
@@ -116,6 +136,7 @@ export default function FieldInspectionPage() {
         });
       },
       (err) => {
+        if (!active.current) return;
         setIsCapturingGps(false);
         toast({
           variant: "destructive",
@@ -163,11 +184,25 @@ export default function FieldInspectionPage() {
   const handleImageCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (
+      !file.size ||
+      file.size > 10 * 1024 * 1024 ||
+      !["image/png", "image/jpeg", "image/webp"].includes(file.type)
+    ) {
+      toast({
+        variant: "destructive",
+        title: "Foto inválida",
+        description: "Envie uma imagem PNG, JPEG ou WebP não vazia de até 10 MB.",
+      });
+      return;
+    }
+    const version = ++imageVersion.current;
 
     const reader = new FileReader();
     reader.onload = async () => {
       const rawData = reader.result as string;
       const optimized = await compressImage(rawData);
+      if (!active.current || version !== imageVersion.current) return;
       setSelectedImage(optimized);
       setReport(null);
     };
@@ -177,6 +212,7 @@ export default function FieldInspectionPage() {
     if (!gpsCoords && typeof window !== "undefined" && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          if (!active.current) return;
           setGpsCoords({
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude,
@@ -191,8 +227,19 @@ export default function FieldInspectionPage() {
 
   // Disparar análise visual pelo Gemini 3.8
   const handleRunAnalysis = async () => {
+    if (
+      pending.current ||
+      !user ||
+      !currentCompany ||
+      !locationName.trim() ||
+      (!selectedImage && !notes.trim())
+    )
+      return;
+    pending.current = true;
     setIsAnalyzing(true);
     try {
+      const token = await getActionIdToken();
+      if (!active.current) return;
       const result = await analyzeFieldInspectionPhoto(
         {
           imageBase64: selectedImage || undefined,
@@ -202,41 +249,57 @@ export default function FieldInspectionPage() {
           gpsCoordinates: gpsCoords || undefined,
           devicePlatform,
         },
-        await getActionIdToken()
+        token
       );
-
+      if (!active.current) return;
       setReport(result);
       if (result.findings.length > 0) {
         setExpandedPlanId(result.findings[0].id);
       }
 
       // Salvar cópia local no storage offline (resiliência para canteiros sem sinal)
-      offlineStorage.addItem("FIELD_INSPECTION", {
-        report: result,
-        companyName: currentCompany.name,
-        location: locationName,
-        gps: gpsCoords,
-        device: devicePlatform,
-      });
+      try {
+        offlineStorage.addItem(
+          "FIELD_INSPECTION",
+          {
+            report: result,
+            companyName: currentCompany.name,
+            location: locationName,
+            gps: gpsCoords,
+            device: devicePlatform,
+          },
+          { userId: user.uid, companyId: activeClientId }
+        );
+      } catch {
+        toast({
+          variant: "destructive",
+          title: "Análise concluída; cópia local não salva",
+          description:
+            "O armazenamento do dispositivo está indisponível. A análise continua visível nesta tela.",
+        });
+        return;
+      }
 
       toast({
         title: "Vistoria Processada via Gemini 3.8! 📸",
         description: `Índice de Segurança: ${result.safetyIndex}% | ${result.findings.length} itens analisados.`,
       });
     } catch (err: any) {
+      if (!active.current) return;
       toast({
         variant: "destructive",
         title: "Erro na vistoria",
         description: err.message || "Não foi possível analisar a imagem.",
       });
     } finally {
-      setIsAnalyzing(false);
+      pending.current = false;
+      if (active.current) setIsAnalyzing(false);
     }
   };
 
   // Compartilhar no WhatsApp do Mestre de Obras
   const handleShareWhatsapp = () => {
-    if (!report) return;
+    if (!report || !currentCompany) return;
 
     let text = `🚨 *RELATÓRIO TÉCNICO DE INSPEÇÃO DE CAMPO - NAI*\n`;
     text += `🏢 *Empresa:* ${currentCompany.name}\n`;
@@ -260,7 +323,7 @@ export default function FieldInspectionPage() {
     text += `\n_Emitido automaticamente pelo Co-piloto Gemini 3.8 Neural (NextCon SST)_`;
 
     const encoded = encodeURIComponent(text);
-    window.open(`https://api.whatsapp.com/send?text=${encoded}`, "_blank");
+    window.open(`https://api.whatsapp.com/send?text=${encoded}`, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -308,7 +371,7 @@ export default function FieldInspectionPage() {
           {/* Inputs invisíveis: Câmera Nativa (capture) e Galeria de Fotos */}
           <input
             type="file"
-            accept="image/*"
+            accept="image/png,image/jpeg,image/webp"
             capture="environment"
             ref={cameraInputRef}
             onChange={handleImageCapture}
@@ -316,7 +379,7 @@ export default function FieldInspectionPage() {
           />
           <input
             type="file"
-            accept="image/*"
+            accept="image/png,image/jpeg,image/webp"
             ref={galleryInputRef}
             onChange={handleImageCapture}
             className="hidden"
@@ -331,9 +394,8 @@ export default function FieldInspectionPage() {
               <div className="space-y-1">
                 <p className="font-bold text-white text-base">Capturar Foto do Canteiro de Obras</p>
                 <p className="text-xs text-slate-400">
-                  Compatível com todos os smartphones{" "}
-                  <strong>Android (Samsung, Motorola, Xiaomi)</strong> e{" "}
-                  <strong>Apple iPhone</strong>
+                  Fotos PNG, JPEG ou WebP de até 10 MB. Se o Android ou iPhone gerar HEIC/HEIF,
+                  converta a foto para um dos formatos aceitos antes de selecionar.
                 </p>
               </div>
 
@@ -379,6 +441,7 @@ export default function FieldInspectionPage() {
                     size="sm"
                     variant="destructive"
                     onClick={() => {
+                      imageVersion.current++;
                       setSelectedImage(null);
                       setReport(null);
                     }}
@@ -442,7 +505,13 @@ export default function FieldInspectionPage() {
 
           <Button
             onClick={handleRunAnalysis}
-            disabled={isAnalyzing}
+            disabled={
+              isAnalyzing ||
+              !user ||
+              !currentCompany ||
+              !locationName.trim() ||
+              (!selectedImage && !notes.trim())
+            }
             className="w-full h-12 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-sm uppercase tracking-wider rounded-xl shadow-lg gap-2"
           >
             <Sparkles className={`size-4 ${isAnalyzing ? "animate-spin" : ""}`} />

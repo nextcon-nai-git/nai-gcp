@@ -3,6 +3,8 @@ import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
 import { OfflineSyncBadge } from "./offline-sync-badge";
 const mocks = vi.hoisted(() => ({ toast: vi.fn(), clear: vi.fn() }));
+vi.mock("@/firebase", () => ({ useUser: () => ({ user: { uid: "synthetic" } }) }));
+vi.mock("@/contexts/sgi-context", () => ({ useSgi: () => ({ activeClientId: "synthetic" }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: mocks.toast }) }));
 vi.mock("@/lib/offline-storage", () => ({
   offlineStorage: { getPendingCount: () => 2, clearQueue: mocks.clear },

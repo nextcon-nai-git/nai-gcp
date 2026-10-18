@@ -1,20 +1,28 @@
 {
   "date": "2026-10-18",
-  "baseMain": "516f22c73f0eb0c7eee2787c0f31943ba8d3d967",
+  "baseMain": "c2580a41c76b58af6af2755f8eecb3dd839f7543",
   "scope": "TypeScript/TSX source under src excluding tests and declarations; inventory and automated coverage do not establish manual review or functional correctness.",
-  "sourceFiles": 594,
-  "sourceLines": 122130,
-  "apiRoutes": 79,
-  "pages": 110,
-  "tests": 2234,
-  "testFiles": 232,
+  "sourceFiles": 600,
+  "sourceLines": 123170,
+  "apiRoutes": 81,
+  "pages": 111,
+  "tests": 2635,
+  "testFiles": 261,
   "coverageSummary": {
-    "statementsPercent": 59.28,
-    "branchesPercent": 53.56,
-    "functionsPercent": 50.69,
-    "linesPercent": 60.37
+    "statementsPercent": 69.09,
+    "statementsHit": 16258,
+    "statementsFound": 23529,
+    "branchesPercent": 64.14,
+    "branchesHit": 13405,
+    "branchesFound": 20899,
+    "functionsPercent": 63.29,
+    "functionsHit": 3559,
+    "functionsFound": 5623,
+    "linesPercent": 70.4,
+    "linesHit": 14975,
+    "linesFound": 21269
   },
-  "zeroCoveredFiles": 232,
+  "zeroCoveredFiles": 216,
   "files": [
     {
       "path": "src/__tests__/avp-test-fixture.ts",
@@ -60,15 +68,15 @@
     },
     {
       "path": "src/actions/banks.ts",
-      "sha256": "4e41c8f0db3c4456881b7d0e82938d53dde109baa3e23437f19a3a640793398c",
-      "sourceLines": 259,
+      "sha256": "50ca1821c1841c6c1b852737037eb6c447495c7bb46a237c2efb4bc5c30e1878",
+      "sourceLines": 271,
       "automatedCoverage": {
         "functionsFound": 4,
-        "functionsHit": 0,
-        "linesFound": 37,
-        "linesHit": 0,
-        "branchesFound": 55,
-        "branchesHit": 0
+        "functionsHit": 4,
+        "linesFound": 44,
+        "linesHit": 42,
+        "branchesFound": 71,
+        "branchesHit": 64
       },
       "manualReview": "not_asserted"
     },
@@ -1487,6 +1495,34 @@
       "manualReview": "not_asserted"
     },
     {
+      "path": "src/app/api/financial/reports/[id]/route.ts",
+      "sha256": "f4a7bf00662e4cb8eaf6641c75275e02cbfef7d6899d29d116cbf36ae8153de9",
+      "sourceLines": 26,
+      "automatedCoverage": {
+        "functionsFound": 1,
+        "functionsHit": 0,
+        "linesFound": 10,
+        "linesHit": 0,
+        "branchesFound": 2,
+        "branchesHit": 0
+      },
+      "manualReview": "not_asserted"
+    },
+    {
+      "path": "src/app/api/financial/reports/route.ts",
+      "sha256": "2c6ea41fac890c6b6ab17fe66d6900121180806757be50fa1c613bcc542b716d",
+      "sourceLines": 40,
+      "automatedCoverage": {
+        "functionsFound": 2,
+        "functionsHit": 0,
+        "linesFound": 15,
+        "linesHit": 0,
+        "branchesFound": 6,
+        "branchesHit": 0
+      },
+      "manualReview": "not_asserted"
+    },
+    {
       "path": "src/app/api/integrations/rd-conversas/route.ts",
       "sha256": "44f9c8d630769498057d822ff211ad2d8a8dc44f24fa473b967643d81da82598",
       "sourceLines": 365,
@@ -1992,15 +2028,15 @@
     },
     {
       "path": "src/app/api/v1/bancos/route.ts",
-      "sha256": "0024841e8ac27150506a9b046547a12aaed67629c2e7c18ccb2934f31e2fbcc2",
-      "sourceLines": 101,
+      "sha256": "67c44e2eebb02f46f4fdd5cacbdc0cd0b62a0c3547875324cfd66f338ee4c00d",
+      "sourceLines": 114,
       "automatedCoverage": {
         "functionsFound": 2,
-        "functionsHit": 0,
-        "linesFound": 19,
-        "linesHit": 0,
-        "branchesFound": 24,
-        "branchesHit": 0
+        "functionsHit": 2,
+        "linesFound": 20,
+        "linesHit": 20,
+        "branchesFound": 30,
+        "branchesHit": 28
       },
       "manualReview": "not_asserted"
     },
@@ -2496,15 +2532,15 @@
     },
     {
       "path": "src/app/developer/page.tsx",
-      "sha256": "71eef76ee5879f54fba38d912947948f0f8b8b07d0f415e25f404b4d765b0824",
-      "sourceLines": 512,
+      "sha256": "c499136713540ca01b8bcc21672aad5a348b0e74196bb1e71815a692dd1ee921",
+      "sourceLines": 543,
       "automatedCoverage": {
-        "functionsFound": 19,
-        "functionsHit": 0,
-        "linesFound": 75,
-        "linesHit": 0,
-        "branchesFound": 59,
-        "branchesHit": 0
+        "functionsFound": 22,
+        "functionsHit": 20,
+        "linesFound": 99,
+        "linesHit": 98,
+        "branchesFound": 82,
+        "branchesHit": 64
       },
       "manualReview": "not_asserted"
     },
@@ -2608,15 +2644,15 @@
     },
     {
       "path": "src/app/field-inspection/page.tsx",
-      "sha256": "2ae021f52ed365360331fa75d4715f2e61e46af93ecd7aa30f1de42fff300b16",
-      "sourceLines": 632,
+      "sha256": "aa754f73a711b3df7168e972971700d60ebda03c05ec39c856da3d1359953928",
+      "sourceLines": 701,
       "automatedCoverage": {
-        "functionsFound": 26,
-        "functionsHit": 0,
-        "linesFound": 115,
-        "linesHit": 0,
-        "branchesFound": 95,
-        "branchesHit": 0
+        "functionsFound": 29,
+        "functionsHit": 20,
+        "linesFound": 145,
+        "linesHit": 112,
+        "branchesFound": 126,
+        "branchesHit": 85
       },
       "manualReview": "not_asserted"
     },
@@ -2789,6 +2825,20 @@
       "manualReview": "not_asserted"
     },
     {
+      "path": "src/app/financial/relatorios/page.tsx",
+      "sha256": "24d86da329a45d9b848f518a5dbb64a54456576355927ec4e8c16e5c8dbe79e7",
+      "sourceLines": 4,
+      "automatedCoverage": {
+        "functionsFound": 1,
+        "functionsHit": 0,
+        "linesFound": 1,
+        "linesHit": 0,
+        "branchesFound": 0,
+        "branchesHit": 0
+      },
+      "manualReview": "not_asserted"
+    },
+    {
       "path": "src/app/global-error.tsx",
       "sha256": "d6be42b184493a56279907441e34906057fdccc97bcbda4fa182705555b3b4b3",
       "sourceLines": 80,
@@ -2944,15 +2994,15 @@
     },
     {
       "path": "src/app/knowledge-base/page.tsx",
-      "sha256": "3b40b241d603cdc994e09531ff5cf9f5119b64570221c35e77167d796ce3cad6",
-      "sourceLines": 338,
+      "sha256": "83d2c6406d0331ef424797c9dd9b36e51f7bf3bb76f72384a2c81dbd69092123",
+      "sourceLines": 361,
       "automatedCoverage": {
-        "functionsFound": 13,
-        "functionsHit": 0,
-        "linesFound": 40,
-        "linesHit": 0,
-        "branchesFound": 27,
-        "branchesHit": 0
+        "functionsFound": 16,
+        "functionsHit": 16,
+        "linesFound": 56,
+        "linesHit": 56,
+        "branchesFound": 37,
+        "branchesHit": 34
       },
       "manualReview": "not_asserted"
     },
@@ -3238,15 +3288,15 @@
     },
     {
       "path": "src/app/medical-certificates/page.tsx",
-      "sha256": "c84e4e0163dc10b5f995de624182aeb80f073f565e8e057b65090437e468a142",
-      "sourceLines": 381,
+      "sha256": "3f9dd2eb30de09791fd129eba04c3ecf8820d521d60dee677e154aee944aaf25",
+      "sourceLines": 405,
       "automatedCoverage": {
-        "functionsFound": 12,
-        "functionsHit": 0,
-        "linesFound": 50,
-        "linesHit": 0,
-        "branchesFound": 68,
-        "branchesHit": 0
+        "functionsFound": 15,
+        "functionsHit": 11,
+        "linesFound": 68,
+        "linesHit": 55,
+        "branchesFound": 82,
+        "branchesHit": 67
       },
       "manualReview": "not_asserted"
     },
@@ -3336,29 +3386,29 @@
     },
     {
       "path": "src/app/ppe-kiosk/page.tsx",
-      "sha256": "27c94d6634d015b89cf6bb732e28ef313748dd2cd13b22c483a525e14b1592a3",
-      "sourceLines": 516,
+      "sha256": "8a58bc4b6a82e72c00198b160138cdb0849cd333e4cc0d3c83f2ef2374229d3c",
+      "sourceLines": 570,
       "automatedCoverage": {
-        "functionsFound": 21,
-        "functionsHit": 0,
-        "linesFound": 118,
-        "linesHit": 0,
-        "branchesFound": 90,
-        "branchesHit": 0
+        "functionsFound": 28,
+        "functionsHit": 26,
+        "linesFound": 140,
+        "linesHit": 134,
+        "branchesFound": 108,
+        "branchesHit": 85
       },
       "manualReview": "not_asserted"
     },
     {
       "path": "src/app/ppe-management/page.tsx",
-      "sha256": "09a5da0c29a2e7ec40422f5850e6c677747b3725c0cd1168686ca50e562e8aca",
-      "sourceLines": 1282,
+      "sha256": "d244ea3d2b01e7cf7c401d62e3f73d713eac53adc9b332d365049595336c1801",
+      "sourceLines": 1364,
       "automatedCoverage": {
-        "functionsFound": 47,
-        "functionsHit": 0,
-        "linesFound": 144,
-        "linesHit": 0,
-        "branchesFound": 124,
-        "branchesHit": 0
+        "functionsFound": 51,
+        "functionsHit": 32,
+        "linesFound": 179,
+        "linesHit": 140,
+        "branchesFound": 172,
+        "branchesHit": 132
       },
       "manualReview": "not_asserted"
     },
@@ -3406,15 +3456,15 @@
     },
     {
       "path": "src/app/providers/page.tsx",
-      "sha256": "8054dad0085ead5a91b13eb2470d12333fb7ca32d0f8f632413ccded07fca0d3",
-      "sourceLines": 2679,
+      "sha256": "6adadfe4adbbe1bbaea4a4812d1b1c418ccf7bb6fe8f9763859407a8e0b1e732",
+      "sourceLines": 2754,
       "automatedCoverage": {
-        "functionsFound": 105,
-        "functionsHit": 33,
-        "linesFound": 373,
-        "linesHit": 120,
-        "branchesFound": 593,
-        "branchesHit": 174
+        "functionsFound": 108,
+        "functionsHit": 69,
+        "linesFound": 421,
+        "linesHit": 347,
+        "branchesFound": 669,
+        "branchesHit": 448
       },
       "manualReview": "not_asserted"
     },
@@ -3700,15 +3750,15 @@
     },
     {
       "path": "src/app/telemedicine/page.tsx",
-      "sha256": "7f8e204461afc2096f1399862833108bbff917320b60909064af5f6332c8fd74",
-      "sourceLines": 245,
+      "sha256": "17e17668593c136e55302dddd248a0783e5945326fda32c1166b0699928fe8e2",
+      "sourceLines": 254,
       "automatedCoverage": {
-        "functionsFound": 8,
-        "functionsHit": 0,
-        "linesFound": 37,
-        "linesHit": 0,
-        "branchesFound": 46,
-        "branchesHit": 0
+        "functionsFound": 10,
+        "functionsHit": 10,
+        "linesFound": 44,
+        "linesHit": 44,
+        "branchesFound": 52,
+        "branchesHit": 49
       },
       "manualReview": "not_asserted"
     },
@@ -3774,11 +3824,11 @@
       "sourceLines": 714,
       "automatedCoverage": {
         "functionsFound": 28,
-        "functionsHit": 0,
+        "functionsHit": 27,
         "linesFound": 56,
-        "linesHit": 0,
+        "linesHit": 55,
         "branchesFound": 32,
-        "branchesHit": 0
+        "branchesHit": 30
       },
       "manualReview": "not_asserted"
     },
@@ -3882,15 +3932,15 @@
     },
     {
       "path": "src/components/aso/clinical-workspace.tsx",
-      "sha256": "6c21c4921a4604994731d6d46469e703e885e9eae2c27f26a55d39db96c13785",
-      "sourceLines": 1108,
+      "sha256": "a15164926a7ee98515460ddd4f03faeb7b14fee3091fcf00986411760e07c978",
+      "sourceLines": 1130,
       "automatedCoverage": {
-        "functionsFound": 52,
-        "functionsHit": 28,
-        "linesFound": 255,
-        "linesHit": 131,
-        "branchesFound": 309,
-        "branchesHit": 116
+        "functionsFound": 55,
+        "functionsHit": 50,
+        "linesFound": 269,
+        "linesHit": 252,
+        "branchesFound": 326,
+        "branchesHit": 251
       },
       "manualReview": "not_asserted"
     },
@@ -3924,15 +3974,15 @@
     },
     {
       "path": "src/components/clients/avp-evidence-panel.tsx",
-      "sha256": "a0ce24d7724b13546f039cc43e5f3b7dc3c9c5a8b9ec068fe1de509abac2adc2",
-      "sourceLines": 519,
+      "sha256": "ea39573ea8cc94afc7ebbc27ed3fad8773ab8ea86c80e5b1318817885fe84b8c",
+      "sourceLines": 556,
       "automatedCoverage": {
-        "functionsFound": 43,
-        "functionsHit": 20,
-        "linesFound": 158,
-        "linesHit": 78,
-        "branchesFound": 139,
-        "branchesHit": 67
+        "functionsFound": 46,
+        "functionsHit": 39,
+        "linesFound": 190,
+        "linesHit": 181,
+        "branchesFound": 191,
+        "branchesHit": 147
       },
       "manualReview": "not_asserted"
     },
@@ -3952,29 +4002,29 @@
     },
     {
       "path": "src/components/clients/client-documents.tsx",
-      "sha256": "64a55362d3109bdae1500ba0aa10ac26c236d4e50330d089723e90909788e4d3",
-      "sourceLines": 218,
+      "sha256": "db1939d0df0043dedb37e796d4d3f42d8f364ce8deb976e1ccfdc1abc06017bd",
+      "sourceLines": 243,
       "automatedCoverage": {
-        "functionsFound": 15,
-        "functionsHit": 0,
-        "linesFound": 70,
-        "linesHit": 0,
-        "branchesFound": 43,
-        "branchesHit": 0
+        "functionsFound": 18,
+        "functionsHit": 17,
+        "linesFound": 89,
+        "linesHit": 85,
+        "branchesFound": 68,
+        "branchesHit": 53
       },
       "manualReview": "not_asserted"
     },
     {
       "path": "src/components/clients/grupo-avp-aso-manager.tsx",
-      "sha256": "57fc9d5fd5f6a62fcb47c3bd9f64f40ce02aab006a2c400df63d9e13df420cc2",
-      "sourceLines": 1407,
+      "sha256": "b4e9fddc1b57ca8e95f5f30d3c2ea8ce9e4cb92b4a61ee05e8f95a96d4456d8b",
+      "sourceLines": 1418,
       "automatedCoverage": {
-        "functionsFound": 69,
-        "functionsHit": 27,
-        "linesFound": 188,
-        "linesHit": 94,
+        "functionsFound": 70,
+        "functionsHit": 55,
+        "linesFound": 191,
+        "linesHit": 161,
         "branchesFound": 242,
-        "branchesHit": 64
+        "branchesHit": 172
       },
       "manualReview": "not_asserted"
     },
@@ -3994,15 +4044,15 @@
     },
     {
       "path": "src/components/clients/grupo-avp-queue-map.tsx",
-      "sha256": "8735a84503d31fea243b9adf0eef5042ed8b0cfeeef2c8f77c29793298b57b65",
-      "sourceLines": 1892,
+      "sha256": "d29ce56554693eec05e27788b868b6c51367e84c9268c21671b7f31db83ecab7",
+      "sourceLines": 1902,
       "automatedCoverage": {
         "functionsFound": 105,
-        "functionsHit": 44,
-        "linesFound": 331,
-        "linesHit": 147,
+        "functionsHit": 94,
+        "linesFound": 337,
+        "linesHit": 317,
         "branchesFound": 370,
-        "branchesHit": 173
+        "branchesHit": 318
       },
       "manualReview": "not_asserted"
     },
@@ -4036,15 +4086,15 @@
     },
     {
       "path": "src/components/commercial/nai-floating-widget.tsx",
-      "sha256": "3d1c9b7fefa190b787d225aa0a1abac623f7769d87f801af768a7c1612450973",
-      "sourceLines": 502,
+      "sha256": "fb525210cc1d6772ce2620148ea86766def8ba2219190bc810ad3d621400be6e",
+      "sourceLines": 522,
       "automatedCoverage": {
-        "functionsFound": 23,
-        "functionsHit": 0,
-        "linesFound": 82,
-        "linesHit": 0,
-        "branchesFound": 62,
-        "branchesHit": 0
+        "functionsFound": 26,
+        "functionsHit": 24,
+        "linesFound": 96,
+        "linesHit": 94,
+        "branchesFound": 72,
+        "branchesHit": 67
       },
       "manualReview": "not_asserted"
     },
@@ -4096,11 +4146,11 @@
       "sourceLines": 840,
       "automatedCoverage": {
         "functionsFound": 51,
-        "functionsHit": 0,
+        "functionsHit": 48,
         "linesFound": 84,
-        "linesHit": 0,
+        "linesHit": 81,
         "branchesFound": 191,
-        "branchesHit": 0
+        "branchesHit": 157
       },
       "manualReview": "not_asserted"
     },
@@ -4316,14 +4366,14 @@
     },
     {
       "path": "src/components/financial/actions-workspace.tsx",
-      "sha256": "0845508f65dbfa269ce43758613a5c3cff1d80966a3d92f7548000c69954c2bc",
-      "sourceLines": 907,
+      "sha256": "f4d70398483db58b81606a944e4ee0b9f7f4a48dde340bcc25129e3316bec9bf",
+      "sourceLines": 915,
       "automatedCoverage": {
         "functionsFound": 64,
         "functionsHit": 47,
         "linesFound": 208,
         "linesHit": 170,
-        "branchesFound": 231,
+        "branchesFound": 233,
         "branchesHit": 137
       },
       "manualReview": "not_asserted"
@@ -4362,11 +4412,11 @@
       "sourceLines": 203,
       "automatedCoverage": {
         "functionsFound": 10,
-        "functionsHit": 0,
+        "functionsHit": 9,
         "linesFound": 14,
-        "linesHit": 0,
+        "linesHit": 13,
         "branchesFound": 26,
-        "branchesHit": 0
+        "branchesHit": 24
       },
       "manualReview": "not_asserted"
     },
@@ -4376,11 +4426,11 @@
       "sourceLines": 787,
       "automatedCoverage": {
         "functionsFound": 48,
-        "functionsHit": 0,
+        "functionsHit": 43,
         "linesFound": 60,
-        "linesHit": 9,
+        "linesHit": 56,
         "branchesFound": 174,
-        "branchesHit": 0
+        "branchesHit": 143
       },
       "manualReview": "not_asserted"
     },
@@ -4404,11 +4454,11 @@
       "sourceLines": 1033,
       "automatedCoverage": {
         "functionsFound": 79,
-        "functionsHit": 5,
+        "functionsHit": 75,
         "linesFound": 114,
-        "linesHit": 23,
+        "linesHit": 110,
         "branchesFound": 148,
-        "branchesHit": 25
+        "branchesHit": 131
       },
       "manualReview": "not_asserted"
     },
@@ -4432,11 +4482,11 @@
       "sourceLines": 230,
       "automatedCoverage": {
         "functionsFound": 9,
-        "functionsHit": 0,
+        "functionsHit": 9,
         "linesFound": 47,
-        "linesHit": 0,
+        "linesHit": 47,
         "branchesFound": 45,
-        "branchesHit": 0
+        "branchesHit": 39
       },
       "manualReview": "not_asserted"
     },
@@ -4456,15 +4506,15 @@
     },
     {
       "path": "src/components/financial/ledger-workspace.tsx",
-      "sha256": "66d8d10616b46328733d02cc8c1bbcb40bdff1a1fc9d7854deab7489775286da",
-      "sourceLines": 1220,
+      "sha256": "18ed4e3a0cf9e7afbabdc2a65ead603b16d6e6a579130b01f1d2298efec8e4be",
+      "sourceLines": 1228,
       "automatedCoverage": {
-        "functionsFound": 85,
-        "functionsHit": 35,
-        "linesFound": 188,
-        "linesHit": 119,
-        "branchesFound": 153,
-        "branchesHit": 84
+        "functionsFound": 87,
+        "functionsHit": 74,
+        "linesFound": 194,
+        "linesHit": 178,
+        "branchesFound": 157,
+        "branchesHit": 132
       },
       "manualReview": "not_asserted"
     },
@@ -4502,18 +4552,32 @@
       "sourceLines": 1584,
       "automatedCoverage": {
         "functionsFound": 120,
-        "functionsHit": 16,
+        "functionsHit": 90,
         "linesFound": 232,
-        "linesHit": 95,
+        "linesHit": 197,
         "branchesFound": 287,
-        "branchesHit": 70
+        "branchesHit": 236
+      },
+      "manualReview": "not_asserted"
+    },
+    {
+      "path": "src/components/financial/reports-workspace.tsx",
+      "sha256": "ad0f62dc4babbbd4baed1cc124b8075347d32313b92c05c0ae09b63123f57d7d",
+      "sourceLines": 239,
+      "automatedCoverage": {
+        "functionsFound": 19,
+        "functionsHit": 18,
+        "linesFound": 71,
+        "linesHit": 71,
+        "branchesFound": 63,
+        "branchesHit": 53
       },
       "manualReview": "not_asserted"
     },
     {
       "path": "src/components/financial/treasury-workspace.tsx",
-      "sha256": "9f802f1d577ac7af0849aba0a68cf80b00abb9ac7130bb50c4f9b5d91b814a2a",
-      "sourceLines": 454,
+      "sha256": "fa5f24141e9ddbd2d06fc28620192b9b7565f27e20e57326dbba72d4a02656ef",
+      "sourceLines": 459,
       "automatedCoverage": {
         "functionsFound": 28,
         "functionsHit": 17,
@@ -4652,15 +4716,15 @@
     },
     {
       "path": "src/components/layout/offline-sync-badge.tsx",
-      "sha256": "abebef766584b83804098eccec755e9ed692c4cadf0f8509f6b618bce87f79a7",
-      "sourceLines": 69,
+      "sha256": "fa47d61c43b76715560f67b140b05beea34a7c75042f58ba6f952fc861c39231",
+      "sourceLines": 84,
       "automatedCoverage": {
-        "functionsFound": 6,
-        "functionsHit": 5,
-        "linesFound": 28,
-        "linesHit": 25,
-        "branchesFound": 10,
-        "branchesHit": 5
+        "functionsFound": 7,
+        "functionsHit": 6,
+        "linesFound": 33,
+        "linesHit": 30,
+        "branchesFound": 12,
+        "branchesHit": 6
       },
       "manualReview": "not_asserted"
     },
@@ -4670,11 +4734,11 @@
       "sourceLines": 413,
       "automatedCoverage": {
         "functionsFound": 26,
-        "functionsHit": 0,
+        "functionsHit": 24,
         "linesFound": 80,
-        "linesHit": 0,
+        "linesHit": 77,
         "branchesFound": 76,
-        "branchesHit": 0
+        "branchesHit": 55
       },
       "manualReview": "not_asserted"
     },
@@ -4722,15 +4786,15 @@
     },
     {
       "path": "src/components/medical/medical-copilot.tsx",
-      "sha256": "9cd63040822a467c77c5fd8ac317a845c7fb637681c7e91df2d8f5f469490044",
-      "sourceLines": 224,
+      "sha256": "ec33a13cb851971f3c56b3c52033a7690719bc7abd220c9d2874979aa8d7873e",
+      "sourceLines": 272,
       "automatedCoverage": {
-        "functionsFound": 10,
-        "functionsHit": 0,
-        "linesFound": 41,
-        "linesHit": 0,
-        "branchesFound": 35,
-        "branchesHit": 0
+        "functionsFound": 13,
+        "functionsHit": 13,
+        "linesFound": 63,
+        "linesHit": 63,
+        "branchesFound": 50,
+        "branchesHit": 48
       },
       "manualReview": "not_asserted"
     },
@@ -4964,9 +5028,9 @@
       "sourceLines": 49,
       "automatedCoverage": {
         "functionsFound": 3,
-        "functionsHit": 0,
+        "functionsHit": 3,
         "linesFound": 10,
-        "linesHit": 0,
+        "linesHit": 10,
         "branchesFound": 0,
         "branchesHit": 0
       },
@@ -5286,9 +5350,9 @@
       "sourceLines": 122,
       "automatedCoverage": {
         "functionsFound": 6,
-        "functionsHit": 4,
+        "functionsHit": 5,
         "linesFound": 24,
-        "linesHit": 22,
+        "linesHit": 23,
         "branchesFound": 1,
         "branchesHit": 1
       },
@@ -6142,9 +6206,9 @@
         "functionsFound": 13,
         "functionsHit": 13,
         "linesFound": 85,
-        "linesHit": 77,
+        "linesHit": 78,
         "branchesFound": 91,
-        "branchesHit": 53
+        "branchesHit": 65
       },
       "manualReview": "not_asserted"
     },
@@ -6214,7 +6278,7 @@
         "linesFound": 24,
         "linesHit": 24,
         "branchesFound": 30,
-        "branchesHit": 19
+        "branchesHit": 29
       },
       "manualReview": "not_asserted"
     },
@@ -6420,11 +6484,11 @@
       "sourceLines": 30,
       "automatedCoverage": {
         "functionsFound": 3,
-        "functionsHit": 0,
+        "functionsHit": 3,
         "linesFound": 5,
-        "linesHit": 1,
+        "linesHit": 5,
         "branchesFound": 4,
-        "branchesHit": 0
+        "branchesHit": 2
       },
       "manualReview": "not_asserted"
     },
@@ -6438,7 +6502,7 @@
         "linesFound": 4,
         "linesHit": 4,
         "branchesFound": 2,
-        "branchesHit": 1
+        "branchesHit": 2
       },
       "manualReview": "not_asserted"
     },
@@ -6598,7 +6662,7 @@
     },
     {
       "path": "src/lib/financial/actions.ts",
-      "sha256": "c3ac2966124add86dc82e726b80212d9c4e1171a84347fb21d2708e2637782d0",
+      "sha256": "5d65fc603c1b03eb227c5a57854084d77cb5b5a3b74645a64dd5a12ed5ff290c",
       "sourceLines": 183,
       "automatedCoverage": {
         "functionsFound": 10,
@@ -6630,11 +6694,11 @@
       "sourceLines": 446,
       "automatedCoverage": {
         "functionsFound": 36,
-        "functionsHit": 30,
+        "functionsHit": 33,
         "linesFound": 135,
-        "linesHit": 116,
+        "linesHit": 122,
         "branchesFound": 199,
-        "branchesHit": 164
+        "branchesHit": 168
       },
       "manualReview": "not_asserted"
     },
@@ -6658,11 +6722,11 @@
       "sourceLines": 321,
       "automatedCoverage": {
         "functionsFound": 15,
-        "functionsHit": 12,
+        "functionsHit": 13,
         "linesFound": 104,
-        "linesHit": 95,
+        "linesHit": 96,
         "branchesFound": 98,
-        "branchesHit": 79
+        "branchesHit": 81
       },
       "manualReview": "not_asserted"
     },
@@ -6686,11 +6750,11 @@
       "sourceLines": 332,
       "automatedCoverage": {
         "functionsFound": 31,
-        "functionsHit": 30,
+        "functionsHit": 31,
         "linesFound": 109,
-        "linesHit": 105,
+        "linesHit": 108,
         "branchesFound": 95,
-        "branchesHit": 86
+        "branchesHit": 90
       },
       "manualReview": "not_asserted"
     },
@@ -6772,9 +6836,23 @@
         "functionsFound": 93,
         "functionsHit": 90,
         "linesFound": 405,
-        "linesHit": 387,
+        "linesHit": 391,
         "branchesFound": 434,
-        "branchesHit": 388
+        "branchesHit": 394
+      },
+      "manualReview": "not_asserted"
+    },
+    {
+      "path": "src/lib/financial/reports.ts",
+      "sha256": "c71e3576e7320b8f9ed656286322019798f92a78783995b6708d57b0b190f5e7",
+      "sourceLines": 18,
+      "automatedCoverage": {
+        "functionsFound": 1,
+        "functionsHit": 1,
+        "linesFound": 3,
+        "linesHit": 3,
+        "branchesFound": 0,
+        "branchesHit": 0
       },
       "manualReview": "not_asserted"
     },
@@ -6868,11 +6946,11 @@
       "sourceLines": 135,
       "automatedCoverage": {
         "functionsFound": 7,
-        "functionsHit": 1,
+        "functionsHit": 7,
         "linesFound": 48,
-        "linesHit": 2,
+        "linesHit": 48,
         "branchesFound": 60,
-        "branchesHit": 0
+        "branchesHit": 49
       },
       "manualReview": "not_asserted"
     },
@@ -7130,15 +7208,15 @@
     },
     {
       "path": "src/lib/offline-storage.ts",
-      "sha256": "c33fd56537b7ec8ec9f88f5d6482dd2985e5451d317558f38346627e37577a89",
-      "sourceLines": 59,
+      "sha256": "4f1e56b4904bfb7e7ae578a18b74a120b7b897b7e30cc45e3a423be7455448dc",
+      "sourceLines": 86,
       "automatedCoverage": {
-        "functionsFound": 7,
-        "functionsHit": 0,
-        "linesFound": 19,
-        "linesHit": 0,
-        "branchesFound": 10,
-        "branchesHit": 0
+        "functionsFound": 9,
+        "functionsHit": 9,
+        "linesFound": 30,
+        "linesHit": 30,
+        "branchesFound": 28,
+        "branchesHit": 22
       },
       "manualReview": "not_asserted"
     },
@@ -7344,11 +7422,11 @@
       "sourceLines": 509,
       "automatedCoverage": {
         "functionsFound": 50,
-        "functionsHit": 39,
+        "functionsHit": 40,
         "linesFound": 166,
-        "linesHit": 142,
+        "linesHit": 144,
         "branchesFound": 157,
-        "branchesHit": 127
+        "branchesHit": 129
       },
       "manualReview": "not_asserted"
     },
@@ -7442,9 +7520,9 @@
       "sourceLines": 45,
       "automatedCoverage": {
         "functionsFound": 11,
-        "functionsHit": 1,
+        "functionsHit": 2,
         "linesFound": 12,
-        "linesHit": 2,
+        "linesHit": 3,
         "branchesFound": 0,
         "branchesHit": 0
       },
@@ -7979,6 +8057,20 @@
         "linesHit": 36,
         "branchesFound": 45,
         "branchesHit": 23
+      },
+      "manualReview": "not_asserted"
+    },
+    {
+      "path": "src/services/financial-reports.ts",
+      "sha256": "18811dca8c0e84ac618dd1adf0d9e66872c13aed6f3925241fa549c53d3b6131",
+      "sourceLines": 85,
+      "automatedCoverage": {
+        "functionsFound": 9,
+        "functionsHit": 8,
+        "linesFound": 39,
+        "linesHit": 37,
+        "branchesFound": 19,
+        "branchesHit": 16
       },
       "manualReview": "not_asserted"
     },

@@ -46,6 +46,13 @@ function Appointments({ userId }: { userId: string }) {
   const [open, setOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const savingRef = React.useRef(false);
+  const active = React.useRef(true);
+  React.useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const emptyForm = {
     pacienteEmail: "",
     medicoEmail: "",
@@ -84,6 +91,7 @@ function Appointments({ userId }: { userId: string }) {
         createdBy: userId,
         createdAt: serverTimestamp(),
       });
+      if (!active.current) return;
       toast({
         title: "Agendamento salvo",
         description:
@@ -92,6 +100,7 @@ function Appointments({ userId }: { userId: string }) {
       setForm(emptyForm);
       setOpen(false);
     } catch (error) {
+      if (!active.current) return;
       toast({
         variant: "destructive",
         title: "Agendamento não salvo",
@@ -102,7 +111,7 @@ function Appointments({ userId }: { userId: string }) {
       });
     } finally {
       savingRef.current = false;
-      setSaving(false);
+      if (active.current) setSaving(false);
     }
   }
 

@@ -132,10 +132,18 @@ function LedgerSessionWorkspace({ user }: { user: User }) {
   const [pdfLoading, setPdfLoading] = useState(false);
   const generation = useRef(0);
   const pdfGeneration = useRef(0);
+  const active = useRef(true);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const authFetch = useCallback(
     async (url: string, options: RequestInit = {}) => {
       if (!user) throw new Error("Entre no NAI para consultar o livro.");
       const token = await user.getIdToken();
+      if (!active.current) throw new Error("Sessão encerrada.");
       const response = await fetch(url, {
         ...options,
         cache: "no-store",
@@ -261,7 +269,7 @@ function LedgerSessionWorkspace({ user }: { user: User }) {
       if (current === generation.current)
         setImportError(e instanceof Error ? e.message : "Falha na importação.");
     } finally {
-      setImporting(false);
+      if (active.current) setImporting(false);
     }
   }
   async function openPdf(sourcePage: number) {

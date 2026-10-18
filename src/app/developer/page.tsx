@@ -49,8 +49,22 @@ import {
 import { Input } from "@/components/ui/input";
 
 export default function DeveloperHubPanel() {
+  const { user, companyId } = useUser();
+  return <DeveloperHubSession key={JSON.stringify([user?.uid, companyId])} />;
+}
+function DeveloperHubSession() {
   const { toast } = useToast();
   const { user, companyId } = useUser();
+  const active = React.useRef(true);
+  const creating = React.useRef(false);
+  const copyTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  React.useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+      clearTimeout(copyTimer.current);
+    };
+  }, []);
 
   const [activeTab, setActiveTab] = React.useState("keys");
   const [showNewKeyModal, setShowNewKeyModal] = React.useState(false);
@@ -78,6 +92,7 @@ export default function DeveloperHubPanel() {
     void (async () => {
       try {
         const token = await user.getIdToken();
+        if (!current) return;
         const response = await fetch(
           `/api/v1/developer/keys${companyId ? `?clientId=${encodeURIComponent(companyId)}` : ""}`,
           {
@@ -109,16 +124,19 @@ export default function DeveloperHubPanel() {
   }, [user, companyId, refresh]);
 
   const handleCreateKey = async () => {
-    if (!keyName.trim() || !companyId || !user) return;
+    if (!keyName.trim() || !companyId || !user || creating.current) return;
+    creating.current = true;
     setIsCreating(true);
     try {
       const token = await user.getIdToken();
+      if (!active.current) return;
       const response = await fetch("/api/v1/developer/keys", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ clientId: companyId, name: keyName }),
       });
       const data = await response.json();
+      if (!active.current) return;
       if (!response.ok) throw new Error(data.error || "Não foi possível gerar a chave.");
       if (data.rawKey) {
         setGeneratedKey(data.rawKey);
@@ -138,20 +156,29 @@ export default function DeveloperHubPanel() {
         });
       }
     } catch (e) {
+      if (!active.current) return;
       toast({
         variant: "destructive",
         title: "Erro na geração",
         description: e instanceof Error ? e.message : "Tente novamente.",
       });
     } finally {
-      setIsCreating(false);
+      creating.current = false;
+      if (active.current) setIsCreating(false);
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      if (!active.current) return;
+      setCopied(true);
+      clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopied(false), 2000);
+    } catch {
+      if (active.current)
+        toast({ variant: "destructive", title: "Não foi possível copiar a chave" });
+    }
   };
 
   const integrationMap = [
@@ -325,6 +352,7 @@ export default function DeveloperHubPanel() {
                                   return;
                                 try {
                                   const token = await user.getIdToken();
+                                  if (!active.current) return;
                                   const response = await fetch(
                                     `/api/v1/developer/keys?id=${encodeURIComponent(k.id)}`,
                                     {
@@ -333,6 +361,7 @@ export default function DeveloperHubPanel() {
                                     }
                                   );
                                   const result = await response.json();
+                                  if (!active.current) return;
                                   if (!response.ok)
                                     throw new Error(
                                       result.error || "Não foi possível revogar a chave."
@@ -340,6 +369,7 @@ export default function DeveloperHubPanel() {
                                   setRefresh((value) => value + 1);
                                   toast({ title: "Chave revogada" });
                                 } catch (error) {
+                                  if (!active.current) return;
                                   toast({
                                     variant: "destructive",
                                     title: "Falha na revogação",
@@ -486,6 +516,7 @@ export default function DeveloperHubPanel() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    aria-label={copied ? "Chave copiada" : "Copiar chave"}
                     onClick={() => copyToClipboard(generatedKey)}
                     className="absolute right-3 top-3 rounded-xl text-white hover:bg-white/10"
                   >
