@@ -14,6 +14,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useStorage, useUser } from "@/firebase";
+import { canManageEmployeeDocuments } from "@/lib/auth/employee-document-access";
 
 function safeDocumentUrl(raw: string): string | undefined {
   try {
@@ -87,7 +88,8 @@ function DocumentUploadSession({
 }: DocumentUploadFieldProps) {
   const { toast } = useToast();
   const storage = useStorage();
-  const { user } = useUser();
+  const profile = useUser();
+  const { user } = profile;
   const [draftId] = React.useState(() => `draft_${crypto.randomUUID()}`);
   const [docList, setDocList] = React.useState<EmployeeDocument[]>(documents);
   const [selectedCategory, setSelectedCategory] = React.useState<string>("RG / CPF");
@@ -105,7 +107,11 @@ function DocumentUploadSession({
   React.useEffect(() => {
     setDocList(documents);
   }, [documents]);
-  const canEdit = !!user && !readOnly && !!onDocumentsChange;
+  const canEdit =
+    !!user &&
+    !readOnly &&
+    !!onDocumentsChange &&
+    canManageEmployeeDocuments(profile, { internal, companyId });
   const finish = () => {
     busy.current = false;
     if (mounted.current) {

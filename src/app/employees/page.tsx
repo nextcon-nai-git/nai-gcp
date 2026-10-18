@@ -144,6 +144,8 @@ function EmployeesList() {
   const [isAiImportOpen, setIsAiImportOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [aiRawText, setAiRawText] = React.useState("");
+  const [openEmployeeKey, setOpenEmployeeKey] = React.useState<string | null>(null);
+  const [isAttachmentBusy, setIsAttachmentBusy] = React.useState(false);
   const [selectedEmployee, setSelectedEmployee] = React.useState<any | null>(null);
   const [optimisticDeletedIds, setOptimisticDeletedIds] = React.useState<string[]>([]);
 
@@ -463,7 +465,14 @@ function EmployeesList() {
                   const StatusIcon = healthStatus.icon;
 
                   return (
-                    <Sheet key={`${emp.companyId}_${emp.id}`}>
+                    <Sheet
+                      key={`${emp.companyId}_${emp.id}`}
+                      open={openEmployeeKey === `${emp.companyId}_${emp.id}`}
+                      onOpenChange={(open) => {
+                        if (!isAttachmentBusy)
+                          setOpenEmployeeKey(open ? `${emp.companyId}_${emp.id}` : null);
+                      }}
+                    >
                       <SheetTrigger asChild>
                         <TableRow
                           className="hover:bg-slate-50/50 transition-colors group cursor-pointer border-b last:border-none"
@@ -577,18 +586,21 @@ function EmployeesList() {
                               <div className="px-10 pt-4 bg-slate-50/50 border-b">
                                 <TabsList className="grid w-full grid-cols-3 h-12 bg-muted/50 rounded-xl p-1">
                                   <TabsTrigger
+                                    disabled={isAttachmentBusy}
                                     value="clinical"
                                     className="rounded-lg text-[10px] font-black uppercase tracking-widest"
                                   >
                                     Checklist Clínico
                                   </TabsTrigger>
                                   <TabsTrigger
+                                    disabled={isAttachmentBusy}
                                     value="analytics"
                                     className="rounded-lg text-[10px] font-black uppercase tracking-widest gap-2"
                                   >
                                     <TrendingUp className="size-3" /> Histórico
                                   </TabsTrigger>
                                   <TabsTrigger
+                                    disabled={isAttachmentBusy}
                                     value="docs"
                                     className="rounded-lg text-[10px] font-black uppercase tracking-widest gap-1.5"
                                   >
@@ -659,6 +671,7 @@ function EmployeesList() {
                                   <div className="p-2">
                                     <DocumentUploadField
                                       employeeId={emp.id}
+                                      onBusyChange={setIsAttachmentBusy}
                                       documents={emp.documents || []}
                                       companyId={
                                         activeClientId === "all" ? emp.companyId : activeClientId

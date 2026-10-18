@@ -131,6 +131,7 @@ function NcxTeamSession() {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [editingEmployee, setEditingEmployee] = React.useState<any | null>(null);
   const [viewDossierEmployee, setViewDossierEmployee] = React.useState<any | null>(null);
+  const [isDossierBusy, setIsDossierBusy] = React.useState(false);
   const [isAttachmentBusy, setIsAttachmentBusy] = React.useState(false);
   const [uploadedDocs, setUploadedDocs] = React.useState<EmployeeDocument[]>([]);
 
@@ -724,7 +725,12 @@ function NcxTeamSession() {
       </Dialog>
 
       {/* DIALOG: FICHA OFICIAL DE REGISTRO DO EMPREGADO */}
-      <Dialog open={!!viewDossierEmployee} onOpenChange={() => setViewDossierEmployee(null)}>
+      <Dialog
+        open={!!viewDossierEmployee}
+        onOpenChange={(open) => {
+          if (!open && !isDossierBusy) setViewDossierEmployee(null);
+        }}
+      >
         <DialogContent className="max-w-4xl bg-slate-950 border-slate-800 text-white rounded-3xl p-6 md:p-8 max-h-[90vh] overflow-y-auto">
           {viewDossierEmployee && (
             <div className="space-y-6 text-left font-sans">
@@ -1129,6 +1135,7 @@ function NcxTeamSession() {
               <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4">
                 <DocumentUploadField
                   employeeId={viewDossierEmployee.id}
+                  onBusyChange={setIsDossierBusy}
                   internal
                   documents={viewDossierEmployee.documents || []}
                   readOnly={false}

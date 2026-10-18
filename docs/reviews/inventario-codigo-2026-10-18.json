@@ -2,15 +2,15 @@
   "date": "2026-10-18",
   "baseMain": "2e091445a5ecd00994ad2bdc90be759b74f5bea4",
   "scope": "TypeScript/TSX source under src excluding tests and declarations; inventory and automated coverage do not establish manual review or functional correctness.",
-  "sourceFiles": 593,
-  "sourceLines": 122073,
+  "sourceFiles": 594,
+  "sourceLines": 122129,
   "apiRoutes": 79,
   "pages": 110,
-  "tests": 2025,
+  "tests": 2039,
   "testFiles": 214,
   "coverageSummary": {
-    "statementsPercent": 51.75,
-    "branchesPercent": 46.5,
+    "statementsPercent": 51.76,
+    "branchesPercent": 46.53,
     "functionsPercent": 43.21,
     "linesPercent": 52.6
   },
@@ -2524,14 +2524,14 @@
     },
     {
       "path": "src/app/employees/page.tsx",
-      "sha256": "a36dc9b2ada095a69d1d830838ce1f3548156c94a0aeca7e6ad689aa76563fed",
-      "sourceLines": 912,
+      "sha256": "07e8d7b4b66067bc33d983d5021dff7aaf3e2b751aa38d4cd04cbb8c77a03eb0",
+      "sourceLines": 925,
       "automatedCoverage": {
-        "functionsFound": 45,
+        "functionsFound": 46,
         "functionsHit": 0,
-        "linesFound": 164,
+        "linesFound": 168,
         "linesHit": 0,
-        "branchesFound": 177,
+        "branchesFound": 181,
         "branchesHit": 0
       },
       "manualReview": "not_asserted"
@@ -3308,14 +3308,14 @@
     },
     {
       "path": "src/app/nxc-team/page.tsx",
-      "sha256": "61811095e9f30f7784845974158d9fccd71083b39cbb7c949ec4627795641440",
-      "sourceLines": 1183,
+      "sha256": "81450ab7c8d974c080d3876fabd6bdc8211fe16851d9c597803f3cc31c4fb6ce",
+      "sourceLines": 1190,
       "automatedCoverage": {
         "functionsFound": 36,
         "functionsHit": 0,
-        "linesFound": 86,
+        "linesFound": 87,
         "linesHit": 0,
-        "branchesFound": 190,
+        "branchesFound": 194,
         "branchesHit": 0
       },
       "manualReview": "not_asserted"
@@ -4190,15 +4190,15 @@
     },
     {
       "path": "src/components/documents/document-upload-field.tsx",
-      "sha256": "ce2905299bdd1fd204173c0ec7491fca6ddc3a0097a3a6c10d0754e66eb49bc0",
-      "sourceLines": 344,
+      "sha256": "cfe939a499f9f8b3d991b367abb6094011a9660bf299d6f20b138391b8cbe9e8",
+      "sourceLines": 350,
       "automatedCoverage": {
         "functionsFound": 21,
         "functionsHit": 20,
-        "linesFound": 84,
-        "linesHit": 82,
-        "branchesFound": 88,
-        "branchesHit": 78
+        "linesFound": 85,
+        "linesHit": 83,
+        "branchesFound": 89,
+        "branchesHit": 79
       },
       "manualReview": "not_asserted"
     },
@@ -5963,6 +5963,20 @@
         "linesHit": 9,
         "branchesFound": 20,
         "branchesHit": 19
+      },
+      "manualReview": "not_asserted"
+    },
+    {
+      "path": "src/lib/auth/employee-document-access.ts",
+      "sha256": "1579cf0a7b850b83fbdc1c0a501c0e9c0d485ce0809d92b1f31c3065e9a31eeb",
+      "sourceLines": 30,
+      "automatedCoverage": {
+        "functionsFound": 1,
+        "functionsHit": 1,
+        "linesFound": 6,
+        "linesHit": 6,
+        "branchesFound": 23,
+        "branchesHit": 20
       },
       "manualReview": "not_asserted"
     },

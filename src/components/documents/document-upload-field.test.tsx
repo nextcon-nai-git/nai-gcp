@@ -7,9 +7,18 @@ const mocks = vi.hoisted(() => ({
   url: vi.fn(),
   ref: vi.fn(),
   toast: vi.fn(),
+  profile: {
+    role: "SUPER_ADMIN",
+    companyId: null as string | null,
+    tenantId: null as string | null,
+    isUserLoading: false,
+  },
   user: { uid: "user-1" } as { uid: string } | null,
 }));
-vi.mock("@/firebase", () => ({ useUser: () => ({ user: mocks.user }), useStorage: () => ({}) }));
+vi.mock("@/firebase", () => ({
+  useUser: () => ({ user: mocks.user, ...mocks.profile }),
+  useStorage: () => ({}),
+}));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: mocks.toast }) }));
 vi.mock("firebase/storage", () => ({
   uploadBytes: mocks.upload,
@@ -58,6 +67,7 @@ beforeEach(() => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
   vi.clearAllMocks();
   mocks.user = { uid: "user-1" };
+  mocks.profile = { role: "SUPER_ADMIN", companyId: null, tenantId: null, isUserLoading: false };
   mocks.upload.mockResolvedValue({ ref: {} });
   mocks.url.mockResolvedValue("https://example.com/new.pdf");
   container = document.createElement("div");
@@ -233,6 +243,36 @@ describe("employee document persistence", () => {
     await act(async () => pending.resolve("https://example.com/new.pdf"));
     expect(save).not.toHaveBeenCalled();
     expect(mocks.toast).not.toHaveBeenCalled();
+  });
+  it.each(["DOCTOR", "NURSE", "HEALTH_PROFESSIONAL", "PROVIDER", "CLIENT_ADMIN", "OPERATIONS"])(
+    "does not offer uploads for %s without permission in both stores",
+    async (role) => {
+      mocks.profile = { role, companyId: "company-1", tenantId: "company-1", isUserLoading: false };
+      await render();
+      expect(container.querySelector("input")).toBeNull();
+      expect(mocks.upload).not.toHaveBeenCalled();
+    }
+  );
+  it.each([
+    ["ADMIN", null, null, false, true],
+    ["OPERATIONS", null, null, false, false],
+    ["OPERATIONS", null, null, true, true],
+    ["ADMIN", "company-1", "company-1", false, true],
+    ["ADMIN", "company-2", "company-2", false, false],
+    ["ADMIN", "company-1", "company-2", false, false],
+    ["ADMIN", "company-1", "company-1", true, false],
+  ] as const)(
+    "intersects permissions for %s / %s / %s / internal=%s",
+    async (role, companyId, tenantId, internal, allowed) => {
+      mocks.profile = { role, companyId, tenantId, isUserLoading: false };
+      await render({ internal });
+      expect(!!container.querySelector("input")).toBe(allowed);
+    }
+  );
+  it("waits for the authorization profile before showing writes", async () => {
+    mocks.profile.isUserLoading = true;
+    await render();
+    expect(container.querySelector("input")).toBeNull();
   });
   it("does not offer writes without an authenticated user", async () => {
     mocks.user = null;
