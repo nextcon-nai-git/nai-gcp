@@ -94,6 +94,38 @@ const documentPatterns: {
 const referenceHeading =
   /^(?:indice|sumario|referencias?|bibliografia|quadro de documentos|relacao de documentos|documentos (?:relacionados|vinculados|de referencia|complementares))\b/;
 
+function isHeadingSuffix(
+  suffix: string,
+  rawSuffix: string,
+  spec: (typeof documentPatterns)[number]
+) {
+  const metadata = [
+    "nr\\s*[-–—]?\\s*\\d{1,2}(?:\\.\\d+)*",
+    "\\d{4}",
+    "(?:rev(?:isao)?\\.?|versao)\\s*:?\\s*\\d+(?:\\.\\d+)*",
+    ...(spec.acronym ? [spec.acronym] : []),
+    ...(spec.tipo === "ASO"
+      ? ["admissional|demissional|periodico|retorno ao trabalho|mudanca de risco ocupacional"]
+      : []),
+  ].join("|");
+  // Consume the entire suffix: a separator is not enough to turn explanatory prose into a title.
+  // Some OCR engines flatten the heading and labeled form fields into one line.
+  // Validate the complete heading suffix up to that explicit field boundary.
+  const headingSuffix = suffix.split(
+    /\b(?:razao social|empresa|cliente|contratante|cnpj|cnae|unidade|nome do trabalhador|paciente)\s*:/,
+    1
+  )[0];
+  if (new RegExp(`^[\\s.,:;()/–—-]*(?:(?:${metadata})[\\s.,:;()/–—-]*)*$`).test(headingSuffix))
+    return true;
+  // Medical forms sometimes append a person's name to the heading. Keep access restricted,
+  // but never include this suffix in classification evidence.
+  return (
+    ["ASO", "PCMSO", "PERICIA_MEDICA"].includes(spec.tipo) &&
+    !/\b(?:deve|devem|ser|sera|serao|pode|podem|realizad[oa]s?|emitid[oa]s?)\b/.test(suffix) &&
+    /^\s*:\s*\p{Lu}[\p{L}'-]+(?:\s+(?:d[aeo]s?\s+)?\p{Lu}[\p{L}'-]+){1,7}\s*$/u.test(rawSuffix)
+  );
+}
+
 function headingTitle(lines: string[], spec: (typeof documentPatterns)[number]) {
   let title = "";
   for (const line of lines.slice(0, 4)) {
@@ -107,15 +139,15 @@ function headingTitle(lines: string[], spec: (typeof documentPatterns)[number]) 
     if (match.index >= normalizePgrText(lines[0]).length) return null;
     const prefix = normalized.slice(0, match.index).trim();
     const headingPrefix =
-      /^(?:(?:titulo|documento|tipo de documento)\s*:|\d+(?:\.\d+)*[.)]?\s*[-–—:]?)?$/;
+      /^(?:(?:titulo|documento|tipo de documento)\s*:|(?:(?:secao|capitulo)\s+)?\d+(?:\.\d+)*[.)]?\s*[-–—:]?|nr\s*[-–—]?\s*\d{1,2}(?:\.\d+)*\s*[-–—:]?)?$/;
     const acronymPrefix = spec.acronym ? new RegExp(`^${spec.acronym}\\s*[-–—:]$`) : null;
     if (!headingPrefix.test(prefix) && !acronymPrefix?.test(prefix)) return null;
     // Check only the line completing the title, not the paragraph after it.
     // A parenthesized acronym may end a heading, but must not hide prose after it.
-    let suffix = normalized.slice(match.index + match[0].length).trim();
-    if (spec.acronym) suffix = suffix.replace(new RegExp(`^\\(\\s*${spec.acronym}\\s*\\)\\s*`), "");
-    if (suffix && !/^(?:[. ]*$|[-–—:/]|\d{4}(?:\b|$))/.test(suffix)) return null;
-    return title;
+    const end = match.index + match[0].length;
+    const suffix = normalized.slice(end).trim();
+    if (!isHeadingSuffix(suffix, title.slice(end), spec)) return null;
+    return title.slice(0, end);
   }
   return null;
 }
@@ -146,17 +178,18 @@ export function classifyNaiDocument(pages: PgrPage[]): NaiDocument {
       for (const spec of documentPatterns) {
         const title = headingTitle(lines.slice(lineIndex, lineIndex + 4), spec);
         const fullTitle = title !== null;
-        const acronymTitle =
-          !!spec.acronym &&
+        const acronymMatch =
+          spec.acronym &&
           new RegExp(
-            `^(?:(?:documento|titulo)\\s*:\\s*)?${spec.acronym.split("").join("[.\\s]*")}\\.?(?:$|\\s*[-–—:/([]|\\s+\\d{4}\\b)`
-          ).test(normalized);
+            `^(?:(?:documento|titulo)\\s*:\\s*)?${spec.acronym.split("").join("[.\\s]*")}\\.?(?=$|\\s*[-–—:/([]|\\s+\\d{4}\\b)`
+          ).exec(normalized);
+        const acronymTitle = !!acronymMatch;
         if (!fullTitle && !acronymTitle) continue;
         candidates.push({
           tipo: spec.tipo,
           score: (fullTitle ? 90 : 70) + (page.numero === 1 ? 30 : 0) + (lineIndex < 12 ? 15 : 0),
           pagina: page.numero,
-          trecho: (title || line).slice(0, 1200),
+          trecho: (title || line.slice(0, acronymMatch![0].length)).slice(0, 1200),
           fullTitle,
         });
       }

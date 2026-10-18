@@ -14,6 +14,13 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("IA PGR com limites", () => {
+  it("bloqueia título clínico com prefixo NR quando a IA está indisponível", async () => {
+    vi.stubEnv("GOOGLE_GENAI_API_KEY", "");
+    await expect(
+      analyzePgrDocument({ pdfDataUri: "NR-07 - Programa de Controle Médico de Saúde Ocupacional" })
+    ).rejects.toMatchObject({ status: 403 });
+    expect(mocks.generate).not.toHaveBeenCalled();
+  });
   it.each(["identificado", "nao_identificado"] as const)(
     "preserva ambiguidade textual quando a triagem retorna %s",
     async (statusClassificacao) => {

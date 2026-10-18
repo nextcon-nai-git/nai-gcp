@@ -8,6 +8,37 @@ import { parsePgrDocumentPages } from "./pgr-document-parser";
 import { getNaiDocument, PgrAnalysisOutputSchema } from "./pgr-schema";
 
 describe("NAI importa: classificação pelo conteúdo", () => {
+  it.each(["NR-07 - ", "NR 7: ", "Seção 2.1 - ", "Capítulo 3: "])(
+    "reconhece prefixo normativo ou de seção: %s",
+    (prefix) => {
+      expect(
+        classifyNaiDocument([
+          { numero: 1, texto: prefix + "Programa de Controle Médico de Saúde Ocupacional" },
+        ])
+      ).toMatchObject({ tipo: "PCMSO", acesso: "clinico_restrito" });
+    }
+  );
+  it.each([
+    ": deve ser realizada quando necessária",
+    " — deve ser realizada",
+    " / referência mencionada no programa",
+    " - pode ser solicitada",
+  ])("não aceita prosa após separador: %s", (suffix) => {
+    expect(
+      classifyNaiDocument([
+        { numero: 1, texto: "Programa de Gerenciamento de Riscos" },
+        { numero: 5, texto: "Análise Ergonômica do Trabalho" + suffix },
+      ])
+    ).toMatchObject({ tipo: "PGR", statusClassificacao: "identificado", acesso: "sst" });
+  });
+  it.each(["ATESTADO DE SAÚDE OCUPACIONAL", "ASO"])(
+    "não copia nome pessoal após o título %s",
+    (title) => {
+      const result = classifyNaiDocument([{ numero: 1, texto: title + ": PESSOA FICTÍCIA" }]);
+      expect(result).toMatchObject({ tipo: "ASO", acesso: "clinico_restrito" });
+      expect(result.evidencias).toEqual([{ pagina: 1, trecho: title }]);
+    }
+  );
   it.each([
     "O Programa de Controle Médico de Saúde\nOcupacional (PCMSO) deve estar articulado ao PGR",
     "Programa de Controle Médico de Saúde\nOcupacional (PCMSO) deve estar articulado ao PGR",
