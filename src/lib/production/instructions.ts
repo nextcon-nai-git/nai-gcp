@@ -78,10 +78,10 @@ export const instructions = [
     owner: "Equipe técnica e revisor competente",
     input: "Mobilização concluída.",
     steps: [
-      "Distribuir tarefas conforme qualificação e cronograma; confirmar escopo vigente do ciclo.",
+      "Distribuir cada obrigação contratual conforme qualificação e cronograma; confirmar cláusula, responsável e prazo dos cards individuais.",
       "Executar serviço e registrar datas, horas, quantidades, ocorrências e evidências.",
       "Elaborar documentos com modelos aprovados e dados verificados; registrar versão e autoria.",
-      "Encaminhar à revisão técnica e assinatura competente; corrigir pendências antes de liberar.",
+      "Encaminhar à revisão técnica e assinatura competente; concluir os cards de todas as obrigações antes de liberar a produção.",
     ],
     output: "Serviço executado e documentos revisados, com evidências.",
     exception:
