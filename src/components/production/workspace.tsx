@@ -24,6 +24,7 @@ import {
   instructionVersion,
   type Stage,
 } from "@/lib/production/instructions";
+import { taskComplete } from "@/lib/production/obligations";
 import {
   ObligationsFields,
   readObligations,
@@ -1080,7 +1081,7 @@ function RecordView({
           </details>
           <section aria-label="Tarefas por obrigação contratual">
             <h2 className="mb-3 text-lg font-semibold">
-              Obrigações deste ciclo · {cycle.tasks.filter((t) => t.status === "done").length}/
+              Obrigações deste ciclo · {cycle.tasks.filter(taskComplete).length}/
               {cycle.tasks.length} concluídas
             </h2>
             {cycle.tasks.length === 0 ? (

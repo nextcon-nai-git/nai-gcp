@@ -10,6 +10,7 @@ const obligation: Obligation = {
   owner: "Engenharia",
   due: "2026-10-30",
   deadlineRule: "Até 30/10/2026",
+  trigger: "",
   sourceReference: "Contrato, cláusula 4",
   sourceExcerpt: "Elaborar PGR até 30/10/2026.",
 };

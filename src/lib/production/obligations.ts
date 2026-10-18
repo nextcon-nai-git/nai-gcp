@@ -20,6 +20,7 @@ export const ObligationSchema = z
     serviceType: z.enum(serviceTypes),
     owner: z.string().trim().max(180),
     due: optionalDate,
+    trigger: z.string().trim().max(500).default(""),
     deadlineRule: z.string().trim().max(500),
     sourceReference: z.string().trim().min(3).max(300),
     sourceExcerpt: z.string().trim().min(3).max(600),
@@ -30,7 +31,7 @@ export const TaskUpdateSchema = z
   .object({
     owner: z.string().trim().max(180),
     due: optionalDate,
-    status: z.enum(["todo", "doing", "blocked", "done"]),
+    status: z.enum(["todo", "doing", "blocked", "done", "na"]),
     checks: z.array(z.boolean()).length(4),
     evidence: z.string().trim().max(2000),
     blocker: z.string().trim().max(1000),
@@ -59,3 +60,6 @@ export const taskSteps = [
   "Obter revisão e assinatura do profissional habilitado, quando aplicável.",
   "Vincular a evidência ao kit de entrega do ciclo e conferir as pendências.",
 ] as const;
+
+export const taskComplete = (task: Pick<ProductionTask, "status">) =>
+  task.status === "done" || task.status === "na";

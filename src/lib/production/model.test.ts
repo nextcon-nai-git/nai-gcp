@@ -500,6 +500,7 @@ const obligations = [
     serviceType: "PGR",
     owner: "Engenharia",
     due: "2026-10-30",
+    trigger: "",
     deadlineRule: "Entrega em 30/10/2026",
     sourceReference: "Contrato, cláusula 4",
     sourceExcerpt: "Elaborar PGR e realizar exames ASO.",
@@ -510,6 +511,7 @@ const obligations = [
     serviceType: "ASO",
     owner: "",
     due: "",
+    trigger: "",
     deadlineRule: "Após solicitação do cliente",
     sourceReference: "Contrato, cláusula 4",
     sourceExcerpt: "Elaborar PGR e realizar exames ASO.",
@@ -694,4 +696,25 @@ describe("contract obligations through delivery and collection", () => {
     expect(progress(b.records[0])).toEqual({ completed: 11, total: 11 });
     expect(b.records[0].active).toBe(true);
   });
+});
+
+it("resolves a conditional obligation only with its preserved trigger and explicit justification", () => {
+  const b = mobilizedTasks();
+  expect(() => changeTask(b, "pgr", { status: "na", evidence: "Não ocorreu" })).toThrow(
+    "Dispensa exige"
+  );
+  b.records[0].cycles[0].tasks[1].obligation.trigger = "Quando solicitado pelo cliente";
+  expect(() => changeTask(b, "aso", { status: "na", evidence: "" })).toThrow("Dispensa exige");
+  expect(() => changeTask(b, "aso", { status: "na", owner: "" })).toThrow("Dispensa exige");
+  let resolved = changeTask(b, "aso", {
+    status: "na",
+    evidence: "Nenhuma solicitação neste ciclo; fila conferida pelo gestor",
+    due: "",
+    checks: [false, false, false, false],
+  });
+  resolved = changeTask(resolved, "pgr");
+  resolved = finish(resolved, "produce", "r1_initial");
+  expect(resolved.records[0].cycles[0].cards[1].status).toBe("done");
+  expect(resolved.records[0].cycles[0].tasks[1].status).toBe("na");
+  expect(progress(resolved.records[0]).completed).toBe(7);
 });

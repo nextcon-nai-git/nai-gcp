@@ -8,6 +8,7 @@ import {
   TaskUpdateSchema,
   makeTasks,
   MAX_OBLIGATIONS,
+  taskComplete,
 } from "./obligations";
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 const label = z.string().trim().min(1).max(180);
@@ -515,6 +516,13 @@ export function applyCommand(
           !data.checks.every(Boolean))
       )
         fail("Conclusão exige responsável, prazo, checklist e evidência da revisão técnica.");
+      if (
+        data.status === "na" &&
+        (!task.obligation.trigger.trim() || !data.owner.trim() || data.evidence.trim().length < 3)
+      )
+        fail(
+          "Dispensa exige condição contratual de acionamento, responsável e evidência de que não se aplica neste ciclo."
+        );
       if (data.status === "blocked" && !data.blocker.trim()) fail("Descreva o bloqueio.");
       Object.assign(task, data, { updatedAt: now });
     }
@@ -540,7 +548,7 @@ export function applyCommand(
         if (
           cycle &&
           ["produce", "deliver", "receive"].includes(card.id) &&
-          cycle.tasks.some((t) => t.status !== "done")
+          cycle.tasks.some((t) => !taskComplete(t))
         )
           fail(
             "Conclua as tarefas das obrigações contratuais antes de liberar a execução, entrega ou encerramento."
@@ -647,9 +655,7 @@ export function applyCommand(
       if (
         !command.active &&
         record.formalizedAt &&
-        record.cycles.some(
-          (c) => !c.cards.every(complete) || c.tasks.some((t) => t.status !== "done")
-        )
+        record.cycles.some((c) => !c.cards.every(complete) || c.tasks.some((t) => !taskComplete(t)))
       )
         fail("Existem ciclos pendentes. Resolva-os antes de encerrar o contrato.");
       if (
@@ -703,7 +709,7 @@ export function progress(record: ProductionRecord) {
   const cards = [...record.commercial, ...record.cycles.flatMap((c) => c.cards)];
   const tasks = record.cycles.flatMap((c) => c.tasks);
   return {
-    completed: cards.filter(complete).length + tasks.filter((t) => t.status === "done").length,
+    completed: cards.filter(complete).length + tasks.filter(taskComplete).length,
     total: cards.length + tasks.length,
   };
 }

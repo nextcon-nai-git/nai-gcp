@@ -16,7 +16,13 @@ import type { z } from "zod";
 
 const inputClass = "w-full rounded-md border border-input bg-background p-2 text-sm";
 const value = (f: FormData, key: string) => String(f.get(key) || "").trim();
-const states = { todo: "A fazer", doing: "Em andamento", blocked: "Bloqueado", done: "Concluído" };
+const states = {
+  todo: "A fazer",
+  doing: "Em andamento",
+  blocked: "Bloqueado",
+  done: "Concluído",
+  na: "Condição não acionada neste ciclo",
+};
 
 export function readObligations(f: FormData): Obligation[] {
   return f.getAll("obligationId").map((id) => {
@@ -28,6 +34,7 @@ export function readObligations(f: FormData): Obligation[] {
       owner: field("owner"),
       due: field("due"),
       deadlineRule: field("deadlineRule"),
+      trigger: field("trigger"),
       sourceReference: field("sourceReference"),
       sourceExcerpt: field("sourceExcerpt"),
     });
@@ -92,6 +99,15 @@ export function ObligationsFields({ initial }: { initial: Obligation[] }) {
                 defaultValue={item.due}
               />
             </label>
+            <label className="text-sm md:col-span-2">
+              Condição de acionamento no contrato; vazio = sempre aplicável
+              <input
+                className={inputClass}
+                name={`obligation.${item.id}.trigger`}
+                defaultValue={item.trigger}
+                maxLength={500}
+              />
+            </label>
             <label className="text-sm">
               Regra de prazo ou frequência no contrato
               <input
@@ -149,6 +165,7 @@ export function ObligationsFields({ initial }: { initial: Obligation[] }) {
               owner: "",
               due: "",
               deadlineRule: "",
+              trigger: "",
               sourceReference: "",
               sourceExcerpt: "",
             },
@@ -239,6 +256,12 @@ export function ObligationTaskEditor({
       <CardContent className="space-y-2">
         <p className="text-xs">{task.obligation.sourceReference}</p>
         <blockquote className="border-l-2 pl-2 text-xs">{task.obligation.sourceExcerpt}</blockquote>
+        {task.obligation.trigger && (
+          <p className="text-xs">
+            Acionamento: {task.obligation.trigger}. Se a condição não ocorreu, registre a
+            justificativa e o responsável.
+          </p>
+        )}
         {task.obligation.deadlineRule && (
           <p className="text-xs">Regra contratual: {task.obligation.deadlineRule}</p>
         )}
@@ -295,11 +318,13 @@ export function ObligationTaskEditor({
               <label className="block text-sm">
                 Situação
                 <select className={inputClass} name="status" defaultValue={task.status}>
-                  {Object.entries(states).map(([key, name]) => (
-                    <option key={key} value={key}>
-                      {name}
-                    </option>
-                  ))}
+                  {Object.entries(states)
+                    .filter(([key]) => key !== "na" || task.obligation.trigger)
+                    .map(([key, name]) => (
+                      <option key={key} value={key}>
+                        {name}
+                      </option>
+                    ))}
                 </select>
               </label>
               <label className="block text-sm">
