@@ -865,7 +865,11 @@ export default function NaiImportaPage() {
                         <p className="leading-6 text-slate-600">{action.descricaoDetalhada}</p>
                         <p className="text-xs font-medium text-teal-800">
                           {PGR_AGENT_NAMES[action.agenteSugerido]}
-                          {action.responsavelSugerido ? ` · ${action.responsavelSugerido}` : ""}
+                          {action.responsavelSugerido.trim() &&
+                          action.responsavelSugerido.trim().toLocaleLowerCase("pt-BR") !==
+                            PGR_AGENT_NAMES[action.agenteSugerido].toLocaleLowerCase("pt-BR")
+                            ? ` · ${action.responsavelSugerido.trim()}`
+                            : ""}
                         </p>
                         <ul className="space-y-2">
                           {action.checklist.map((item, itemIndex) => (
