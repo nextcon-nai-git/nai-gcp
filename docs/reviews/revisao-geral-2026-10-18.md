@@ -2,9 +2,9 @@
 
 ## Estado medido
 
-A revisão não está em 100%. O inventário contém 593 arquivos TypeScript/TSX de implementação e 121,987 linhas físicas em `src`, além de 79 rotas de API e 110 páginas. Todos foram incluídos na varredura de arquivos; isso não significa leitura manual integral.
+A revisão não está em 100%. O inventário contém 593 arquivos TypeScript/TSX de implementação e 122,061 linhas físicas em `src`, além de 79 rotas de API e 110 páginas. Todos foram incluídos na varredura de arquivos; isso não significa leitura manual integral.
 
-Suíte local: 2,006 testes em 213 arquivos passaram. Cobertura V8: 52.31% de linhas (10,806/20,657 instrumentadas), 51.46% de instruções, 46.3% de ramos e 42.94% de funções. Existem 258 arquivos com linhas instrumentadas e nenhuma linha executada. Linhas físicas e linhas instrumentadas são medidas diferentes.
+Suíte local: 2,023 testes em 214 arquivos passaram. Cobertura V8: 52.61% de linhas (10,887/20,692 instrumentadas), 51.75% de instruções, 46.51% de ramos e 43.17% de funções. Existem 257 arquivos com linhas instrumentadas e nenhuma linha executada. Linhas físicas e linhas instrumentadas são medidas diferentes.
 
 TypeScript passou. A análise ESLint global terminou sem erros e com 1.291 avisos antes da remoção dos imports ociosos da página AVP nesta revisão. Os arquivos alterados foram conferidos separadamente. Nenhum limite de qualidade ou regra de acesso foi relaxado.
 
@@ -17,8 +17,8 @@ O JSON adjacente registra caminho, hash SHA-256, tamanho e cobertura por arquivo
 | `__tests__`    |        1 |                              9/9 |    100.0% |
 | `actions`      |       16 |                           70/391 |     17.9% |
 | `ai`           |       44 |                          422/659 |     64.0% |
-| `app`          |      208 |                        1881/6623 |     28.4% |
-| `components`   |      119 |                        2250/5368 |     41.9% |
+| `app`          |      208 |                        1881/6628 |     28.4% |
+| `components`   |      119 |                        2331/5398 |     43.2% |
 | `contexts`     |        1 |                            45/47 |     95.7% |
 | `firebase`     |       14 |                          151/230 |     65.7% |
 | `hooks`        |        9 |                          160/390 |     41.0% |
@@ -54,6 +54,16 @@ O JSON adjacente registra caminho, hash SHA-256, tamanho e cobertura por arquivo
 - Revisão do PR #153: Operações central conserva o diretório geral sem receber o indicador de acesso clínico global. Seis regressões incluem tenantId sem companyId e revogação de escopo. O seletor usa uma capacidade específica de navegação, separada do acesso clínico/administrativo.
 - Publicação de regras e índices é separada do rollout do site. A integração de código e o build não comprovam que as regras propostas estejam ativas em produção.
 
+## Anexos e confirmação de gravação
+
+- O upload não converte falhas do Storage em URLs locais `blob:`/`data:`. A lista e a confirmação aguardam tanto o armazenamento quanto a gravação do vínculo. Falhas mantêm a lista anterior e permitem nova tentativa.
+- Caminhos seguem os namespaces já previstos nas regras: `clientes/{companyId}/colaboradores/{employeeId}` e `internos_nextcon/colaboradores/{employeeId ou draft UUID}`. Não há empresa padrão `c1` nem diretório temporário compartilhado. Formatos aceitos: PDF, PNG e JPG, arquivos não vazios e estritamente menores que 10 MiB.
+- A interface isola operações por conta, empresa e colaborador, ignora uploads concluídos depois da saída e bloqueia operações duplicadas. Alterações imediatas usam `arrayUnion`/`arrayRemove`, sem substituir os demais anexos no servidor. `updateDoc` evita recriar uma ficha excluída.
+- No formulário NXC, um arquivo enviado fica preparado até salvar o colaborador. A ficha aguarda a gravação e permanece aberta em caso de falha; salvar/fechar é bloqueado durante o envio. Cada abertura reinicializa os dados do colaborador escolhido. A mensagem não promete transmissão ao eSocial.
+- 17 testes do componente cobrem falhas de upload, obtenção de URL e metadados, confirmação pendente, remoção, tamanho/tipo, empresa ausente, rascunho, troca de conta/colaborador, duplicidade e somente leitura. As páginas consumidoras ainda exigem homologação funcional; não se presume cobertura integral por esses testes.
+- Remover um vínculo não exclui o objeto armazenado. Uploads cuja vinculação falha e rascunhos abandonados podem deixar objetos sem vínculo; limpeza requer política de retenção e autorização próprias. URLs locais legadas não são recuperadas automaticamente.
+- A tentativa autorizada de publicação de regras/índices, workflow #380 (`39124531480`), passou testes/build e falhou antes do deploy: `FIREBASE_SERVICE_ACCOUNT_JSON ausente ou inválido`. É necessário corrigir a credencial no GitHub Actions. O rollout do site de #153 foi concluído; isso não comprova publicação das regras/índices.
+
 ## Verificação em produção
 
 Os 51 destinos únicos do menu abriram com título de página e sem erro de carregamento no momento da captura. Essa inspeção é de navegação, não homologação das 110 páginas nem de todas as operações. Doze telas ainda exibiam carregamento de dados na primeira captura; Central e SOC foram conferidos novamente após o carregamento.
@@ -80,7 +90,7 @@ O rollout do PR #152 também foi confirmado. O formulário publicado exige infor
 | Arquivo                                                   | Linhas instrumentadas |
 | --------------------------------------------------------- | --------------------: |
 | `src/app/clients/page.tsx`                                |                   293 |
-| `src/app/employees/page.tsx`                              |                   161 |
+| `src/app/employees/page.tsx`                              |                   162 |
 | `src/app/ppe-management/page.tsx`                         |                   144 |
 | `src/app/client-center/page.tsx`                          |                   126 |
 | `src/components/aso/scheduling-workspace.tsx`             |                   120 |
@@ -95,7 +105,7 @@ O rollout do PR #152 também foi confirmado. O formulário publicado exige infor
 | `src/app/integrations/soc/page.tsx`                       |                    95 |
 | `src/app/whatsapp-hub/page.tsx`                           |                    91 |
 | `src/app/financial/omie/page.tsx`                         |                    90 |
+| `src/app/nxc-team/page.tsx`                               |                    84 |
 | `src/components/dashboard/executive-dashboard.tsx`        |                    84 |
 | `src/app/clients/cassi/page.tsx`                          |                    83 |
 | `src/components/commercial/nai-floating-widget.tsx`       |                    82 |
-| `src/app/financial/monthly-billing/page.tsx`              |                    81 |

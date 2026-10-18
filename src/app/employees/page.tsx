@@ -99,13 +99,11 @@ import {
   where,
   addDoc,
   updateDoc,
+  arrayUnion,
+  arrayRemove,
   serverTimestamp,
 } from "firebase/firestore";
-import {
-  addDocumentNonBlocking,
-  deleteDocumentNonBlocking,
-  setDocumentNonBlocking,
-} from "@/firebase/non-blocking-updates";
+import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -662,27 +660,31 @@ function EmployeesList() {
                                     <DocumentUploadField
                                       employeeId={emp.id}
                                       documents={emp.documents || []}
-                                      onDocumentsChange={(updatedDocs) => {
-                                        if (db && emp.id) {
-                                          const targetCompanyId =
-                                            emp.companyId ||
-                                            userCompanyId ||
-                                            activeClientId ||
-                                            "c1";
-                                          setDocumentNonBlocking(
-                                            doc(
-                                              db,
-                                              "companies",
-                                              targetCompanyId,
-                                              "employees",
-                                              emp.id
-                                            ),
-                                            {
-                                              documents: updatedDocs,
-                                            },
-                                            { merge: true }
+                                      companyId={
+                                        activeClientId === "all" ? emp.companyId : activeClientId
+                                      }
+                                      onDocumentsChange={async (_updatedDocs, change) => {
+                                        const companyId =
+                                          activeClientId === "all" ? emp.companyId : activeClientId;
+                                        if (
+                                          !db ||
+                                          !emp.id ||
+                                          !companyId ||
+                                          ["all", "unauthorized"].includes(companyId)
+                                        ) {
+                                          throw new Error(
+                                            "Empresa ou colaborador indisponível para gravação."
                                           );
                                         }
+                                        await updateDoc(
+                                          doc(db, "companies", companyId, "employees", emp.id),
+                                          {
+                                            documents:
+                                              change.type === "add"
+                                                ? arrayUnion(change.document)
+                                                : arrayRemove(change.document),
+                                          }
+                                        );
                                       }}
                                     />
                                   </div>

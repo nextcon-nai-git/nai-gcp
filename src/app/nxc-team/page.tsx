@@ -71,12 +71,18 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useCollection, useFirestore } from "@/firebase";
-import { collection, query, orderBy, doc, serverTimestamp } from "firebase/firestore";
 import {
-  addDocumentNonBlocking,
-  deleteDocumentNonBlocking,
-  setDocumentNonBlocking,
-} from "@/firebase/non-blocking-updates";
+  collection,
+  query,
+  orderBy,
+  doc,
+  serverTimestamp,
+  addDoc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
+} from "firebase/firestore";
+import { deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -120,6 +126,7 @@ export default function NcxTeamPage() {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [editingEmployee, setEditingEmployee] = React.useState<any | null>(null);
   const [viewDossierEmployee, setViewDossierEmployee] = React.useState<any | null>(null);
+  const [isAttachmentBusy, setIsAttachmentBusy] = React.useState(false);
   const [uploadedDocs, setUploadedDocs] = React.useState<EmployeeDocument[]>([]);
 
   const employeesQuery = React.useMemo(() => {
@@ -172,6 +179,7 @@ export default function NcxTeamPage() {
   });
 
   React.useEffect(() => {
+    if (!isDialogOpen) return;
     if (editingEmployee) {
       setUploadedDocs(editingEmployee.documents || []);
       form.reset({
@@ -201,42 +209,32 @@ export default function NcxTeamPage() {
         status: "ATIVO",
       });
     }
-  }, [editingEmployee, form]);
+  }, [editingEmployee, form, isDialogOpen]);
 
-  const onSubmit = (values: NcxEmployeeFormValues) => {
-    if (!db) return;
-
-    if (editingEmployee) {
-      const docRef = doc(db, "nxc_employees", editingEmployee.id);
-      setDocumentNonBlocking(
-        docRef,
-        {
-          ...values,
-          documents: uploadedDocs,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
+  const onSubmit = async (values: NcxEmployeeFormValues) => {
+    if (isAttachmentBusy) return;
+    try {
+      if (!db) throw new Error("Banco de dados indisponível.");
+      const payload = { ...values, documents: uploadedDocs, updatedAt: serverTimestamp() };
+      if (editingEmployee) {
+        await updateDoc(doc(db, "nxc_employees", editingEmployee.id), payload);
+      } else {
+        await addDoc(collection(db, "nxc_employees"), { ...payload, createdAt: serverTimestamp() });
+      }
       toast({
-        title: "Colaborador Atualizado",
-        description: `${values.name} atualizado com sucesso.`,
+        title: "Colaborador salvo",
+        description: "A ficha e os vínculos dos anexos foram gravados.",
       });
-    } else {
-      const colRef = collection(db, "nxc_employees");
-      addDocumentNonBlocking(colRef, {
-        ...values,
-        documents: uploadedDocs,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+      setIsDialogOpen(false);
+      setEditingEmployee(null);
+    } catch {
       toast({
-        title: "Colaborador Cadastrado",
-        description: `${values.name} adicionado à equipe NXC.`,
+        variant: "destructive",
+        title: "Ficha não salva",
+        description:
+          "Revise sua conexão e permissão. Os dados foram mantidos no formulário para nova tentativa.",
       });
     }
-
-    setIsDialogOpen(false);
-    setEditingEmployee(null);
   };
 
   const cltCount = allEmployees.filter((e) => e.contractType === "CLT").length;
@@ -515,7 +513,12 @@ export default function NcxTeamPage() {
       </Card>
 
       {/* FORM MODAL */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog
+        open={isDialogOpen}
+        onOpenChange={(open) => {
+          if (!isAttachmentBusy && !form.formState.isSubmitting) setIsDialogOpen(open);
+        }}
+      >
         <DialogContent className="sm:max-w-[600px] bg-slate-950 border-slate-800 text-white rounded-3xl p-6">
           <DialogHeader>
             <DialogTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
@@ -682,7 +685,11 @@ export default function NcxTeamPage() {
 
               <div className="pt-2 border-t border-slate-800/80">
                 <DocumentUploadField
-                  employeeId={editingEmployee?.id || "temp_nxc"}
+                  employeeId={editingEmployee?.id}
+                  internal
+                  draft
+                  readOnly={form.formState.isSubmitting}
+                  onBusyChange={setIsAttachmentBusy}
                   documents={uploadedDocs}
                   onDocumentsChange={setUploadedDocs}
                 />
@@ -692,6 +699,7 @@ export default function NcxTeamPage() {
                 <Button
                   type="button"
                   variant="ghost"
+                  disabled={isAttachmentBusy || form.formState.isSubmitting}
                   onClick={() => setIsDialogOpen(false)}
                   className="text-xs font-bold uppercase text-slate-400"
                 >
@@ -699,6 +707,7 @@ export default function NcxTeamPage() {
                 </Button>
                 <Button
                   type="submit"
+                  disabled={isAttachmentBusy || form.formState.isSubmitting}
                   className="bg-accent text-primary font-black text-xs uppercase px-6 rounded-xl"
                 >
                   <Save size={14} className="mr-2" /> Salvar Colaborador
@@ -1115,30 +1124,37 @@ export default function NcxTeamPage() {
               <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4">
                 <DocumentUploadField
                   employeeId={viewDossierEmployee.id}
+                  internal
                   documents={viewDossierEmployee.documents || []}
                   readOnly={false}
-                  onDocumentsChange={(updatedDocs) => {
+                  onDocumentsChange={async (_updatedDocs, change) => {
+                    const id = viewDossierEmployee.id;
+                    if (!db || !id) throw new Error("Colaborador indisponível para gravação.");
+                    await updateDoc(doc(db, "nxc_employees", id), {
+                      documents:
+                        change.type === "add"
+                          ? arrayUnion(change.document)
+                          : arrayRemove(change.document),
+                      updatedAt: serverTimestamp(),
+                    });
                     setViewDossierEmployee((prev: any) =>
-                      prev ? { ...prev, documents: updatedDocs } : null
+                      prev?.id === id
+                        ? {
+                            ...prev,
+                            documents:
+                              change.type === "add"
+                                ? [
+                                    ...(prev.documents || []).filter(
+                                      (item: EmployeeDocument) => item.id !== change.document.id
+                                    ),
+                                    change.document,
+                                  ]
+                                : (prev.documents || []).filter(
+                                    (item: EmployeeDocument) => item.id !== change.document.id
+                                  ),
+                          }
+                        : prev
                     );
-                    if (db && viewDossierEmployee?.id) {
-                      try {
-                        setDocumentNonBlocking(
-                          doc(db, "nxc_employees", viewDossierEmployee.id),
-                          {
-                            documents: updatedDocs,
-                            updatedAt: serverTimestamp(),
-                          },
-                          { merge: true }
-                        );
-                        toast({
-                          title: "Dossiê Atualizado",
-                          description: "Documento salvo na ficha do colaborador.",
-                        });
-                      } catch (err) {
-                        console.warn("[Dossier Document Save Warning]", err);
-                      }
-                    }
                   }}
                 />
               </div>
