@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildNursingAttendance, type NursingAttendanceValues } from "./nursing-attendance";
+import {
+  buildNursingAttendance,
+  nursingAttendanceDate,
+  nursingAttendanceSchema,
+  type NursingAttendanceValues,
+} from "./nursing-attendance";
 const values: NursingAttendanceValues = {
   companyId: "tenant-a",
   employeeId: "patient",
@@ -16,19 +21,13 @@ const actor = {
 };
 describe("nursing attendance attribution", () => {
   it("retains supplied credential, real employee identity and authenticated actor without declaring transmission", () => {
-    const record = buildNursingAttendance(
-      values,
-      employee,
-      actor,
-      new Date("2026-10-18T05:00:00Z")
-    );
+    const record = buildNursingAttendance(values, employee, actor);
     expect(record).toMatchObject({
       employeeName: employee.name,
       nurseName: actor.displayName,
       createdBy: actor.uid,
       coren: values.coren,
       status_esocial: "Não transmitido",
-      createdAt: "2026-10-18T05:00:00.000Z",
     });
   });
   it.each(["", "   ", undefined])("requires an explicitly supplied credential %j", (coren) => {
@@ -58,5 +57,40 @@ describe("nursing attendance attribution", () => {
   });
   it.each(["all", "unauthorized", "a/b"])("rejects non-company scope %s", (companyId) => {
     expect(() => buildNursingAttendance({ ...values, companyId }, employee, actor)).toThrow();
+  });
+});
+
+describe("server receipt date and safe care lines", () => {
+  it("uses the server timestamp rather than an arbitrary client date", () => {
+    const date = new Date("2026-10-18T05:00:00Z");
+    expect(nursingAttendanceDate({ timestamp: { toDate: () => date } })).toBe(date);
+    expect(buildNursingAttendance(values, employee, actor)).not.toHaveProperty("createdAt");
+  });
+  it.each([
+    null,
+    undefined,
+    "2099-01-01",
+    {},
+    { toDate: () => "2026-10-18" },
+    { toDate: () => new Date("bad-date") },
+    {
+      toDate: () => {
+        throw new Error("bad timestamp");
+      },
+    },
+  ])("does not guess a date for malformed timestamp %j", (timestamp) => {
+    expect(nursingAttendanceDate({ timestamp })).toBeNull();
+  });
+  it.each([[1], [{ arbitrary: true }], ["unsupported"]])(
+    "rejects malformed care lines %j",
+    (care_lines) => {
+      expect(nursingAttendanceSchema.safeParse({ ...values, care_lines }).success).toBe(false);
+    }
+  );
+  it("accepts supported care line IDs", () => {
+    expect(
+      nursingAttendanceSchema.safeParse({ ...values, care_lines: ["escuta_ativa", "uso_epi"] })
+        .success
+    ).toBe(true);
   });
 });

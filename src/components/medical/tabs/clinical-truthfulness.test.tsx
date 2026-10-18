@@ -46,3 +46,24 @@ describe("clinical screens distinguish missing integration from clinical finding
     expect(html).not.toContain("Excluir");
   });
 });
+
+it.each([[1, { invalid: true }, "uso_epi"], "invalid", null])(
+  "can display malformed legacy care lines without crashing: %j",
+  (care_lines) => {
+    expect(() =>
+      renderToStaticMarkup(
+        <AttendanceTab
+          loading={false}
+          attendances={[
+            {
+              id: "legacy",
+              employeeName: "Paciente de teste",
+              complaint: "Relato de teste",
+              care_lines,
+            },
+          ]}
+        />
+      )
+    ).not.toThrow();
+  }
+);

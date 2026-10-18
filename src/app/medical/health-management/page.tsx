@@ -12,6 +12,7 @@ import { StructuredRecordTab } from "@/components/medical/tabs/StructuredRecordT
 import { ProfessionalEvolutionTab } from "@/components/medical/tabs/ProfessionalEvolutionTab";
 import { PsychosocialTab } from "@/components/medical/tabs/PsychosocialTab";
 import { NewAttendanceModal } from "@/components/medical/modals/NewAttendanceModal";
+import { nursingAttendanceDate } from "@/lib/medical/nursing-attendance";
 import { useSgi } from "@/contexts/sgi-context";
 
 export default function HealthManagementUnified() {
@@ -37,7 +38,7 @@ export default function HealthManagementUnified() {
     return query(
       collection(db, "nursing_attendances"),
       ...(activeClientId === "all" ? [] : [where("companyId", "==", activeClientId)]),
-      orderBy("createdAt", "desc"),
+      orderBy("timestamp", "desc"),
       limit(200)
     );
   }, [db, canRead, isUserLoading, activeClientId, isGlobalStaff]);
@@ -45,10 +46,9 @@ export default function HealthManagementUnified() {
   const attendances = React.useMemo(
     () =>
       (data || []).filter((item) => {
-        const date = new Date(item.createdAt);
+        const date = nursingAttendanceDate(item);
         return (
-          !Number.isNaN(date.getTime()) &&
-          `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}` === period
+          date && `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}` === period
         );
       }),
     [data, period]
@@ -93,8 +93,9 @@ export default function HealthManagementUnified() {
                 : `${attendances.length} atendimentos do período entre os registros carregados.`}
           </p>
           <p className="text-muted-foreground">
-            A consulta mostra até 200 registros recentes. Períodos anteriores podem exigir uma
-            consulta histórica. O cadastro de atendimento não transmite eventos ao eSocial nem
+            A consulta mostra até 200 registros recentes, datados pelo servidor. Registros legados
+            sem data de recebimento precisam de revisão específica. Períodos anteriores podem exigir
+            uma consulta histórica. O cadastro de atendimento não transmite eventos ao eSocial nem
             determina aptidão ocupacional.
           </p>
           <p className="text-muted-foreground">

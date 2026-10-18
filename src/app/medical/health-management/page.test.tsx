@@ -98,7 +98,7 @@ describe("health management source and access states", () => {
     expect(mock.query).toHaveBeenCalledWith(
       "nursing_attendances",
       { field: "companyId", operator: "==", value: "company-a" },
-      { field: "createdAt", direction: "desc" },
+      { field: "timestamp", direction: "desc" },
       { limit: 200 }
     );
     expect(host.textContent).toContain("até 200 registros recentes");
@@ -114,9 +114,13 @@ describe("health management source and access states", () => {
   it("starts in the current local month without invented health or compliance metrics", async () => {
     const now = new Date();
     mock.rows = [
-      { employeeName: "Atual", createdAt: now.toISOString() },
+      {
+        employeeName: "Atual",
+        createdAt: "2099-01-01T12:00:00Z",
+        timestamp: { toDate: () => now },
+      },
       { employeeName: "Inválido", createdAt: "bad-date" },
-      { employeeName: "Antigo", createdAt: "2020-01-01T12:00:00Z" },
+      { employeeName: "Antigo", timestamp: { toDate: () => new Date("2020-01-01T12:00:00Z") } },
     ];
     await render();
     expect((host.querySelector('input[type="month"]') as HTMLInputElement).value).toBe(

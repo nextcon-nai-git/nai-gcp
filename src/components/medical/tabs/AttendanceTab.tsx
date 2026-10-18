@@ -29,6 +29,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { nursingAttendanceDate } from "@/lib/medical/nursing-attendance";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface AttendanceTabProps {
@@ -37,9 +38,10 @@ interface AttendanceTabProps {
     employeeName: string;
     employeeId?: string;
     complaint: string;
-    createdAt: string;
+    createdAt?: unknown;
+    timestamp?: unknown;
     status_esocial?: string;
-    care_lines?: string[];
+    care_lines?: unknown;
   }>;
   loading: boolean;
 }
@@ -103,7 +105,9 @@ export function AttendanceTab({ attendances, loading }: AttendanceTabProps) {
                               {item.employeeName}
                             </p>
                             <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">
-                              Data: {new Date(item.createdAt).toLocaleDateString("pt-BR")}
+                              Recebido em:{" "}
+                              {nursingAttendanceDate(item)?.toLocaleDateString("pt-BR") ||
+                                "Recebimento não informado"}
                             </p>
                           </div>
                         </TableCell>
@@ -149,23 +153,25 @@ export function AttendanceTab({ attendances, loading }: AttendanceTabProps) {
                               &quot;{item.complaint}&quot;
                             </div>
                           </div>
-                          {item.care_lines && item.care_lines.length > 0 && (
+                          {Array.isArray(item.care_lines) && item.care_lines.length > 0 && (
                             <div className="space-y-4">
                               <h4 className="text-[10px] font-black uppercase text-primary tracking-[0.2em] flex items-center gap-2">
                                 <Brain className="size-4 text-accent" /> Linhas de Cuidado Aplicadas
                               </h4>
                               <div className="grid grid-cols-1 gap-2">
-                                {item.care_lines.map((line: string, i: number) => (
-                                  <div
-                                    key={i}
-                                    className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl shadow-sm"
-                                  >
-                                    <CheckCircle2 className="size-4 text-emerald-600" />
-                                    <span className="text-[11px] font-black text-emerald-900 uppercase tracking-tight">
-                                      {line.replace(/_/g, " ")}
-                                    </span>
-                                  </div>
-                                ))}
+                                {item.care_lines
+                                  .filter((line): line is string => typeof line === "string")
+                                  .map((line, i: number) => (
+                                    <div
+                                      key={i}
+                                      className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl shadow-sm"
+                                    >
+                                      <CheckCircle2 className="size-4 text-emerald-600" />
+                                      <span className="text-[11px] font-black text-emerald-900 uppercase tracking-tight">
+                                        {line.replace(/_/g, " ")}
+                                      </span>
+                                    </div>
+                                  ))}
                               </div>
                             </div>
                           )}

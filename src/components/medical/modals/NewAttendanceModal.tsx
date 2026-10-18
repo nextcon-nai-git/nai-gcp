@@ -81,7 +81,7 @@ const CARE_LINE_GROUPS = [
       { id: "lavagem_nasal", label: "Lavagem Nasal" },
     ],
   },
-];
+] as const;
 
 export function NewAttendanceModal() {
   const { toast } = useToast();
@@ -136,12 +136,13 @@ export function NewAttendanceModal() {
     if (!db || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      if (loadingEmployees || !companies?.some((c) => c.id === values.companyId))
+      if (loadingEmployees || !companies?.some((c) => c.id === values.companyId && !c.isDeleted))
         throw new Error("Aguarde o carregamento e selecione uma unidade disponível.");
       const emp = employees?.find((e) => e.id === values.employeeId);
       const record = buildNursingAttendance(values, emp, user);
       await addDoc(collection(db, "nursing_attendances"), {
         ...record,
+        createdAt: serverTimestamp(),
         timestamp: serverTimestamp(),
       });
       toast({
@@ -223,11 +224,13 @@ export function NewAttendanceModal() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {companies?.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.name}
-                            </SelectItem>
-                          ))}
+                          {companies
+                            ?.filter((c) => !c.isDeleted)
+                            .map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.name}
+                              </SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />

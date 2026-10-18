@@ -78,10 +78,12 @@ service cloud.firestore {
 
     function nursingAttendanceCreateIsValid() {
       let data = request.resource.data;
+      let company = getAfter(/databases/$(database)/documents/companies/$(data.companyId)).data;
       let employee = getAfter(/databases/$(database)/documents/companies/$(data.companyId)/employees/$(data.employeeId)).data;
       return data.keys().hasOnly(['companyId', 'employeeId', 'employeeName', 'complaint',
           'conduct', 'care_lines', 'coren', 'nurseName', 'createdBy', 'status_esocial', 'createdAt', 'timestamp']) &&
         isClinicalAppointmentId(data.companyId) && isClinicalAppointmentId(data.employeeId) &&
+        company != null && (!('isDeleted' in company) || company.isDeleted != true) &&
         employee != null && (!('isDeleted' in employee) || employee.isDeleted != true) &&
         (!('companyId' in employee) || employee.companyId == null || employee.companyId == '' || employee.companyId == data.companyId) &&
         employee.name is string && employee.name.size() > 0 && data.employeeName == employee.name &&
@@ -91,9 +93,9 @@ service cloud.firestore {
         data.complaint is string && data.complaint.size() >= 3 && data.complaint.size() <= 10000 &&
         data.conduct in ['observation', 'work', 'emergency'] &&
         data.care_lines is list && data.care_lines.size() <= 20 &&
+        data.care_lines.hasOnly(['ginastica_laboral', 'alongamento', 'pausa_ativa', 'ajuste_posto', 'escuta_ativa', 'higiene_sono', 'manejo_estresse', 'repouso_acustico', 'uso_epi', 'lavagem_nasal']) &&
         data.status_esocial == 'Não transmitido' &&
-        data.createdAt is string && data.createdAt.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9][.][0-9]{3}Z') &&
-        isClinicalCalendarDate(data.createdAt);
+        data.createdAt == request.time;
     }
 
     function isClinicalImportDocument(name, documentId) {
@@ -275,13 +277,13 @@ service cloud.firestore {
 
     match /companies/{companyId} {
       allow read: if isSignedIn() && (belongsToCompany(companyId) || isNextconOfficial() ||
-        isAuthorizedDoctorForCompany(companyId));
+        hasClinicalAccess(companyId));
       allow write: if isCompanyAdmin(companyId);
     }
 
     match /companies/{companyId}/employees/{employeeId} {
       allow read: if belongsToCompany(companyId) || isNextconOfficial() ||
-        isAuthorizedDoctorForCompany(companyId);
+        hasClinicalAccess(companyId);
     }
 
     // The dashboard aggregates operational tasks across companies. Collection
