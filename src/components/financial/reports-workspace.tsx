@@ -17,7 +17,11 @@ function Session({ user }: { user: User | null }) {
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [allowed, setAllowed] = useState(false);
-  const [source, setSource] = useState<{ url: string; title: string } | null>(null);
+  const [source, setSource] = useState<{
+    url: string;
+    title: string;
+    filename: string;
+  } | null>(null);
   const active = useRef(true),
     form = useRef<HTMLFormElement>(null);
   const request = useCallback(
@@ -100,7 +104,8 @@ function Session({ user }: { user: User | null }) {
     setError("");
     try {
       const blob = await (await request(`/api/financial/reports/${r.id}?source=1`)).blob();
-      if (active.current) setSource({ url: URL.createObjectURL(blob), title: r.title });
+      if (active.current)
+        setSource({ url: URL.createObjectURL(blob), title: r.title, filename: r.sourceName });
     } catch (e) {
       if (active.current) setError(e instanceof Error ? e.message : "Falha ao abrir.");
     } finally {
@@ -196,7 +201,7 @@ function Session({ user }: { user: User | null }) {
                   <p className="break-all text-xs text-slate-500">{r.sourceName}</p>
                   <div className="flex gap-4">
                     <Button disabled={busy} onClick={() => void open(r)}>
-                      Abrir PDF
+                      Acessar PDF
                     </Button>
                     <Link
                       className="self-center text-sm text-teal-800 underline"
@@ -217,12 +222,14 @@ function Session({ user }: { user: User | null }) {
                   Fechar PDF
                 </Button>
               </div>
-              <iframe
-                title={source.title}
-                src={source.url}
-                sandbox="allow-same-origin"
-                className="h-[75vh] w-full border"
-              />
+              <p className="text-sm">O PDF original está pronto para download.</p>
+              <a
+                href={source.url}
+                download={source.filename}
+                className="inline-flex rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white"
+              >
+                Baixar PDF original
+              </a>
             </section>
           )}
         </>
