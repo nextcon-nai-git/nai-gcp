@@ -36,7 +36,7 @@ export function SgiProvider({ children }: { children: React.ReactNode }) {
 
   const roleUpper = (role || "").toUpperCase();
   const isProvider = roleUpper === "PROVIDER";
-  const isDoctor = roleUpper === "DOCTOR";
+  const isScopedClinical = ["ADMIN", "DOCTOR", "NURSE", "HEALTH_PROFESSIONAL"].includes(roleUpper);
 
   const allowedForProvider = React.useMemo(() => {
     if (Array.isArray(servedCompanies) && servedCompanies.length > 0) {
@@ -79,7 +79,7 @@ export function SgiProvider({ children }: { children: React.ReactNode }) {
         }
       } else if (
         (isProvider && allowedForProvider.includes(id)) ||
-        (isDoctor && allowedForDoctor.includes(id))
+        (isScopedClinical && allowedForDoctor.includes(id))
       ) {
         setActiveClientIdState(id);
         if (typeof window !== "undefined") {
@@ -95,7 +95,7 @@ export function SgiProvider({ children }: { children: React.ReactNode }) {
       isGlobalStaff,
       companyId,
       isProvider,
-      isDoctor,
+      isScopedClinical,
       allowedForProvider,
       allowedForDoctor,
       roleUpper,
@@ -112,7 +112,7 @@ export function SgiProvider({ children }: { children: React.ReactNode }) {
         ? allowedForProvider.includes(activeClientId)
           ? activeClientId
           : allowedForProvider[0] || "unauthorized"
-        : isDoctor
+        : isScopedClinical
           ? allowedForDoctor.includes(activeClientId)
             ? activeClientId
             : allowedForDoctor[0] || "unauthorized"
@@ -128,7 +128,7 @@ export function SgiProvider({ children }: { children: React.ReactNode }) {
       isStaff: isAnyStaff,
       isGlobalStaff,
       isAuthorizedProvider: isProvider,
-      authorizedCompanies: isDoctor ? allowedForDoctor : allowedForProvider,
+      authorizedCompanies: isScopedClinical ? allowedForDoctor : allowedForProvider,
       isLoading: isUserLoading,
     }),
     [
@@ -138,7 +138,7 @@ export function SgiProvider({ children }: { children: React.ReactNode }) {
       companyId,
       isAnyStaff,
       isProvider,
-      isDoctor,
+      isScopedClinical,
       allowedForProvider,
       allowedForDoctor,
       isUserLoading,

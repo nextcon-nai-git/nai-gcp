@@ -59,18 +59,43 @@ service cloud.firestore {
 
     function hasClinicalAccess(companyId) {
       let profile = getUserProfile();
+      let ownCompany = profile != null && (
+        ('tenantId' in profile && profile.tenantId == companyId) ||
+        ((!('tenantId' in profile) || profile.tenantId == null || profile.tenantId == '') &&
+          'companyId' in profile && profile.companyId == companyId)
+      );
       return isSignedIn() && profile != null && (
         profile.role == 'SUPER_ADMIN' ||
-        (profile.role == 'ADMIN' && (isInternalStaff(profile) ||
-          profile.companyId == companyId ||
-          ('servedCompanies' in profile && profile.servedCompanies is list && companyId in profile.servedCompanies))) ||
-        (profile.role in ['DOCTOR', 'NURSE', 'HEALTH_PROFESSIONAL', 'PROVIDER'] &&
-          (profile.companyId == companyId || ('servedCompanies' in profile && profile.servedCompanies is list && companyId in profile.servedCompanies)))
+        (profile.role == 'ADMIN' && isInternalStaff(profile)) ||
+        (profile.role in ['ADMIN', 'DOCTOR', 'NURSE', 'HEALTH_PROFESSIONAL', 'PROVIDER'] &&
+          (ownCompany || ('servedCompanies' in profile && profile.servedCompanies is list && companyId in profile.servedCompanies)))
       );
     }
 
     function isClinicalCollection(name) {
-      return name in ['aso_attendances', 'medical_records', 'clinical_records', 'prontuarios', 'medical_certificates'];
+      return name in ['aso_attendances', 'medical_records', 'clinical_records', 'prontuarios', 'medical_certificates', 'nursing_attendances'];
+    }
+
+    function nursingAttendanceCreateIsValid() {
+      let data = request.resource.data;
+      let company = getAfter(/databases/$(database)/documents/companies/$(data.companyId)).data;
+      let employee = getAfter(/databases/$(database)/documents/companies/$(data.companyId)/employees/$(data.employeeId)).data;
+      return data.keys().hasOnly(['companyId', 'employeeId', 'employeeName', 'complaint',
+          'conduct', 'care_lines', 'coren', 'nurseName', 'createdBy', 'status_esocial', 'createdAt', 'timestamp']) &&
+        isClinicalAppointmentId(data.companyId) && isClinicalAppointmentId(data.employeeId) &&
+        company != null && (!('isDeleted' in company) || company.isDeleted != true) &&
+        employee != null && (!('isDeleted' in employee) || employee.isDeleted != true) &&
+        (!('companyId' in employee) || employee.companyId == null || employee.companyId == '' || employee.companyId == data.companyId) &&
+        employee.name is string && employee.name.size() > 0 && data.employeeName == employee.name &&
+        data.createdBy == request.auth.uid && data.timestamp == request.time &&
+        data.nurseName is string && data.nurseName.size() > 0 && data.nurseName.size() <= 200 &&
+        data.coren is string && data.coren.size() > 0 && data.coren.size() <= 40 &&
+        data.complaint is string && data.complaint.size() >= 3 && data.complaint.size() <= 10000 &&
+        data.conduct in ['observation', 'work', 'emergency'] &&
+        data.care_lines is list && data.care_lines.size() <= 20 &&
+        data.care_lines.hasOnly(['ginastica_laboral', 'alongamento', 'pausa_ativa', 'ajuste_posto', 'escuta_ativa', 'higiene_sono', 'manejo_estresse', 'repouso_acustico', 'uso_epi', 'lavagem_nasal']) &&
+        data.status_esocial == 'Não transmitido' &&
+        data.createdAt == request.time;
     }
 
     function isClinicalImportDocument(name, documentId) {
@@ -252,13 +277,13 @@ service cloud.firestore {
 
     match /companies/{companyId} {
       allow read: if isSignedIn() && (belongsToCompany(companyId) || isNextconOfficial() ||
-        isAuthorizedDoctorForCompany(companyId));
+        hasClinicalAccess(companyId));
       allow write: if isCompanyAdmin(companyId);
     }
 
     match /companies/{companyId}/employees/{employeeId} {
       allow read: if belongsToCompany(companyId) || isNextconOfficial() ||
-        isAuthorizedDoctorForCompany(companyId);
+        hasClinicalAccess(companyId);
     }
 
     // The dashboard aggregates operational tasks across companies. Collection
@@ -403,9 +428,18 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // Clinical roots must never inherit the broad operational fallback.
+    match /{clinicalCollection}/{recordId} {
+      allow read: if isClinicalCollection(clinicalCollection) && hasClinicalAccess(resource.data.companyId);
+      allow create: if clinicalCollection == 'nursing_attendances' &&
+        hasClinicalAccess(request.resource.data.companyId) && nursingAttendanceCreateIsValid();
+      // Corrections require a separate audited flow. Preserve existing history.
+      allow update, delete: if false;
+    }
+
     match /{rootCollection}/{document=**} {
-      allow read: if isSignedIn() && isNextconOfficial() && !(rootCollection in ['users', 'companies', 'providers', 'provider_tax_id_reservations', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries']);
-      allow write: if isNextconOfficial() && !(rootCollection in ['users', 'companies', 'providers', 'provider_tax_id_reservations', 'agendamentos', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'analisesPGR']);
+      allow read: if isSignedIn() && isNextconOfficial() && !isClinicalCollection(rootCollection) && !(rootCollection in ['users', 'companies', 'providers', 'provider_tax_id_reservations', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries']);
+      allow write: if isNextconOfficial() && !isClinicalCollection(rootCollection) && !(rootCollection in ['users', 'companies', 'providers', 'provider_tax_id_reservations', 'agendamentos', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'analisesPGR']);
     }
   }
 }

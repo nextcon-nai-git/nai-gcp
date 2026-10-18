@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ai } from "@/ai/genkit";
 
 import { requireAuth } from "@/lib/auth/require-auth";
+import { limitedBytes } from "@/lib/http/private-api";
 import { AuthError, handleAuthError } from "@/lib/auth/errors";
 import { getAuthorizedMedicalHistory } from "@/services/medical-history";
 import { medicalAuditService } from "@/services/audit/medical-audit-service";
@@ -14,9 +15,7 @@ import { medicalAuditService } from "@/services/audit/medical-audit-service";
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth(request);
-    const text = await request.text();
-    if (Buffer.byteLength(text) > 16000)
-      return NextResponse.json({ error: "Mensagem acima do limite." }, { status: 413 });
+    const text = (await limitedBytes(request, 16000)).toString("utf8");
     let body;
     try {
       body = JSON.parse(text);

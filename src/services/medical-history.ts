@@ -10,7 +10,13 @@ export async function getAuthorizedMedicalHistory(
   patientId: string
 ) {
   requireClinicalAccess(user, companyId);
-  if (!patientId || patientId.length > 128 || /[\/\u0000]/.test(patientId))
+  if (
+    typeof patientId !== "string" ||
+    !patientId.trim() ||
+    patientId !== patientId.trim() ||
+    patientId.length > 128 ||
+    /[\/\\\u0000-\u001f]/.test(patientId)
+  )
     throw badRequest("Paciente inválido.");
   try {
     const snapshot = await adminDb

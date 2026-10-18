@@ -102,18 +102,21 @@ describe("seleção SGI reflete autorização atual", () => {
     await render();
     expect(last().activeClientId).toBe("unauthorized");
   });
-  it("médico externo pode selecionar a própria ou uma empresa explicitamente servida", async () => {
-    Object.assign(state, {
-      role: "DOCTOR",
-      companyId: "company-home",
-      servedCompanies: ["company-a", "company-b"],
-    });
-    localStorage.setItem("nai_active_client_id", "company-a");
-    await render();
-    expect(last().activeClientId).toBe("company-a");
-    await act(async () => container.querySelector("button")!.click());
-    expect(last().activeClientId).toBe("company-b");
-  });
+  it.each(["DOCTOR", "NURSE", "HEALTH_PROFESSIONAL", "ADMIN"])(
+    "%s externo pode selecionar a própria ou uma empresa explicitamente servida",
+    async (role) => {
+      Object.assign(state, {
+        role,
+        companyId: "company-home",
+        servedCompanies: ["company-a", "company-b"],
+      });
+      localStorage.setItem("nai_active_client_id", "company-a");
+      await render();
+      expect(last().activeClientId).toBe("company-a");
+      await act(async () => container.querySelector("button")!.click());
+      expect(last().activeClientId).toBe("company-b");
+    }
+  );
   it("suspende consultas enquanto o perfil da próxima sessão carrega", async () => {
     Object.assign(state, { role: "ADMIN", isUserLoading: true });
     await render();
