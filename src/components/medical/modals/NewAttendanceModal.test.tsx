@@ -9,6 +9,16 @@ const mock = vi.hoisted(() => ({
   employeeCompany: "company-a",
 }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: mock.toast }) }));
+vi.mock("@/hooks/use-company-directory", () => ({
+  useCompanyDirectory: () => ({
+    data: [
+      { id: "company-a", name: "Empresa A" },
+      { id: "company-b", name: "Empresa B" },
+    ],
+    isLoading: false,
+    error: null,
+  }),
+}));
 vi.mock("@/contexts/sgi-context", () => ({
   useSgi: () => ({ isGlobalStaff: false, authorizedCompanies: ["company-a", "company-b"] }),
 }));

@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import type { User } from "firebase/auth";
 import {
   BookOpen,
   ArrowLeft,
@@ -102,7 +103,15 @@ function saveCsv(content: string, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 export function LedgerWorkspace() {
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
+  if (isUserLoading) return <p role="status">Carregando acesso ao Financeiro...</p>;
+  if (!user) return <p role="status">Entre no NAI para consultar o acervo contábil.</p>;
+  // Recreate all document, PDF, upload and filter state before another account
+  // can commit a render. A passive-effect reset leaves one stale render.
+  return <LedgerSessionWorkspace key={user.uid} user={user} />;
+}
+
+function LedgerSessionWorkspace({ user }: { user: User }) {
   const [books, setBooks] = useState<LedgerSummary[]>([]);
   const [book, setBook] = useState<SavedLedger | null>(null);
   const [loading, setLoading] = useState(true);
@@ -174,22 +183,24 @@ export function LedgerWorkspace() {
     [authFetch]
   );
   useEffect(() => {
+    const guard = generation;
     setBooks([]);
     setBook(null);
     if (user) void load();
     return () => {
-      generation.current++;
+      guard.current++;
     };
   }, [user, load]);
   useEffect(() => {
     if (pdf) return () => URL.revokeObjectURL(pdf.url);
   }, [pdf]);
   useEffect(() => {
+    const guard = pdfGeneration;
     pdfGeneration.current++;
     setPdf(null);
     setPdfLoading(false);
     return () => {
-      pdfGeneration.current++;
+      guard.current++;
     };
   }, [user, book?.id]);
   const whole = useMemo(() => summarizeLedger(book?.rows || []), [book]);
@@ -225,7 +236,8 @@ export function LedgerWorkspace() {
   const highestMonth = [...whole.monthly].sort((a, b) => b.debit - a.debit)[0];
   const largest = [...whole.entries].sort((a, b) => b.debit - a.debit)[0];
   async function importBook() {
-    if (!dataFile || !pdfFile) return;
+    if (!dataFile || !pdfFile || importing) return;
+    const current = generation.current;
     setImporting(true);
     setImportError("");
     try {
@@ -235,6 +247,7 @@ export function LedgerWorkspace() {
       const saved = await (
         await authFetch("/api/financial/ledger", { method: "POST", body: form })
       ).json();
+      if (current !== generation.current) return;
       setImportOpen(false);
       setDataFile(null);
       setPdfFile(null);
@@ -245,7 +258,8 @@ export function LedgerWorkspace() {
       );
       await load(saved.book.id);
     } catch (e) {
-      setImportError(e instanceof Error ? e.message : "Falha na importação.");
+      if (current === generation.current)
+        setImportError(e instanceof Error ? e.message : "Falha na importação.");
     } finally {
       setImporting(false);
     }

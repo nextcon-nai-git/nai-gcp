@@ -3,88 +3,102 @@ import { pgrRequestHeaders } from "@/lib/pgr-request-headers";
 import * as React from "react";
 import { useUser } from "@/firebase";
 import type { PgrCompany } from "@/lib/pgr-schema";
-export function usePgrCompanies(enabled: boolean) {
+
+function usePgrQuery<T>(
+  url: string | null,
+  field: "companies" | "tasks" | "risks",
+  enabled: boolean,
+  refresh: boolean
+) {
   const { user } = useUser();
-  const [data, setData] = React.useState<PgrCompany[]>([]);
-  const [loading, setLoading] = React.useState(false);
+  const target = React.useMemo(
+    () => ({ user, url, field, enabled, refresh }),
+    [user, url, field, enabled, refresh]
+  );
+  const ready = !!target.user && !!target.url && target.enabled;
+  const [state, setState] = React.useState<{
+    target: typeof target;
+    data: T[];
+    loading: boolean;
+    error: string;
+  } | null>(null);
   React.useEffect(() => {
+    if (!target.user || !target.url || !target.enabled) return;
+    const { user, url, field } = target;
     let stopped = false;
-    setData([]);
-    setLoading(enabled && !!user);
-    if (enabled && user)
-      void (async () => {
-        try {
-          const r = await fetch("/api/pgr/records", {
-            headers: await pgrRequestHeaders(user),
-            cache: "no-store",
+    let sequence = 0;
+    let controller: AbortController | null = null;
+    async function load() {
+      const request = ++sequence;
+      controller?.abort();
+      const currentController = new AbortController();
+      controller = currentController;
+      const current = () => !stopped && request === sequence;
+      setState((previous) => ({
+        target,
+        data: previous?.target === target ? previous.data : [],
+        loading: true,
+        error: "",
+      }));
+      try {
+        const headers = await pgrRequestHeaders(user);
+        if (!current()) return;
+        const response = await fetch(url, {
+          headers,
+          cache: "no-store",
+          signal: currentController.signal,
+        });
+        const body = await response.json();
+        if (!response.ok)
+          throw new Error(typeof body?.error === "string" ? body.error : "Consulta indisponível.");
+        if (!body || !Array.isArray(body[field]))
+          throw new Error("Resposta inválida ao consultar o PGR.");
+        if (current())
+          setState({
+            target,
+            data: body[field],
+            loading: false,
+            error: body.limited
+              ? "Exibidos os primeiros 500 registros; refine a unidade ou consulte o PGR original."
+              : "",
           });
-          const d = await r.json();
-          if (!stopped && r.ok) setData(d.companies || []);
-        } catch {
-          if (!stopped) setData([]);
-        } finally {
-          if (!stopped) setLoading(false);
-        }
-      })();
+      } catch (error) {
+        if (current())
+          setState({
+            target,
+            data: [],
+            loading: false,
+            error: error instanceof Error ? error.message : "Consulta indisponível.",
+          });
+      }
+    }
+    void load();
+    const timer = target.refresh ? setInterval(load, 30000) : undefined;
+    if (target.refresh) window.addEventListener("nai:pgr-task-updated", load);
     return () => {
       stopped = true;
+      controller?.abort();
+      if (timer !== undefined) clearInterval(timer);
+      if (target.refresh) window.removeEventListener("nai:pgr-task-updated", load);
     };
-  }, [enabled, user?.uid]);
-  return { data, loading };
+  }, [target]);
+  // Passive-effect resets expose one render of the previous scope. Derive the
+  // visible state from the exact session, endpoint and enabled state instead.
+  if (!ready) return { data: [] as T[], loading: false, error: "" };
+  if (state?.target !== target) return { data: [] as T[], loading: true, error: "" };
+  return { data: state.data, loading: state.loading, error: state.error };
+}
+
+export function usePgrCompanies(enabled: boolean) {
+  return usePgrQuery<PgrCompany>("/api/pgr/records", "companies", enabled, false);
 }
 export function usePgrCollection<T>(
   kind: "tasks" | "risks",
   companyId: string | null,
   enabled: boolean
 ) {
-  const { user } = useUser();
-  const [data, setData] = React.useState<T[]>([]);
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState("");
-  React.useEffect(() => {
-    const controller = new AbortController();
-    let stopped = false;
-    setData([]);
-    setError("");
-    setLoading(!!user && !!companyId && enabled);
-    async function load() {
-      if (!user || !companyId || !enabled) return;
-      try {
-        const r = await fetch("/api/pgr/" + kind + "?companyId=" + encodeURIComponent(companyId), {
-          headers: await pgrRequestHeaders(user),
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        const d = await r.json();
-        if (!r.ok) throw new Error(d.error || "Consulta indisponível.");
-        if (!stopped) {
-          setData(d[kind] || []);
-          setError(
-            d.limited
-              ? "Exibidos os primeiros 500 registros; refine a unidade ou consulte o PGR original."
-              : ""
-          );
-        }
-      } catch (e) {
-        if (!stopped) {
-          setData([]);
-          setError(e instanceof Error ? e.message : "Consulta indisponível.");
-        }
-      } finally {
-        if (!stopped) setLoading(false);
-      }
-    }
-    void load();
-    const timer = setInterval(load, 30000);
-    window.addEventListener("nai:pgr-task-updated", load);
-    return () => {
-      stopped = true;
-      controller.abort();
-      clearInterval(timer);
-      window.removeEventListener("nai:pgr-task-updated", load);
-    };
-  }, [user?.uid, companyId, enabled, kind]);
-  return { data, loading, error };
+  const url = companyId ? "/api/pgr/" + kind + "?companyId=" + encodeURIComponent(companyId) : null;
+  return usePgrQuery<T>(url, kind, enabled, true);
 }
 export async function updatePgrTask(
   user: { getIdToken: () => Promise<string> },
