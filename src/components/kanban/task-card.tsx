@@ -81,6 +81,7 @@ export function TaskCard({ task }: { task: OpsTask }) {
       }
     : undefined;
 
+  const priority = Object.hasOwn(priorityStyles, task.priority) ? task.priority : null;
   const progress = task.progress !== undefined ? task.progress : task.status === "done" ? 100 : 0;
   const totalItems = task.checklist?.length || 0;
   const checkedItems = task.checklist?.filter((item) => item.checked).length || 0;
@@ -100,7 +101,7 @@ export function TaskCard({ task }: { task: OpsTask }) {
           "relative p-6 mb-4 rounded-[1.75rem] cursor-grab active:cursor-grabbing transition-all",
           "bg-white border border-slate-200 hover:shadow-2xl hover:border-primary/10 hover:ring-4 ring-primary/5",
           "border-l-[8px]",
-          priorityStyles[task.priority],
+          priority ? priorityStyles[priority] : "border-l-slate-300",
           isDragging ? "opacity-50 rotate-3 scale-105 shadow-2xl z-50" : "shadow-sm",
           isShaking ? "animate-shake ring-2 ring-accent border-accent" : ""
         )}
@@ -111,10 +112,14 @@ export function TaskCard({ task }: { task: OpsTask }) {
             <Badge
               className={cn(
                 "text-[8px] font-black uppercase h-5 px-3 rounded-lg border shadow-sm",
-                priorityColors[task.priority]
+                priority ? priorityColors[priority] : "text-slate-600 bg-slate-100 border-slate-200"
               )}
             >
-              {task.priority === "critical" ? "⚡ GARGALO" : task.priority.toUpperCase()}
+              {priority === "critical"
+                ? "⚡ GARGALO"
+                : priority
+                  ? priority.toUpperCase()
+                  : "Prioridade pendente"}
             </Badge>
             {task.sourceType === "pgr" && (
               <Badge

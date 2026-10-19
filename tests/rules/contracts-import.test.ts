@@ -6,7 +6,18 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { collection, doc, getDoc, getDocs, setDoc, type Firestore } from "firebase/firestore";
+import {
+  collection,
+  collectionGroup,
+  query,
+  orderBy,
+  limit,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  type Firestore,
+} from "firebase/firestore";
 import { deleteObject, getBytes, ref, uploadBytes } from "firebase/storage";
 import type { FirebaseStorage } from "firebase/storage";
 import type { ContractAnalysisOutput } from "@/ai/flows/contract-analysis-flow";
@@ -91,6 +102,29 @@ async function preserve(uid = "global") {
 }
 
 describe("Private contract import rules and persistence", () => {
+  it("allows the internal archive query while denying tenant and anonymous collection-group access", async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      for (const uid of ["internal-admin", "internal-operations"])
+        await setDoc(doc(context.firestore(), `users/${uid}`), {
+          role: uid.endsWith("admin") ? "ADMIN" : "OPERATIONS",
+          companyId: "nextcon",
+        });
+      for (const id of ["client-a", "client-b"])
+        await setDoc(doc(context.firestore(), `companies/${id}/contracts/contract`), {
+          companyId: id,
+          createdAt: "2026-10-19T00:00:00Z",
+        });
+    });
+    const archiveQuery = (database: Firestore) =>
+      query(collectionGroup(database, "contracts"), orderBy("createdAt", "desc"), limit(201));
+    for (const uid of ["global", "internal-admin", "internal-operations"])
+      expect((await assertSucceeds(getDocs(archiveQuery(db(uid))))).size).toBe(2);
+    await assertFails(getDocs(archiveQuery(db("tenant"))));
+    await assertFails(
+      getDocs(archiveQuery(env.unauthenticatedContext().firestore() as unknown as Firestore))
+    );
+  });
+
   it("keeps ordinary internal files writable without opening the contract source namespace", async () => {
     for (const path of ["internos_nextcon/report.pdf", "internos_nextcon/reports/report.pdf"]) {
       const target = ref(storage("global"), path);

@@ -28,6 +28,7 @@ vi.mock("firebase/firestore", () => ({
   where: () => ({}),
   updateDoc: state.updateDoc,
   deleteDoc: state.deleteDoc,
+  deleteField: () => ({ deleteField: true }),
 }));
 vi.mock("@/hooks/use-pgr-workspace", () => ({ updatePgrTask: state.updatePgrTask }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: state.toast }) }));
@@ -166,6 +167,27 @@ const actionButton = (action: "save" | "delete") =>
 const manualTask = (): OpsTask => ({ ...fixture(), sourceType: undefined });
 
 describe("Confirmed persistence for manual operation cards", () => {
+  it("saves an imported contract task with pending priority without undefined fields or invented risk", async () => {
+    const task = manualTask();
+    delete (task as Partial<OpsTask>).priority;
+    delete (task as Partial<OpsTask>).dueDate;
+    delete task.riskDegree;
+    await render(task);
+    await act(async () => actionButton("save").click());
+    const payload = state.updateDoc.mock.calls[0][1];
+    expect(Object.values(payload)).not.toContain(undefined);
+    expect(payload).not.toHaveProperty("priority");
+    expect(payload).toMatchObject({
+      dueDate: "",
+      riskDegree: { deleteField: true },
+      companyId: task.companyId,
+    });
+    const client = Array.from(element.querySelectorAll('button[role="combobox"]')).find((button) =>
+      button.textContent?.includes(task.companyName)
+    ) as HTMLButtonElement;
+    expect(client.disabled).toBe(true);
+  });
+
   it.each(["save", "delete"] as const)(
     "waits for %s before reporting success or closing",
     async (action) => {

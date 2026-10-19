@@ -7,8 +7,16 @@ import { Plus, LayoutGrid, Brain, Activity, Building2, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase";
-import { collection, query, orderBy, collectionGroup, doc, where } from "firebase/firestore";
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import {
+  collection,
+  query,
+  orderBy,
+  collectionGroup,
+  doc,
+  where,
+  addDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 import {
   Dialog,
   DialogContent,
@@ -30,9 +38,10 @@ import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { OPERATIONAL_COLUMNS } from "@/types/kanban";
 
 export default function EnterpriseOpsHub() {
+  const { user, role, companyId, tenantId } = useUser();
   return (
     <React.Suspense fallback={<div className="p-6">Carregando cards…</div>}>
-      <EnterpriseOpsContent />
+      <EnterpriseOpsContent key={JSON.stringify([user?.uid, role, companyId, tenantId])} />
     </React.Suspense>
   );
 }
@@ -44,6 +53,15 @@ function EnterpriseOpsContent() {
   const { toast } = useToast();
 
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
+  const [isCreating, setIsCreating] = React.useState(false);
+  const creationLock = React.useRef(false),
+    active = React.useRef(true);
+  React.useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const [selectedCompanyId, setSelectedCompanyId] = React.useState<string>(
     params.get("company") || "all"
   );
@@ -61,22 +79,23 @@ function EnterpriseOpsContent() {
     priority: "medium",
     status: "todo",
     assigneeId: "",
-    dueDate: new Date().toISOString(),
+    dueDate: "",
   });
 
   const profileRef = useMemoFirebase(() => {
     if (!db || !user) return null;
     return doc(db, "users", user.uid);
   }, [db, user]);
-  const { data: profile } = useDoc(profileRef);
+  const { data: profile, error: profileError } = useDoc(profileRef);
 
   const isGlobalAdmin = React.useMemo(() => {
     if (!profile) return false;
     const role = (profile.role || "").toUpperCase();
-    const companyId = profile.companyId;
     return (
-      ["SUPER_ADMIN", "ENGINEER", "DOCTOR", "ADMIN"].includes(role) &&
-      (!companyId || companyId === "")
+      role === "SUPER_ADMIN" ||
+      (["ADMIN", "OPERATIONS"].includes(role) &&
+        !profile.tenantId &&
+        (!profile.companyId || profile.companyId === "nextcon"))
     );
   }, [profile]);
 
@@ -102,8 +121,11 @@ function EnterpriseOpsContent() {
     }
     return null;
   }, [db, profile, isGlobalAdmin, isProvider, pgrSource]);
-  const { data: legacyCompanies, isLoading: legacyLoadingCompanies } =
-    useCollection(companiesQuery);
+  const {
+    data: legacyCompanies,
+    isLoading: legacyLoadingCompanies,
+    error: companiesError,
+  } = useCollection(companiesQuery);
   const companies = pgrSource ? pgrCompanies.data : legacyCompanies;
   const loadingCompanies = pgrSource ? pgrCompanies.loading : legacyLoadingCompanies;
 
@@ -139,7 +161,11 @@ function EnterpriseOpsContent() {
     return null;
   }, [db, profile, selectedCompanyId, isGlobalAdmin, isProvider, pgrSource]);
 
-  const { data: legacyTasks, isLoading: legacyLoadingTasks } = useCollection<OpsTask>(tasksQuery);
+  const {
+    data: legacyTasks,
+    isLoading: legacyLoadingTasks,
+    error: tasksError,
+  } = useCollection<OpsTask>(tasksQuery);
   const tasks = pgrSource ? pgrTasks.data : legacyTasks;
   const loadingTasks = pgrSource ? pgrTasks.loading : legacyLoadingTasks;
 
@@ -148,8 +174,16 @@ function EnterpriseOpsContent() {
     return tasks.filter((t) => ["started", "todo", "doing", "review", "done"].includes(t.status));
   }, [tasks]);
 
-  const handleCreateTask = () => {
-    if (!db || !taskForm.title || !taskForm.companyId) {
+  const handleCreateTask = async () => {
+    if (creationLock.current) return;
+    if (
+      !db ||
+      !user ||
+      !isGlobalAdmin ||
+      !taskForm.title?.trim() ||
+      !taskForm.companyId ||
+      companiesError
+    ) {
       toast({
         variant: "destructive",
         title: "Dados Incompletos",
@@ -158,6 +192,7 @@ function EnterpriseOpsContent() {
       return;
     }
     const company = companies?.find((c) => c.id === taskForm.companyId);
+    if (!company) return;
     const colRef = collection(db, "companies", taskForm.companyId, "tasks");
 
     const newTask: Partial<OpsTask> = {
@@ -167,12 +202,35 @@ function EnterpriseOpsContent() {
         { id: "1", text: "Realizar Check-in GPS", checked: false, mandatory: true },
         { id: "2", text: "Coletar Evidências de Risco", checked: false, mandatory: true },
       ],
-      ai_risk_score: 45,
-      createdAt: new Date().toISOString(),
     };
-    addDocumentNonBlocking(colRef, newTask);
-    setIsCreateOpen(false);
-    toast({ title: "Atividade Designada", description: `OS criada para ${company?.name}.` });
+    creationLock.current = true;
+    setIsCreating(true);
+    try {
+      await addDoc(colRef, {
+        ...newTask,
+        title: taskForm.title.trim(),
+        createdAt: serverTimestamp(),
+        createdBy: user.uid,
+      });
+      if (!active.current) return;
+      setIsCreateOpen(false);
+      setTaskForm((previous) => ({ ...previous, title: "", companyId: "" }));
+      toast({
+        title: "Atividade Designada",
+        description: `Gravação confirmada para ${company.name}. Defina o prazo e o responsável no card.`,
+      });
+    } catch {
+      if (active.current)
+        toast({
+          variant: "destructive",
+          title: "Gravação não confirmada",
+          description:
+            "Confira o quadro antes de repetir a criação. Os dados do formulário foram preservados.",
+        });
+    } finally {
+      creationLock.current = false;
+      if (active.current) setIsCreating(false);
+    }
   };
 
   return (
@@ -234,6 +292,7 @@ function EnterpriseOpsContent() {
                       Descrição da Vistoria
                     </label>
                     <Input
+                      disabled={isCreating}
                       value={taskForm.title}
                       onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })}
                       className="bg-slate-50 border-none h-14 text-sm font-bold rounded-2xl shadow-inner"
@@ -245,6 +304,7 @@ function EnterpriseOpsContent() {
                       Unidade Cliente
                     </label>
                     <Select
+                      disabled={isCreating}
                       value={taskForm.companyId}
                       onValueChange={(v) => setTaskForm({ ...taskForm, companyId: v })}
                     >
@@ -263,9 +323,11 @@ function EnterpriseOpsContent() {
                 </div>
                 <Button
                   onClick={handleCreateTask}
+                  disabled={isCreating || !!companiesError}
                   className="w-full h-16 gradient-nextcon font-black uppercase text-xs tracking-widest rounded-2xl shadow-xl"
                 >
-                  <Zap className="size-5 text-accent mr-2" /> Ativar Operação de Campo
+                  <Zap className="size-5 text-accent mr-2" />{" "}
+                  {isCreating ? "Confirmando gravação…" : "Criar ordem de serviço"}
                 </Button>
               </DialogContent>
             </Dialog>
@@ -273,6 +335,12 @@ function EnterpriseOpsContent() {
         </div>
       </header>
 
+      {!pgrSource && (profileError || companiesError || tasksError) && (
+        <p role="alert" className="rounded border border-destructive p-4 text-sm">
+          Não foi possível consultar a operação. Verifique sua permissão e atualize antes de
+          continuar.
+        </p>
+      )}
       {pgrSource && (pgrTasks.error || pgrCompanies.error) && (
         <p
           role="alert"
@@ -291,6 +359,8 @@ function EnterpriseOpsContent() {
               Sincronizando Operações...
             </p>
           </div>
+        ) : !pgrSource && (profileError || tasksError) ? (
+          <p>O quadro está indisponível enquanto a consulta não for confirmada.</p>
         ) : operationalTasks.length > 0 ? (
           <div className="w-full h-full">
             <KanbanBoard

@@ -47,6 +47,12 @@ const fixture = () =>
     "Saúde Exemplo"
   ).records[0];
 describe("contract priority queue", () => {
+  it("finds a formatted alphanumeric CNPJ without dropping its letters", () => {
+    const record = fixture();
+    record.cnpj = "12ABC34501DE35";
+    expect(searchWorkItem(workQueue([record], "2026-10-19")[0], "12.ABC.345/01DE-35")).toBe(true);
+  });
+
   it("counts tasks and stages once without treating an absent deadline as overdue", () => {
     const record = fixture(),
       original = structuredClone(record);

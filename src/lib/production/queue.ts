@@ -1,3 +1,4 @@
+import { normalizeCnpj } from "@/lib/cnpj";
 import type { ProductionRecord, ProductionCard } from "./model";
 import { instructions, type Stage } from "./instructions";
 
@@ -88,7 +89,7 @@ export function searchWorkItem(item: WorkItem, query: string) {
   );
   return (
     haystack.includes(search) ||
-    (query.replace(/\D/g, "").length >= 8 && item.cnpj.includes(query.replace(/\D/g, "")))
+    (normalizeCnpj(query).length >= 8 && normalizeCnpj(item.cnpj).includes(normalizeCnpj(query)))
   );
 }
 export function queueStats(items: WorkItem[]) {

@@ -23,14 +23,11 @@ export class ContractImportConfirmationPending extends Error {
   }
 }
 
-function sha256(bytes: Uint8Array): Promise<string> {
+async function sha256(bytes: Uint8Array): Promise<string> {
   const copy = new Uint8Array(bytes.byteLength);
   copy.set(bytes);
-  return crypto.subtle
-    .digest("SHA-256", copy.buffer)
-    .then((digest) =>
-      Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")
-    );
+  const digest = await crypto.subtle.digest("SHA-256", copy.buffer);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function assertPdf(bytes: Uint8Array, size: number) {
@@ -49,14 +46,17 @@ export async function hashContractFile(file: File): Promise<string> {
 async function verifyStoredSource(
   storage: FirebaseStorage,
   storagePath: string,
-  expectedHash: string
+  expectedHash: string,
+  signal?: AbortSignal
 ): Promise<ContractSource> {
+  signal?.throwIfAborted();
   const storageRef = ref(storage, storagePath);
   const [metadata, storedBytes] = await Promise.all([
     getMetadata(storageRef),
     getBytes(storageRef),
   ]);
   const bytes = new Uint8Array(storedBytes);
+  signal?.throwIfAborted();
   if (
     metadata.contentType !== "application/pdf" ||
     metadata.customMetadata?.sourceSha256 !== expectedHash ||
@@ -66,7 +66,9 @@ async function verifyStoredSource(
   )
     throw new Error("A fonte armazenada não corresponde à importação.");
   assertPdf(bytes, metadata.size);
-  if ((await sha256(bytes)) !== expectedHash)
+  const digest = await sha256(bytes);
+  signal?.throwIfAborted();
+  if (digest !== expectedHash)
     throw new Error("A integridade do PDF armazenado não foi confirmada.");
   return {
     sha256: expectedHash,
@@ -79,15 +81,19 @@ async function verifyStoredSource(
 export async function preserveContractSource(
   storage: FirebaseStorage,
   file: File,
-  sourceHash: string
+  sourceHash: string,
+  signal?: AbortSignal
 ): Promise<ContractSource> {
+  signal?.throwIfAborted();
   if (!/^[a-f0-9]{64}$/.test(sourceHash) || (await hashContractFile(file)) !== sourceHash)
     throw new Error("Não foi possível confirmar a identidade do PDF selecionado.");
+  signal?.throwIfAborted();
   const storagePath = `internos_nextcon/contract-sources/${sourceHash}`;
   const storageRef = ref(storage, storagePath);
   try {
     await getMetadata(storageRef);
   } catch (error) {
+    signal?.throwIfAborted();
     if (
       !error ||
       typeof error !== "object" ||
@@ -101,14 +107,15 @@ export async function preserveContractSource(
         customMetadata: { sourceSha256: sourceHash },
       });
     } catch (uploadError) {
+      signal?.throwIfAborted();
       try {
-        return await verifyStoredSource(storage, storagePath, sourceHash);
+        return await verifyStoredSource(storage, storagePath, sourceHash, signal);
       } catch {
         throw uploadError;
       }
     }
   }
-  return verifyStoredSource(storage, storagePath, sourceHash);
+  return verifyStoredSource(storage, storagePath, sourceHash, signal);
 }
 
 function validateCompany(
@@ -123,11 +130,19 @@ function validateCompany(
   const storedCnpj = typeof company.cnpj === "string" ? normalizeCnpj(company.cnpj) : "";
   if (!isValidCnpj(extractedCnpj) || !storedCnpj || storedCnpj !== normalizeCnpj(extractedCnpj))
     throw new ContractImportRejected("O CNPJ extraído não corresponde ao cadastro selecionado.");
-  if (company.active !== true || company.isDeleted === true || company.status === "archived")
+  if (
+    company.active !== true ||
+    company.isDeleted === true ||
+    company.deletedAt ||
+    company.status === "archived"
+  )
     throw new ContractImportRejected("O cadastro selecionado está inativo ou arquivado.");
   if (!companyId || companyId.includes("/") || companyId.length > 128)
     throw new Error("Identificador de empresa inválido.");
-  return typeof company.name === "string" ? company.name : "";
+  const name = [company.name, company.razaoSocial].find(
+    (value) => typeof value === "string" && value.trim()
+  );
+  return typeof name === "string" ? name.trim() : companyId;
 }
 
 function storedSourceMatches(
@@ -169,8 +184,10 @@ export async function integrateAnalyzedContract(
   companyId: string,
   source: ContractSource,
   actor: string,
-  sourceConfirmed: boolean
+  sourceConfirmed: boolean,
+  signal?: AbortSignal
 ): Promise<{ companyId: string; contractId: string; created: boolean }> {
+  signal?.throwIfAborted();
   if (!isValidCnpj(result.clientInfo.cnpj))
     throw new Error("Não foi possível validar o CNPJ extraído do contrato.");
   if (result.operationalTasks.length > 15)
@@ -181,7 +198,12 @@ export async function integrateAnalyzedContract(
     throw new Error("Identificador de empresa inválido.");
   if (source.storagePath !== `internos_nextcon/contract-sources/${source.sha256}`)
     throw new Error("A fonte não está no armazenamento privado esperado.");
-  const verifiedSource = await verifyStoredSource(storage, source.storagePath, source.sha256);
+  const verifiedSource = await verifyStoredSource(
+    storage,
+    source.storagePath,
+    source.sha256,
+    signal
+  );
   if (
     verifiedSource.generation !== source.generation ||
     verifiedSource.sizeBytes !== source.sizeBytes
@@ -197,11 +219,13 @@ export async function integrateAnalyzedContract(
   let outcome: { companyId: string; contractId: string; created: boolean };
   try {
     outcome = await runTransaction(db, async (transaction) => {
+      signal?.throwIfAborted();
       const [companySnapshot, registrySnapshot, contractSnapshot] = await Promise.all([
         transaction.get(companyRef),
         transaction.get(registryRef),
         transaction.get(contractRef),
       ]);
+      signal?.throwIfAborted();
       const companyName = validateCompany(companyId, companySnapshot.data(), extractedCnpj);
       if (registrySnapshot.exists()) {
         const registry = registrySnapshot.data();
@@ -253,6 +277,14 @@ export async function integrateAnalyzedContract(
           description: task.description,
           type: task.category,
           status: "todo",
+          // Empty deadline keeps the task visible in ordered SGI queries without inventing a date.
+          dueDate: "",
+          frequency: task.frequency,
+          checklist: task.checklist.map((text, step) => ({
+            id: `contract-${step}`,
+            text,
+            checked: false,
+          })),
           companyId,
           companyName,
           contractId,
@@ -264,6 +296,7 @@ export async function integrateAnalyzedContract(
       return { companyId, contractId, created: true };
     });
   } catch (transactionError) {
+    signal?.throwIfAborted();
     if (transactionError instanceof ContractImportRejected) throw transactionError;
     let registry;
     let contract;
@@ -289,11 +322,14 @@ export async function integrateAnalyzedContract(
 
   let persisted;
   let persistedRegistry;
+  signal?.throwIfAborted();
   try {
     [persistedRegistry, persisted] = await Promise.all([getDoc(registryRef), getDoc(contractRef)]);
   } catch {
+    signal?.throwIfAborted();
     throw new ContractImportConfirmationPending();
   }
+  signal?.throwIfAborted();
   if (
     !persistedRegistry.exists() ||
     !persisted.exists() ||

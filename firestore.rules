@@ -293,6 +293,12 @@ service cloud.firestore {
       allow list: if isNextconOfficial();
     }
 
+    // The internal import archive uses a bounded contracts collection-group query.
+    // Keep this list permission internal; tenant reads remain company-scoped below.
+    match /{path=**}/contracts/{contractId} {
+      allow list: if isNextconOfficial();
+    }
+
     match /companies/{companyId}/agendamentos/{appointmentId} {
       allow read: if belongsToCompany(companyId) || isNextconOfficial() ||
         isAuthorizedDoctorForCompany(companyId);

@@ -2,6 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useUser } from "@/firebase";
+import { normalizeCnpj } from "@/lib/cnpj";
 import { getActionIdToken } from "@/lib/auth/action-token";
 import { hashContractFile } from "@/lib/contracts/integration";
 import {
@@ -240,9 +241,21 @@ async function api(
   return result;
 }
 export default function ProductionWorkspace() {
-  const { user } = useUser();
+  const { user, role, companyId, tenantId, isUserLoading, userError } = useUser();
+  if (isUserLoading)
+    return (
+      <p role="status" className="p-8">
+        Verificando acesso à central…
+      </p>
+    );
+  if (userError)
+    return (
+      <p role="alert" className="p-8">
+        Não foi possível verificar sua sessão. Atualize a página.
+      </p>
+    );
   return user ? (
-    <Workspace key={user.uid} />
+    <Workspace key={JSON.stringify([user.uid, role, companyId, tenantId])} />
   ) : (
     <p className="p-8">Entre no NAI para acessar a central.</p>
   );
@@ -493,10 +506,13 @@ function Workspace() {
                   >
                     <option value="">Selecione um registro</option>
                     {book.records
-                      .filter((r) =>
-                        `${r.companyName} ${r.cnpj} ${r.name}`
-                          .toLowerCase()
-                          .includes(search.toLowerCase())
+                      .filter(
+                        (r) =>
+                          `${r.companyName} ${r.cnpj} ${r.name}`
+                            .toLowerCase()
+                            .includes(search.toLowerCase()) ||
+                          (normalizeCnpj(search).length >= 8 &&
+                            normalizeCnpj(r.cnpj).includes(normalizeCnpj(search)))
                       )
                       .map((r) => (
                         <option key={r.id} value={r.id}>
