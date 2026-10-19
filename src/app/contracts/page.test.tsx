@@ -1,6 +1,7 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
+import { deferred } from "../../../tests/ui/harness";
 const mocks = vi.hoisted(() => ({
   session: {
     user: { uid: "admin" },
@@ -297,18 +298,25 @@ describe("contract import review and lifecycle", () => {
     expect(host.textContent).not.toContain("contrato.pdf");
   });
   it("does not continue AI after a late credential or render an old account's extraction", async () => {
-    let finish!: (token: string) => void;
-    mocks.token.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finish = resolve;
-        })
-    );
+    const credential = deferred<string>();
+    const credentialRequested = deferred<void>();
+    mocks.token.mockImplementationOnce(() => {
+      credentialRequested.resolve();
+      return credential.promise;
+    });
     await render();
     await upload();
+    // FileReader completes asynchronously; switch accounts only once this request
+    // is actually waiting for the credential, independent of the machine's speed.
+    await act(async () => credentialRequested.promise);
+    expect(mocks.token).toHaveBeenCalledTimes(1);
+    expect(mocks.analyze).not.toHaveBeenCalled();
+    const signal = mocks.preserve.mock.calls[0][3] as AbortSignal;
+    expect(signal.aborted).toBe(false);
     mocks.session.user = { uid: "other-admin" };
     await render();
-    await act(async () => finish("old-token"));
+    expect(signal.aborted).toBe(true);
+    await act(async () => credential.resolve("old-token"));
     expect(mocks.analyze).not.toHaveBeenCalled();
     expect(host.textContent).not.toContain("contrato.pdf");
   });

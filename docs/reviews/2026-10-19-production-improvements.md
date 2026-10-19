@@ -150,6 +150,13 @@ rótulos e o acesso ao acervo contábil. Essa alteração foi preservada, com aj
 de formatação do texto para o Prettier. A combinação atualizada deve passar
 novamente pelos checks antes do merge do [PR #162](https://github.com/nextcon-nai-git/nai-gcp/pull/162).
 
+A execução combinada também revelou instabilidade no teste de troca de conta
+durante a importação de contratos: a espera fixa de 10 ms podia terminar antes
+de o `FileReader` iniciar o pedido de credencial. O teste passa a sincronizar
+esse evento explicitamente, com uma promessa controlada, antes de trocar a
+sessão. As verificações de cancelamento, de não acionar a IA e de não exibir
+dados da conta anterior são mantidas; o código de produção não é alterado.
+
 Os testes locais usam dados sintéticos e serviços isolados por mocks. Não houve
 criação de cobranças, emissão de documentos fiscais ou envio de mensagens a
 clientes para validar esta entrega.
