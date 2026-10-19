@@ -72,6 +72,27 @@ const statusNames = {
 };
 const today = () =>
   new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(new Date());
+function useBrasiliaDate() {
+  const [date, setDate] = React.useState(today);
+  React.useEffect(() => {
+    // Align to the next minute (including midnight), and recover after suspended tabs.
+    let timer: number;
+    const update = () => {
+      window.clearTimeout(timer);
+      setDate(today());
+      timer = window.setTimeout(update, 60000 - (Date.now() % 60000) + 1);
+    };
+    update();
+    window.addEventListener("focus", update);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("focus", update);
+      document.removeEventListener("visibilitychange", update);
+    };
+  }, []);
+  return date;
+}
 const value = (f: FormData, name: string) => String(f.get(name) || "").trim();
 function amount(f: FormData, name: string) {
   const raw = value(f, name).replace(",", ".");
@@ -147,31 +168,71 @@ function useRequestScope() {
   const scope = React.useRef(new AbortController());
   React.useEffect(() => {
     if (scope.current.signal.aborted) scope.current = new AbortController();
-    const controller = scope.current;
-    return () => controller.abort();
+    return () => scope.current.abort();
   }, []);
   return scope;
 }
-async function authorizedFetch(path: string, signal: AbortSignal, options?: RequestInit) {
+type AccessDeniedHandler = (error: ApiError) => void;
+const AccessContext = React.createContext<AccessDeniedHandler>(() => {});
+function useProtectedRequest() {
+  const onAccessDenied = React.useContext(AccessContext);
+  return {
+    api: (path: string, signal: AbortSignal, body?: unknown) =>
+      api(path, signal, body, onAccessDenied),
+    authorizedFetch: (path: string, signal: AbortSignal, options?: RequestInit) =>
+      authorizedFetch(path, signal, options, onAccessDenied),
+  };
+}
+async function authorizedFetch(
+  path: string,
+  signal: AbortSignal,
+  options?: RequestInit,
+  onAccessDenied?: AccessDeniedHandler
+) {
   signal.throwIfAborted();
   const token = await getActionIdToken();
   signal.throwIfAborted();
-  return fetch(path, {
+  const response = await fetch(path, {
     ...options,
     signal,
     cache: "no-store",
     headers: { ...options?.headers, Authorization: `Bearer ${token}` },
   });
+  signal.throwIfAborted();
+  if ([401, 403].includes(response.status)) {
+    let message = "Seu acesso à central não foi autorizado. Verifique sua sessão.";
+    try {
+      const result = await response.json();
+      if (typeof result.error === "string") message = result.error;
+    } catch {
+      /* A proxy may return an empty or non-JSON denial. */
+    }
+    signal.throwIfAborted();
+    const error = new ApiError(message, response.status);
+    onAccessDenied?.(error);
+    throw error;
+  }
+  return response;
 }
-async function api(path: string, signal: AbortSignal, body?: unknown) {
-  const response = await authorizedFetch(path, signal, {
-    method: body === undefined ? "GET" : "POST",
-    headers: {
-      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+async function api(
+  path: string,
+  signal: AbortSignal,
+  body?: unknown,
+  onAccessDenied?: AccessDeniedHandler
+) {
+  const response = await authorizedFetch(
+    path,
+    signal,
+    {
+      method: body === undefined ? "GET" : "POST",
+      headers: {
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: "no-store",
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    cache: "no-store",
-  });
+    onAccessDenied
+  );
   const result = await response.json();
   signal.throwIfAborted();
   if (!response.ok)
@@ -187,6 +248,7 @@ export default function ProductionWorkspace() {
   );
 }
 function Workspace() {
+  const currentDate = useBrasiliaDate();
   const scope = useRequestScope();
   const reading = React.useRef<AbortController | null>(null);
   const [book, setBook] = React.useState<ProductionBook | null>(null),
@@ -202,13 +264,20 @@ function Workspace() {
     [search, setSearch] = React.useState("");
   const mounted = React.useRef(true),
     lock = React.useRef(false);
-  const clearAccess = () => {
-    setBook(null);
-    setCompanies([]);
-    setSelected("");
-    setPending(null);
-    setShowCreate(false);
-  };
+  const clearAccess = React.useCallback(
+    (error: ApiError) => {
+      scope.current.abort();
+      reading.current?.abort();
+      setError(error.message);
+      setNotice("");
+      setBook(null);
+      setCompanies([]);
+      setSelected("");
+      setPending(null);
+      setShowCreate(false);
+    },
+    [scope]
+  );
   React.useEffect(() => {
     mounted.current = true;
     const controller = new AbortController();
@@ -216,7 +285,7 @@ function Workspace() {
     const signal = AbortSignal.any([controller.signal, scope.current.signal]);
     void (async () => {
       try {
-        const data = await api("/api/production", signal);
+        const data = await api("/api/production", signal, undefined, clearAccess);
         if (mounted.current) {
           setBook(data.book);
           setCompanies(data.companies);
@@ -229,15 +298,16 @@ function Workspace() {
       mounted.current = false;
       controller.abort();
     };
-  }, [scope]);
+  }, [scope, clearAccess]);
   const reload = async () => {
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
     reading.current?.abort();
+    if (scope.current.signal.aborted) scope.current = new AbortController();
     const signal = scope.current.signal;
     try {
-      const data = await api("/api/production", signal);
+      const data = await api("/api/production", signal, undefined, clearAccess);
       if (mounted.current) {
         setBook(data.book);
         setCompanies(data.companies);
@@ -247,7 +317,6 @@ function Workspace() {
       }
     } catch (e) {
       if (mounted.current) {
-        if (e instanceof ApiError && [401, 403].includes(e.status)) clearAccess();
         setError((e as Error).message);
       }
     } finally {
@@ -264,7 +333,7 @@ function Workspace() {
     setPending(command);
     reading.current?.abort();
     try {
-      const next = await api("/api/production", scope.current.signal, command);
+      const next = await api("/api/production", scope.current.signal, command, clearAccess);
       if (!mounted.current) return false;
       setBook(next);
       setPending(null);
@@ -274,7 +343,6 @@ function Workspace() {
       setNotice("Alteração salva e confirmada.");
       return true;
     } catch (e) {
-      if (mounted.current && e instanceof ApiError && [401, 403].includes(e.status)) clearAccess();
       if (
         mounted.current &&
         e instanceof ApiError &&
@@ -303,160 +371,165 @@ function Workspace() {
   };
   const record = book?.records.find((r) => r.id === selected);
   return (
-    <main className="mx-auto max-w-7xl space-y-6 p-4 md:p-8">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm text-muted-foreground">NAI · Gestão de serviços</p>
-          <h1 className="text-2xl font-bold">Central de Contratos e Produção</h1>
-          <p className="text-sm text-muted-foreground">
-            Do orçamento à implantação, entrega e recebimento.
+    <AccessContext.Provider value={clearAccess}>
+      <main className="mx-auto max-w-7xl space-y-6 p-4 md:p-8">
+        <header className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-sm text-muted-foreground">NAI · Gestão de serviços</p>
+            <h1 className="text-2xl font-bold">Central de Contratos e Produção</h1>
+            <p className="text-sm text-muted-foreground">
+              Do orçamento à implantação, entrega e recebimento.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" disabled={busy} onClick={reload}>
+              Atualizar
+            </Button>
+            <Button
+              disabled={!book || busy || !!pending}
+              onClick={() => setShowCreate(!showCreate)}
+            >
+              Novo registro
+            </Button>
+          </div>
+        </header>
+        <p className="rounded-lg border bg-muted/30 p-3 text-sm">
+          Acesso à central completa: administração interna, pois contém dados comerciais e
+          financeiros. Os agentes preparam orientações e rascunhos. Nenhum e-mail, mensagem, NF ou
+          cobrança é enviado ou emitido automaticamente.
+        </p>
+        {error && (
+          <div role="alert" className="rounded-md border border-red-400 p-3 text-sm">
+            {error}
+          </div>
+        )}
+        {notice && (
+          <p role="status" className="text-sm">
+            {notice}
           </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" disabled={busy} onClick={reload}>
-            Atualizar
+        )}
+        {pending && (
+          <Button variant="outline" disabled={busy} onClick={() => saveCommand(pending)}>
+            Repetir a mesma solicitação com segurança
           </Button>
-          <Button disabled={!book || busy || !!pending} onClick={() => setShowCreate(!showCreate)}>
-            Novo registro
-          </Button>
-        </div>
-      </header>
-      <p className="rounded-lg border bg-muted/30 p-3 text-sm">
-        Acesso à central completa: administração interna, pois contém dados comerciais e
-        financeiros. Os agentes preparam orientações e rascunhos. Nenhum e-mail, mensagem, NF ou
-        cobrança é enviado ou emitido automaticamente.
-      </p>
-      {error && (
-        <div role="alert" className="rounded-md border border-red-400 p-3 text-sm">
-          {error}
-        </div>
-      )}
-      {notice && (
-        <p role="status" className="text-sm">
-          {notice}
-        </p>
-      )}
-      {pending && (
-        <Button variant="outline" disabled={busy} onClick={() => saveCommand(pending)}>
-          Repetir a mesma solicitação com segurança
-        </Button>
-      )}
-      {!book ? (
-        <p>
-          {error
-            ? "A central não foi carregada. Verifique seu acesso e tente atualizar."
-            : "Carregando central…"}
-        </p>
-      ) : (
-        <>
-          <nav className="flex flex-wrap gap-2" aria-label="Áreas da central">
-            {(
-              [
-                ["work", "Esteira de produção"],
-                ["training", "Instruções de trabalho"],
-                ["agents", "3 agentes IA"],
-              ] as const
-            ).map(([id, label]) => (
-              <Button
-                key={id}
-                variant={tab === id ? "default" : "outline"}
-                onClick={() => setTab(id)}
-              >
-                {label}
-              </Button>
-            ))}
-            <Button asChild variant="outline">
-              <Link href="/financial/operacoes">Abrir ERP financeiro</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/contracts">Importações anteriores</Link>
-            </Button>
-          </nav>
-          {tab === "work" && (
-            <PriorityQueue
-              records={book.records}
-              today={today()}
-              onOpen={(recordId, cycleId) => {
-                setSelected(recordId);
-                setSelectedCycle(cycleId);
-                setSearch("");
-                requestAnimationFrame(() =>
-                  document
-                    .getElementById("production-record")
-                    ?.scrollIntoView?.({ behavior: "smooth", block: "start" })
-                );
-              }}
-            />
-          )}
-          {showCreate && (
-            <RecordForm
-              companies={companies}
-              disabled={busy || !!pending}
-              onSave={async (c) => {
-                if (await mutate(c)) setShowCreate(false);
-              }}
-            />
-          )}
-          {tab === "training" ? (
-            <Training />
-          ) : (
-            <>
-              <label className="block text-sm">
-                Buscar cliente, CNPJ ou contrato
-                <input
-                  className={inputClass}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </label>
-              <label className="block text-sm">
-                Registro
-                <select
-                  className={inputClass}
-                  value={selected}
-                  onChange={(e) => {
-                    setSelected(e.target.value);
-                    setSelectedCycle("");
-                  }}
+        )}
+        {!book ? (
+          <p>
+            {error
+              ? "A central não foi carregada. Verifique seu acesso e tente atualizar."
+              : "Carregando central…"}
+          </p>
+        ) : (
+          <>
+            <nav className="flex flex-wrap gap-2" aria-label="Áreas da central">
+              {(
+                [
+                  ["work", "Esteira de produção"],
+                  ["training", "Instruções de trabalho"],
+                  ["agents", "3 agentes IA"],
+                ] as const
+              ).map(([id, label]) => (
+                <Button
+                  key={id}
+                  variant={tab === id ? "default" : "outline"}
+                  onClick={() => setTab(id)}
                 >
-                  <option value="">Selecione um registro</option>
-                  {book.records
-                    .filter((r) =>
-                      `${r.companyName} ${r.cnpj} ${r.name}`
-                        .toLowerCase()
-                        .includes(search.toLowerCase())
-                    )
-                    .map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.companyName} · {r.name}
-                        {!r.active ? " · encerrado" : ""}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              {!record ? (
-                <p className="p-8 text-center text-muted-foreground">
-                  Cadastre uma proposta ou contrato, revise os dados extraídos e gere a esteira.
-                  Também é possível cadastrar manualmente.
-                </p>
-              ) : tab === "agents" ? (
-                <Agents key={record.id} record={record} />
-              ) : (
-                <RecordView
-                  key={record.id + ":" + book.version}
-                  record={record}
-                  selectedCycle={selectedCycle}
-                  onSelectCycle={setSelectedCycle}
-                  book={book}
-                  disabled={busy || !!pending}
-                  mutate={mutate}
-                />
-              )}
-            </>
-          )}
-        </>
-      )}
-    </main>
+                  {label}
+                </Button>
+              ))}
+              <Button asChild variant="outline">
+                <Link href="/financial/operacoes">Abrir ERP financeiro</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/contracts">Importações anteriores</Link>
+              </Button>
+            </nav>
+            {tab === "work" && (
+              <PriorityQueue
+                records={book.records}
+                today={currentDate}
+                onOpen={(recordId, cycleId) => {
+                  setSelected(recordId);
+                  setSelectedCycle(cycleId);
+                  setSearch("");
+                  requestAnimationFrame(() =>
+                    document
+                      .getElementById("production-record")
+                      ?.scrollIntoView?.({ behavior: "smooth", block: "start" })
+                  );
+                }}
+              />
+            )}
+            {showCreate && (
+              <RecordForm
+                companies={companies}
+                disabled={busy || !!pending}
+                onSave={async (c) => {
+                  if (await mutate(c)) setShowCreate(false);
+                }}
+              />
+            )}
+            {tab === "training" ? (
+              <Training />
+            ) : (
+              <>
+                <label className="block text-sm">
+                  Buscar cliente, CNPJ ou contrato
+                  <input
+                    className={inputClass}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </label>
+                <label className="block text-sm">
+                  Registro
+                  <select
+                    className={inputClass}
+                    value={selected}
+                    onChange={(e) => {
+                      setSelected(e.target.value);
+                      setSelectedCycle("");
+                    }}
+                  >
+                    <option value="">Selecione um registro</option>
+                    {book.records
+                      .filter((r) =>
+                        `${r.companyName} ${r.cnpj} ${r.name}`
+                          .toLowerCase()
+                          .includes(search.toLowerCase())
+                      )
+                      .map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.companyName} · {r.name}
+                          {!r.active ? " · encerrado" : ""}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                {!record ? (
+                  <p className="p-8 text-center text-muted-foreground">
+                    Cadastre uma proposta ou contrato, revise os dados extraídos e gere a esteira.
+                    Também é possível cadastrar manualmente.
+                  </p>
+                ) : tab === "agents" ? (
+                  <Agents key={record.id} record={record} />
+                ) : (
+                  <RecordView
+                    key={record.id + ":" + book.version}
+                    record={record}
+                    selectedCycle={selectedCycle}
+                    onSelectCycle={setSelectedCycle}
+                    book={book}
+                    disabled={busy || !!pending}
+                    mutate={mutate}
+                  />
+                )}
+              </>
+            )}
+          </>
+        )}
+      </main>
+    </AccessContext.Provider>
   );
 }
 const emptyTerms: Terms = {
@@ -535,6 +608,7 @@ function SourceUpload({
   disabled: boolean;
   onBusy: (busy: boolean) => void;
 }) {
+  const { api, authorizedFetch } = useProtectedRequest();
   const scope = useRequestScope();
   const lock = React.useRef(false);
   const [busy, setBusy] = React.useState(false),
@@ -903,6 +977,7 @@ function RecordView({
   disabled: boolean;
   mutate: (c: Mutation) => Promise<boolean>;
 }) {
+  const { api } = useProtectedRequest();
   const scope = useRequestScope();
   const [finance, setFinance] = React.useState<FinanceOptions | null>(null);
   const [financeBusy, setFinanceBusy] = React.useState(false);
@@ -1730,6 +1805,7 @@ function Training() {
   );
 }
 function Agents({ record }: { record: ProductionRecord }) {
+  const { api } = useProtectedRequest();
   const scope = useRequestScope();
   const [stage, setStage] = React.useState<Stage>("comercial"),
     [question, setQuestion] = React.useState(

@@ -26,6 +26,12 @@ Testes usam registros sintéticos e substitutos de Firestore/Storage/ERP; nenhum
 - TypeScript e Prettier aprovados. ESLint dos arquivos alterados sem erros ou avisos; avisos legados continuam no restante do projeto.
 - Build local e checks remotos do commit final são conferidos antes da integração. Publicação do aplicativo é verificada separadamente.
 
+## Ajustes após revisão automática
+
+- Respostas 401/403 de finanças, assistentes, extração e upload também apagam o acervo em tela, mesmo quando a negativa não contém JSON. Requisições pendentes são canceladas; uma atualização explícita pode revalidar o acesso.
+- Prioridades acompanham a virada da data de Brasília sem recarregar a página e são reavaliadas quando a aba recupera foco/visibilidade.
+- Seis regressões adicionais cobrem esses casos; 21 testes da interface da central aprovados após os ajustes. A medição completa acima corresponde à primeira validação desta rodada.
+
 ## Limites
 
 - Consulta do ERP é um retrato; não é conciliação bancária automática nem consulta fiscal. Os acervos da central e do ERP continuam separados, sem transação atômica entre eles.

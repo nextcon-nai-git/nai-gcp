@@ -91,6 +91,7 @@ afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 describe("production workspace", () => {
   it("clears loaded contracts when the server revokes financial access", async () => {
@@ -102,6 +103,72 @@ describe("production workspace", () => {
     expect(host.textContent).toContain("Acesso financeiro revogado");
     expect(host.textContent).not.toContain("Contrato teste");
     expect(host.textContent).not.toContain(company.name);
+  });
+  it.each(["finance", "assistant", "source", "extract"])(
+    "clears every protected view after %s authorization fails",
+    async (endpoint) => {
+      await render();
+      await selectRecord();
+      if (endpoint === "assistant") await click("3 agentes IA");
+      if (["source", "extract"].includes(endpoint)) {
+        await click("Novo registro");
+        state.hash.mockResolvedValue("a".repeat(64));
+        const file = new File(["%PDF-1.7"], "contrato.pdf", { type: "application/pdf" });
+        state.fetch.mockResolvedValueOnce(
+          endpoint === "source"
+            ? reply({ error: "Sessão revogada" }, 403)
+            : reply({ source: { sha256: "a".repeat(64), sizeBytes: file.size } })
+        );
+        const input = host.querySelector('input[type="file"]')!;
+        Object.defineProperty(input, "files", { value: [file] });
+        await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+      }
+      if (endpoint !== "source") {
+        state.fetch.mockResolvedValueOnce(reply({ error: "Sessão revogada" }, 403));
+        await click(
+          endpoint === "finance"
+            ? "Consultar contratos e títulos"
+            : endpoint === "assistant"
+              ? "Consultar NAI Comercial"
+              : "Identificar cliente e dados com IA"
+        );
+      }
+      expect(host.textContent).toContain("Sessão revogada");
+      expect(host.textContent).not.toContain("Contrato teste");
+      expect(host.textContent).not.toContain(company.name);
+      expect(host.querySelector('input[type="file"]')).toBeNull();
+      state.fetch.mockResolvedValueOnce(reply({ book, companies: [company] }));
+      await click("Atualizar");
+      expect(host.textContent).toContain("Contrato teste");
+    }
+  );
+  it("clears private data even when a denial is not JSON", async () => {
+    await render();
+    await selectRecord();
+    state.fetch.mockResolvedValueOnce({
+      status: 401,
+      ok: false,
+      json: async () => {
+        throw new Error("HTML denial");
+      },
+    });
+    await click("Consultar contratos e títulos");
+    expect(host.textContent).not.toContain(company.name);
+    expect(host.textContent).toContain("Verifique sua sessão");
+  });
+  it("refreshes priorities across midnight in Brasília without user action", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-20T02:59:59.500Z"));
+    const datedBook = structuredClone(book);
+    datedBook.records[0].commercial[0].due = "2026-10-19";
+    state.fetch.mockResolvedValue(reply({ book: datedBook, companies: [company] }));
+    await render();
+    expect(host.textContent).toContain("Vence hoje");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(host.textContent).not.toContain("Vence hoje");
+    expect(host.textContent).toContain("Prazo vencido");
   });
   it("never carries edited billing values into a different cycle", async () => {
     const cycles = structuredClone(book);
