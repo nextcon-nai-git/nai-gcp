@@ -5,6 +5,7 @@ import Link from "next/link";
 import { collection, collectionGroup, limit, orderBy, query } from "firebase/firestore";
 import { FileText, Loader2, RefreshCw } from "lucide-react";
 import { useFirestore, useUser, useCollection, useMemoFirebase, useStorage } from "@/firebase";
+import { FirestorePermissionError } from "@/firebase/errors";
 import { getActionIdToken } from "@/lib/auth/action-token";
 import { normalizeCnpj } from "@/lib/cnpj";
 import { analyzeContract, type ContractAnalysisOutput } from "@/ai/flows/contract-analysis-flow";
@@ -169,6 +170,18 @@ function ContractsSession() {
     isLoading: loadingCompanies,
     error: companiesError,
   } = useCollection<Company>(companiesQuery);
+  const accessDenied = [contractsError, companiesError].some(
+    (error) =>
+      error instanceof FirestorePermissionError ||
+      (error && "code" in error && error.code === "permission-denied")
+  );
+  React.useEffect(() => {
+    if (accessDenied) {
+      scope.current.abort();
+      setQueue([]);
+      setViewing(null);
+    }
+  }, [accessDenied]);
   const companyLimit = (companies?.length || 0) > 1000;
   const available = (companies || [])
     .filter((c) => c.active === true && !c.isDeleted && !c.deletedAt && c.status !== "archived")
@@ -286,6 +299,15 @@ function ContractsSession() {
       integrating.current.delete(item.id);
     }
   };
+  if (accessDenied)
+    return (
+      <main className="space-y-4 p-6">
+        <p role="alert">
+          A consulta não foi autorizada. Os dados da importação foram retirados da tela.
+        </p>
+        <Button onClick={() => window.location.reload()}>Verificar acesso novamente</Button>
+      </main>
+    );
   const shown = (contracts || [])
     .slice(0, visibleContracts)
     .filter(
@@ -293,8 +315,8 @@ function ContractsSession() {
         `${c.companyName || ""} ${c.companyId || ""} ${c.extractedCompanyDocument || ""}`
           .toLocaleLowerCase("pt-BR")
           .includes(search.trim().toLocaleLowerCase("pt-BR")) ||
-        (search.replace(/\D/g, "").length >= 8 &&
-          (c.extractedCompanyDocument || "").includes(search.replace(/\D/g, "")))
+        (normalizeCnpj(search).length >= 8 &&
+          normalizeCnpj(c.extractedCompanyDocument || "").includes(normalizeCnpj(search)))
     );
   return (
     <main className="space-y-6 pb-16">

@@ -16,6 +16,14 @@ Rodada autorizada de revisão de ponta a ponta do ERP. Complementa a revisão da
 
 O teste de renderização do Kanban falhava com `toUpperCase` em uma prioridade ausente. O teste de integração comprovou que checklist e periodicidade não eram transferidos para a tarefa. Ambos passaram após as correções. No emulador, a consulta de grupo do acervo também falhou com `No matching allow statements` usando as regras anteriores; a nova permissão é testada para equipe interna, cliente e sessão anônima.
 
+## Revisão automática e ajustes finais
+
+- O editor omite prioridade pendente até uma definição humana, evitando `undefined` no Firestore. Esta correção é coberta pela revisão de passagem para operação.
+- A persistência usa nome, razão social legada ou ID do cliente, sem perder a identificação exibida no seletor.
+- Busca no acervo e na central normaliza CNPJ alfanumérico formatado, mantendo letras e dígitos.
+- Uma negativa de autorização do Firestore retira imediatamente o dossiê e a fila da tela e cancela continuações locais.
+- A consulta do acervo passou no emulador após a correção. A suíte completa de regras passou no CI do primeiro commit do PR #160; uma execução local ampla sofreu falha do runtime Java e não é contada como aprovação.
+
 ## Validação e limites
 
 - 30 testes dirigidos de importação, integridade/cancelamento e compatibilidade do Kanban aprovados. A suíte completa deste lote sobre a base anterior ao PR #159 aprovou 2.656 testes, com 70,85% de cobertura de linhas (15.137/21.364). A combinação final com o PR #159 passa novamente pelos checks antes do merge.

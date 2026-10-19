@@ -139,7 +139,10 @@ function validateCompany(
     throw new ContractImportRejected("O cadastro selecionado está inativo ou arquivado.");
   if (!companyId || companyId.includes("/") || companyId.length > 128)
     throw new Error("Identificador de empresa inválido.");
-  return typeof company.name === "string" ? company.name : "";
+  const name = [company.name, company.razaoSocial].find(
+    (value) => typeof value === "string" && value.trim()
+  );
+  return typeof name === "string" ? name.trim() : companyId;
 }
 
 function storedSourceMatches(

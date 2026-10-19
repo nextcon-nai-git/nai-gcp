@@ -148,6 +148,55 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 describe("contract import review and lifecycle", () => {
+  it("finds a stored alphanumeric CNPJ from its formatted representation", async () => {
+    mocks.contracts = [
+      {
+        id: "alpha",
+        companyId: "client1",
+        companyName: "Cliente alfanumérico",
+        extractedCompanyDocument: "12ABC34501DE35",
+      },
+    ];
+    await render();
+    const search = Array.from(host.querySelectorAll("input")).find(
+      (input) => input.type === "text"
+    )!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+        search,
+        "12.ABC.345/01DE-35"
+      );
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(host.textContent).toContain("Cliente alfanumérico");
+    expect(host.textContent).not.toContain("Nenhum contrato encontrado");
+  });
+
+  it("removes an open dossier and cancels queued imports after a Firestore denial", async () => {
+    mocks.contracts = [
+      {
+        id: "old",
+        companyId: "client1",
+        companyName: "Cliente privado",
+        summary: "Resumo privado",
+      },
+    ];
+    await render();
+    await upload();
+    await act(async () =>
+      Array.from(host.querySelectorAll("button"))
+        .find((button) => button.textContent?.includes("Cliente privado"))!
+        .click()
+    );
+    expect(document.body.textContent).toContain("Resumo privado");
+    mocks.contractsError = Object.assign(new Error("Denied"), { code: "permission-denied" });
+    await render();
+    expect(document.body.textContent).not.toContain("Resumo privado");
+    expect(document.body.textContent).not.toContain("Resumo para revisão");
+    expect(host.querySelector('input[type="file"]')).toBeNull();
+    expect(host.textContent).toContain("Os dados da importação foram retirados da tela");
+  });
+
   it("ends a failed file read without hanging or calling the AI", async () => {
     vi.stubGlobal(
       "FileReader",

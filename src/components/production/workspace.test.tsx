@@ -94,6 +94,25 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 describe("production workspace", () => {
+  it("keeps an alphanumeric customer visible when searching its formatted CNPJ", async () => {
+    const alpha = structuredClone(book);
+    alpha.records[0].cnpj = "12ABC34501DE35";
+    state.fetch.mockResolvedValue(reply({ book: alpha, companies: [company] }));
+    await render();
+    const label = Array.from(host.querySelectorAll("label")).find((label) =>
+      label.textContent?.includes("Buscar cliente, CNPJ ou contrato")
+    )!;
+    const input = label.querySelector("input")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+        input,
+        "12.ABC.345/01DE-35"
+      );
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(host.querySelector('option[value="r1"]')).not.toBeNull();
+  });
+
   it("clears loaded contracts when the server revokes financial access", async () => {
     await render();
     await selectRecord();

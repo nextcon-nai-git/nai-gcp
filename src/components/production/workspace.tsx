@@ -2,6 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useUser } from "@/firebase";
+import { normalizeCnpj } from "@/lib/cnpj";
 import { getActionIdToken } from "@/lib/auth/action-token";
 import { hashContractFile } from "@/lib/contracts/integration";
 import {
@@ -493,10 +494,13 @@ function Workspace() {
                   >
                     <option value="">Selecione um registro</option>
                     {book.records
-                      .filter((r) =>
-                        `${r.companyName} ${r.cnpj} ${r.name}`
-                          .toLowerCase()
-                          .includes(search.toLowerCase())
+                      .filter(
+                        (r) =>
+                          `${r.companyName} ${r.cnpj} ${r.name}`
+                            .toLowerCase()
+                            .includes(search.toLowerCase()) ||
+                          (normalizeCnpj(search).length >= 8 &&
+                            normalizeCnpj(r.cnpj).includes(normalizeCnpj(search)))
                       )
                       .map((r) => (
                         <option key={r.id} value={r.id}>

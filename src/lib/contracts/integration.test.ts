@@ -120,6 +120,25 @@ const integrate = (
   );
 
 describe("contract integration persistence", () => {
+  it.each([
+    { razaoSocial: "Razão social legada", expected: "Razão social legada" },
+    { razaoSocial: "", expected: company.id },
+  ])("preserves the legacy customer label $expected", async ({ razaoSocial, expected }) => {
+    const writes: Record<string, unknown>[] = [];
+    mocks.runTransaction.mockImplementationOnce(async (_db, callback) =>
+      callback({
+        get: async (ref: { path: string }) =>
+          ref.path === `companies/${company.id}`
+            ? { data: () => ({ ...company, name: undefined, razaoSocial }) }
+            : { exists: () => false, data: () => undefined },
+        set: (_ref: unknown, data: Record<string, unknown>) => writes.push(data),
+      })
+    );
+    await integrate();
+    expect(writes[1].companyName).toBe(expected);
+    expect(writes[2].companyName).toBe(expected);
+  });
+
   it("stops a source upload after session cancellation during the metadata lookup", async () => {
     let rejectRead!: (error: unknown) => void;
     mocks.getMetadata.mockImplementationOnce(

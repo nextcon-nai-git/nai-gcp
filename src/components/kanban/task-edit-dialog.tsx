@@ -44,7 +44,16 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useCollection, useMemoFirebase, useStorage, useUser } from "@/firebase";
 import { updatePgrTask } from "@/hooks/use-pgr-workspace";
-import { doc, collection, query, orderBy, where, updateDoc, deleteDoc } from "firebase/firestore";
+import {
+  doc,
+  collection,
+  query,
+  orderBy,
+  where,
+  updateDoc,
+  deleteDoc,
+  deleteField,
+} from "firebase/firestore";
 import { useSgi } from "@/contexts/sgi-context";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { cn } from "@/lib/utils";
@@ -200,6 +209,10 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
     if (!db || !task.companyId || isSaving || isDeleting) return;
     setIsSaving(true);
     try {
+      if (editedTask.companyId !== task.companyId)
+        throw new Error(
+          "O vínculo do cliente pertence ao registro de origem e não pode ser trocado neste editor."
+        );
       const taskRef = doc(db, "companies", task.companyId, "tasks", task.id);
       const responsible = providers?.find((p) => p.id === editedTask.responsibleId);
 
@@ -207,15 +220,15 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
         title: editedTask.title,
         type: editedTask.type,
         status: editedTask.status,
-        priority: editedTask.priority,
+        ...(editedTask.priority ? { priority: editedTask.priority } : {}),
         companyId: editedTask.companyId,
         companyName:
           companies?.find((c) => c.id === editedTask.companyId)?.name || editedTask.companyName,
         responsibleId: editedTask.responsibleId || "",
         responsibleName: responsible?.name || editedTask.responsibleName || "A definir",
-        dueDate: editedTask.dueDate,
+        dueDate: editedTask.dueDate || "",
         cnae: editedTask.cnae || "",
-        riskDegree: Number(editedTask.riskDegree) || 1,
+        riskDegree: editedTask.riskDegree === undefined ? deleteField() : editedTask.riskDegree,
         location: editedTask.location || "",
         checklist: editedTask.checklist || [],
         progress: editedTask.progress || 0,
@@ -366,14 +379,14 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                   </label>
                   <Select
                     value={editedTask.companyId}
-                    disabled={task.sourceType === "pgr"}
+                    disabled
                     onValueChange={(v) => handleUpdateField("companyId", v)}
                   >
                     <SelectTrigger className="h-12 bg-slate-50 border-none rounded-xl font-bold shadow-inner">
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {task.sourceType === "pgr" && (
+                      {!companies?.some((company) => company.id === task.companyId) && (
                         <SelectItem value={task.companyId || ""}>{task.companyName}</SelectItem>
                       )}
                       {companies?.map((c) => (
