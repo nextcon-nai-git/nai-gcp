@@ -10,10 +10,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   mock.auth.mockResolvedValue({ role: "SUPER_ADMIN", tenantId: null });
   mock.central.mockResolvedValue({
-    records: [{ id: "r1", cnpj: "11222333000181", financeContractId: "f1" }],
+    records: [{ id: "r1", cnpj: "11222333000181", financeContractId: "f1", cycles: [] }],
   });
   mock.finance.mockResolvedValue({
     version: 3,
+    bank: [],
     contracts: [
       { id: "f1", name: "Mesmo cliente", client: "Cliente A", active: true, monthlyCents: 10000 },
       { id: "f2", name: "Outro cliente", active: true },
@@ -37,6 +38,11 @@ beforeEach(() => {
     ],
     settlements: [
       {
+        id: "s1",
+        accountId: "bank1",
+        date: "2026-10-18",
+        interestCents: 0,
+        fineCents: 0,
         titleId: "t1",
         principalCents: 10000,
         discountCents: 500,
@@ -67,6 +73,7 @@ describe("ERP selectors", () => {
         amountCents: 10000,
         receivedCents: 9000,
         adjustmentCents: 1000,
+        unreconciledCount: 1,
       },
     ]);
     expect(r.headers.get("cache-control")).toBe("private, no-store");

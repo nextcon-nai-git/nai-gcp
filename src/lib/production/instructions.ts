@@ -1,5 +1,5 @@
 /** Versioned work instructions shared by the workspace and the three advisory agents. */
-export const instructionVersion = "1.1";
+export const instructionVersion = "1.2";
 export const stages = ["comercial", "operacional", "faturamento"] as const;
 export type Stage = (typeof stages)[number];
 export const stageNames: Record<Stage, string> = {
@@ -142,7 +142,7 @@ export const instructions = [
     owner: "Responsável financeiro",
     input: "NF/cobrança registradas e comprovantes financeiros.",
     steps: [
-      "Conferir extrato e conciliação no ERP; registrar valor recebido e evidência, sem considerar promessa como pagamento.",
+      "Conferir extrato e conciliação no ERP: conta, data e valor devem corresponder às baixas não estornadas. Baixa registrada sem conciliação não permite encerrar um ciclo com título vinculado.",
       "Tratar pagamentos parciais, retenções, descontos aprovados, divergências e saldo pendente.",
       "Conferir custos, resultado e pendências de entrega; encerrar somente quando serviço e financeiro estiverem resolvidos.",
       "Arquivar evidências do ciclo. Contrato recorrente permanece ativo; criar o próximo ciclo quando devido.",
