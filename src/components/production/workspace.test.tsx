@@ -4,11 +4,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { applyCommand, CommandSchema, emptyBook } from "@/lib/production/model";
 const state = vi.hoisted(() => ({
   user: { uid: "admin" } as { uid: string } | null,
+  role: "ADMIN",
+  companyId: "nextcon",
+  tenantId: "",
+  isUserLoading: false,
+  userError: null as Error | null,
   fetch: vi.fn(),
   hash: vi.fn(),
   token: vi.fn(),
 }));
-vi.mock("@/firebase", () => ({ useUser: () => ({ user: state.user }), useStorage: () => ({}) }));
+vi.mock("@/firebase", () => ({
+  useUser: () => ({
+    user: state.user,
+    role: state.role,
+    companyId: state.companyId,
+    tenantId: state.tenantId,
+    isUserLoading: state.isUserLoading,
+    userError: state.userError,
+  }),
+  useStorage: () => ({}),
+}));
 vi.mock("@/lib/auth/action-token", () => ({ getActionIdToken: state.token }));
 vi.mock("@/lib/contracts/integration", () => ({
   hashContractFile: state.hash,
@@ -80,6 +95,11 @@ async function selectRecord() {
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   state.user = { uid: "admin" };
+  state.role = "ADMIN";
+  state.companyId = "nextcon";
+  state.tenantId = "";
+  state.isUserLoading = false;
+  state.userError = null;
   state.token.mockReset().mockResolvedValue("test-token");
   state.fetch.mockReset().mockResolvedValue(reply({ book, companies: [company] }));
   vi.stubGlobal("fetch", state.fetch);
@@ -94,6 +114,33 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 describe("production workspace", () => {
+  it.each(["role", "companyId", "tenantId"] as const)(
+    "discards loaded financial data immediately when %s changes",
+    async (field) => {
+      await render();
+      await selectRecord();
+      expect(host.textContent).toContain(company.name);
+      state.fetch.mockImplementationOnce(() => new Promise(() => {}));
+      state[field] = "changed";
+      await render();
+      expect(host.textContent).not.toContain(company.name);
+      expect(host.textContent).not.toContain("Contrato teste");
+    }
+  );
+  it.each(["loading", "error"])(
+    "hides existing data while session validation is %s",
+    async (condition) => {
+      await render();
+      await selectRecord();
+      const calls = state.fetch.mock.calls.length;
+      if (condition === "loading") state.isUserLoading = true;
+      else state.userError = new Error("Profile unavailable");
+      await render();
+      expect(host.textContent).not.toContain(company.name);
+      expect(state.fetch).toHaveBeenCalledTimes(calls);
+    }
+  );
+
   it("keeps an alphanumeric customer visible when searching its formatted CNPJ", async () => {
     const alpha = structuredClone(book);
     alpha.records[0].cnpj = "12ABC34501DE35";
