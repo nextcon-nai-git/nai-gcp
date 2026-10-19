@@ -24,8 +24,8 @@ const money = (cents: number) =>
 const links = [
   [
     "/financial/relatorios",
-    "Relatórios financeiros",
-    "PDFs de referência e planos de redução de custos",
+    "DREs contábeis",
+    "Demonstrativos oficiais em PDF, independentes do Omie",
   ],
   [
     "/financial/operacoes",
@@ -36,7 +36,8 @@ const links = [
   ["/financial/actions", "Plano de ação", "Responsáveis, prazos e checklists financeiros"],
   ["/financial/monthly-billing", "Faturamento mensal", "Acompanhamento por grupo e contrato"],
   ["/financial/livro-diario", "Livro diário", "Lançamentos com referência ao documento"],
-  ["/financial/balanco", "Balanço 2025", "Acervo contábil do exercício"],
+  ["/financial/contabilidade", "Contabilidade", "Balanços e DREs de 2024 e 2025"],
+  ["/financial/balanco", "Balanços patrimoniais", "Acervo contábil por exercício"],
   ["/financial/faturamento", "Contratos e histórico", "Medições, SESMT e bases históricas"],
 ];
 
