@@ -132,8 +132,23 @@ atualizações principais indiscriminadas para eliminar esses alertas.
 
 Os testes de regras não foram executados localmente: o ambiente disponibiliza
 Java 17, enquanto o workflow Firebase configura Java 21. A verificação de regras
-e os checks de CodeQL do commit final precisam ser conferidos no GitHub antes
-da integração, conforme `docs/CI.md`.
+e os checks de CodeQL são conferidos no GitHub antes da integração, conforme
+`docs/CI.md`.
+
+No GitHub, o commit `230ac8e8b4d7e2d8ddbc944bb03cbb01699e0fff` passou pelos
+workflows [CI](https://github.com/nextcon-nai-git/nai-gcp/actions/runs/39340518744),
+[Firebase validation](https://github.com/nextcon-nai-git/nai-gcp/actions/runs/39340518874)
+e [Security](https://github.com/nextcon-nai-git/nai-gcp/actions/runs/39340518764).
+A versão enviada inclui os últimos casos de regressão: **2.840 testes em 273
+arquivos**, além de **167 testes de regras em 12 arquivos**. O check separado de
+[CodeQL / GitHub Advanced Security](https://github.com/nextcon-nai-git/nai-gcp/runs/118361028614)
+também foi aprovado. A implantação de regras é ignorada no evento de PR;
+o sucesso da validação não é comprovação de publicação.
+
+Durante esses checks, a main recebeu o PR #163 (`09346887`), que atualiza os
+rótulos e o acesso ao acervo contábil. Essa alteração foi preservada, com ajuste
+de formatação do texto para o Prettier. A combinação atualizada deve passar
+novamente pelos checks antes do merge do [PR #162](https://github.com/nextcon-nai-git/nai-gcp/pull/162).
 
 Os testes locais usam dados sintéticos e serviços isolados por mocks. Não houve
 criação de cobranças, emissão de documentos fiscais ou envio de mensagens a
