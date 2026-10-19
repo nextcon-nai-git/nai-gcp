@@ -6,6 +6,7 @@ import { privateFailure, privateHeaders } from "@/lib/http/private-api";
 import { getProductionBook } from "@/services/production-central";
 import { getFinanceBook } from "@/services/financial-operations";
 import { normalizeCnpj } from "@/lib/cnpj";
+import { checkCycleFinance, receiptIndex, emptyReceipts } from "@/lib/production/finance";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
@@ -19,6 +20,7 @@ export async function GET(req: NextRequest) {
     const record = central.records.find((r) => r.id === recordId);
     if (!record) throw badRequest("Registro não encontrado.");
     const book = await getFinanceBook(user);
+    const receipts = receiptIndex(book);
     const contracts = book.contracts
       .filter(
         (c) =>
@@ -37,24 +39,24 @@ export async function GET(req: NextRequest) {
           t.status === "approved"
       )
       .map((t) => {
-        const settlements = book.settlements.filter((s) => s.titleId === t.id && !s.reversed);
+        const summary = receipts.get(t.id) || emptyReceipts();
         return {
           id: t.id,
           description: t.description,
           competence: t.competence,
           amountCents: t.amountCents,
-          receivedCents: settlements.reduce(
-            (sum, s) => sum + s.principalCents - s.discountCents - s.withholdingCents,
-            0
-          ),
-          adjustmentCents: settlements.reduce(
-            (sum, s) => sum + s.discountCents + s.withholdingCents,
-            0
-          ),
+          receivedCents: summary.receivedCents,
+          adjustmentCents: summary.adjustmentCents,
+          unreconciledCount: summary.unreconciledCount,
         };
       });
     return NextResponse.json(
-      { contracts, titles, version: book.version },
+      {
+        contracts,
+        titles,
+        version: book.version,
+        cycles: record.cycles.map((c) => checkCycleFinance(record, c, book, receipts)),
+      },
       { headers: privateHeaders }
     );
   } catch (e) {

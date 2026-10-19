@@ -103,6 +103,72 @@ const bill = {
   financeTitleId: "",
 };
 describe("production lifecycle", () => {
+  it("blocks starting dependent execution and billing before their prerequisites", () => {
+    const change = (b: ProductionBook, id: ProductionCard["id"]) =>
+      apply(b, {
+        action: "card",
+        cycleId: "r1_initial",
+        reason: "Iniciar etapa",
+        card: {
+          ...b.records[0].cycles[0].cards.find((c) => c.id === id)!,
+          status: "doing",
+          owner: "Responsável",
+        },
+      });
+    expect(() => change(initial(), "mobilize")).toThrow("Formalize");
+    expect(() => change(signed(), "produce")).toThrow("anterior");
+    expect(() => change(signed(), "invoice")).toThrow("anterior");
+    expect(change(signed(), "mobilize").records[0].cycles[0].cards[0].status).toBe("doing");
+    const advance = signed();
+    advance.records[0].cycles[0].advanceEvidence = "Sinal aprovado na cláusula 2";
+    expect(change(advance, "measure").records[0].cycles[0].cards[3].status).toBe("doing");
+  });
+  it("does not reopen mobilization beneath production already in progress", () => {
+    const b = finish(signed(), "mobilize", "r1_initial");
+    b.records[0].cycles[0].cards[1].status = "doing";
+    expect(() =>
+      apply(b, {
+        action: "card",
+        cycleId: "r1_initial",
+        reason: "Reabrir implantação",
+        card: { ...b.records[0].cycles[0].cards[0], status: "todo" },
+      })
+    ).toThrow("dependentes");
+  });
+  it("does not accept whitespace-only invoice identity or duplicates hidden by case and spacing", () => {
+    let b = initial();
+    const data = {
+      ...bill,
+      invoicedCents: 10000,
+      invoiceReference: "   ",
+      invoiceEvidence: "Autorizada",
+    };
+    expect(() =>
+      apply(b, { action: "billing", cycleId: "r1_initial", data, reason: "Registrar NF" })
+    ).toThrow("referência");
+    b = apply(b, {
+      action: "billing",
+      cycleId: "r1_initial",
+      data: { ...data, invoiceReference: "Emissor / A / 123" },
+      reason: "Registrar NF",
+    });
+    b = apply(b, {
+      ...create(),
+      requestId: randomUUID(),
+      expectedVersion: b.version,
+      recordId: "r2",
+      document: null,
+    });
+    expect(() =>
+      apply(b, {
+        action: "billing",
+        recordId: "r2",
+        cycleId: "r2_initial",
+        data: { ...data, invoiceReference: "  emissor / a / 123  " },
+        reason: "Repetir NF",
+      })
+    ).toThrow("NF já");
+  });
   it("blocks additional cycles before formalization without blocking initial corrections", () => {
     const b = initial();
     expect(() =>

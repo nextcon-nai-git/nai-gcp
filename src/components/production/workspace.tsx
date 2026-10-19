@@ -25,6 +25,8 @@ import {
   type Stage,
 } from "@/lib/production/instructions";
 import { taskComplete } from "@/lib/production/obligations";
+import type { CycleFinanceCheck } from "@/lib/production/finance";
+import { PriorityQueue } from "./priority-queue";
 import {
   ObligationsFields,
   readObligations,
@@ -39,6 +41,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 type Company = { id: string; name: string; cnpj: string };
 type FinanceOptions = {
   version: number;
+  cycles: CycleFinanceCheck[];
   contracts: { id: string; name: string; client: string; monthlyCents: number }[];
   titles: {
     id: string;
@@ -47,6 +50,7 @@ type FinanceOptions = {
     amountCents: number;
     receivedCents: number;
     adjustmentCents: number;
+    unreconciledCount: number;
   }[];
 };
 type Terms = z.infer<typeof TermsSchema>;
@@ -139,17 +143,37 @@ class ApiError extends Error {
     super(message);
   }
 }
-async function api(path: string, body?: unknown) {
-  const response = await fetch(path, {
+function useRequestScope() {
+  const scope = React.useRef(new AbortController());
+  React.useEffect(() => {
+    if (scope.current.signal.aborted) scope.current = new AbortController();
+    const controller = scope.current;
+    return () => controller.abort();
+  }, []);
+  return scope;
+}
+async function authorizedFetch(path: string, signal: AbortSignal, options?: RequestInit) {
+  signal.throwIfAborted();
+  const token = await getActionIdToken();
+  signal.throwIfAborted();
+  return fetch(path, {
+    ...options,
+    signal,
+    cache: "no-store",
+    headers: { ...options?.headers, Authorization: `Bearer ${token}` },
+  });
+}
+async function api(path: string, signal: AbortSignal, body?: unknown) {
+  const response = await authorizedFetch(path, signal, {
     method: body === undefined ? "GET" : "POST",
     headers: {
-      Authorization: `Bearer ${await getActionIdToken()}`,
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
     cache: "no-store",
   });
   const result = await response.json();
+  signal.throwIfAborted();
   if (!response.ok)
     throw new ApiError(result.error || "Não foi possível concluir a operação.", response.status);
   return result;
@@ -163,6 +187,8 @@ export default function ProductionWorkspace() {
   );
 }
 function Workspace() {
+  const scope = useRequestScope();
+  const reading = React.useRef<AbortController | null>(null);
   const [book, setBook] = React.useState<ProductionBook | null>(null),
     [companies, setCompanies] = React.useState<Company[]>([]);
   const [selectedCycle, setSelectedCycle] = React.useState("");
@@ -176,29 +202,42 @@ function Workspace() {
     [search, setSearch] = React.useState("");
   const mounted = React.useRef(true),
     lock = React.useRef(false);
+  const clearAccess = () => {
+    setBook(null);
+    setCompanies([]);
+    setSelected("");
+    setPending(null);
+    setShowCreate(false);
+  };
   React.useEffect(() => {
     mounted.current = true;
+    const controller = new AbortController();
+    reading.current = controller;
+    const signal = AbortSignal.any([controller.signal, scope.current.signal]);
     void (async () => {
       try {
-        const data = await api("/api/production");
+        const data = await api("/api/production", signal);
         if (mounted.current) {
           setBook(data.book);
           setCompanies(data.companies);
         }
       } catch (e) {
-        if (mounted.current) setError((e as Error).message);
+        if (mounted.current && !signal.aborted) setError((e as Error).message);
       }
     })();
     return () => {
       mounted.current = false;
+      controller.abort();
     };
-  }, []);
+  }, [scope]);
   const reload = async () => {
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
+    reading.current?.abort();
+    const signal = scope.current.signal;
     try {
-      const data = await api("/api/production");
+      const data = await api("/api/production", signal);
       if (mounted.current) {
         setBook(data.book);
         setCompanies(data.companies);
@@ -207,7 +246,10 @@ function Workspace() {
         setNotice("Central atualizada. Confira o histórico antes de repetir uma operação.");
       }
     } catch (e) {
-      if (mounted.current) setError((e as Error).message);
+      if (mounted.current) {
+        if (e instanceof ApiError && [401, 403].includes(e.status)) clearAccess();
+        setError((e as Error).message);
+      }
     } finally {
       lock.current = false;
       if (mounted.current) setBusy(false);
@@ -220,8 +262,9 @@ function Workspace() {
     setError("");
     setNotice("");
     setPending(command);
+    reading.current?.abort();
     try {
-      const next = await api("/api/production", command);
+      const next = await api("/api/production", scope.current.signal, command);
       if (!mounted.current) return false;
       setBook(next);
       setPending(null);
@@ -231,6 +274,7 @@ function Workspace() {
       setNotice("Alteração salva e confirmada.");
       return true;
     } catch (e) {
+      if (mounted.current && e instanceof ApiError && [401, 403].includes(e.status)) clearAccess();
       if (
         mounted.current &&
         e instanceof ApiError &&
@@ -328,6 +372,22 @@ function Workspace() {
               <Link href="/contracts">Importações anteriores</Link>
             </Button>
           </nav>
+          {tab === "work" && (
+            <PriorityQueue
+              records={book.records}
+              today={today()}
+              onOpen={(recordId, cycleId) => {
+                setSelected(recordId);
+                setSelectedCycle(cycleId);
+                setSearch("");
+                requestAnimationFrame(() =>
+                  document
+                    .getElementById("production-record")
+                    ?.scrollIntoView?.({ behavior: "smooth", block: "start" })
+                );
+              }}
+            />
+          )}
           {showCreate && (
             <RecordForm
               companies={companies}
@@ -475,6 +535,8 @@ function SourceUpload({
   disabled: boolean;
   onBusy: (busy: boolean) => void;
 }) {
+  const scope = useRequestScope();
+  const lock = React.useRef(false);
   const [busy, setBusy] = React.useState(false),
     [error, setError] = React.useState(""),
     [document, setDocument] = React.useState<Document | null>(null),
@@ -512,7 +574,9 @@ function SourceUpload({
           disabled={busy || disabled}
           onChange={async (e) => {
             const file = e.target.files?.[0];
-            if (!file) return;
+            if (!file || lock.current) return;
+            lock.current = true;
+            const signal = AbortSignal.any([scope.current.signal, AbortSignal.timeout(60000)]);
             setDocument(null);
             onChange(null, null);
             setBusy(true);
@@ -520,17 +584,16 @@ function SourceUpload({
             setError("");
             try {
               const hash = await hashContractFile(file);
-              const response = await fetch("/api/production/source", {
+              const response = await authorizedFetch("/api/production/source", signal, {
                 method: "PUT",
                 headers: {
-                  Authorization: `Bearer ${await getActionIdToken()}`,
                   "Content-Type": "application/pdf",
                 },
                 body: file,
-                signal: AbortSignal.timeout(60000),
                 cache: "no-store",
               });
               const result = await response.json();
+              signal.throwIfAborted();
               if (!response.ok)
                 throw new Error(
                   result.error || "Não foi possível preservar o PDF. Tente novamente."
@@ -542,10 +605,13 @@ function SourceUpload({
               setDocument(d);
               onChange(d, null);
             } catch (e) {
-              setError((e as Error).message);
+              if (!scope.current.signal.aborted) setError((e as Error).message);
             } finally {
-              setBusy(false);
-              onBusy(false);
+              lock.current = false;
+              if (!scope.current.signal.aborted) {
+                setBusy(false);
+                onBusy(false);
+              }
             }
           }}
         />
@@ -560,20 +626,26 @@ function SourceUpload({
             variant="outline"
             disabled={busy || disabled}
             onClick={async () => {
+              if (lock.current) return;
+              lock.current = true;
+              const signal = scope.current.signal;
               setBusy(true);
               onBusy(true);
               setError("");
               try {
-                const data = await api("/api/production/assistant", {
+                const data = await api("/api/production/assistant", signal, {
                   action: "extract",
                   source: document.source,
                 });
                 onChange(document, data.extraction);
               } catch (e) {
-                setError((e as Error).message);
+                if (!signal.aborted) setError((e as Error).message);
               } finally {
-                setBusy(false);
-                onBusy(false);
+                lock.current = false;
+                if (!signal.aborted) {
+                  setBusy(false);
+                  onBusy(false);
+                }
               }
             }}
           >
@@ -831,6 +903,7 @@ function RecordView({
   disabled: boolean;
   mutate: (c: Mutation) => Promise<boolean>;
 }) {
+  const scope = useRequestScope();
   const [finance, setFinance] = React.useState<FinanceOptions | null>(null);
   const [financeBusy, setFinanceBusy] = React.useState(false);
   const financeAlive = React.useRef(true);
@@ -841,9 +914,15 @@ function RecordView({
     };
   }, []);
   const loadFinance = async () => {
+    if (financeBusy) return;
     setFinanceBusy(true);
+    setFinance(null);
+    setError("");
     try {
-      const data = await api(`/api/production/finance?recordId=${encodeURIComponent(record.id)}`);
+      const data = await api(
+        `/api/production/finance?recordId=${encodeURIComponent(record.id)}`,
+        scope.current.signal
+      );
       if (financeAlive.current) setFinance(data);
     } catch (e) {
       if (financeAlive.current) setError((e as Error).message);
@@ -860,7 +939,7 @@ function RecordView({
     sum = totals(record),
     p = progress(record);
   return (
-    <div className="space-y-5">
+    <div id="production-record" className="space-y-5 scroll-mt-4">
       <div className="rounded-lg border p-4">
         <h2 className="text-xl font-semibold">{record.name}</h2>
         <p>
@@ -876,13 +955,15 @@ function RecordView({
               : "Negociação encerrada"}{" "}
           · {p.completed}/{p.total} cards concluídos · {record.revisions.length} versão(ões)
         </p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-4">
+        <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
           {(
             [
               ["Contratado nos ciclos", sum.contracted],
               ["Medido", sum.measured],
               ["Faturado registrado", sum.invoiced],
               ["Recebido registrado", sum.received],
+              ["Retenções e descontos", sum.adjustments],
+              ["Saldo registrado a receber", sum.outstanding],
             ] as const
           ).map(([label, v]) => (
             <div className="rounded-md bg-muted p-3" key={label}>
@@ -951,6 +1032,66 @@ function RecordView({
           <Link href="/financial/operacoes">Conferir lançamentos no ERP</Link>
         </Button>
       </div>
+      {finance && (
+        <section
+          className="space-y-3 rounded-lg border p-4"
+          aria-label="Conferência financeira dos ciclos"
+        >
+          <h3 className="font-semibold">Conferência com o ERP · versão {finance.version}</h3>
+          <p className="text-sm text-muted-foreground">
+            Retrato da última consulta. Baixa registrada e conciliação bancária são verificações
+            distintas. Consulte novamente após alterar títulos, baixas ou extratos no ERP.
+          </p>
+          {finance.cycles?.map((check) => {
+            const item = record.cycles.find((c) => c.id === check.cycleId);
+            return (
+              <div key={check.cycleId} className="space-y-1 rounded border p-3 text-sm">
+                <p className="font-medium">
+                  {item?.service} · {item?.period}
+                </p>
+                <p>
+                  {
+                    {
+                      unlinked: "Sem título vinculado — conferência manual",
+                      divergent: "Divergência com o ERP",
+                      pending: "Recebimento ou conciliação pendente",
+                      reconciled: "Quitado e conciliado no ERP",
+                    }[check.status]
+                  }
+                </p>
+                {check.receipts && (
+                  <p>
+                    Recebido principal: {money(check.receipts.receivedCents)} · Retenções/descontos:{" "}
+                    {money(check.receipts.adjustmentCents)} · Saldo:{" "}
+                    {money(check.outstandingCents || 0)}
+                  </p>
+                )}
+                {check.issues.length > 0 && (
+                  <ul className="list-disc pl-5">
+                    {check.issues.map((issue) => (
+                      <li key={issue}>{issue}</li>
+                    ))}
+                  </ul>
+                )}
+                {check.status === "unlinked" && (
+                  <p>
+                    Este ciclo não foi verificado contra as baixas e o extrato do ERP. Vincule o
+                    título ou preserve a evidência da conferência manual.
+                  </p>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onSelectCycle(check.cycleId)}
+                >
+                  Abrir este ciclo
+                </Button>
+              </div>
+            );
+          })}
+        </section>
+      )}
       {documents && (
         <>
           <div className="space-y-2">
@@ -966,24 +1107,26 @@ function RecordView({
                   size="sm"
                   variant="outline"
                   onClick={async () => {
+                    const signal = scope.current.signal;
                     try {
-                      const r = await fetch("/api/production/source", {
+                      const r = await authorizedFetch("/api/production/source", signal, {
                         method: "POST",
                         headers: {
-                          Authorization: `Bearer ${await getActionIdToken()}`,
                           "Content-Type": "application/json",
                         },
                         body: JSON.stringify(d.source),
                       });
                       if (!r.ok) throw new Error("Não foi possível obter o original.");
-                      const url = URL.createObjectURL(await r.blob());
+                      const blob = await r.blob();
+                      signal.throwIfAborted();
+                      const url = URL.createObjectURL(blob);
                       const a = window.document.createElement("a");
                       a.href = url;
                       a.download = d.name;
                       a.click();
                       setTimeout(() => URL.revokeObjectURL(url), 1000);
                     } catch (e) {
-                      setError((e as Error).message);
+                      if (!signal.aborted) setError((e as Error).message);
                     }
                   }}
                 >
@@ -1155,6 +1298,7 @@ function RecordView({
             </section>
           ))}
           <BillingEditor
+            key={cycle.id}
             finance={finance}
             cycle={cycle}
             disabled={disabled || !record.active}
@@ -1471,7 +1615,7 @@ function BillingEditor({
             [
               ["measuredCents", "Valor medido (R$)"],
               ["invoicedCents", "Valor faturado em NF válida (R$)"],
-              ["receivedCents", "Valor recebido conciliado (R$)"],
+              ["receivedCents", "Valor recebido principal (R$)"],
               ["adjustmentCents", "Retenções/descontos aprovados (R$)"],
             ] as const
           ).map(([name, label]) => (
@@ -1586,6 +1730,7 @@ function Training() {
   );
 }
 function Agents({ record }: { record: ProductionRecord }) {
+  const scope = useRequestScope();
   const [stage, setStage] = React.useState<Stage>("comercial"),
     [question, setQuestion] = React.useState(
       "Revise as pendências desta etapa e indique o próximo passo com as evidências necessárias."
@@ -1630,7 +1775,7 @@ function Agents({ record }: { record: ProductionRecord }) {
           setError("");
           setAnswer("");
           try {
-            const result = await api("/api/production/assistant", {
+            const result = await api("/api/production/assistant", scope.current.signal, {
               action: "consult",
               stage,
               recordId: record.id,

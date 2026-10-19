@@ -288,6 +288,8 @@ export function makeCards(ids: readonly CardId[]): ProductionCard[] {
   }));
 }
 const complete = (card: ProductionCard) => card.status === "done" || card.status === "na";
+const invoiceKey = (reference: string) =>
+  reference.normalize("NFKC").trim().replace(/\s+/g, " ").toUpperCase();
 export function applyCommand(
   book: ProductionBook,
   command: Command,
@@ -525,6 +527,16 @@ export function applyCommand(
       const index = cards?.findIndex((c) => c.id === command.card.id) ?? -1;
       if (!cards || index < 0) fail("Card não pertence a este ciclo.");
       const card = command.card;
+      if (card.status === "doing") {
+        if (cycle && !record.commercial.every(complete))
+          fail("Formalize o contrato antes de iniciar a execução ou o faturamento.");
+        if (
+          index > 0 &&
+          !complete(cards[index - 1]) &&
+          !(card.id === "measure" && cycle?.advanceEvidence)
+        )
+          fail("Conclua a etapa anterior ou registre a antecipação contratual antes de iniciar.");
+      }
       if (complete(card)) {
         if (!card.owner.trim() || card.evidence.trim().length < 3)
           fail("Conclusão exige responsável e evidência/justificativa.");
@@ -571,7 +583,7 @@ export function applyCommand(
         if (
           cycle &&
           card.id === "invoice" &&
-          (!cycle.invoiceReference ||
+          (!cycle.invoiceReference.trim() ||
             cycle.invoicedCents !== cycle.measuredCents ||
             cycle.invoiceEvidence.trim().length < 3)
         )
@@ -588,11 +600,12 @@ export function applyCommand(
       if (card.status === "blocked" && !card.blocker.trim()) fail("Descreva o bloqueio.");
       if (!complete(card) && complete(cards[index])) {
         if (
-          cards.slice(index + 1).some(complete) ||
+          cards.slice(index + 1).some((c) => complete(c) || c.status === "doing") ||
           (!cycle &&
             record.cycles.some(
               (c) =>
-                c.cards.some(complete) || c.tasks.some((t) => ["doing", "done"].includes(t.status))
+                c.cards.some((card) => complete(card) || card.status === "doing") ||
+                c.tasks.some((t) => ["doing", "done"].includes(t.status))
             )) ||
           (cycle &&
             card.id === "mobilize" &&
@@ -619,7 +632,10 @@ export function applyCommand(
       });
       if (d.measuredCents > 0 && d.measurementEvidence.trim().length < 3)
         fail("Informe a evidência da medição.");
-      if (d.invoicedCents > 0 && (!d.invoiceReference || d.invoiceEvidence.trim().length < 3))
+      if (
+        d.invoicedCents > 0 &&
+        (!d.invoiceReference.trim() || d.invoiceEvidence.trim().length < 3)
+      )
         fail("Informe referência e evidência da NF válida.");
       if (d.receivedCents > 0 && d.receiptEvidence.trim().length < 3)
         fail("Informe evidência de conciliação do recebimento.");
@@ -631,16 +647,16 @@ export function applyCommand(
       )
         fail("Valores excedem medição ou faturamento. Confira a conciliação.");
       if (
-        d.invoiceReference &&
+        invoiceKey(d.invoiceReference) &&
         next.records.some((r) =>
           r.cycles.some(
             (c) =>
               !(r.id === record!.id && c.id === cycle.id) &&
-              c.invoiceReference === d.invoiceReference
+              invoiceKey(c.invoiceReference) === invoiceKey(d.invoiceReference)
           )
         )
       )
-        fail("NF já registrada em outro ciclo deste contrato.");
+        fail("NF já registrada em outro ciclo da central. Confira emissor, série e número.");
       Object.assign(cycle, d);
     }
     if (command.action === "linkFinance") record.financeContractId = command.financeContractId;
@@ -713,8 +729,10 @@ export function totals(record: ProductionRecord) {
       measured: sum.measured + c.measuredCents,
       invoiced: sum.invoiced + c.invoicedCents,
       received: sum.received + c.receivedCents,
+      adjustments: sum.adjustments + c.adjustmentCents,
+      outstanding: sum.outstanding + c.invoicedCents - c.receivedCents - c.adjustmentCents,
     }),
-    { contracted: 0, measured: 0, invoiced: 0, received: 0 }
+    { contracted: 0, measured: 0, invoiced: 0, received: 0, adjustments: 0, outstanding: 0 }
   );
 }
 export const instructionFor = (id: CardId) => instructions.find((i) => i.id === id)!;

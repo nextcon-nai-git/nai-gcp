@@ -16,6 +16,7 @@ import {
   emptyBook,
 } from "@/lib/production/model";
 import { getFinanceBook } from "./financial-operations";
+import { checkCycleFinance, receiptIndex } from "@/lib/production/finance";
 import type { z } from "zod";
 const objectName = "financial-operations/v1/production-central.json";
 const MAX_BYTES = 16 * 1024 * 1024;
@@ -176,46 +177,33 @@ export async function saveProductionCommand(user: AuthContext, payload: unknown)
   const checkCycles =
     command.action === "billing"
       ? [{ ...command.data, id: command.cycleId }]
-      : command.action === "card" && command.card.status === "done" && command.card.id === "receive"
+      : command.action === "card" &&
+          command.card.status === "done" &&
+          ["invoice", "receive"].includes(command.card.id)
         ? record?.cycles.filter((c) => c.id === command.cycleId) || []
         : command.action === "active" && !command.active
           ? record?.cycles || []
           : [];
-  for (const cycle of checkCycles.filter((c) => c.financeTitleId)) {
-    const finance = await getFinanceBook(user);
-    const title = finance.titles.find((t) => t.id === cycle.financeTitleId);
-    if (
-      !record?.financeContractId ||
-      !title ||
-      title.contractId !== record.financeContractId ||
-      title.kind !== "receivable" ||
-      title.status !== "approved" ||
-      title.amountCents !== cycle.invoicedCents
-    )
-      throw badRequest(
-        "Título deve ser aprovado, do contrato vinculado e ter o mesmo valor faturado."
-      );
+  const linkedCycles = checkCycles.filter((c) => c.financeTitleId);
+  const finance = linkedCycles.length ? await getFinanceBook(user) : null;
+  const receipts = finance ? receiptIndex(finance) : new Map();
+  for (const cycle of linkedCycles) {
+    if (!record) throw badRequest("Registro não encontrado.");
+    const check = checkCycleFinance(record, cycle, finance!, receipts);
+    if (check.status === "divergent") throw badRequest(check.issues[0]);
     if (
       book.records.some((r) =>
         r.cycles.some(
-          (c) => !(r.id === command.recordId && c.id === cycle.id) && c.financeTitleId === title.id
+          (c) =>
+            !(r.id === command.recordId && c.id === cycle.id) &&
+            c.financeTitleId === cycle.financeTitleId
         )
       )
     )
       throw badRequest("Título já vinculado a outro ciclo.");
-    const settlements = finance.settlements.filter((s) => s.titleId === title.id && !s.reversed);
-    const receipts = settlements.reduce(
-      (sum, s) => sum + s.principalCents - s.discountCents - s.withholdingCents,
-      0
-    );
-    const adjustments = settlements.reduce(
-      (sum, s) => sum + s.discountCents + s.withholdingCents,
-      0
-    );
-    if (cycle.receivedCents !== receipts || cycle.adjustmentCents !== adjustments)
-      throw badRequest(
-        "Recebimento e ajustes divergem das baixas não estornadas no ERP. Juros e multas permanecem no ERP, fora do principal deste ciclo."
-      );
+    const closing =
+      command.action === "active" || (command.action === "card" && command.card.id === "receive");
+    if (closing && check.receipts?.unreconciledCount) throw badRequest(check.issues.at(-1)!);
   }
 
   let next;
@@ -245,6 +233,17 @@ export async function saveProductionCommand(user: AuthContext, payload: unknown)
       throw new AuthError("Outra sessão gravou alterações. Atualize e revise.", 409);
     throw e;
   }
-  return (await readBook()).book;
+  const confirmed = (await readBook()).book;
+  if (
+    !confirmed.audit.some(
+      (entry) =>
+        entry.requestId === command.requestId && entry.hash === hash && entry.actor === user.uid
+    )
+  )
+    throw new AuthError(
+      "Não foi possível confirmar esta gravação. Repita a mesma solicitação ou atualize e confira o histórico.",
+      503
+    );
+  return confirmed;
 }
 export type ProductionSource = z.infer<typeof SourceSchema>;

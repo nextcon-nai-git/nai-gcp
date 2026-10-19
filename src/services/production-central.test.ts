@@ -106,6 +106,100 @@ beforeEach(() => {
   state.finance.mockReset().mockResolvedValue(emptyFinanceBook());
 });
 describe("private central persistence", () => {
+  it("requires bank reconciliation, not just a recorded settlement, before closing a cycle", async () => {
+    const b = await saveProductionCommand(admin, command());
+    const record = b.records[0];
+    record.financeContractId = "fin1";
+    record.formalizedAt = "2026-10-01T12:00:00Z";
+    const cycle = record.cycles[0];
+    for (const card of [...record.commercial, ...cycle.cards.slice(0, 5)]) {
+      Object.assign(card, {
+        status: "done",
+        owner: "Responsável",
+        checks: [true, true, true, true],
+        evidence: "Conferido",
+      });
+    }
+    Object.assign(cycle, {
+      financeTitleId: "title1",
+      measuredCents: 10000,
+      invoicedCents: 10000,
+      receivedCents: 9000,
+      adjustmentCents: 1000,
+      measurementEvidence: "Medição aprovada",
+      invoiceReference: "NF1",
+      invoiceEvidence: "Autorização fiscal",
+      receiptEvidence: "Baixa registrada",
+      adjustmentEvidence: "Retenção aprovada",
+    });
+    state.files.get("financial-operations/v1/production-central.json")!.bytes = Buffer.from(
+      JSON.stringify(b)
+    );
+    const finance = emptyFinanceBook();
+    finance.titles.push({
+      id: "title1",
+      contractId: "fin1",
+      kind: "receivable",
+      status: "approved",
+      amountCents: 10000,
+    } as never);
+    finance.settlements.push({
+      id: "s1",
+      titleId: "title1",
+      accountId: "account1",
+      date: "2026-10-18",
+      principalCents: 10000,
+      discountCents: 0,
+      withholdingCents: 1000,
+      interestCents: 200,
+      fineCents: 0,
+      evidence: "Baixa",
+      reversed: false,
+    });
+    state.finance.mockResolvedValue(finance);
+    const close = {
+      action: "card",
+      recordId: "record1",
+      requestId: randomUUID(),
+      expectedVersion: b.version,
+      cycleId: cycle.id,
+      card: {
+        ...cycle.cards[5],
+        status: "done",
+        owner: "Responsável",
+        checks: [true, true, true, true],
+        evidence: "Fechamento conferido",
+      },
+      reason: "Encerrar ciclo",
+    };
+    await expect(saveProductionCommand(admin, close)).rejects.toThrow("conciliação bancária");
+    expect(state.writes).toBe(1);
+    finance.bank.push({
+      id: "bank1",
+      accountId: "account1",
+      bankId: "extrato1",
+      date: "2026-10-18",
+      amountCents: 9200,
+      memo: "Recebimento",
+      settlementIds: ["s1"],
+      transferPeer: null,
+    });
+    const closed = await saveProductionCommand(admin, close);
+    expect(closed.records[0].cycles[0].cards[5].status).toBe("done");
+    expect(closed.records[0].cycles[0].receivedCents).toBe(9000);
+    // An ERP unmatch after cycle closure must also block closing the parent contract.
+    finance.bank[0].settlementIds = [];
+    await expect(
+      saveProductionCommand(admin, {
+        action: "active",
+        active: false,
+        recordId: "record1",
+        requestId: randomUUID(),
+        expectedVersion: closed.version,
+        reason: "Encerrar contrato",
+      })
+    ).rejects.toThrow("conciliação bancária");
+  });
   it.each(["OPERATIONS", "DOCTOR", "CLIENT_ADMIN", "PROVIDER", "GUEST"] as const)(
     "denies %s before any storage or AI work",
     async (role) => {

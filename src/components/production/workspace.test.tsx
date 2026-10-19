@@ -6,9 +6,10 @@ const state = vi.hoisted(() => ({
   user: { uid: "admin" } as { uid: string } | null,
   fetch: vi.fn(),
   hash: vi.fn(),
+  token: vi.fn(),
 }));
 vi.mock("@/firebase", () => ({ useUser: () => ({ user: state.user }), useStorage: () => ({}) }));
-vi.mock("@/lib/auth/action-token", () => ({ getActionIdToken: async () => "test-token" }));
+vi.mock("@/lib/auth/action-token", () => ({ getActionIdToken: state.token }));
 vi.mock("@/lib/contracts/integration", () => ({
   hashContractFile: state.hash,
   preserveContractSource: vi.fn(),
@@ -79,6 +80,7 @@ async function selectRecord() {
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   state.user = { uid: "admin" };
+  state.token.mockReset().mockResolvedValue("test-token");
   state.fetch.mockReset().mockResolvedValue(reply({ book, companies: [company] }));
   vi.stubGlobal("fetch", state.fetch);
   host = document.createElement("div");
@@ -91,10 +93,120 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 describe("production workspace", () => {
+  it("clears loaded contracts when the server revokes financial access", async () => {
+    await render();
+    await selectRecord();
+    expect(host.textContent).toContain("Contrato teste");
+    state.fetch.mockResolvedValueOnce(reply({ error: "Acesso financeiro revogado" }, 403));
+    await click("Atualizar");
+    expect(host.textContent).toContain("Acesso financeiro revogado");
+    expect(host.textContent).not.toContain("Contrato teste");
+    expect(host.textContent).not.toContain(company.name);
+  });
+  it("never carries edited billing values into a different cycle", async () => {
+    const cycles = structuredClone(book);
+    cycles.records[0].cycles[0].measuredCents = 10000;
+    cycles.records[0].cycles.push({
+      ...structuredClone(cycles.records[0].cycles[0]),
+      id: "second",
+      period: "2026-11",
+      measuredCents: 20000,
+    });
+    state.fetch.mockResolvedValue(reply({ book: cycles, companies: [company] }));
+    await render();
+    await selectRecord();
+    const select = Array.from(host.querySelectorAll("select")).find((s) =>
+      Array.from(s.options).some((o) => o.value === "second")
+    )!;
+    const edited = host.querySelector<HTMLInputElement>('input[name="measuredCents"]')!;
+    expect(edited.value).toBe("200");
+    edited.value = "999";
+    await act(async () => {
+      select.value = "r1_initial";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(host.querySelector<HTMLInputElement>('input[name="measuredCents"]')!.value).toBe("100");
+  });
+  it("does not send a mutation if its credential arrives after logout", async () => {
+    await render();
+    await selectRecord();
+    let finish!: (token: string) => void;
+    state.token.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    const form = Array.from(host.querySelectorAll("form")).find((f) =>
+      f.textContent?.includes("Salvar card")
+    )!;
+    (form.elements.namedItem("reason") as HTMLTextAreaElement).value = "Conferir responsável";
+    await act(async () => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    state.user = null;
+    await render();
+    await act(async () => {
+      finish("old-token");
+    });
+    expect(state.fetch.mock.calls.filter(([, options]) => options.method === "POST")).toHaveLength(
+      0
+    );
+    expect(host.textContent).toContain("Entre no NAI");
+  });
+  it("does not overwrite a refreshed central with an older initial response", async () => {
+    let finish!: (value: unknown) => void;
+    state.fetch.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    await render();
+    const updated = structuredClone(book);
+    updated.records[0].name = "Versão confirmada após atualização";
+    state.fetch.mockResolvedValueOnce(reply({ book: updated, companies: [company] }));
+    await click("Atualizar");
+    await act(async () => {
+      finish(reply({ book, companies: [company] }));
+    });
+    expect(host.textContent).toContain("Versão confirmada após atualização");
+    expect(
+      Array.from(host.querySelectorAll("option")).find((o) => o.value === "r1")?.textContent
+    ).toContain("Versão confirmada após atualização");
+  });
+  it("shows ERP divergence and clears stale results when refreshing fails", async () => {
+    await render();
+    await selectRecord();
+    state.fetch.mockResolvedValueOnce(
+      reply({
+        version: 4,
+        contracts: [],
+        titles: [],
+        cycles: [
+          {
+            cycleId: "r1_initial",
+            titleId: "t1",
+            status: "pending",
+            issues: ["1 baixa sem conciliação bancária"],
+            outstandingCents: 0,
+            receipts: { receivedCents: 9000, adjustmentCents: 1000 },
+          },
+        ],
+      })
+    );
+    await click("Consultar contratos e títulos");
+    expect(host.textContent).toContain("Recebimento ou conciliação pendente");
+    expect(host.textContent).toContain("1 baixa sem conciliação bancária");
+    state.fetch.mockResolvedValueOnce(reply({ error: "ERP indisponível" }, 503));
+    await click("Consultar contratos e títulos");
+    expect(host.textContent).not.toContain("Conferência com o ERP · versão 4");
+    expect(host.textContent).toContain("ERP indisponível");
+  });
   it("renders nine work instructions and three agent entry points", async () => {
     await render();
     await click("Instruções de trabalho");
-    expect(host.textContent).toContain("versão 1.1");
+    expect(host.textContent).toContain("versão 1.2");
     expect(host.querySelectorAll("ol")).toHaveLength(9);
     await click("3 agentes IA");
     await selectRecord();
@@ -160,6 +272,29 @@ describe("production workspace", () => {
 });
 
 describe("PDF preservation in the central", () => {
+  it("does not upload a file after the source form is dismissed during hashing", async () => {
+    let finish!: (hash: string) => void;
+    state.hash.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    await render();
+    await click("Novo registro");
+    const input = host.querySelector('input[type="file"]')!;
+    Object.defineProperty(input, "files", {
+      value: [new File(["%PDF-1.7"], "contrato.pdf", { type: "application/pdf" })],
+    });
+    await act(async () => {
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await click("Novo registro");
+    await act(async () => {
+      finish("a".repeat(64));
+    });
+    expect(state.fetch.mock.calls.some(([url]) => url === "/api/production/source")).toBe(false);
+  });
   it.each([true, false])(
     "uses an authenticated bounded upload and verifies the response (%s)",
     async (valid) => {
