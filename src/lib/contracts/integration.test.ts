@@ -45,7 +45,7 @@ const result: ContractAnalysisOutput = {
       description: "Descrição sintética",
       category: "pgr",
       frequency: "anual",
-      checklist: [],
+      checklist: ["Conferir evidência contratual"],
     },
   ],
 };
@@ -120,6 +120,75 @@ const integrate = (
   );
 
 describe("contract integration persistence", () => {
+  it("stops a source upload after session cancellation during the metadata lookup", async () => {
+    let rejectRead!: (error: unknown) => void;
+    mocks.getMetadata.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectRead = reject;
+        })
+    );
+    const controller = new AbortController();
+    const pending = preserveContractSource({} as never, pdf, sourceHash, controller.signal);
+    await vi.waitFor(() => expect(rejectRead).toBeDefined());
+    controller.abort();
+    rejectRead({ code: "storage/object-not-found" });
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(mocks.uploadBytes).not.toHaveBeenCalled();
+  });
+  it("does not start a transaction after session cancellation during source validation", async () => {
+    let finish!: (bytes: Uint8Array) => void;
+    mocks.getBytes.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    const controller = new AbortController();
+    const pending = integrateAnalyzedContract(
+      {} as never,
+      {} as never,
+      result,
+      company.id,
+      source,
+      "reviewer",
+      true,
+      controller.signal
+    );
+    controller.abort();
+    finish(new TextEncoder().encode("%PDF-1.7\nsynthetic"));
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(mocks.runTransaction).not.toHaveBeenCalled();
+  });
+  it("does not stage transaction writes or recovery reads after cancellation", async () => {
+    const controller = new AbortController(),
+      set = vi.fn();
+    mocks.runTransaction.mockImplementationOnce(async (_db, callback) =>
+      callback({
+        get: async (ref: { path: string }) => {
+          controller.abort();
+          return ref.path === `companies/${company.id}`
+            ? { data: () => company }
+            : { exists: () => false };
+        },
+        set,
+      })
+    );
+    await expect(
+      integrateAnalyzedContract(
+        {} as never,
+        {} as never,
+        result,
+        company.id,
+        source,
+        "reviewer",
+        true,
+        controller.signal
+      )
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(set).not.toHaveBeenCalled();
+    expect(mocks.getDoc).not.toHaveBeenCalled();
+  });
   it("derives a stable source hash from actual PDF contents", async () => {
     const retry = new File(["%PDF-1.7\nsynthetic"], "retry.pdf", { type: "application/pdf" });
     const changed = new File(["%PDF-1.7\ndifferent"], "contract.pdf", { type: "application/pdf" });
@@ -187,7 +256,11 @@ describe("contract integration persistence", () => {
       sourceStoragePath: source.storagePath,
       sourceGeneration: source.generation,
     });
-    expect(writes[2].data).not.toHaveProperty("dueDate");
+    expect(writes[2].data).toMatchObject({
+      dueDate: "",
+      frequency: "anual",
+      checklist: [{ id: "contract-0", text: "Conferir evidência contratual", checked: false }],
+    });
     expect(writes[2].data).not.toHaveProperty("priority");
   });
 
@@ -196,6 +269,7 @@ describe("contract integration persistence", () => {
       { ...company, cnpj: "11.222.333/0001-82" },
       { ...company, active: false },
       { ...company, isDeleted: true },
+      { ...company, deletedAt: "2026-10-01T12:00:00Z" },
       { ...company, status: "archived" },
     ]) {
       const set = vi.fn();
