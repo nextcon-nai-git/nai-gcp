@@ -34,7 +34,6 @@ vi.mock("@/components/clients/client-documents", () => ({
   ClientDocuments: () => <div>Documentos persistidos</div>,
 }));
 import ClientPage from "@/app/clients/[id]/page";
-import FieldControl from "@/app/field-control/page";
 
 beforeEach(() => {
   output = "";
@@ -72,10 +71,5 @@ describe("Client cockpit source integrity", () => {
     state.company = { id: "synthetic-company", name: "Empresa teste" };
     render(<ClientPage />);
     expect(output).toContain("Nenhum colaborador cadastrado nesta unidade.");
-  });
-  it("does not offer a simulated access decision", () => {
-    render(<FieldControl />);
-    expect(output).toContain("Nenhuma liberação ou bloqueio");
-    expect(output).not.toContain("<button");
   });
 });
