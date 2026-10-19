@@ -10,6 +10,13 @@ import {
   MAX_OBLIGATIONS,
   taskComplete,
 } from "./obligations";
+import {
+  CycleSchedulePlanSchema,
+  TaskSchedulePlanSchema,
+  previewCycleSchedule,
+  previewTaskSchedule,
+  sameCycleSlot,
+} from "./scheduling";
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 const label = z.string().trim().min(1).max(180);
 const note = z.string().trim().min(3).max(2000);
@@ -156,6 +163,26 @@ const common = {
   recordId: id,
 };
 export const CommandSchema = z.discriminatedUnion("action", [
+  z
+    .object({
+      ...common,
+      action: z.literal("scheduleTasks"),
+      cycleId: id,
+      plan: TaskSchedulePlanSchema,
+      reason: note,
+      reviewed: z.literal(true),
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      action: z.literal("scheduleCycles"),
+      seriesId: z.string().uuid(),
+      plan: CycleSchedulePlanSchema,
+      reason: note,
+      reviewed: z.literal(true),
+    })
+    .strict(),
   z
     .object({
       ...common,
@@ -307,6 +334,7 @@ export function applyCommand(
   if (book.version !== command.expectedVersion)
     throw new ProductionError("Outra sessão alterou a central. Atualize e revise.", 409);
   const next = structuredClone(book);
+  let appliedSchedule: unknown = null;
   let record = next.records.find((r) => r.id === command.recordId);
   if (command.action === "create") {
     if (record) fail("Identificador de contrato já cadastrado.");
@@ -435,10 +463,7 @@ export function applyCommand(
         );
       if (
         record.cycles.some(
-          (c) =>
-            c.id === command.cycleId ||
-            (c.service.toLowerCase() === command.service.toLowerCase() &&
-              c.period.toLowerCase() === command.period.toLowerCase())
+          (c) => c.id === command.cycleId || sameCycleSlot(c, command.service, command.period)
         )
       )
         fail("Este serviço já possui ciclo nesta competência/ordem.");
@@ -465,6 +490,70 @@ export function applyCommand(
         adjustmentEvidence: "",
         financeTitleId: "",
       });
+    }
+    if (command.action === "scheduleTasks") {
+      let rows: ReturnType<typeof previewTaskSchedule>;
+      try {
+        rows = previewTaskSchedule(record, command.cycleId, command.plan);
+      } catch (error) {
+        fail(error instanceof Error ? error.message : "Programação inválida.");
+      }
+      const cycle = record.cycles.find((item) => item.id === command.cycleId)!;
+      appliedSchedule = rows.map((row) => ({
+        taskId: row.obligationId,
+        previousDue: row.previousDue,
+        due: row.due,
+      }));
+      for (const row of rows) {
+        const task = cycle.tasks.find((item) => item.obligation.id === row.obligationId)!;
+        task.due = row.due;
+        task.updatedAt = now;
+      }
+    }
+    if (command.action === "scheduleCycles") {
+      // Validate the entire finite batch before adding any cycle. Dates are never trusted
+      // from the browser: both the preview and this command use the approved structured plan.
+      let rows: ReturnType<typeof previewCycleSchedule>;
+      try {
+        rows = previewCycleSchedule(record, command.seriesId, command.plan);
+      } catch (error) {
+        fail(error instanceof Error ? error.message : "Programação inválida.");
+      }
+      const plan = command.plan;
+      appliedSchedule = rows.map((row) => ({
+        cycleId: row.id,
+        period: row.period,
+        anchorOn: row.anchorOn,
+        deadlines: row.tasks.map((task) => ({ taskId: task.obligationId, due: task.due })),
+      }));
+      const selected = record.revisions[plan.revision].terms.obligations.filter((obligation) =>
+        plan.rules.some((rule) => rule.obligationId === obligation.id)
+      );
+      for (const row of rows) {
+        record.cycles.push({
+          id: row.id,
+          service: plan.service,
+          period: row.period,
+          revision: plan.revision,
+          contractedCents: plan.contractedCents,
+          cards: makeCards(["mobilize", "produce", "deliver", "measure", "invoice", "receive"]),
+          tasks: makeTasks(selected, false).map((task) => ({
+            ...task,
+            due: row.tasks.find((item) => item.obligationId === task.obligation.id)!.due,
+          })),
+          advanceEvidence: "",
+          measuredCents: 0,
+          invoicedCents: 0,
+          receivedCents: 0,
+          adjustmentCents: 0,
+          measurementEvidence: "",
+          invoiceReference: "",
+          invoiceEvidence: "",
+          receiptEvidence: "",
+          adjustmentEvidence: "",
+          financeTitleId: "",
+        });
+      }
     }
     if (command.action === "replan") {
       const cycle =
@@ -701,7 +790,7 @@ export function applyCommand(
         : "evidence" in command
           ? command.evidence
           : "Novo ciclo",
-    details: JSON.stringify(command),
+    details: JSON.stringify(appliedSchedule ? { ...command, appliedSchedule } : command),
   });
   const validated = BookSchema.safeParse(next);
   if (!validated.success) {

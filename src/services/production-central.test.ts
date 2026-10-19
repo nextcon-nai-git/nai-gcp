@@ -106,6 +106,128 @@ beforeEach(() => {
   state.finance.mockReset().mockResolvedValue(emptyFinanceBook());
 });
 describe("private central persistence", () => {
+  it("persists a reviewed schedule with server-calculated deadlines and replays it without duplicate cycles", async () => {
+    const initial = command();
+    const b = await saveProductionCommand(admin, {
+      ...initial,
+      terms: {
+        ...initial.terms,
+        obligations: [
+          {
+            id: "report",
+            title: "Relatório periódico",
+            serviceType: "OUTRO",
+            owner: "Equipe técnica",
+            due: "",
+            trigger: "Ordem de serviço",
+            deadlineRule: "Cinco dias corridos após a ordem de serviço",
+            sourceReference: "Cláusula 3",
+            sourceExcerpt: "Entregar relatório em cinco dias corridos após a ordem de serviço.",
+          },
+        ],
+      },
+    });
+    const record = b.records[0];
+    record.formalizedAt = "2026-10-01T12:00:00Z";
+    for (const card of record.commercial) {
+      Object.assign(card, {
+        status: "done",
+        owner: "Responsável",
+        checks: [true, true, true, true],
+        evidence: "Contrato conferido",
+      });
+    }
+    const stored = state.files.get("financial-operations/v1/production-central.json")!;
+    stored.bytes = Buffer.from(JSON.stringify(b));
+    const schedule = {
+      action: "scheduleCycles",
+      requestId: randomUUID(),
+      expectedVersion: b.version,
+      recordId: record.id,
+      seriesId: randomUUID(),
+      plan: {
+        revision: 0,
+        service: "Rotina de SST",
+        anchorLabel: "Ordem de serviço conferida",
+        firstOn: "2027-01-31",
+        frequency: "monthly",
+        occurrences: 2,
+        contractedCents: null,
+        rules: [{ obligationId: "report", offsetDays: 5 }],
+      },
+      reason: "Programação sintética aprovada para teste",
+      reviewed: true,
+    };
+    const result = await saveProductionCommand(admin, schedule);
+    expect(result.version).toBe(b.version + 1);
+    expect(result.records[0].cycles.slice(1).map((cycle) => cycle.tasks[0].due)).toEqual([
+      "2027-02-05",
+      "2027-03-05",
+    ]);
+    expect(result.records[0].cycles.slice(1).every((cycle) => cycle.contractedCents === null)).toBe(
+      true
+    );
+    expect(result.records[0].cycles[0]).toEqual(record.cycles[0]);
+    expect(await saveProductionCommand(admin, schedule)).toEqual(result);
+    expect(state.writes).toBe(2);
+    expect(state.finance).not.toHaveBeenCalled();
+    await expect(
+      saveProductionCommand(admin, {
+        ...schedule,
+        plan: { ...schedule.plan, firstOn: "2027-02-01" },
+      })
+    ).rejects.toMatchObject({ status: 409 });
+    await expect(
+      saveProductionCommand({ ...admin, uid: "another-admin" }, schedule)
+    ).rejects.toMatchObject({ status: 409 });
+    expect(state.writes).toBe(2);
+  });
+
+  it("keeps the stored book intact when a reviewed recurring schedule loses its generation lease", async () => {
+    const b = await saveProductionCommand(admin, command());
+    const record = b.records[0];
+    record.formalizedAt = "2026-10-01T12:00:00Z";
+    record.revisions[0].terms.obligations.push({
+      id: "report",
+      title: "Relatório periódico",
+      serviceType: "OUTRO",
+      owner: "",
+      due: "",
+      trigger: "Ordem de serviço",
+      deadlineRule: "Prazo a conferir",
+      sourceReference: "Cláusula 3",
+      sourceExcerpt: "Relatório recorrente mediante ordem de serviço.",
+    });
+    const stored = state.files.get("financial-operations/v1/production-central.json")!;
+    stored.bytes = Buffer.from(JSON.stringify(b));
+    const originalBytes = Buffer.from(stored.bytes);
+    state.conflict = true;
+    await expect(
+      saveProductionCommand(admin, {
+        action: "scheduleCycles",
+        requestId: randomUUID(),
+        expectedVersion: b.version,
+        recordId: record.id,
+        seriesId: randomUUID(),
+        plan: {
+          revision: 0,
+          service: "Rotina de SST",
+          anchorLabel: "Ordem de serviço conferida",
+          firstOn: "2027-01-31",
+          frequency: "monthly",
+          occurrences: 2,
+          contractedCents: null,
+          rules: [{ obligationId: "report", offsetDays: null }],
+        },
+        reason: "Programação sintética aprovada para teste",
+        reviewed: true,
+      })
+    ).rejects.toMatchObject({ status: 409 });
+    expect(state.writes).toBe(1);
+    expect(stored.bytes).toEqual(originalBytes);
+    expect(state.finance).not.toHaveBeenCalled();
+  });
+
   it("requires bank reconciliation, not just a recorded settlement, before closing a cycle", async () => {
     const b = await saveProductionCommand(admin, command());
     const record = b.records[0];

@@ -2,6 +2,11 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { applyCommand, CommandSchema, emptyBook } from "@/lib/production/model";
+import {
+  billingQueueSummary,
+  type BillingQueueItem,
+  type BillingQueueSnapshot,
+} from "@/lib/production/billing-queue";
 const state = vi.hoisted(() => ({
   user: { uid: "admin" } as { uid: string } | null,
   role: "ADMIN",
@@ -64,6 +69,44 @@ const c = CommandSchema.parse({
   reviewed: true,
 });
 const book = applyCommand(emptyBook(), c, "admin", "now", "hash", company.name);
+function billingSnapshot(version = book.version, cycleId = "r1_initial"): BillingQueueSnapshot {
+  const item: BillingQueueItem = {
+    key: `r1:${cycleId}`,
+    recordId: "r1",
+    cycleId,
+    company: "Cliente na fila privada",
+    cnpj: company.cnpj,
+    contract: "Contrato teste",
+    service: "Entrega em conferência",
+    period: "2026-10",
+    competence: "2026-10",
+    revision: 0,
+    owner: "Gestora",
+    due: "2026-10-20",
+    origin: "delivery",
+    status: "measurement",
+    issues: [],
+    nextAction: "Conferir a medição",
+    delivered: true,
+    recurring: false,
+    obligations: { total: 0, completed: 0, waived: 0 },
+    measuredCents: 0,
+    invoicedCents: 0,
+    balanceCents: null,
+    measurementApproved: false,
+    financeTitleId: "",
+    linkedTitle: null,
+    candidateCount: 0,
+    candidates: [],
+  };
+  return {
+    centralVersion: version,
+    financeVersion: 5,
+    generatedAt: "2026-10-19T12:00:00Z",
+    items: [item],
+    summary: billingQueueSummary([item]),
+  };
+}
 const reply = (data: unknown, status = 200) => ({
   ok: status < 400,
   status,
@@ -114,17 +157,118 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 describe("production workspace", () => {
+  it("loads the billing handoff for the visible version and opens its exact cycle without a mutation", async () => {
+    const cycles = structuredClone(book);
+    cycles.records[0].cycles.push({
+      ...structuredClone(cycles.records[0].cycles[0]),
+      id: "billing-target",
+      period: "2026-11",
+    });
+    state.fetch.mockResolvedValueOnce(reply({ book: cycles, companies: [company] }));
+    await render();
+    state.fetch.mockResolvedValueOnce(reply(billingSnapshot(book.version, "billing-target")));
+    await click("Operação e faturamento");
+    expect(host.textContent).toContain("Cliente na fila privada");
+    const request = state.fetch.mock.calls.find(([url]) =>
+      String(url).includes("/billing-queue?")
+    )!;
+    expect(request[0]).toBe(`/api/production/billing-queue?expectedVersion=${book.version}`);
+    expect(request[1]).toMatchObject({
+      method: "GET",
+      cache: "no-store",
+      headers: { Authorization: "Bearer test-token" },
+    });
+    await click("Conferir ciclo");
+    const select = Array.from(host.querySelectorAll("select")).find((element) =>
+      Array.from(element.options).some((option) => option.value === "billing-target")
+    )!;
+    expect(select.value).toBe("billing-target");
+    expect(host.querySelector('[aria-label="Operação e faturamento"]')).toBeNull();
+    expect(state.fetch.mock.calls.some(([, options]) => options.method === "POST")).toBe(false);
+  });
+  it.each([401, 403, "non-json"] as const)(
+    "clears the Central when the billing query denies access: %s",
+    async (denial) => {
+      await render();
+      await selectRecord();
+      state.fetch.mockResolvedValueOnce(
+        denial === "non-json"
+          ? {
+              ok: false,
+              status: 403,
+              json: async () => {
+                throw new Error("HTML denial");
+              },
+            }
+          : reply({ error: "Acesso à fila revogado" }, denial)
+      );
+      await click("Operação e faturamento");
+      expect(host.textContent).not.toContain("Contrato teste");
+      expect(host.textContent).not.toContain(company.name);
+      expect(host.textContent).not.toContain("Cliente na fila privada");
+      expect(host.textContent).toContain(
+        denial === "non-json" ? "Verifique sua sessão" : "Acesso à fila revogado"
+      );
+    }
+  );
+  it("invalidates the billing query when refreshing the Central yields a new version", async () => {
+    await render();
+    state.fetch.mockResolvedValueOnce(reply(billingSnapshot()));
+    await click("Operação e faturamento");
+    expect(host.textContent).toContain("Cliente na fila privada");
+    const updated = { ...structuredClone(book), version: book.version + 1 };
+    state.fetch
+      .mockResolvedValueOnce(reply({ book: updated, companies: [company] }))
+      .mockImplementationOnce(() => new Promise(() => {}));
+    await click("Atualizar");
+    expect(host.textContent).not.toContain("Cliente na fila privada");
+    expect(host.textContent).toContain("Consultando a Central e o ERP");
+    expect(state.fetch.mock.lastCall?.[0]).toBe(
+      `/api/production/billing-queue?expectedVersion=${updated.version}`
+    );
+  });
+  it.each(["logout", "new-user", "role", "companyId", "tenantId"] as const)(
+    "ignores a late billing response after %s",
+    async (change) => {
+      await render();
+      let finish!: (response: unknown) => void;
+      state.fetch.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          })
+      );
+      await click("Operação e faturamento");
+      const signal = state.fetch.mock.lastCall?.[1].signal as AbortSignal;
+      if (change === "logout") state.user = null;
+      else if (change === "new-user") state.user = { uid: "next-admin" };
+      else state[change] = "changed";
+      state.fetch.mockResolvedValueOnce(
+        reply({ book: { ...emptyBook(), version: book.version }, companies: [] })
+      );
+      await render();
+      expect(signal.aborted).toBe(true);
+      await act(async () => finish(reply(billingSnapshot())));
+      expect(host.textContent).not.toContain("Cliente na fila privada");
+      expect(host.textContent).not.toContain("Contrato teste");
+      if (change === "logout") expect(host.textContent).toContain("Entre no NAI");
+    }
+  );
   it.each(["role", "companyId", "tenantId"] as const)(
     "discards loaded financial data immediately when %s changes",
     async (field) => {
       await render();
       await selectRecord();
       expect(host.textContent).toContain(company.name);
+      state.fetch.mockResolvedValueOnce(reply(billingSnapshot()));
+      await click("Operação e faturamento");
+      expect(host.textContent).toContain("Cliente na fila privada");
       state.fetch.mockImplementationOnce(() => new Promise(() => {}));
       state[field] = "changed";
       await render();
       expect(host.textContent).not.toContain(company.name);
       expect(host.textContent).not.toContain("Contrato teste");
+      expect(host.textContent).not.toContain("Cliente na fila privada");
     }
   );
   it.each(["loading", "error"])(

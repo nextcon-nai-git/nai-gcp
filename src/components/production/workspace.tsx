@@ -27,7 +27,10 @@ import {
 } from "@/lib/production/instructions";
 import { taskComplete } from "@/lib/production/obligations";
 import type { CycleFinanceCheck } from "@/lib/production/finance";
+import type { BillingQueueSnapshot } from "@/lib/production/billing-queue";
+import { BillingQueue } from "./billing-queue";
 import { PriorityQueue } from "./priority-queue";
+import { SchedulePlanner } from "./schedule-planner";
 import {
   ObligationsFields,
   readObligations,
@@ -268,7 +271,7 @@ function Workspace() {
     [companies, setCompanies] = React.useState<Company[]>([]);
   const [selectedCycle, setSelectedCycle] = React.useState("");
   const [selected, setSelected] = React.useState(""),
-    [tab, setTab] = React.useState<"work" | "training" | "agents">("work");
+    [tab, setTab] = React.useState<"work" | "billing" | "training" | "agents">("work");
   const [busy, setBusy] = React.useState(false),
     [error, setError] = React.useState(""),
     [notice, setNotice] = React.useState("");
@@ -290,6 +293,16 @@ function Workspace() {
       setShowCreate(false);
     },
     [scope]
+  );
+  const loadBillingSnapshot = React.useCallback(
+    (signal: AbortSignal, expectedVersion: number): Promise<BillingQueueSnapshot> =>
+      api(
+        `/api/production/billing-queue?expectedVersion=${expectedVersion}`,
+        AbortSignal.any([signal, scope.current.signal]),
+        undefined,
+        clearAccess
+      ),
+    [scope, clearAccess]
   );
   React.useEffect(() => {
     mounted.current = true;
@@ -352,6 +365,7 @@ function Workspace() {
       setPending(null);
       setSelected(command.recordId);
       if (command.action === "cycle") setSelectedCycle(command.cycleId);
+      if (command.action === "scheduleCycles") setSelectedCycle(`${command.seriesId}_1`);
       if (command.action === "create") setSelectedCycle("");
       setNotice("Alteração salva e confirmada.");
       return true;
@@ -438,6 +452,7 @@ function Workspace() {
               {(
                 [
                   ["work", "Esteira de produção"],
+                  ["billing", "Operação e faturamento"],
                   ["training", "Instruções de trabalho"],
                   ["agents", "3 agentes IA"],
                 ] as const
@@ -484,6 +499,22 @@ function Workspace() {
             )}
             {tab === "training" ? (
               <Training />
+            ) : tab === "billing" ? (
+              <BillingQueue
+                centralVersion={book.version}
+                loadSnapshot={loadBillingSnapshot}
+                onOpen={(recordId, cycleId) => {
+                  setTab("work");
+                  setSelected(recordId);
+                  setSelectedCycle(cycleId);
+                  setSearch("");
+                  requestAnimationFrame(() =>
+                    document
+                      .getElementById("production-record")
+                      ?.scrollIntoView?.({ behavior: "smooth", block: "start" })
+                  );
+                }}
+              />
             ) : (
               <>
                 <label className="block text-sm">
@@ -1272,6 +1303,13 @@ function RecordView({
           ))}
         </select>
       </label>
+      <SchedulePlanner
+        key={`${record.id}:${book.version}:${cycle?.id || ""}`}
+        record={record}
+        cycleId={cycle?.id || ""}
+        disabled={disabled}
+        save={(command) => mutate({ ...command, recordId: record.id })}
+      />
       {cycle && (
         <>
           <details className="rounded border p-3">

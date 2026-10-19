@@ -122,7 +122,9 @@ function Session({ user }: { user: User | null }) {
       <header>
         <h1 className="text-3xl font-bold">Contabilidade · DRE e documentos</h1>
         <p className="mt-2 text-slate-600">
-          Arquive DREs oficiais e outros demonstrativos contábeis no acervo privado. Para balanços patrimoniais, use a importação estruturada em Balanços patrimoniais. Esta tela preserva o PDF e seus metadados; não contabiliza lançamentos nem envia dados ao Omie.
+          Arquive DREs oficiais e outros demonstrativos contábeis no acervo privado. Para balanços
+          patrimoniais, use a importação estruturada em Balanços patrimoniais. Esta tela preserva o
+          PDF e seus metadados; não contabiliza lançamentos nem envia dados ao Omie.
         </p>
       </header>
       {error && (
@@ -145,7 +147,9 @@ function Session({ user }: { user: User | null }) {
             onSubmit={upload}
             className="grid gap-4 rounded-2xl border bg-white p-5 md:grid-cols-2"
           >
-            <h2 className="text-lg font-semibold md:col-span-2">Registrar DRE ou outro demonstrativo</h2>
+            <h2 className="text-lg font-semibold md:col-span-2">
+              Registrar DRE ou outro demonstrativo
+            </h2>
             <label className="text-sm">
               Título
               <Input name="title" required maxLength={200} />

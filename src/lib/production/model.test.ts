@@ -784,3 +784,144 @@ it("resolves a conditional obligation only with its preserved trigger and explic
   expect(resolved.records[0].cycles[0].tasks[1].status).toBe("na");
   expect(progress(resolved.records[0]).completed).toBe(7);
 });
+
+describe("approved contractual scheduling through production commands", () => {
+  const cyclePlan = {
+    revision: 0,
+    service: "ASOs recorrentes de teste",
+    anchorLabel: "Ordem de serviço conferida",
+    firstOn: "2026-11-30",
+    frequency: "monthly",
+    occurrences: 2,
+    contractedCents: 3500,
+    rules: [{ obligationId: "aso", offsetDays: 5 }],
+  };
+
+  it("programs only selected deadlines, preserving facts, owners, evidence and status", () => {
+    const original = withTasks();
+    original.records[0].cycles[0].tasks[0].status = "blocked";
+    original.records[0].cycles[0].tasks[0].blocker = "Aguardando dados do cliente";
+    const before = structuredClone(original);
+    const updated = apply(original, {
+      action: "scheduleTasks",
+      cycleId: "r1_initial",
+      plan: {
+        anchorLabel: "Recebimento de dados conferido",
+        anchorOn: "2026-10-10",
+        rules: [{ obligationId: "pgr", offsetDays: 15 }],
+      },
+      reason: "Marco e prazo conferidos na ordem de serviço",
+      reviewed: true,
+    });
+    expect(updated.records[0].cycles[0].tasks[0]).toEqual({
+      ...before.records[0].cycles[0].tasks[0],
+      due: "2026-10-25",
+      updatedAt: "2026-10-14T10:00:00Z",
+    });
+    expect(updated.records[0].cycles[0].tasks[1]).toEqual(before.records[0].cycles[0].tasks[1]);
+    expect(updated.records[0].revisions).toEqual(before.records[0].revisions);
+    expect(original).toEqual(before);
+    expect(JSON.parse(updated.audit.at(-1)!.details)).toMatchObject({
+      plan: { anchorOn: "2026-10-10", rules: [{ obligationId: "pgr", offsetDays: 15 }] },
+      appliedSchedule: [{ taskId: "pgr", previousDue: "2026-10-30", due: "2026-10-25" }],
+    });
+  });
+
+  it("creates only the approved finite series with per-cycle values and exact audit dates", () => {
+    const original = mobilizedTasks();
+    const before = structuredClone(original.records[0]);
+    const seriesId = randomUUID();
+    const updated = apply(original, {
+      action: "scheduleCycles",
+      seriesId,
+      plan: cyclePlan,
+      reason: "Recorrência e valor por competência conferidos",
+      reviewed: true,
+    });
+    const record = updated.records[0];
+    expect(record.cycles[0]).toEqual(before.cycles[0]);
+    expect(record.revisions).toEqual(before.revisions);
+    expect(
+      record.cycles.slice(1).map((cycle) => ({
+        id: cycle.id,
+        period: cycle.period,
+        value: cycle.contractedCents,
+        due: cycle.tasks[0].due,
+      }))
+    ).toEqual([
+      { id: `${seriesId}_1`, period: "2026-11", value: 3500, due: "2026-12-05" },
+      { id: `${seriesId}_2`, period: "2026-12", value: 3500, due: "2027-01-04" },
+    ]);
+    for (const cycle of record.cycles.slice(1)) {
+      expect(cycle.tasks.map((task) => task.obligation.id)).toEqual(["aso"]);
+      expect(cycle.tasks[0].owner).toBe("");
+      expect(cycle.cards.every((card) => card.status === "todo")).toBe(true);
+      expect(cycle).toMatchObject({
+        measuredCents: 0,
+        invoicedCents: 0,
+        receivedCents: 0,
+        financeTitleId: "",
+        advanceEvidence: "",
+      });
+    }
+    expect(JSON.parse(updated.audit.at(-1)!.details).appliedSchedule).toEqual([
+      {
+        cycleId: `${seriesId}_1`,
+        period: "2026-11",
+        anchorOn: "2026-11-30",
+        deadlines: [{ taskId: "aso", due: "2026-12-05" }],
+      },
+      {
+        cycleId: `${seriesId}_2`,
+        period: "2026-12",
+        anchorOn: "2026-12-30",
+        deadlines: [{ taskId: "aso", due: "2027-01-04" }],
+      },
+    ]);
+    expect(() =>
+      apply(updated, {
+        action: "cycle",
+        cycleId: randomUUID(),
+        service: " ASOs  recorrentes de teste ",
+        period: "2026-11-15",
+        revision: 0,
+        obligationIds: ["aso"],
+        contractedCents: 3500,
+        advanceEvidence: "",
+      })
+    ).toThrow(/já possui ciclo/);
+  });
+
+  it.each(["2026-12", "12/2026"])(
+    "rejects an entire series that overlaps a later cycle in %s and requires explicit approval",
+    (period) => {
+      const original = apply(mobilizedTasks(), {
+        action: "cycle",
+        cycleId: "existing",
+        service: cyclePlan.service,
+        period,
+        revision: 0,
+        obligationIds: ["aso"],
+        contractedCents: null,
+        advanceEvidence: "",
+      });
+      const before = structuredClone(original);
+      const input = {
+        action: "scheduleCycles",
+        seriesId: randomUUID(),
+        plan: cyclePlan,
+        reason: "Programação conferida",
+        reviewed: true,
+      };
+      expect(() => apply(original, input)).toThrow(/2026-12/);
+      expect(original).toEqual(before);
+      expect(() => apply(original, { ...input, reviewed: false })).toThrow();
+      expect(() =>
+        apply(original, { ...input, plan: { ...cyclePlan, contractedCents: 0 } })
+      ).toThrow();
+      expect(() =>
+        apply(original, { ...input, plan: { ...cyclePlan, contractedCents: 35.5 } })
+      ).toThrow();
+    }
+  );
+});
