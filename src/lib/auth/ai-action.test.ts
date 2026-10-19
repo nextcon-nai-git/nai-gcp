@@ -28,10 +28,6 @@ import { analyzeSafetyReport } from "@/ai/flows/report-analysis-flow";
 import { runKnowledgeAssistant } from "@/ai/flows/knowledge-assistant-flow";
 import { generateNaiQuote } from "@/ai/flows/nai-quote-flow";
 import { gerarOrcamentoComNai } from "@/actions/nai-quote";
-import {
-  sendSimulatedWhatsappMessage,
-  sendSimulatedProviderMediaMessage,
-} from "@/actions/whatsapp-bot-actions";
 import { processarRelatorioSST } from "@/actions/sst-report-processor";
 
 beforeEach(() => {
@@ -43,8 +39,6 @@ describe("Autorização das ações de IA", () => {
     runKnowledgeAssistant,
     generateNaiQuote,
     gerarOrcamentoComNai,
-    sendSimulatedWhatsappMessage,
-    sendSimulatedProviderMediaMessage,
     processarRelatorioSST,
     analyzeContract,
     analyzeProviderContract,
