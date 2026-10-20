@@ -1,6 +1,7 @@
 import { isValidCnpj, normalizeCnpj } from "@/lib/cnpj";
 import { reconciliationIndex, settlementCash, type FinanceBook } from "@/lib/financial/operations";
 import type { Cycle, ProductionRecord } from "./model";
+import { billingCompetence } from "./billing-queue";
 
 export type ReceiptSummary = {
   receivedCents: number;
@@ -58,7 +59,7 @@ export function matchesFinanceContract(
 
 type FinancialCycle = Pick<
   Cycle,
-  "id" | "financeTitleId" | "invoicedCents" | "receivedCents" | "adjustmentCents"
+  "id" | "period" | "financeTitleId" | "invoicedCents" | "receivedCents" | "adjustmentCents"
 >;
 export type CycleFinanceCheck = {
   cycleId: string;
@@ -104,6 +105,13 @@ export function checkCycleFinance(
       issues: ["Título deve ser aprovado e pertencer ao contrato financeiro vinculado."],
     };
   }
+  const competence = billingCompetence(cycle.period);
+  if (competence && competence !== title.competence)
+    return {
+      ...result,
+      status: "divergent",
+      issues: ["A competência do título vinculado diverge do período do ciclo."],
+    };
   const summary = receipts.get(title.id) || emptyReceipts();
   result.receipts = summary;
   result.outstandingCents = title.amountCents - summary.receivedCents - summary.adjustmentCents;

@@ -23,6 +23,7 @@ function fixture() {
     kind: "receivable",
     status: "approved",
     amountCents: 10000,
+    competence: "2026-10",
   } as never);
   book.settlements.push({
     id: "s1",
@@ -52,6 +53,7 @@ function fixture() {
 const record = { financeContractId: "f1", cnpj: "11222333000181" };
 const cycle = {
   id: "c1",
+  period: "2026-10",
   financeTitleId: "t1",
   invoicedCents: 10000,
   receivedCents: 9000,
@@ -150,6 +152,27 @@ describe("contract receipt reconciliation", () => {
       });
     }
   );
+  it("rejects a fully settled title from a different monthly competence", () => {
+    const book = fixture();
+    book.titles[0].competence = "2026-09";
+    expect(checkCycleFinance(record, cycle, book)).toMatchObject({
+      status: "divergent",
+      receipts: null,
+      outstandingCents: null,
+    });
+    expect(checkCycleFinance(record, { ...cycle, period: "09/2026" }, book).status).toBe(
+      "reconciled"
+    );
+  });
+  it("does not infer a monthly competence from a daily or free-form cycle period", () => {
+    const book = fixture();
+    expect(checkCycleFinance(record, { ...cycle, period: "Inicial" }, book).status).toBe(
+      "reconciled"
+    );
+    expect(checkCycleFinance(record, { ...cycle, period: "2026-09-20" }, book).status).toBe(
+      "reconciled"
+    );
+  });
   it("never labels an unlinked manual cycle as ERP-reconciled", () => {
     expect(checkCycleFinance(record, { ...cycle, financeTitleId: "" }, fixture())).toMatchObject({
       status: "unlinked",
