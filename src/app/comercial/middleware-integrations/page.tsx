@@ -12,7 +12,6 @@ import {
   FileText,
   Users,
   Stethoscope,
-  MessageSquare,
   Bot,
   ShieldCheck,
   DollarSign,
@@ -87,13 +86,6 @@ export default function MiddlewareIntegrationsProposalPage() {
       name: "Envio NAI-GED (Gestão Eletrônica)",
       flow: "NAI Cloud ➔ Repositório Digital",
       desc: "Upload automático de laudos assinados com ICP-Brasil e indexação por CPF.",
-      price: 175.0,
-    },
-    {
-      id: "whatsapp_bot",
-      name: "Mensagerias & Alertas WhatsApp",
-      flow: "NAI Bot ➔ Trabalhadores & RH",
-      desc: "Disparo automático de convocações de exames e envio de ASO digital via WhatsApp.",
       price: 175.0,
     },
   ];
@@ -187,14 +179,14 @@ export default function MiddlewareIntegrationsProposalPage() {
         </div>
       </div>
 
-      {/* OS 6 PILARES ESTRATÉGICOS DA NEXTCON */}
+      {/* OS 5 PILARES ESTRATÉGICOS DA NEXTCON */}
       <div className="space-y-6">
         <div>
           <h2 className="text-2xl font-black font-headline text-primary uppercase">
             Transformando Dados em Inteligência Estratégica
           </h2>
           <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">
-            Arquitetura moderna dividida em 6 frentes de alto desempenho operacional
+            Arquitetura moderna dividida em 5 frentes de alto desempenho operacional
           </p>
         </div>
 
@@ -255,19 +247,6 @@ export default function MiddlewareIntegrationsProposalPage() {
             <p className="text-xs text-slate-600 font-medium leading-relaxed">
               Robôs personalizados extraem dados de sistemas, APIs ou portais web, executam rotinas
               operacionais repetitivas e alimentam automaticamente os dashboards da empresa.
-            </p>
-          </Card>
-
-          <Card className="rounded-[2.5rem] border-none shadow-xl bg-white p-7 space-y-3 hover:scale-[1.01] transition-transform">
-            <div className="size-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-black">
-              <MessageSquare size={22} />
-            </div>
-            <h3 className="font-black text-base text-primary uppercase">
-              Mensagerias (WhatsApp NAI Bot)
-            </h3>
-            <p className="text-xs text-slate-600 font-medium leading-relaxed">
-              Automatize mensagens e alertas com base em regras dos dashboards e envie comunicações
-              diretamente para clientes ou equipes via WhatsApp, acionadas por eventos e dados.
             </p>
           </Card>
         </div>

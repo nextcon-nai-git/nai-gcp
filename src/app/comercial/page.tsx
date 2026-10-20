@@ -193,8 +193,7 @@ export default function ComercialPortal() {
                 Integrações ERP: TOTVS, Senior & NAI
               </h3>
               <p className="text-xs text-slate-600 font-medium">
-                Sincronização de vidas, ASO, atestados na folha, NAI-GED e WhatsApp Bot com setup
-                grátis.
+                Sincronização de vidas, ASO, atestados na folha e NAI-GED com setup grátis.
               </p>
             </div>
             <div className="pt-4 mt-2 border-t border-emerald-100 flex items-center justify-between text-xs font-black text-emerald-700 uppercase tracking-wider">
