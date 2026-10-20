@@ -35,14 +35,17 @@ npm run ci             # formato, lint, tipos, cobertura e build; regras são ex
 
 ## Cobertura
 
-O Vitest usa `@vitest/coverage-v8`. Os limites configurados são 30% de statements
-e lines, e 25% de functions e branches. A revisão iniciada em 12/10/2026 mediu,
-na base do PR #99, 37,08% de statements, 37,60% de lines, 29,68% de functions e
-32,00% de branches, com 994 testes aprovados em 133 arquivos.
+O Vitest usa `@vitest/coverage-v8`. Os pisos vigentes em `vitest.config.ts` são
+70% de linhas, 30% de instruções e 25% de funções e ramos. A medição inclui
+`src/**/*.{ts,tsx}` e exclui apenas os arquivos de teste e de declaração de tipos.
 
-O resultado da nova revisão está em [revisão de 13/10/2026](reviews/2026-10-13-integral.md).
-Aprovação da suíte e percentual de cobertura são medidas diferentes. Nenhum dos
-dois atesta todas as integrações externas ou substitui homologação operacional.
+As medições anteriores e seus limites estão nos relatórios de
+[18/10/2026](reviews/marco-70-2026-10-18.md) e da
+[entrada de contratos](reviews/2026-10-19-contract-import.md). Cada resultado
+pertence ao código e às dependências usados naquela execução; o commit final de
+uma nova entrega precisa executar novamente os checks. Aprovação da suíte e
+percentual de cobertura são medidas diferentes. Nenhum dos dois atesta todas as
+integrações externas ou substitui homologação operacional.
 
 ## ESLint
 
@@ -53,6 +56,34 @@ e aviso para cadeias `.then()` (preferir async/await). Violações pré-existent
 A base do PR #99 apresentou 1.471 avisos e zero erros; a medição final da revisão
 está no relatório citado acima.
 `tsconfig.json` já usa `strict: true`.
+
+### Compatibilidade das dependências de lint
+
+A recuperação de 19/10/2026 restaura o conjunto de dependências anterior ao
+[PR #144](https://github.com/nextcon-nai-git/nai-gcp/pull/144), preservando as demais
+atualizações da aplicação:
+
+| Dependência                 | Versão no lockfile |
+| --------------------------- | ------------------ |
+| `eslint`                    | 9.39.4             |
+| `eslint-config-next`        | 16.2.3             |
+| `eslint-plugin-react`       | 7.37.5             |
+| `eslint-plugin-react-hooks` | 7.0.1              |
+
+O PR #144 elevou o ESLint para 10.12.0, mas o `eslint-plugin-react` 7.37.5 declara
+suporte a ESLint até `^9.7`. O
+[CI da main em 19/10](https://github.com/nextcon-nai-git/nai-gcp/actions/runs/39262472633)
+abortou ao carregar `react/display-name` com
+`contextOrFilename.getFilename is not a function`, antes dos testes e do build.
+A atualização também alterou dependências transitivas; restaurar o seu delta no
+lockfile mantém o conjunto conhecido sem relaxar as regras de `eslint.config.mjs`.
+
+O Dependabot continua propondo atualizações menores e correções do ESLint. As
+atualizações de versão principal ficam suspensas até validar em conjunto o
+ESLint, a configuração Next e seus plugins. Essa migração deve manter as regras
+atuais e passar por instalação reproduzível, lint, tipos, testes e build antes de
+retirar a restrição. A alteração do lockfile não comprova essas verificações nem
+a publicação do aplicativo; seus resultados devem ser registrados no SHA final.
 
 ## Recuperação da interface
 

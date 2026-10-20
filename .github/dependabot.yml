@@ -4,6 +4,11 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    # ESLint 10 is incompatible with the React plugin in the current Next config.
+    # Re-enable major updates after validating the complete lint toolchain (docs/CI.md).
+    ignore:
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
