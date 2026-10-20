@@ -258,6 +258,18 @@ describe("private central persistence", () => {
       JSON.stringify(b)
     );
     const finance = emptyFinanceBook();
+    finance.accounts.push({ id: "account1", name: "Conta sintética" });
+    finance.contracts.push({
+      id: "fin1",
+      name: "Contrato sintético",
+      client: "Cliente sintético",
+      center: "SST",
+      monthlyCents: 10000,
+      dueDay: 10,
+      active: true,
+      commercialTerms: ContractCommercialTermsSchema.parse({}),
+    });
+    finance.contractFlows.push({ contractId: "fin1", customerDocument: "11222333000181" } as never);
     finance.titles.push({
       id: "title1",
       contractId: "fin1",
@@ -306,6 +318,13 @@ describe("private central persistence", () => {
       settlementIds: ["s1"],
       transferPeer: null,
     });
+    finance.contracts[0].active = false;
+    await expect(saveProductionCommand(admin, close)).rejects.toThrow("contrato financeiro ativo");
+    finance.contracts[0].active = true;
+    finance.contractFlows[0].customerDocument = "44337647000189";
+    await expect(saveProductionCommand(admin, close)).rejects.toThrow("CNPJ correspondente");
+    finance.contractFlows[0].customerDocument = "11222333000181";
+    expect(state.writes).toBe(1);
     const closed = await saveProductionCommand(admin, close);
     expect(closed.records[0].cycles[0].cards[5].status).toBe("done");
     expect(closed.records[0].cycles[0].receivedCents).toBe(9000);
@@ -408,6 +427,7 @@ describe("private central persistence", () => {
     };
     await expect(saveProductionCommand(admin, link)).rejects.toMatchObject({ status: 400 });
     const finance = emptyFinanceBook();
+    finance.accounts.push({ id: "account1", name: "Conta sintética" });
     finance.contracts.push({
       id: "fin1",
       name: "Contrato",
@@ -441,6 +461,18 @@ describe("private central persistence", () => {
     });
     stored.bytes = Buffer.from(JSON.stringify(b));
     const finance = emptyFinanceBook();
+    finance.accounts.push({ id: "account1", name: "Conta sintética" });
+    finance.contracts.push({
+      id: "fin1",
+      name: "Contrato sintético",
+      client: "Cliente sintético",
+      center: "SST",
+      monthlyCents: 10000,
+      dueDay: 10,
+      active: true,
+      commercialTerms: ContractCommercialTermsSchema.parse({}),
+    });
+    finance.contractFlows.push({ contractId: "fin1", customerDocument: "11222333000181" } as never);
     finance.titles.push({
       id: "title1",
       contractId: "fin1",

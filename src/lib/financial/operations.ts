@@ -375,6 +375,79 @@ function addTitle(book: FinanceBook, title: FinanceTitle) {
   }
   book.titles.push(title);
 }
+/** Recheck persisted associations instead of trusting the presence of an ID.
+ * A shared snapshot keeps month closure and contract receipts consistent.
+ */
+export function reconciliationIndex(book: FinanceBook): {
+  settlements: Set<string>;
+  bank: Set<string>;
+} {
+  // Ambiguous IDs from a legacy/imported snapshot cannot prove a reconciliation.
+  const uniqueIndex = <T extends { id: string }>(items: T[]): Map<string, T> => {
+    const index = new Map<string, T>();
+    const duplicateIds = new Set<string>();
+    for (const item of items) {
+      if (index.has(item.id)) duplicateIds.add(item.id);
+      index.set(item.id, item);
+    }
+    for (const id of duplicateIds) index.delete(id);
+    return index;
+  };
+  const accounts = uniqueIndex(book.accounts);
+  const settlements = uniqueIndex(book.settlements);
+  const titles = uniqueIndex(book.titles);
+  const liveRows = book.bank.filter((row) => !row.voided);
+  const rows = uniqueIndex(liveRows);
+  const occurrences = new Map<string, number>();
+  for (const row of liveRows)
+    for (const id of row.settlementIds) occurrences.set(id, (occurrences.get(id) || 0) + 1);
+  const result = { settlements: new Set<string>(), bank: new Set<string>() };
+  for (const row of rows.values()) {
+    if (!accounts.has(row.accountId)) continue;
+    if (row.transferPeer) {
+      const peer = rows.get(row.transferPeer);
+      if (
+        peer &&
+        peer.id !== row.id &&
+        accounts.has(peer.accountId) &&
+        peer.transferPeer === row.id &&
+        peer.accountId !== row.accountId &&
+        peer.date === row.date &&
+        peer.amountCents === -row.amountCents &&
+        !row.settlementIds.length &&
+        !peer.settlementIds.length
+      )
+        result.bank.add(row.id);
+      continue;
+    }
+    if (!row.settlementIds.length) continue;
+    let cash = 0;
+    const valid = row.settlementIds.every((id) => {
+      const settlement = settlements.get(id);
+      const title = settlement && titles.get(settlement.titleId);
+      if (
+        !settlement ||
+        !title ||
+        title.status !== "approved" ||
+        settlement.reversed ||
+        settlement.discountCents + settlement.withholdingCents > settlement.principalCents ||
+        settlementCash(settlement) <= 0 ||
+        occurrences.get(id) !== 1 ||
+        settlement.accountId !== row.accountId ||
+        settlement.date !== row.date
+      )
+        return false;
+      cash += settlementCash(settlement) * (title.kind === "receivable" ? 1 : -1);
+      return true;
+    });
+    if (valid && Number.isSafeInteger(cash) && cash === row.amountCents) {
+      result.bank.add(row.id);
+      for (const id of row.settlementIds) result.settlements.add(id);
+    }
+  }
+  return result;
+}
+
 export function closingIssues(book: FinanceBook, period: string): string[] {
   const issues: string[] = [];
   const contractedOrders = new Set(book.contractFlows.map((f) => f.orderId));
@@ -401,10 +474,10 @@ export function closingIssues(book: FinanceBook, period: string): string[] {
     issues.push("Existem serviços realizados ainda não faturados.");
   const cash = book.settlements.filter((s) => !s.reversed && s.date.startsWith(period));
   const rows = book.bank.filter((b) => !b.voided && b.date.startsWith(period));
-  const matchedSettlements = new Set(rows.flatMap((b) => b.settlementIds));
-  if (cash.some((s) => !matchedSettlements.has(s.id)))
+  const reconciled = reconciliationIndex(book);
+  if (cash.some((s) => !reconciled.settlements.has(s.id)))
     issues.push("Existem baixas sem conciliação bancária.");
-  if (rows.some((b) => !b.settlementIds.length && !b.transferPeer))
+  if (rows.some((b) => !reconciled.bank.has(b.id)))
     issues.push("Existem movimentos de extrato sem conciliação.");
   const activeAccounts = new Set(book.accounts.map((a) => a.id));
   if (!activeAccounts.size)

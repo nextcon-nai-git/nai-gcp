@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { AuthError } from "@/lib/auth/errors";
+import { limitedBytes } from "@/lib/http/private-api";
 import { adminDb } from "@/lib/firebase-admin";
 import {
   TallosError,
@@ -268,8 +269,7 @@ export async function POST(req: NextRequest) {
     requireTallosAccess(user);
     if (!req.headers.get("content-type")?.startsWith("application/json"))
       throw new TallosError(415, "Envie JSON.");
-    const raw = await req.text();
-    if (Buffer.byteLength(raw) > 20000) throw new TallosError(413, "Solicitação muito grande.");
+    const raw = (await limitedBytes(req, 20000)).toString("utf8");
     let json: unknown;
     try {
       json = JSON.parse(raw);
