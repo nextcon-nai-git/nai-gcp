@@ -198,7 +198,7 @@ export default function WorkOrdersPage() {
           <Button
             onClick={handleDownloadPdf}
             disabled={isGeneratingPdf}
-            className="bg-blue-950 hover:bg-blue-900 text-white font-medium shadow-sm transition-all"
+            className="bg-blue-950 hover:bg-blue-900 text-white font-medium shadow-xs transition-all"
           >
             <Download className="w-4 h-4 mr-1.5" />
             {isGeneratingPdf ? "Gerando PDF..." : "Baixar minuta PDF"}
@@ -233,7 +233,7 @@ export default function WorkOrdersPage() {
         {/* Painel Lateral de Configuração (4 colunas) */}
         <div className="lg:col-span-4 space-y-5 print:hidden">
           {/* Card: Dados do Colaborador */}
-          <Card className="border shadow-sm">
+          <Card className="border shadow-xs">
             <CardHeader className="pb-3 bg-slate-50/60 dark:bg-slate-900/40 border-b">
               <CardTitle className="text-base font-bold flex items-center gap-2 text-slate-800 dark:text-slate-200">
                 <UserCheck className="w-4 h-4 text-blue-600" />

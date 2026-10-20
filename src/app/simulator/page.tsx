@@ -56,7 +56,7 @@ export default function FapRatSimulator() {
         <div className="flex gap-2">
           <Button
             variant="outline"
-            className="h-12 px-6 rounded-2xl border-primary text-primary font-black uppercase text-[10px] gap-2 shadow-sm btn-hover-effect"
+            className="h-12 px-6 rounded-2xl border-primary text-primary font-black uppercase text-[10px] gap-2 shadow-xs btn-hover-effect"
           >
             <FileWarning className="size-4" /> Relatório FAP
           </Button>

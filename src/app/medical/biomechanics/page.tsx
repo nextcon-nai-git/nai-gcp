@@ -181,7 +181,7 @@ export default function BiomechanicsPage() {
             Analytics.
           </p>
         </div>
-        <div className="flex gap-2 bg-white p-1.5 rounded-2xl border shadow-sm">
+        <div className="flex gap-2 bg-white p-1.5 rounded-2xl border shadow-xs">
           <Button
             variant="ghost"
             size="sm"
@@ -260,7 +260,7 @@ export default function BiomechanicsPage() {
               </div>
 
               {mode === "video" && isVideoScanning && (
-                <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm rounded-[2.5rem]">
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs rounded-[2.5rem]">
                   <div className="flex flex-col items-center gap-4">
                     <div className="size-20 rounded-full border-4 border-accent border-t-transparent animate-spin" />
                     <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white">

@@ -77,7 +77,7 @@ export function MobileBottomNav() {
                   />
                 </div>
                 {item.badge && (
-                  <span className="absolute -top-1 -right-2 px-1 py-0.2 text-[8px] font-black uppercase tracking-tighter bg-amber-400 text-slate-950 rounded-full border border-white shadow-xs">
+                  <span className="absolute -top-1 -right-2 px-1 py-0.2 text-[8px] font-black uppercase tracking-tighter bg-amber-400 text-slate-950 rounded-full border border-white shadow-2xs">
                     {item.badge}
                   </span>
                 )}

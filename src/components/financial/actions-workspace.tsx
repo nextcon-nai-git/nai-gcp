@@ -534,7 +534,7 @@ function FinancialActionsSession({ user }: { user: User | null }) {
                 return (
                   <article
                     key={action.id}
-                    className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                    className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-xs"
                   >
                     <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                       <span

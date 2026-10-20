@@ -307,7 +307,7 @@ export function NaiQuoteComponent() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                    <div className="p-6 bg-white/5 rounded-4xl border border-white/10 backdrop-blur-sm">
+                    <div className="p-6 bg-white/5 rounded-4xl border border-white/10 backdrop-blur-xs">
                       <p className="text-[10px] font-black uppercase text-white/40 mb-2">
                         Saving Anual Projetado
                       </p>
@@ -341,7 +341,7 @@ export function NaiQuoteComponent() {
                     <Card
                       key={i}
                       className={cn(
-                        "border-none shadow-sm rounded-4xl overflow-hidden transition-all hover:scale-[1.02]",
+                        "border-none shadow-xs rounded-4xl overflow-hidden transition-all hover:scale-[1.02]",
                         i === 1
                           ? "ring-2 ring-primary bg-white shadow-xl"
                           : "bg-slate-50 opacity-90"

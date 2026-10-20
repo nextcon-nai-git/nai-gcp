@@ -188,7 +188,7 @@ function StatCard({ label, value, icon: Icon, color, bg }: any) {
   return (
     <div
       className={cn(
-        "p-6 rounded-4xl shadow-sm border border-slate-100 flex items-center space-x-4 bg-white hover:ring-2 ring-primary/5 transition-all"
+        "p-6 rounded-4xl shadow-xs border border-slate-100 flex items-center space-x-4 bg-white hover:ring-2 ring-primary/5 transition-all"
       )}
     >
       <div className={cn("p-4 rounded-2xl", bg, color)}>

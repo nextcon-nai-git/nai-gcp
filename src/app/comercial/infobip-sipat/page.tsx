@@ -388,7 +388,7 @@ export default function InfobipSipatProposalPage() {
                     )}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="p-3 bg-white/15 backdrop-blur-sm rounded-2xl border border-white/20">
+                      <div className="p-3 bg-white/15 backdrop-blur-xs rounded-2xl border border-white/20">
                         <Icon size={22} className="text-white" />
                       </div>
                       <div>
@@ -400,7 +400,7 @@ export default function InfobipSipatProposalPage() {
                         </h3>
                       </div>
                     </div>
-                    <Badge className="bg-white text-slate-950 font-black text-xs px-3 h-7 shadow-sm shrink-0">
+                    <Badge className="bg-white text-slate-950 font-black text-xs px-3 h-7 shadow-xs shrink-0">
                       {item.value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                     </Badge>
                   </div>

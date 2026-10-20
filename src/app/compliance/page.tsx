@@ -129,7 +129,7 @@ export default function CompliancePublicPage() {
 
       {/* SEÇÃO INFORMATIVA DE PILARES */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-        <Card className="border-none shadow-sm bg-white rounded-4xl p-8 flex flex-col gap-4 group hover:ring-2 ring-primary/5 transition-all">
+        <Card className="border-none shadow-xs bg-white rounded-4xl p-8 flex flex-col gap-4 group hover:ring-2 ring-primary/5 transition-all">
           <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl w-fit group-hover:bg-primary group-hover:text-white transition-all">
             <Scale className="size-6" />
           </div>
@@ -144,7 +144,7 @@ export default function CompliancePublicPage() {
           </div>
         </Card>
 
-        <Card className="border-none shadow-sm bg-white rounded-4xl p-8 flex flex-col gap-4 group hover:ring-2 ring-primary/5 transition-all">
+        <Card className="border-none shadow-xs bg-white rounded-4xl p-8 flex flex-col gap-4 group hover:ring-2 ring-primary/5 transition-all">
           <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl w-fit group-hover:bg-primary group-hover:text-white transition-all">
             <ClipboardList className="size-6" />
           </div>
@@ -159,7 +159,7 @@ export default function CompliancePublicPage() {
           </div>
         </Card>
 
-        <Card className="border-none shadow-sm bg-white rounded-4xl p-8 flex flex-col gap-4 group hover:ring-2 ring-primary/5 transition-all">
+        <Card className="border-none shadow-xs bg-white rounded-4xl p-8 flex flex-col gap-4 group hover:ring-2 ring-primary/5 transition-all">
           <div className="p-3 bg-accent/10 text-accent rounded-2xl w-fit group-hover:bg-primary group-hover:text-white transition-all">
             <ShieldCheck className="size-6" />
           </div>

@@ -826,7 +826,7 @@ function PpeManagementSession() {
                         {extractedData.itens.map((item, idx) => (
                           <div
                             key={idx}
-                            className="p-3 bg-white border rounded-xl flex items-center justify-between gap-4 shadow-sm"
+                            className="p-3 bg-white border rounded-xl flex items-center justify-between gap-4 shadow-xs"
                           >
                             <div className="space-y-0.5">
                               <p className="text-xs font-black text-primary uppercase">
@@ -998,13 +998,13 @@ function PpeManagementSession() {
           <TabsList className="bg-slate-100 p-1 rounded-2xl h-12">
             <TabsTrigger
               value="deliveries"
-              className="rounded-xl px-5 text-xs font-black uppercase data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+              className="rounded-xl px-5 text-xs font-black uppercase data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-xs"
             >
               <FileText className="size-4 mr-2" /> Fichas de Entrega & Assinaturas
             </TabsTrigger>
             <TabsTrigger
               value="catalog"
-              className="rounded-xl px-5 text-xs font-black uppercase data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+              className="rounded-xl px-5 text-xs font-black uppercase data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-xs"
             >
               <Briefcase className="size-4 mr-2" /> Catálogo Normativo de EPIs (NR-06)
             </TabsTrigger>
@@ -1015,7 +1015,7 @@ function PpeManagementSession() {
               <Search className="absolute left-3 top-3 size-4 text-slate-300" />
               <Input
                 placeholder="Buscar colaborador, EPI ou C.A..."
-                className="pl-10 h-11 border-none bg-white shadow-sm text-xs rounded-xl font-bold"
+                className="pl-10 h-11 border-none bg-white shadow-xs text-xs rounded-xl font-bold"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -1024,7 +1024,7 @@ function PpeManagementSession() {
             <div className="flex gap-2">
               <Input
                 placeholder="Filtrar por função (ex: Soldador, Eletricista)..."
-                className="w-64 h-11 border-none bg-white shadow-sm text-xs rounded-xl font-bold"
+                className="w-64 h-11 border-none bg-white shadow-xs text-xs rounded-xl font-bold"
                 value={catalogRoleFilter}
                 onChange={(e) => setCatalogRoleFilter(e.target.value)}
               />

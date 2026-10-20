@@ -197,7 +197,7 @@ export function FiscalIntelligenceTab() {
               onClick={handleOmieToggle}
               className={cn(
                 "h-9 px-4 font-black uppercase text-[9px] gap-2 rounded-lg transition-all",
-                company?.use_omie ? "bg-white text-indigo-700 shadow-sm" : "text-slate-400"
+                company?.use_omie ? "bg-white text-indigo-700 shadow-xs" : "text-slate-400"
               )}
             >
               <CloudLightning className="size-3.5" /> Omie
@@ -207,7 +207,7 @@ export function FiscalIntelligenceTab() {
               onClick={handleSeniorToggle}
               className={cn(
                 "h-9 px-4 font-black uppercase text-[9px] gap-2 rounded-lg transition-all",
-                company?.use_senior ? "bg-white text-blue-700 shadow-sm" : "text-slate-400"
+                company?.use_senior ? "bg-white text-blue-700 shadow-xs" : "text-slate-400"
               )}
             >
               <Cpu className="size-3.5" /> Senior ERP
@@ -369,7 +369,7 @@ export function FiscalIntelligenceTab() {
                     <h4 className="text-[10px] font-black uppercase text-primary tracking-widest ml-1">
                       Discriminação das Alíquotas
                     </h4>
-                    <div className="divide-y divide-slate-100 border rounded-4xl bg-white overflow-hidden shadow-sm">
+                    <div className="divide-y divide-slate-100 border rounded-4xl bg-white overflow-hidden shadow-xs">
                       {Object.entries(selectedDoc.taxes || {}).map(([tax, val]) => (
                         <div
                           key={tax}

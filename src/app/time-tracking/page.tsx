@@ -201,7 +201,7 @@ export default function TimeTrackingCLTPage() {
   return (
     <div className="space-y-8 text-left max-w-7xl mx-auto p-4 sm:p-6">
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-4xl border border-slate-100 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-4xl border border-slate-100 shadow-xs">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 font-black uppercase text-[9px] tracking-widest px-3 py-1">

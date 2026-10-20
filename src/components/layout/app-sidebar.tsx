@@ -451,7 +451,7 @@ export function AppSidebar() {
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
             placeholder="Filtrar módulos..."
-            className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-7 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400/50 focus:bg-white/10 transition-all"
+            className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-7 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-hidden focus:border-amber-400/50 focus:bg-white/10 transition-all"
           />
           {filterText && (
             <button
@@ -554,7 +554,7 @@ export function AppSidebar() {
           </div>
           <button
             onClick={handleLogout}
-            className="p-2 hover:bg-red-500/20 hover:text-red-400 text-slate-400 rounded-xl transition-all shadow-sm"
+            className="p-2 hover:bg-red-500/20 hover:text-red-400 text-slate-400 rounded-xl transition-all shadow-xs"
             title="Encerrar Sessão"
           >
             <LogOut className="size-4" />

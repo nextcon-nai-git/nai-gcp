@@ -161,7 +161,7 @@ export default function NativaTechnicalVisitReport() {
               </Badge>
             </div>
 
-            <div className="border rounded-3xl overflow-hidden shadow-sm bg-white">
+            <div className="border rounded-3xl overflow-hidden shadow-xs bg-white">
               <Table>
                 <TableHeader className="bg-slate-50/50">
                   <TableRow>
@@ -323,7 +323,7 @@ export default function NativaTechnicalVisitReport() {
               ].map((trn) => (
                 <div
                   key={trn.title}
-                  className="p-5 bg-white border border-slate-100 rounded-3xl shadow-sm flex items-center gap-4 hover:border-primary/20 transition-all"
+                  className="p-5 bg-white border border-slate-100 rounded-3xl shadow-xs flex items-center gap-4 hover:border-primary/20 transition-all"
                 >
                   <div className="p-3 bg-primary/5 rounded-2xl text-primary">
                     <HardHat className="size-5" />

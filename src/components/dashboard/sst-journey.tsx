@@ -116,7 +116,7 @@ export function SstJourney({
               aria-controls="sst-journey-detail"
               onClick={() => setSelected(id)}
               className={cn(
-                "flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2",
+                "flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm font-medium transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2",
                 id === selected
                   ? "border-teal-700 bg-teal-50 text-teal-900"
                   : "border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -156,7 +156,7 @@ export function SstJourney({
               <li key={step}>
                 <Link
                   href={href}
-                  className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 transition-colors hover:border-teal-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+                  className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 transition-colors hover:border-teal-500 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-teal-600"
                 >
                   <span
                     className="flex size-8 shrink-0 items-center justify-center rounded-full bg-teal-50 text-xs font-semibold text-teal-800"

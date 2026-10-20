@@ -173,7 +173,7 @@ export default function GrupoAvpClientHubPage() {
 
         {/* METRICS STRIP */}
         <div className="relative z-10 pt-8 grid grid-cols-2 sm:grid-cols-5 gap-3">
-          <div className="p-4 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10">
+          <div className="p-4 rounded-2xl bg-white/5 backdrop-blur-xs border border-white/10">
             <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">
               Capilaridade
             </span>
@@ -185,7 +185,7 @@ export default function GrupoAvpClientHubPage() {
             </span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10">
+          <div className="p-4 rounded-2xl bg-white/5 backdrop-blur-xs border border-white/10">
             <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">
               Exames concluídos
             </span>
@@ -197,7 +197,7 @@ export default function GrupoAvpClientHubPage() {
             </span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-emerald-500/10 backdrop-blur-sm border border-emerald-400/30">
+          <div className="p-4 rounded-2xl bg-emerald-500/10 backdrop-blur-xs border border-emerald-400/30">
             <span className="text-[9px] font-black uppercase tracking-wider text-emerald-300 block">
               Fila de ASOs
             </span>
@@ -209,7 +209,7 @@ export default function GrupoAvpClientHubPage() {
             </span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10">
+          <div className="p-4 rounded-2xl bg-white/5 backdrop-blur-xs border border-white/10">
             <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">
               SLA Confirmação
             </span>
@@ -219,7 +219,7 @@ export default function GrupoAvpClientHubPage() {
             <span className="text-[9px] text-slate-300 block mt-0.5">Direto com Colaborador</span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10">
+          <div className="p-4 rounded-2xl bg-white/5 backdrop-blur-xs border border-white/10">
             <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">
               SLA Liberação ASO
             </span>
@@ -258,7 +258,7 @@ export default function GrupoAvpClientHubPage() {
 
             <TabsTrigger
               value="credenciamento"
-              className="rounded-xl py-2.5 px-4 text-xs font-black uppercase tracking-wider data-[state=active]:bg-[#25D366] data-[state=active]:text-white gap-2 transition-all shadow-sm"
+              className="rounded-xl py-2.5 px-4 text-xs font-black uppercase tracking-wider data-[state=active]:bg-[#25D366] data-[state=active]:text-white gap-2 transition-all shadow-xs"
             >
               <Building2 size={15} /> Credenciamento Brasil (WhatsApp 1-Clique)
               <Badge className="bg-emerald-600 text-white text-[9px] h-4 px-1.5 rounded-full font-bold">
@@ -293,7 +293,7 @@ export default function GrupoAvpClientHubPage() {
         <TabsContent
           value="asos"
           forceMount
-          className="space-y-6 focus-visible:outline-none data-[state=inactive]:hidden"
+          className="space-y-6 focus-visible:outline-hidden data-[state=inactive]:hidden"
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -327,12 +327,12 @@ export default function GrupoAvpClientHubPage() {
         )}
 
         {/* TAB 1.5: CENTRAL NACIONAL DE CREDENCIAMENTO BRASIL (WHATSAPP 1-CLIQUE) */}
-        <TabsContent value="credenciamento" className="space-y-6 focus-visible:outline-none">
+        <TabsContent value="credenciamento" className="space-y-6 focus-visible:outline-hidden">
           <GrupoAvpCredenciamentoHub />
         </TabsContent>
 
         {/* TAB 2: CANAIS E DIRETRIZES */}
-        <TabsContent value="channels" className="space-y-10 focus-visible:outline-none">
+        <TabsContent value="channels" className="space-y-10 focus-visible:outline-hidden">
           {/* CANAIS OFICIAIS & DIRETRIZES ESTREITAS */}
           <div className="space-y-6">
             <div>
@@ -616,7 +616,7 @@ export default function GrupoAvpClientHubPage() {
         </TabsContent>
 
         {/* TAB 3: SIMULADOR DE AGENDAMENTO (COM OS 10 CAMPOS OBRIGATÓRIOS) */}
-        <TabsContent value="simulator" className="space-y-8 focus-visible:outline-none">
+        <TabsContent value="simulator" className="space-y-8 focus-visible:outline-hidden">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2">
               <Card className="rounded-[2.5rem] border-none shadow-xl bg-white p-8 sm:p-10 space-y-6">
@@ -674,7 +674,7 @@ export default function GrupoAvpClientHubPage() {
         </TabsContent>
 
         {/* TAB 4: CHECKLIST DE PRÓXIMAS ETAPAS DO WORKSHOP */}
-        <TabsContent value="workshop" className="space-y-8 focus-visible:outline-none">
+        <TabsContent value="workshop" className="space-y-8 focus-visible:outline-hidden">
           <Card className="rounded-[2.5rem] border-none shadow-xl bg-white p-8 sm:p-10 space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-6">
               <div>

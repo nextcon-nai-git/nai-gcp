@@ -327,7 +327,7 @@ export default function ComercialPortal() {
                             {category.services.map((svc) => (
                               <div
                                 key={svc.id}
-                                className="flex items-center justify-between p-5 bg-slate-50 rounded-3xl border border-slate-100 group hover:border-primary/20 transition-all shadow-sm"
+                                className="flex items-center justify-between p-5 bg-slate-50 rounded-3xl border border-slate-100 group hover:border-primary/20 transition-all shadow-xs"
                               >
                                 <div className="flex-1 min-w-0 mr-4">
                                   <p className="font-black text-xs text-primary uppercase leading-tight">
@@ -483,7 +483,7 @@ export default function ComercialPortal() {
                   {licitacoes.map((item, index) => (
                     <div
                       key={index}
-                      className="p-6 bg-white rounded-[2.5rem] border border-slate-100 hover:border-primary/20 transition-all flex flex-col group shadow-sm"
+                      className="p-6 bg-white rounded-[2.5rem] border border-slate-100 hover:border-primary/20 transition-all flex flex-col group shadow-xs"
                     >
                       <div className="flex justify-between items-start mb-4">
                         <Badge

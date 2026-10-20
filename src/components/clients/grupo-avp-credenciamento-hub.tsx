@@ -331,7 +331,7 @@ export function GrupoAvpCredenciamentoHub() {
 
         {/* CARDS DE KPIS */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 backdrop-blur-sm">
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 backdrop-blur-xs">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
               Total Clínicas
             </span>
@@ -341,7 +341,7 @@ export function GrupoAvpCredenciamentoHub() {
             <span className="text-[10px] text-slate-400 block mt-0.5">prestadores no catálogo</span>
           </div>
 
-          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-3.5 backdrop-blur-sm">
+          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-3.5 backdrop-blur-xs">
             <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 block">
               Com WhatsApp
             </span>
@@ -353,7 +353,7 @@ export function GrupoAvpCredenciamentoHub() {
             </span>
           </div>
 
-          <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-3.5 backdrop-blur-sm">
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-3.5 backdrop-blur-xs">
             <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 block">
               Polos Grupo AVP
             </span>
@@ -363,7 +363,7 @@ export function GrupoAvpCredenciamentoHub() {
             <span className="text-[10px] text-amber-300/80 block mt-0.5">com demanda ativa</span>
           </div>
 
-          <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-3.5 backdrop-blur-sm">
+          <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-3.5 backdrop-blur-xs">
             <span className="text-[10px] font-bold uppercase tracking-wider text-blue-300 block">
               Propostas Enviadas
             </span>
@@ -375,7 +375,7 @@ export function GrupoAvpCredenciamentoHub() {
             </span>
           </div>
 
-          <div className="bg-purple-500/10 border border-purple-500/20 rounded-2xl p-3.5 backdrop-blur-sm">
+          <div className="bg-purple-500/10 border border-purple-500/20 rounded-2xl p-3.5 backdrop-blur-xs">
             <span className="text-[10px] font-bold uppercase tracking-wider text-purple-300 block">
               Em Negociação
             </span>
@@ -387,7 +387,7 @@ export function GrupoAvpCredenciamentoHub() {
             </span>
           </div>
 
-          <div className="bg-teal-500/10 border border-teal-500/20 rounded-2xl p-3.5 backdrop-blur-sm">
+          <div className="bg-teal-500/10 border border-teal-500/20 rounded-2xl p-3.5 backdrop-blur-xs">
             <span className="text-[10px] font-bold uppercase tracking-wider text-teal-300 block">
               Credenciadas
             </span>
@@ -400,7 +400,7 @@ export function GrupoAvpCredenciamentoHub() {
       </div>
 
       {/* FILTROS E PESQUISA EM TEMPO REAL */}
-      <Card className="rounded-2xl border-slate-200 shadow-sm">
+      <Card className="rounded-2xl border-slate-200 shadow-xs">
         <CardContent className="p-5 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
             {/* INPUT DE BUSCA */}
@@ -651,7 +651,7 @@ export function GrupoAvpCredenciamentoHub() {
                       onClick={() => handleSendWhatsApp(clinic)}
                       disabled={!hasWa}
                       className={cn(
-                        "w-full h-10 rounded-xl font-bold text-xs gap-2 shadow-sm transition-all text-white",
+                        "w-full h-10 rounded-xl font-bold text-xs gap-2 shadow-xs transition-all text-white",
                         isSent
                           ? "bg-[#25D366] hover:bg-[#20ba59]"
                           : "bg-[#25D366] hover:bg-[#20ba59]"

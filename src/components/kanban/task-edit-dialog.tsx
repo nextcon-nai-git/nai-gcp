@@ -333,7 +333,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
           )}
           <div className="space-y-8 pb-20 text-left">
             {task.sourceType !== "pgr" && (
-              <Card className="border-none bg-accent/5 rounded-4xl p-6 flex items-center justify-between shadow-sm">
+              <Card className="border-none bg-accent/5 rounded-4xl p-6 flex items-center justify-between shadow-xs">
                 <div className="flex items-center gap-4">
                   <div
                     className={cn(
@@ -673,7 +673,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                 {editedTask.checklist?.map((item, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center gap-3 p-4 bg-white border border-slate-100 rounded-2xl shadow-sm group transition-all hover:border-primary/20"
+                    className="flex items-center gap-3 p-4 bg-white border border-slate-100 rounded-2xl shadow-xs group transition-all hover:border-primary/20"
                   >
                     <Checkbox
                       checked={item.checked}

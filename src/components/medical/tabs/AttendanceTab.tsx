@@ -71,7 +71,7 @@ export function AttendanceTab({ attendances, loading }: AttendanceTabProps) {
             <Search className="absolute left-3 top-2.5 size-4 text-slate-300" />
             <Input
               placeholder="Buscar colaborador..."
-              className="pl-10 h-10 border-none bg-white shadow-sm text-xs rounded-xl"
+              className="pl-10 h-10 border-none bg-white shadow-xs text-xs rounded-xl"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -164,7 +164,7 @@ export function AttendanceTab({ attendances, loading }: AttendanceTabProps) {
                                   .map((line, i: number) => (
                                     <div
                                       key={i}
-                                      className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl shadow-sm"
+                                      className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl shadow-xs"
                                     >
                                       <CheckCircle2 className="size-4 text-emerald-600" />
                                       <span className="text-[11px] font-black text-emerald-900 uppercase tracking-tight">

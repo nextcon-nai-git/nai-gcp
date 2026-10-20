@@ -220,7 +220,7 @@ function DeveloperHubSession() {
           <Button
             variant="outline"
             asChild
-            className="h-12 px-6 rounded-2xl border-slate-200 text-primary font-black uppercase text-[10px] gap-2 shadow-sm hover:bg-slate-50 btn-hover-effect"
+            className="h-12 px-6 rounded-2xl border-slate-200 text-primary font-black uppercase text-[10px] gap-2 shadow-xs hover:bg-slate-50 btn-hover-effect"
           >
             <a href="/developer/docs" target="_blank">
               <BookOpen className="size-4 text-accent" /> Documentação API

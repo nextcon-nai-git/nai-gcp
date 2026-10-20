@@ -334,7 +334,7 @@ export default function CassiBillingPage() {
 
           <Button
             onClick={copyRpaToClipboard}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm shadow-blue-500/20"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-xs shadow-blue-500/20"
           >
             <Sparkles className="w-4 h-4 mr-2" />
             Copiar Script RPA (1-Clique)
@@ -872,7 +872,7 @@ export default function CassiBillingPage() {
                     </div>
                   </div>
 
-                  <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border shadow-sm">
+                  <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border shadow-xs">
                     <span className="text-xs text-muted-foreground block">
                       Valor Total da Guia:
                     </span>
@@ -884,7 +884,7 @@ export default function CassiBillingPage() {
                   <div className="space-y-2 pt-2">
                     <Button
                       onClick={copyRpaToClipboard}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-5 shadow-sm"
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-5 shadow-xs"
                     >
                       <Sparkles className="w-4 h-4 mr-2" />
                       Copiar Script RPA (Portal CASSI)

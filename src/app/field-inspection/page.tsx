@@ -412,7 +412,7 @@ function FieldInspectionSession() {
                 <Button
                   onClick={() => galleryInputRef.current?.click()}
                   variant="outline"
-                  className="border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs h-11 rounded-xl shadow gap-2"
+                  className="border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs h-11 rounded-xl shadow-sm gap-2"
                 >
                   <ImageIcon className="size-4 text-sky-400" />
                   Galeria de Fotos

@@ -480,7 +480,7 @@ export default function WhatsappHubPage() {
                 {/* CABEÇALHO WHATSAPP */}
                 <div className="bg-[#202c33] px-4 py-3 flex items-center justify-between border-b border-[#2a3942]">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-linear-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white font-bold text-lg shadow">
+                    <div className="w-10 h-10 rounded-full bg-linear-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white font-bold text-lg shadow-sm">
                       N
                     </div>
                     <div>
@@ -623,12 +623,12 @@ export default function WhatsappHubPage() {
                     onChange={(e) => setInputText(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
                     placeholder="Digite um número de 1 a 9 ou sua mensagem..."
-                    className="flex-1 bg-[#2a3942] text-slate-100 placeholder-slate-400 text-sm px-4 py-2.5 rounded-xl outline-none focus:ring-1 focus:ring-emerald-500"
+                    className="flex-1 bg-[#2a3942] text-slate-100 placeholder-slate-400 text-sm px-4 py-2.5 rounded-xl outline-hidden focus:ring-1 focus:ring-emerald-500"
                   />
                   <button
                     onClick={() => handleSendMessage()}
                     disabled={isLoading || !inputText.trim()}
-                    className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white p-2.5 rounded-xl transition flex items-center justify-center shadow"
+                    className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white p-2.5 rounded-xl transition flex items-center justify-center shadow-sm"
                   >
                     <Send className="w-5 h-5" />
                   </button>
@@ -661,7 +661,7 @@ export default function WhatsappHubPage() {
                 >
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <span className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 text-slate-100 font-extrabold flex items-center justify-center text-sm shadow">
+                      <span className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 text-slate-100 font-extrabold flex items-center justify-center text-sm shadow-sm">
                         {dept.optionNumber}
                       </span>
                       <div className="flex items-center gap-1.5">

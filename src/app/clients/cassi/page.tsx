@@ -1163,7 +1163,7 @@ export default function CassiOperationsHubPage() {
 
       {/* MODAL / NOVA ORDEM DE ATENDIMENTO CASSI */}
       {showNewModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-amber-400/40 rounded-3xl max-w-xl w-full p-6 space-y-5 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div>

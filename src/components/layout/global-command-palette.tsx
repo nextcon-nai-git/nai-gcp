@@ -297,7 +297,7 @@ export function GlobalCommandPalette({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="O que você deseja fazer ou acessar? (ex: ASO, PGR, Grupo AVP, eSocial)..."
-            className="w-full bg-transparent text-sm md:text-base font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none"
+            className="w-full bg-transparent text-sm md:text-base font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-hidden"
             autoFocus
           />
           {query && (

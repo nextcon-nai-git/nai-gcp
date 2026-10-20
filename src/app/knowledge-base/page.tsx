@@ -249,7 +249,7 @@ function KnowledgeBaseSession() {
                     className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                   >
                     <div
-                      className={`max-w-[85%] p-6 rounded-3xl ${msg.role === "user" ? "bg-primary text-white rounded-tr-none shadow-xl" : "bg-slate-50 border rounded-tl-none text-primary shadow-sm"}`}
+                      className={`max-w-[85%] p-6 rounded-3xl ${msg.role === "user" ? "bg-primary text-white rounded-tr-none shadow-xl" : "bg-slate-50 border rounded-tl-none text-primary shadow-xs"}`}
                     >
                       <p className="text-sm leading-relaxed font-medium whitespace-pre-wrap">
                         {msg.content}

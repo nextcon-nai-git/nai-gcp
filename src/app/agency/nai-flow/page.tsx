@@ -224,7 +224,7 @@ export default function NaiFlowManual() {
                 >
                   <CardHeader className="bg-slate-50/50 p-8 border-b">
                     <div className="flex items-center gap-4">
-                      <div className="p-3 bg-white rounded-2xl text-primary shadow-sm group-hover:bg-primary group-hover:text-white transition-all">
+                      <div className="p-3 bg-white rounded-2xl text-primary shadow-xs group-hover:bg-primary group-hover:text-white transition-all">
                         <item.icon className="size-6" />
                       </div>
                       <CardTitle className="text-xl font-black text-primary uppercase tracking-tight">

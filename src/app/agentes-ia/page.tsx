@@ -344,7 +344,7 @@ export default function AgentesIaPage() {
               onChange={(e) => setPromptInput(e.target.value)}
               placeholder={`Digite sua dúvida ou parecer técnico para o ${SESMT_AGENTS_CONFIG[selectedAgentRole]?.title || "Especialista"}...`}
               rows={3}
-              className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl p-3.5 pr-28 text-sm text-white placeholder-slate-500 outline-none resize-none transition-all"
+              className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl p-3.5 pr-28 text-sm text-white placeholder-slate-500 outline-hidden resize-none transition-all"
             />
             <div className="absolute right-3 bottom-3 flex gap-2">
               <button

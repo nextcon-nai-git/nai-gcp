@@ -45,7 +45,7 @@ const date = (value: string | null) => (value ? value.split("-").reverse().join(
 const panel =
   "rounded-2xl border border-slate-200/80 bg-white shadow-[0_3px_16px_-10px_rgba(15,23,42,0.15)]";
 const action =
-  "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2";
+  "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2";
 
 function sum(
   clients: DashboardClient[],
@@ -625,7 +625,7 @@ export function ExecutiveDashboardView() {
                 placeholder="Buscar cliente…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+                className="min-w-0 flex-1 bg-transparent text-sm outline-hidden"
               />
             </label>
             <button

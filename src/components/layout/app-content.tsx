@@ -76,7 +76,7 @@ export function AppContent({ children }: { children: React.ReactNode }) {
       <main className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
         <section
           aria-labelledby="profile-status"
-          className="w-full max-w-lg rounded-2xl border bg-white p-8 shadow-sm"
+          className="w-full max-w-lg rounded-2xl border bg-white p-8 shadow-xs"
         >
           <h1 id="profile-status" className="text-2xl font-bold text-slate-900">
             {userError ? "Não foi possível carregar seu acesso" : "Sua conta aguarda liberação"}

@@ -428,7 +428,7 @@ function EmployeesList() {
         <Search className="absolute left-4 top-3.5 size-4 text-slate-300 group-focus-within:text-primary transition-colors" />
         <Input
           placeholder="Pesquisar por nome ou CPF..."
-          className="pl-12 h-12 bg-white border-none shadow-sm rounded-xl font-medium"
+          className="pl-12 h-12 bg-white border-none shadow-xs rounded-xl font-medium"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />

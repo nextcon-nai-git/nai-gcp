@@ -350,7 +350,7 @@ export function NewAttendanceModal() {
                               name="care_lines"
                               render={({ field }) => (
                                 <FormItem
-                                  className="flex items-center space-x-3 space-y-0 p-4 bg-white border border-white rounded-2xl shadow-sm hover:border-primary/10 transition-all cursor-pointer"
+                                  className="flex items-center space-x-3 space-y-0 p-4 bg-white border border-white rounded-2xl shadow-xs hover:border-primary/10 transition-all cursor-pointer"
                                   onClick={() => {
                                     const current = field.value || [];
                                     const next = current.includes(item.id)

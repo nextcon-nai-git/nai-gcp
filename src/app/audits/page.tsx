@@ -261,7 +261,7 @@ export default function IsoAuditsElite() {
             variant="outline"
             onClick={exportAudits}
             disabled={isLoading || !!loadError || !audits.length}
-            className="h-12 px-6 rounded-2xl border-primary text-primary font-black uppercase text-[10px] gap-2 shadow-sm btn-hover-effect"
+            className="h-12 px-6 rounded-2xl border-primary text-primary font-black uppercase text-[10px] gap-2 shadow-xs btn-hover-effect"
           >
             <Globe2 className="size-4" /> Exportar auditorias CSV
           </Button>
@@ -524,7 +524,7 @@ export default function IsoAuditsElite() {
                       <TableCell className="text-center">
                         <Badge
                           className={cn(
-                            "text-[9px] font-black uppercase border-none px-3 h-6 rounded-lg shadow-sm",
+                            "text-[9px] font-black uppercase border-none px-3 h-6 rounded-lg shadow-xs",
                             audit.status === "finished"
                               ? "bg-emerald-100 text-emerald-700"
                               : "bg-amber-100 text-amber-700"
@@ -585,7 +585,7 @@ export default function IsoAuditsElite() {
                   {activeChecklist.items.map((item) => (
                     <Card
                       key={item.id}
-                      className="border-none shadow-sm rounded-4xl overflow-hidden bg-white group border-2 border-transparent hover:border-primary/5 transition-all"
+                      className="border-none shadow-xs rounded-4xl overflow-hidden bg-white group border-2 border-transparent hover:border-primary/5 transition-all"
                     >
                       <CardContent className="p-8 space-y-5">
                         <div className="flex justify-between items-start gap-6">

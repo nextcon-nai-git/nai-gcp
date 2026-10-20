@@ -446,7 +446,7 @@ export default function ConstructionProposalPage() {
               </div>
 
               <div className="space-y-4">
-                <div className="p-5 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
+                <div className="p-5 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-xs">
                   <p className="text-[10px] font-black uppercase text-white/40 mb-2">
                     Economia Anual Estimada
                   </p>

@@ -62,7 +62,7 @@ export function StructuredRecordTab({
           <Card
             key={p.id}
             className={cn(
-              "cursor-pointer border-none shadow-sm transition-all duration-500 rounded-4xl overflow-hidden group",
+              "cursor-pointer border-none shadow-xs transition-all duration-500 rounded-4xl overflow-hidden group",
               selectedPatientId === p.id
                 ? "ring-2 ring-primary bg-linear-to-br from-white to-slate-50 scale-[1.02] shadow-xl"
                 : "bg-white/50 hover:bg-white opacity-70 hover:opacity-100 hover:scale-[1.01]"
@@ -163,7 +163,7 @@ export function StructuredRecordTab({
 
                   <div
                     className={cn(
-                      "bg-white p-6 sm:p-8 rounded-4xl shadow-sm border transition-all duration-300",
+                      "bg-white p-6 sm:p-8 rounded-4xl shadow-xs border transition-all duration-300",
                       isWarning
                         ? "border-red-100 hover:border-red-300 hover:shadow-red-500/10 hover:shadow-xl"
                         : isSuccess
@@ -187,7 +187,7 @@ export function StructuredRecordTab({
                       </h3>
                       <Badge
                         className={cn(
-                          "text-[10px] font-black uppercase px-3 py-1 border-none shadow-sm",
+                          "text-[10px] font-black uppercase px-3 py-1 border-none shadow-xs",
                           isWarning
                             ? "bg-red-100 text-red-700"
                             : isSuccess

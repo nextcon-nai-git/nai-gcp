@@ -201,7 +201,7 @@ function MedicalCopilotSession({ pacienteId, className }: MedicalCopilotProps) {
           >
             <div
               className={cn(
-                "flex items-center justify-center h-8 w-8 rounded-xl shrink-0 shadow-sm transition-all duration-500",
+                "flex items-center justify-center h-8 w-8 rounded-xl shrink-0 shadow-xs transition-all duration-500",
                 msg.role === "user" ? "bg-primary text-white" : "bg-white text-slate-400 border"
               )}
             >
@@ -210,7 +210,7 @@ function MedicalCopilotSession({ pacienteId, className }: MedicalCopilotProps) {
 
             <div
               className={cn(
-                "p-4 rounded-2xl max-w-[85%] text-[11px] leading-relaxed font-medium shadow-sm animate-in fade-in duration-300 whitespace-pre-wrap",
+                "p-4 rounded-2xl max-w-[85%] text-[11px] leading-relaxed font-medium shadow-xs animate-in fade-in duration-300 whitespace-pre-wrap",
                 msg.role === "user"
                   ? "bg-primary text-white rounded-tr-none"
                   : "bg-white border border-slate-100 text-slate-700 rounded-tl-none"
