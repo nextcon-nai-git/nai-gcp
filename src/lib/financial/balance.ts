@@ -28,7 +28,7 @@ const normalized = (value: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toUpperCase();
-const amountPattern = /^R\$\s*(\(?[\d.]+,\d{2}\)?)$/;
+const amountPattern = /^R\$\s*(\(?(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}\)?)$/;
 export function balanceMoney(value: string): number {
   const match = value.trim().match(amountPattern);
   if (!match || match[1].startsWith("(") !== match[1].endsWith(")"))
@@ -90,9 +90,12 @@ export function parseBalancePages(pages: BalanceTextItem[][]): Balance {
       throw new Error(
         "Layout não reconhecido: use o PDF textual do Balanço SPED com saldos inicial e final."
       );
-    const values = clean.filter(
-      (item) => amountPattern.test(item.text.trim()) && item.y < opening.y - 3
+    // A malformed amount must not make an entire account silently disappear.
+    const monetaryItems = clean.filter(
+      (item) => /^R\$/.test(item.text.trim()) && item.y < opening.y - 3
     );
+    for (const item of monetaryItems) balanceMoney(item.text);
+    const values = monetaryItems;
     const groups: { y: number; values: BalanceTextItem[] }[] = [];
     for (const item of [...values].sort((a, b) => b.y - a.y)) {
       const group = groups.find((g) => Math.abs(g.y - item.y) < 3);
