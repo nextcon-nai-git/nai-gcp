@@ -100,9 +100,9 @@ export function TaskCard({ task }: { task: OpsTask }) {
         className={cn(
           "relative p-6 mb-4 rounded-[1.75rem] cursor-grab active:cursor-grabbing transition-all",
           "bg-white border border-slate-200 hover:shadow-2xl hover:border-primary/10 hover:ring-4 ring-primary/5",
-          "border-l-[8px]",
+          "border-l-8",
           priority ? priorityStyles[priority] : "border-l-slate-300",
-          isDragging ? "opacity-50 rotate-3 scale-105 shadow-2xl z-50" : "shadow-sm",
+          isDragging ? "opacity-50 rotate-3 scale-105 shadow-2xl z-50" : "shadow-xs",
           isShaking ? "animate-shake ring-2 ring-accent border-accent" : ""
         )}
       >
@@ -111,7 +111,7 @@ export function TaskCard({ task }: { task: OpsTask }) {
           <div className="flex flex-wrap gap-1.5">
             <Badge
               className={cn(
-                "text-[8px] font-black uppercase h-5 px-3 rounded-lg border shadow-sm",
+                "text-[8px] font-black uppercase h-5 px-3 rounded-lg border shadow-xs",
                 priority ? priorityColors[priority] : "text-slate-600 bg-slate-100 border-slate-200"
               )}
             >
@@ -236,7 +236,7 @@ export function TaskCard({ task }: { task: OpsTask }) {
 
         {/* 5. Footer: Datas e Equipe */}
         <div className="flex items-center justify-between pt-4 border-t border-dashed border-slate-200">
-          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold bg-slate-100 px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold bg-slate-100 px-3 py-2 rounded-xl border border-slate-200 shadow-xs">
             <Clock className="size-3 text-slate-400" />
             <span className="tracking-tighter uppercase">
               SLA: {safeFormat(task.dueDate, "dd/MM/yy")}

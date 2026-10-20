@@ -1071,7 +1071,7 @@ function ProvidersManagementSession() {
         <Search className="absolute left-4 top-3.5 size-5 text-slate-300 group-focus-within:text-primary transition-colors" />
         <Input
           placeholder="Pesquisar por nome, profissão ou especialidade..."
-          className="pl-12 h-12 bg-white border-none shadow-sm rounded-xl font-medium"
+          className="pl-12 h-12 bg-white border-none shadow-xs rounded-xl font-medium"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -1350,7 +1350,7 @@ function ProvidersManagementSession() {
                               e.stopPropagation();
                               setSelectedBoleto(provider.boletoData);
                             }}
-                            className="bg-amber-600 hover:bg-amber-700 text-white font-black text-[9px] uppercase tracking-widest h-8 px-3 rounded-xl gap-1.5 shadow-sm shrink-0"
+                            className="bg-amber-600 hover:bg-amber-700 text-white font-black text-[9px] uppercase tracking-widest h-8 px-3 rounded-xl gap-1.5 shadow-xs shrink-0"
                           >
                             <Barcode size={12} className="text-accent" /> Boleto Sicredi (R${" "}
                             {Number(provider.boletoData.valorDocumento || 690).toFixed(0)})
@@ -1363,7 +1363,7 @@ function ProvidersManagementSession() {
                               e.stopPropagation();
                               setSelectedNfse(provider.nfseData);
                             }}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[9px] uppercase tracking-widest h-8 px-3 rounded-xl gap-1.5 shadow-sm shrink-0"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[9px] uppercase tracking-widest h-8 px-3 rounded-xl gap-1.5 shadow-xs shrink-0"
                           >
                             <ReceiptText size={12} className="text-accent" /> NFS-e nº{" "}
                             {provider.nfseData.numeroNfse}
@@ -1376,7 +1376,7 @@ function ProvidersManagementSession() {
                               e.stopPropagation();
                               setSelectedAdelmoPgr(provider.pgrReportData);
                             }}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] uppercase tracking-widest h-8 px-3 rounded-xl gap-1 shadow-sm shrink-0"
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] uppercase tracking-widest h-8 px-3 rounded-xl gap-1 shadow-xs shrink-0"
                           >
                             <FileText size={12} className="text-accent" /> PGR DW Montec
                           </Button>
@@ -1506,7 +1506,7 @@ function ProvidersManagementSession() {
                 </div>
               )}
               {isAiAnalyzing && (
-                <div className="mb-8 p-6 bg-accent/10 border-2 border-dashed border-accent rounded-[2rem] flex flex-col items-center gap-3 animate-pulse">
+                <div className="mb-8 p-6 bg-accent/10 border-2 border-dashed border-accent rounded-4xl flex flex-col items-center gap-3 animate-pulse">
                   <Loader2 className="size-8 animate-spin text-accent" />
                   <p className="text-xs font-black text-primary uppercase tracking-widest">
                     NAI está analisando o contrato...

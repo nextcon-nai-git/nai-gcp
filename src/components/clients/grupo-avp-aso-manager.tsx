@@ -496,7 +496,7 @@ export function GrupoAvpAsoManager({
         <Card
           onClick={() => setStatusFilter("ALL")}
           className={cn(
-            "rounded-3xl p-4 border transition-all cursor-pointer shadow-sm hover:shadow-md",
+            "rounded-3xl p-4 border transition-all cursor-pointer shadow-xs hover:shadow-md",
             statusFilter === "ALL"
               ? "border-primary bg-primary/5 ring-2 ring-primary/20"
               : "bg-white border-slate-200"
@@ -515,7 +515,7 @@ export function GrupoAvpAsoManager({
         <Card
           onClick={() => setStatusFilter("AGENDADO")}
           className={cn(
-            "rounded-3xl p-4 border transition-all cursor-pointer shadow-sm hover:shadow-md",
+            "rounded-3xl p-4 border transition-all cursor-pointer shadow-xs hover:shadow-md",
             statusFilter === "AGENDADO"
               ? "border-emerald-500 bg-emerald-50 ring-2 ring-emerald-500/20"
               : "bg-white border-slate-200"
@@ -534,7 +534,7 @@ export function GrupoAvpAsoManager({
         <Card
           onClick={() => setStatusFilter("NÃO INICIADO")}
           className={cn(
-            "rounded-3xl p-4 border transition-all cursor-pointer shadow-sm hover:shadow-md",
+            "rounded-3xl p-4 border transition-all cursor-pointer shadow-xs hover:shadow-md",
             statusFilter === "NÃO INICIADO"
               ? "border-amber-500 bg-amber-50 ring-2 ring-amber-500/20"
               : "bg-white border-slate-200"
@@ -553,7 +553,7 @@ export function GrupoAvpAsoManager({
         <Card
           onClick={() => setStatusFilter("URGENTES")}
           className={cn(
-            "rounded-3xl p-4 border transition-all cursor-pointer shadow-sm hover:shadow-md",
+            "rounded-3xl p-4 border transition-all cursor-pointer shadow-xs hover:shadow-md",
             statusFilter === "URGENTES"
               ? "border-rose-500 bg-rose-50 ring-2 ring-rose-500/20"
               : "bg-white border-slate-200"
@@ -570,7 +570,7 @@ export function GrupoAvpAsoManager({
         <Card
           onClick={() => setStatusFilter("EXAME FEITO")}
           className={cn(
-            "rounded-3xl p-4 border transition-all cursor-pointer shadow-sm hover:shadow-md",
+            "rounded-3xl p-4 border transition-all cursor-pointer shadow-xs hover:shadow-md",
             statusFilter === "EXAME FEITO"
               ? "border-blue-500 bg-blue-50 ring-2 ring-blue-500/20"
               : "bg-white border-slate-200"
@@ -586,7 +586,7 @@ export function GrupoAvpAsoManager({
           <span className="text-[10px] text-blue-600/80 font-medium">Concluídos / SOC</span>
         </Card>
 
-        <Card className="rounded-3xl p-4 border bg-white border-slate-200 shadow-sm">
+        <Card className="rounded-3xl p-4 border bg-white border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-purple-600 mb-1">
             <span className="text-[10px] font-black uppercase tracking-wider">Em Tratamento</span>
             <RefreshCw size={16} />
@@ -614,7 +614,7 @@ export function GrupoAvpAsoManager({
       {/* TOOLBAR: SEARCH & FILTERS */}
       <Card
         id="avp-queue-table-section"
-        className="rounded-[2.5rem] border-slate-200 shadow-sm bg-white p-6 space-y-4"
+        className="rounded-[2.5rem] border-slate-200 shadow-xs bg-white p-6 space-y-4"
       >
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
           {/* SEARCH INPUT */}
@@ -777,7 +777,7 @@ export function GrupoAvpAsoManager({
       </Card>
 
       {/* TABLE LISTING */}
-      <Card className="rounded-[2.5rem] border-slate-200 shadow-sm bg-white overflow-hidden">
+      <Card className="rounded-[2.5rem] border-slate-200 shadow-xs bg-white overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xs font-black uppercase tracking-wider text-slate-700">

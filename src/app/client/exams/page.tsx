@@ -94,13 +94,13 @@ export default function ClientExamsHistory() {
           <Search className="absolute left-4 top-3.5 size-4 text-slate-300 group-focus-within:text-primary transition-colors" />
           <Input
             placeholder="Buscar colaborador por nome ou CPF..."
-            className="pl-12 h-12 bg-white border-none shadow-sm rounded-xl font-medium"
+            className="pl-12 h-12 bg-white border-none shadow-xs rounded-xl font-medium"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
         <Select defaultValue="all">
-          <SelectTrigger className="h-12 bg-white border-none shadow-sm rounded-xl font-bold uppercase text-[10px]">
+          <SelectTrigger className="h-12 bg-white border-none shadow-xs rounded-xl font-bold uppercase text-[10px]">
             <SelectValue placeholder="Status eSocial" />
           </SelectTrigger>
           <SelectContent>
@@ -111,7 +111,7 @@ export default function ClientExamsHistory() {
         </Select>
       </div>
 
-      <Card className="card-shadow border-none bg-white rounded-[2rem] overflow-hidden">
+      <Card className="card-shadow border-none bg-white rounded-4xl overflow-hidden">
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-24 text-center flex flex-col items-center gap-4">
@@ -224,7 +224,7 @@ export default function ClientExamsHistory() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="p-6 bg-[#090e24] text-white rounded-[2rem] shadow-2xl relative overflow-hidden group">
+        <div className="p-6 bg-[#090e24] text-white rounded-4xl shadow-2xl relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform">
             <ShieldCheck className="size-32 text-accent" />
           </div>
@@ -240,9 +240,9 @@ export default function ClientExamsHistory() {
             </p>
           </div>
         </div>
-        <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-[2rem] flex flex-col justify-center gap-4">
+        <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-4xl flex flex-col justify-center gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary rounded-lg text-white shadow-sm">
+            <div className="p-2 bg-primary rounded-lg text-white shadow-xs">
               <Globe className="size-4" />
             </div>
             <h4 className="text-sm font-black text-primary uppercase">NAI eSocial Engine</h4>

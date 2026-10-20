@@ -313,7 +313,7 @@ export default function TrainingDashboard() {
                 <Card className="card-shadow border-none bg-white rounded-[2.5rem] overflow-hidden group hover:ring-2 ring-primary/5 transition-all">
                   <CardHeader className="bg-slate-50/50 p-8 border-b">
                     <div className="flex items-center gap-4">
-                      <div className="p-3 bg-white rounded-2xl text-primary shadow-sm group-hover:bg-primary group-hover:text-white transition-all">
+                      <div className="p-3 bg-white rounded-2xl text-primary shadow-xs group-hover:bg-primary group-hover:text-white transition-all">
                         <PlayCircle className="size-6" />
                       </div>
                       <div>
@@ -361,7 +361,7 @@ export default function TrainingDashboard() {
                 <Card className="card-shadow border-none bg-white rounded-[2.5rem] overflow-hidden group hover:ring-2 ring-primary/5 transition-all">
                   <CardHeader className="bg-slate-50/50 p-8 border-b">
                     <div className="flex items-center gap-4">
-                      <div className="p-3 bg-white rounded-2xl text-primary shadow-sm group-hover:bg-primary group-hover:text-white transition-all">
+                      <div className="p-3 bg-white rounded-2xl text-primary shadow-xs group-hover:bg-primary group-hover:text-white transition-all">
                         <FileSearch className="size-6" />
                       </div>
                       <div>
@@ -544,7 +544,7 @@ function KpiCard({
   bg: string;
 }) {
   return (
-    <Card className="border-none shadow-sm bg-white rounded-3xl group hover:ring-2 ring-primary/5 transition-all overflow-hidden text-left">
+    <Card className="border-none shadow-xs bg-white rounded-3xl group hover:ring-2 ring-primary/5 transition-all overflow-hidden text-left">
       <CardContent className="p-6">
         <div className="flex items-center justify-between mb-4">
           <div className={cn("p-3 rounded-2xl", bg, color)}>

@@ -708,7 +708,7 @@ export default function AbsenteeismPage() {
                                         value={phase.id}
                                         className="animate-in slide-in-from-bottom-4 duration-500"
                                       >
-                                        <Card className="border-none shadow-sm rounded-3xl overflow-hidden">
+                                        <Card className="border-none shadow-xs rounded-3xl overflow-hidden">
                                           <CardHeader className="bg-white border-b py-6">
                                             <CardTitle className="text-lg font-black text-primary uppercase text-left">
                                               {phase.title}
@@ -861,7 +861,7 @@ export default function AbsenteeismPage() {
         </Card>
 
         <div className="space-y-6 text-left">
-          <Card className="card-shadow border-none bg-[#090e24] text-white rounded-[2rem] p-8 relative overflow-hidden group">
+          <Card className="card-shadow border-none bg-[#090e24] text-white rounded-4xl p-8 relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform duration-1000">
               <TrendingUp className="size-32 text-accent" />
             </div>
@@ -871,7 +871,7 @@ export default function AbsenteeismPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0 space-y-6">
-              <div className="p-5 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
+              <div className="p-5 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-xs">
                 <p className="text-3xl font-black text-accent mb-1">
                   {expertises?.filter((e) => checkNTEP(e.cid)).length || 0}
                 </p>

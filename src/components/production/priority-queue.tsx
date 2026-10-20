@@ -117,7 +117,7 @@ export function PriorityQueue({
       {filtered.length === 0 ? (
         <p className="text-sm">Nenhuma pendência corresponde a este filtro.</p>
       ) : (
-        <div className="max-h-[32rem] overflow-auto rounded border">
+        <div className="max-h-128 overflow-auto rounded border">
           <table className="w-full min-w-[640px] text-left text-sm">
             <caption className="sr-only">Prioridades dos contratos ativos</caption>
             <thead className="sticky top-0 bg-muted">

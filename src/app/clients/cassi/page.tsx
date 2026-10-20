@@ -218,7 +218,7 @@ export default function CassiOperationsHubPage() {
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-[1650px] mx-auto pb-24">
       {/* HEADER BANNER CONTRATUAL OFICIAL */}
-      <div className="bg-gradient-to-r from-[#002D62] via-[#003875] to-[#0A192F] p-6 md:p-8 rounded-3xl text-white shadow-2xl relative overflow-hidden border border-amber-400/20">
+      <div className="bg-linear-to-r from-[#002D62] via-[#003875] to-[#0A192F] p-6 md:p-8 rounded-3xl text-white shadow-2xl relative overflow-hidden border border-amber-400/20">
         <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-96 h-96 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-3">
@@ -1163,7 +1163,7 @@ export default function CassiOperationsHubPage() {
 
       {/* MODAL / NOVA ORDEM DE ATENDIMENTO CASSI */}
       {showNewModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-amber-400/40 rounded-3xl max-w-xl w-full p-6 space-y-5 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div>

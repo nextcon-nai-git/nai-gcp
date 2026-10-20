@@ -41,9 +41,9 @@ export function AppContent({ children }: { children: React.ReactNode }) {
   // 1. Splash Screen durante a verificação de sessão ou montagem
   if (!mounted || (isUserLoading && !isLoginPage)) {
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#001F3F] z-[9999] overflow-hidden">
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#001F3F] z-9999 overflow-hidden">
         <div className="absolute inset-0 opacity-20 pointer-events-none">
-          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_#334155_0%,_transparent_70%)]" />
+          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,#334155_0%,transparent_70%)]" />
         </div>
 
         <div className="relative animate-in zoom-in duration-500">
@@ -76,7 +76,7 @@ export function AppContent({ children }: { children: React.ReactNode }) {
       <main className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
         <section
           aria-labelledby="profile-status"
-          className="w-full max-w-lg rounded-2xl border bg-white p-8 shadow-sm"
+          className="w-full max-w-lg rounded-2xl border bg-white p-8 shadow-xs"
         >
           <h1 id="profile-status" className="text-2xl font-bold text-slate-900">
             {userError ? "Não foi possível carregar seu acesso" : "Sua conta aguarda liberação"}
@@ -124,7 +124,7 @@ export function AppContent({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[10000] focus:rounded-lg focus:bg-white focus:px-4 focus:py-3 focus:text-slate-900 focus:shadow-lg"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-10000 focus:rounded-lg focus:bg-white focus:px-4 focus:py-3 focus:text-slate-900 focus:shadow-lg"
       >
         Ir para o conteúdo principal
       </a>

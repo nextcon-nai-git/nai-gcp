@@ -11,7 +11,7 @@ export default function AccreditedNetworkPage() {
   return (
     <div className="p-6 md:p-10 space-y-6 max-w-[1600px] mx-auto pb-24">
       {/* HEADER BANNER */}
-      <div className="bg-gradient-to-r from-[#001F3F] via-[#002B4E] to-[#0A192F] p-8 rounded-3xl text-white shadow-2xl relative overflow-hidden border border-accent/20">
+      <div className="bg-linear-to-r from-[#001F3F] via-[#002B4E] to-[#0A192F] p-8 rounded-3xl text-white shadow-2xl relative overflow-hidden border border-accent/20">
         <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-96 h-96 bg-accent/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
@@ -53,7 +53,7 @@ export default function AccreditedNetworkPage() {
       </div>
 
       {/* HIGHLIGHTED FEATURE: SQV CURITIBA */}
-      <Card className="border-accent/30 bg-gradient-to-r from-emerald-950/20 via-slate-900 to-slate-950 shadow-xl rounded-2xl">
+      <Card className="border-accent/30 bg-linear-to-r from-emerald-950/20 via-slate-900 to-slate-950 shadow-xl rounded-2xl">
         <CardContent className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="space-y-2">
             <div className="flex items-center gap-2">

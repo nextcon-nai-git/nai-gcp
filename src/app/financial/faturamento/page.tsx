@@ -130,7 +130,7 @@ export default function FinancialModule() {
           </Button>
           <Button
             variant="outline"
-            className="gap-2 border-primary text-primary h-12 px-6 rounded-2xl font-black uppercase text-[10px] btn-hover-effect shadow-sm"
+            className="gap-2 border-primary text-primary h-12 px-6 rounded-2xl font-black uppercase text-[10px] btn-hover-effect shadow-xs"
             onClick={() => setActiveTab("sesmt")}
           >
             <UserCheck className="size-4" /> Gestão SESMT
@@ -273,7 +273,7 @@ export default function FinancialModule() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="overflow-x-auto pb-4 scrollbar-thin">
-          <TabsList className="flex w-fit bg-muted/50 p-1.5 rounded-[2rem] h-16 shadow-inner">
+          <TabsList className="flex w-fit bg-muted/50 p-1.5 rounded-4xl h-16 shadow-inner">
             <TabsTrigger
               value="dre"
               className="rounded-xl gap-2 text-[10px] font-black uppercase tracking-widest px-8 text-emerald-700 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
@@ -567,7 +567,7 @@ export default function FinancialModule() {
                           })}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge className="bg-emerald-100 text-emerald-700 border-none font-black text-[9px] h-7 px-4 rounded-xl uppercase shadow-sm">
+                          <Badge className="bg-emerald-100 text-emerald-700 border-none font-black text-[9px] h-7 px-4 rounded-xl uppercase shadow-xs">
                             Ativo
                           </Badge>
                         </TableCell>
@@ -651,7 +651,7 @@ export default function FinancialModule() {
                       <TableCell>
                         <Badge
                           variant="outline"
-                          className="bg-slate-50 border-slate-200 text-slate-700 font-black h-8 px-4 rounded-xl text-[10px] shadow-sm"
+                          className="bg-slate-50 border-slate-200 text-slate-700 font-black h-8 px-4 rounded-xl text-[10px] shadow-xs"
                         >
                           {typeof prof.dailyHours === "number"
                             ? `${prof.dailyHours}h / Dia`
@@ -687,7 +687,7 @@ export default function FinancialModule() {
 
 function StatCard({ title, amount, value, trend, icon: Icon, color, bg }: any) {
   return (
-    <Card className="border-none shadow-sm bg-white rounded-[2rem] group hover:ring-2 ring-primary/5 transition-all btn-hover-effect">
+    <Card className="border-none shadow-xs bg-white rounded-4xl group hover:ring-2 ring-primary/5 transition-all btn-hover-effect">
       <CardContent className="pt-8 text-left p-8">
         <div className="flex items-center justify-between mb-8">
           <div

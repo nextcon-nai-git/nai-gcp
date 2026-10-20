@@ -117,7 +117,7 @@ export default function MiddlewareIntegrationsProposalPage() {
   return (
     <div className="space-y-10 animate-in fade-in duration-500 pb-24 text-slate-900">
       {/* CAPA DA APRESENTAÇÃO / PROPOSTA */}
-      <div className="relative rounded-[3rem] bg-gradient-to-br from-[#00172e] via-[#002244] to-[#0a325c] text-white p-8 sm:p-12 overflow-hidden shadow-2xl border border-white/10">
+      <div className="relative rounded-[3rem] bg-linear-to-br from-[#00172e] via-[#002244] to-[#0a325c] text-white p-8 sm:p-12 overflow-hidden shadow-2xl border border-white/10">
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-96 h-96 bg-accent/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-1/3 -mb-16 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 

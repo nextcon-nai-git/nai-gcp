@@ -46,7 +46,7 @@ export function AsoWorkspace({
               scroll={false}
               aria-current={view === id ? "page" : undefined}
               className={cn(
-                "flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300",
+                "flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-cyan-300",
                 view === id
                   ? "border-cyan-500 bg-cyan-600 text-white"
                   : "border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"

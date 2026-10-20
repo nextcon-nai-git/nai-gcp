@@ -302,7 +302,7 @@ function Workspace({ companyId, token }: { companyId: string; token: () => Promi
               <button
                 key={card.label}
                 onClick={card.action}
-                className="rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:border-teal-500 focus-visible:ring-2 focus-visible:ring-primary"
+                className="rounded-2xl border bg-white p-5 text-left shadow-xs transition hover:border-teal-500 focus-visible:ring-2 focus-visible:ring-primary"
               >
                 <p className="text-sm text-muted-foreground">{card.label}</p>
                 <p className={`mt-3 text-4xl font-bold ${card.tone}`}>{card.value ?? "—"}</p>

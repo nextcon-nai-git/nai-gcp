@@ -201,7 +201,7 @@ export default function TimeTrackingCLTPage() {
   return (
     <div className="space-y-8 text-left max-w-7xl mx-auto p-4 sm:p-6">
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-4xl border border-slate-100 shadow-xs">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 font-black uppercase text-[9px] tracking-widest px-3 py-1">
@@ -245,7 +245,7 @@ export default function TimeTrackingCLTPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* LADO ESQUERDO: SELEÇÃO DO COLABORADOR CLT + BOTOEIRA */}
         <div className="lg:col-span-7 space-y-6">
-          <Card className="border-none shadow-md bg-white rounded-[2rem] overflow-hidden">
+          <Card className="border-none shadow-md bg-white rounded-4xl overflow-hidden">
             <CardHeader className="bg-slate-900 text-white p-6">
               <CardTitle className="text-base font-black uppercase tracking-tight flex items-center gap-2">
                 <User className="size-5 text-accent" /> Seleção do Colaborador CLT
@@ -309,7 +309,7 @@ export default function TimeTrackingCLTPage() {
           </Card>
 
           {/* BOTOEIRA DE REGISTRO DO DIA */}
-          <Card className="border-none shadow-md bg-white rounded-[2rem] overflow-hidden">
+          <Card className="border-none shadow-md bg-white rounded-4xl overflow-hidden">
             <CardHeader className="p-6 border-b border-slate-100">
               <CardTitle className="text-base font-black uppercase tracking-tight text-primary flex items-center gap-2">
                 <Clock className="size-5 text-accent" /> Botoeira de Batida de Ponto Hoje
@@ -443,7 +443,7 @@ export default function TimeTrackingCLTPage() {
 
         {/* LADO DIREITO: RESUMO DO ESPELHO DE PONTO CLT */}
         <div className="lg:col-span-5 space-y-6">
-          <Card className="border-none shadow-md bg-white rounded-[2rem] overflow-hidden">
+          <Card className="border-none shadow-md bg-white rounded-4xl overflow-hidden">
             <CardHeader className="bg-primary text-white p-6">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-black uppercase tracking-tight flex items-center gap-2">

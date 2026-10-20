@@ -146,7 +146,7 @@ export default function AgencyCommandCenter() {
         <div className="flex gap-3">
           <Badge
             variant="outline"
-            className="text-primary border-primary px-4 py-1.5 font-bold bg-white shadow-sm"
+            className="text-primary border-primary px-4 py-1.5 font-bold bg-white shadow-xs"
           >
             REDER NEXTCON: GESTÃO ESTRATÉGICA
           </Badge>
@@ -164,7 +164,7 @@ export default function AgencyCommandCenter() {
             {redFlags.map((flag) => (
               <div
                 key={flag.id}
-                className="p-3 bg-white rounded-xl border border-blue-100 shadow-sm space-y-1 hover:shadow-md transition-all"
+                className="p-3 bg-white rounded-xl border border-blue-100 shadow-xs space-y-1 hover:shadow-md transition-all"
               >
                 <div className="flex justify-between items-start">
                   <p className="text-[10px] font-black text-primary uppercase tracking-tighter">
@@ -194,7 +194,7 @@ export default function AgencyCommandCenter() {
               </CardTitle>
               <CardDescription>Tarefas operacionais da empresa e dos clientes.</CardDescription>
             </div>
-            <button className="p-2 hover:bg-muted rounded-full transition-colors bg-white shadow-sm border">
+            <button className="p-2 hover:bg-muted rounded-full transition-colors bg-white shadow-xs border">
               <Plus className="size-5 text-primary" />
             </button>
           </CardHeader>
@@ -230,7 +230,7 @@ export default function AgencyCommandCenter() {
                           draggable
                           onDragStart={(e) => onDragStart(e, action.id)}
                           onDragEnd={onDragEnd}
-                          className="p-4 bg-white rounded-xl shadow-sm border border-muted space-y-3 cursor-grab active:cursor-grabbing hover:ring-2 ring-primary/10 transition-all group"
+                          className="p-4 bg-white rounded-xl shadow-xs border border-muted space-y-3 cursor-grab active:cursor-grabbing hover:ring-2 ring-primary/10 transition-all group"
                         >
                           <div className="flex justify-between items-start">
                             <Badge className="text-[8px] font-black bg-primary text-white border-none uppercase">

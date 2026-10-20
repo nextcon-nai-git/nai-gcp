@@ -534,7 +534,7 @@ function FinancialActionsSession({ user }: { user: User | null }) {
                 return (
                   <article
                     key={action.id}
-                    className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                    className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-xs"
                   >
                     <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                       <span
@@ -795,7 +795,7 @@ function FinancialActionsSession({ user }: { user: User | null }) {
                       {evidence.detail}
                     </p>
                     {evidence.sourceName && (
-                      <p className="mt-2 break-words text-xs text-slate-500">
+                      <p className="mt-2 wrap-break-word text-xs text-slate-500">
                         {evidence.sourceName}
                         {evidence.page ? ` · página ${evidence.page}` : ""}
                       </p>

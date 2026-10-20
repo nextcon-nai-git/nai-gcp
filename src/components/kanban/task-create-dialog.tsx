@@ -227,7 +227,7 @@ export function TaskCreateDialog({ isOpen, onOpenChange, initialStatus }: TaskCr
               </div>
             </div>
 
-            <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-4 shadow-inner">
+            <div className="p-6 bg-slate-50 rounded-4xl border border-slate-100 space-y-4 shadow-inner">
               <p className="text-[9px] font-black uppercase text-primary/40 tracking-widest flex items-center gap-2">
                 <Layers className="size-3" /> Parâmetros de Conformidade
               </p>

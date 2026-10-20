@@ -83,7 +83,7 @@ export function BankStatementConciliation() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500 text-left">
       {/* BANNER PRINCIPAL SANTANDER */}
-      <Card className="border-none bg-gradient-to-r from-red-950 via-slate-900 to-slate-950 text-white rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden border border-red-800/30">
+      <Card className="border-none bg-linear-to-r from-red-950 via-slate-900 to-slate-950 text-white rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden border border-red-800/30">
         <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-96 h-96 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
           <div className="space-y-3">
@@ -167,7 +167,7 @@ export function BankStatementConciliation() {
 
       {/* CARDS DE RESUMO POR CATEGORIA CONCILIADA */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card className="border-none bg-blue-50/80 rounded-2xl p-5 border border-blue-100 shadow-sm">
+        <Card className="border-none bg-blue-50/80 rounded-2xl p-5 border border-blue-100 shadow-xs">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-md">
               <Stethoscope size={18} />
@@ -184,7 +184,7 @@ export function BankStatementConciliation() {
           <p className="text-[10px] text-blue-700 font-bold">Exames, ASOs & Consultas</p>
         </Card>
 
-        <Card className="border-none bg-purple-50/80 rounded-2xl p-5 border border-purple-100 shadow-sm">
+        <Card className="border-none bg-purple-50/80 rounded-2xl p-5 border border-purple-100 shadow-xs">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2.5 bg-purple-600 text-white rounded-xl shadow-md">
               <Briefcase size={18} />
@@ -201,7 +201,7 @@ export function BankStatementConciliation() {
           <p className="text-[10px] text-purple-700 font-bold">Engenharia, Perícias & Laudos</p>
         </Card>
 
-        <Card className="border-none bg-pink-50/80 rounded-2xl p-5 border border-pink-100 shadow-sm">
+        <Card className="border-none bg-pink-50/80 rounded-2xl p-5 border border-pink-100 shadow-xs">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2.5 bg-pink-600 text-white rounded-xl shadow-md">
               <Users size={18} />
@@ -218,7 +218,7 @@ export function BankStatementConciliation() {
           <p className="text-[10px] text-pink-700 font-bold">Kelly, Dra. Charyse, Isabelle, João</p>
         </Card>
 
-        <Card className="border-none bg-amber-50/80 rounded-2xl p-5 border border-amber-100 shadow-sm">
+        <Card className="border-none bg-amber-50/80 rounded-2xl p-5 border border-amber-100 shadow-xs">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2.5 bg-amber-600 text-white rounded-xl shadow-md">
               <FileText size={18} />
@@ -235,7 +235,7 @@ export function BankStatementConciliation() {
           <p className="text-[10px] text-amber-700 font-bold">Receita, Prefeitura, CREA-PR</p>
         </Card>
 
-        <Card className="border-none bg-emerald-50/80 rounded-2xl p-5 border border-emerald-100 shadow-sm">
+        <Card className="border-none bg-emerald-50/80 rounded-2xl p-5 border border-emerald-100 shadow-xs">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-md">
               <TrendingUp size={18} />
@@ -257,7 +257,7 @@ export function BankStatementConciliation() {
       </div>
 
       {/* CONTROLES DE BUSCA E FILTROS */}
-      <Card className="border border-slate-200 bg-white rounded-3xl p-6 shadow-sm space-y-4">
+      <Card className="border border-slate-200 bg-white rounded-3xl p-6 shadow-xs space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-slate-400" />

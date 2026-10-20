@@ -19,7 +19,7 @@ interface RiskTableProps {
 
 export function RiskTable({ risks }: RiskTableProps) {
   return (
-    <div className="border rounded-[2rem] overflow-hidden bg-white shadow-sm">
+    <div className="border rounded-4xl overflow-hidden bg-white shadow-xs">
       <Table>
         <TableHeader className="bg-slate-50/50 text-[10px] uppercase font-black">
           <TableRow>

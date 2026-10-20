@@ -220,7 +220,7 @@ function DeveloperHubSession() {
           <Button
             variant="outline"
             asChild
-            className="h-12 px-6 rounded-2xl border-slate-200 text-primary font-black uppercase text-[10px] gap-2 shadow-sm hover:bg-slate-50 btn-hover-effect"
+            className="h-12 px-6 rounded-2xl border-slate-200 text-primary font-black uppercase text-[10px] gap-2 shadow-xs hover:bg-slate-50 btn-hover-effect"
           >
             <a href="/developer/docs" target="_blank">
               <BookOpen className="size-4 text-accent" /> Documentação API
@@ -240,7 +240,7 @@ function DeveloperHubSession() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="overflow-x-auto pb-4 scrollbar-thin">
-          <TabsList className="flex w-fit bg-muted/50 p-1.5 rounded-[2rem] h-16 shadow-inner">
+          <TabsList className="flex w-fit bg-muted/50 p-1.5 rounded-4xl h-16 shadow-inner">
             <TabsTrigger
               value="keys"
               className="rounded-xl gap-2 text-[10px] font-black uppercase tracking-widest px-10 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-lg"

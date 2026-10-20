@@ -412,7 +412,7 @@ function FieldInspectionSession() {
                 <Button
                   onClick={() => galleryInputRef.current?.click()}
                   variant="outline"
-                  className="border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs h-11 rounded-xl shadow gap-2"
+                  className="border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs h-11 rounded-xl shadow-sm gap-2"
                 >
                   <ImageIcon className="size-4 text-sky-400" />
                   Galeria de Fotos
@@ -512,7 +512,7 @@ function FieldInspectionSession() {
               !locationName.trim() ||
               (!selectedImage && !notes.trim())
             }
-            className="w-full h-12 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-sm uppercase tracking-wider rounded-xl shadow-lg gap-2"
+            className="w-full h-12 bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-sm uppercase tracking-wider rounded-xl shadow-lg gap-2"
           >
             <Sparkles className={`size-4 ${isAnalyzing ? "animate-spin" : ""}`} />
             {isAnalyzing

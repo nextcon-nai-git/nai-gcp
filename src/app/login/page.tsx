@@ -140,7 +140,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-[#001F3F] p-6">
       <div className="w-full max-w-md space-y-8 bg-white p-6 sm:p-10 rounded-[3rem] shadow-2xl animate-in zoom-in-95 duration-500">
         <div className="text-center space-y-2">
-          <div className="size-16 rounded-[1.5rem] bg-primary mx-auto flex items-center justify-center text-white font-black text-3xl shadow-xl border-2 border-white/10 mb-4">
+          <div className="size-16 rounded-3xl bg-primary mx-auto flex items-center justify-center text-white font-black text-3xl shadow-xl border-2 border-white/10 mb-4">
             N
           </div>
           <h1 className="text-4xl font-black text-primary uppercase tracking-tighter">NAI</h1>

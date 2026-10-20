@@ -459,7 +459,7 @@ export default function NaiImportaPage() {
               {busy ? <Loader2 className="size-6 animate-spin" /> : <FileUp className="size-6" />}
             </div>
             <div className="min-w-0">
-              <h2 className="break-words text-base font-semibold">
+              <h2 className="wrap-break-word text-base font-semibold">
                 {file?.name || "Comece por um documento"}
               </h2>
               <p className="mt-1 text-xs leading-5 text-slate-500">
@@ -1180,7 +1180,7 @@ export default function NaiImportaPage() {
                     <LockKeyhole className="mt-0.5 size-4 shrink-0 text-violet-700" />
                   )}
                   <span className="min-w-0">
-                    <span className="block break-words text-sm font-medium">
+                    <span className="block wrap-break-word text-sm font-medium">
                       {record.analysis ? record.fileName : "Documento de saúde ocupacional"}
                     </span>
                     <span className="mt-1 block text-xs text-slate-500">

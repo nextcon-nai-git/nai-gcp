@@ -287,7 +287,7 @@ export function GlobalCommandPalette({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl p-0 overflow-hidden rounded-[2rem] border-slate-200/80 shadow-2xl bg-white/95 backdrop-blur-2xl">
+      <DialogContent className="max-w-2xl p-0 overflow-hidden rounded-4xl border-slate-200/80 shadow-2xl bg-white/95 backdrop-blur-2xl">
         <DialogTitle className="sr-only">Busca Global e Ações Rápidas NAI</DialogTitle>
 
         {/* Input de Busca */}
@@ -297,7 +297,7 @@ export function GlobalCommandPalette({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="O que você deseja fazer ou acessar? (ex: ASO, PGR, Grupo AVP, eSocial)..."
-            className="w-full bg-transparent text-sm md:text-base font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none"
+            className="w-full bg-transparent text-sm md:text-base font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-hidden"
             autoFocus
           />
           {query && (

@@ -75,7 +75,7 @@ export function AttendanceTab({ attendances, isLoading }: AttendanceTabProps) {
         />
       </div>
 
-      <Card className="card-shadow border-none bg-white rounded-[2rem] overflow-hidden">
+      <Card className="card-shadow border-none bg-white rounded-4xl overflow-hidden">
         <CardHeader className="bg-slate-50 border-b py-6 px-8 flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-lg font-black text-primary uppercase">
@@ -89,7 +89,7 @@ export function AttendanceTab({ attendances, isLoading }: AttendanceTabProps) {
             <Search className="absolute left-3 top-2.5 size-4 text-slate-300" />
             <Input
               placeholder="Buscar na base..."
-              className="pl-10 h-10 border-none bg-white shadow-sm text-xs rounded-xl"
+              className="pl-10 h-10 border-none bg-white shadow-xs text-xs rounded-xl"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />

@@ -519,7 +519,7 @@ function PpeManagementSession() {
                 <Plus className="size-4" /> Nova Entrega Digital
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[620px] rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden bg-white text-left">
+            <DialogContent className="sm:max-w-[620px] rounded-4xl border-none shadow-2xl p-0 overflow-hidden bg-white text-left">
               <DialogHeader className="p-6 bg-emerald-700 text-white relative">
                 <DialogTitle className="text-xl font-black uppercase font-headline flex items-center gap-2">
                   <ShieldCheck className="size-5 text-accent" /> Ficha de Entrega de EPI (NR-06)
@@ -826,7 +826,7 @@ function PpeManagementSession() {
                         {extractedData.itens.map((item, idx) => (
                           <div
                             key={idx}
-                            className="p-3 bg-white border rounded-xl flex items-center justify-between gap-4 shadow-sm"
+                            className="p-3 bg-white border rounded-xl flex items-center justify-between gap-4 shadow-xs"
                           >
                             <div className="space-y-0.5">
                               <p className="text-xs font-black text-primary uppercase">
@@ -998,13 +998,13 @@ function PpeManagementSession() {
           <TabsList className="bg-slate-100 p-1 rounded-2xl h-12">
             <TabsTrigger
               value="deliveries"
-              className="rounded-xl px-5 text-xs font-black uppercase data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+              className="rounded-xl px-5 text-xs font-black uppercase data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-xs"
             >
               <FileText className="size-4 mr-2" /> Fichas de Entrega & Assinaturas
             </TabsTrigger>
             <TabsTrigger
               value="catalog"
-              className="rounded-xl px-5 text-xs font-black uppercase data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+              className="rounded-xl px-5 text-xs font-black uppercase data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-xs"
             >
               <Briefcase className="size-4 mr-2" /> Catálogo Normativo de EPIs (NR-06)
             </TabsTrigger>
@@ -1015,7 +1015,7 @@ function PpeManagementSession() {
               <Search className="absolute left-3 top-3 size-4 text-slate-300" />
               <Input
                 placeholder="Buscar colaborador, EPI ou C.A..."
-                className="pl-10 h-11 border-none bg-white shadow-sm text-xs rounded-xl font-bold"
+                className="pl-10 h-11 border-none bg-white shadow-xs text-xs rounded-xl font-bold"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -1024,7 +1024,7 @@ function PpeManagementSession() {
             <div className="flex gap-2">
               <Input
                 placeholder="Filtrar por função (ex: Soldador, Eletricista)..."
-                className="w-64 h-11 border-none bg-white shadow-sm text-xs rounded-xl font-bold"
+                className="w-64 h-11 border-none bg-white shadow-xs text-xs rounded-xl font-bold"
                 value={catalogRoleFilter}
                 onChange={(e) => setCatalogRoleFilter(e.target.value)}
               />
@@ -1034,7 +1034,7 @@ function PpeManagementSession() {
                     <Plus className="size-4" /> Cadastrar EPI
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[500px] rounded-[2rem] bg-white p-6">
+                <DialogContent className="sm:max-w-[500px] rounded-4xl bg-white p-6">
                   <DialogHeader>
                     <DialogTitle className="text-lg font-black uppercase">
                       Novo EPI no Catálogo

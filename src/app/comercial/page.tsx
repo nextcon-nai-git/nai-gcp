@@ -153,7 +153,7 @@ export default function ComercialPortal() {
       {/* PROPOSTAS ESTRATÉGICAS EM DESTAQUE */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         <Link href="/comercial/infobip-sipat" className="group">
-          <Card className="rounded-3xl border-2 border-orange-200/80 bg-gradient-to-br from-white via-orange-50/20 to-orange-100/30 p-6 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all relative overflow-hidden h-full flex flex-col justify-between">
+          <Card className="rounded-3xl border-2 border-orange-200/80 bg-linear-to-br from-white via-orange-50/20 to-orange-100/30 p-6 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all relative overflow-hidden h-full flex flex-col justify-between">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Badge className="bg-orange-500 text-white font-black text-[9px] uppercase tracking-wider px-3 h-6">
@@ -179,7 +179,7 @@ export default function ComercialPortal() {
         </Link>
 
         <Link href="/comercial/middleware-integrations" className="group">
-          <Card className="rounded-3xl border-2 border-emerald-200/80 bg-gradient-to-br from-white via-emerald-50/20 to-emerald-100/30 p-6 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all relative overflow-hidden h-full flex flex-col justify-between">
+          <Card className="rounded-3xl border-2 border-emerald-200/80 bg-linear-to-br from-white via-emerald-50/20 to-emerald-100/30 p-6 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all relative overflow-hidden h-full flex flex-col justify-between">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Badge className="bg-emerald-600 text-white font-black text-[9px] uppercase tracking-wider px-3 h-6">
@@ -205,7 +205,7 @@ export default function ComercialPortal() {
         </Link>
 
         <Link href="/comercial/multidisciplinary-proposal" className="group">
-          <Card className="rounded-3xl border-2 border-blue-100 bg-gradient-to-br from-white via-blue-50/20 to-blue-100/30 p-6 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all relative overflow-hidden h-full flex flex-col justify-between">
+          <Card className="rounded-3xl border-2 border-blue-100 bg-linear-to-br from-white via-blue-50/20 to-blue-100/30 p-6 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all relative overflow-hidden h-full flex flex-col justify-between">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Badge className="bg-blue-600 text-white font-black text-[9px] uppercase tracking-wider px-3 h-6">
@@ -231,7 +231,7 @@ export default function ComercialPortal() {
         </Link>
 
         <Link href="/comercial/construction-proposal" className="group">
-          <Card className="rounded-3xl border-2 border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100/50 p-6 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all relative overflow-hidden h-full flex flex-col justify-between">
+          <Card className="rounded-3xl border-2 border-slate-200 bg-linear-to-br from-white via-slate-50 to-slate-100/50 p-6 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all relative overflow-hidden h-full flex flex-col justify-between">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Badge className="bg-slate-900 text-white font-black text-[9px] uppercase tracking-wider px-3 h-6">
@@ -327,7 +327,7 @@ export default function ComercialPortal() {
                             {category.services.map((svc) => (
                               <div
                                 key={svc.id}
-                                className="flex items-center justify-between p-5 bg-slate-50 rounded-3xl border border-slate-100 group hover:border-primary/20 transition-all shadow-sm"
+                                className="flex items-center justify-between p-5 bg-slate-50 rounded-3xl border border-slate-100 group hover:border-primary/20 transition-all shadow-xs"
                               >
                                 <div className="flex-1 min-w-0 mr-4">
                                   <p className="font-black text-xs text-primary uppercase leading-tight">
@@ -483,7 +483,7 @@ export default function ComercialPortal() {
                   {licitacoes.map((item, index) => (
                     <div
                       key={index}
-                      className="p-6 bg-white rounded-[2.5rem] border border-slate-100 hover:border-primary/20 transition-all flex flex-col group shadow-sm"
+                      className="p-6 bg-white rounded-[2.5rem] border border-slate-100 hover:border-primary/20 transition-all flex flex-col group shadow-xs"
                     >
                       <div className="flex justify-between items-start mb-4">
                         <Badge

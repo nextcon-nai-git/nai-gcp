@@ -481,7 +481,7 @@ function PpeKioskSession() {
             <div className="relative">
               <video
                 ref={videoRef}
-                className="w-full aspect-[4/3] bg-black object-cover"
+                className="w-full aspect-4/3 bg-black object-cover"
                 autoPlay
                 muted
                 playsInline

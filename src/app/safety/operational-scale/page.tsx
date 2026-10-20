@@ -102,7 +102,7 @@ export default function SafetyOperationalScale() {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="card-shadow border-none bg-white rounded-[2rem] p-6 flex flex-col justify-between">
+        <Card className="card-shadow border-none bg-white rounded-4xl p-6 flex flex-col justify-between">
           <div className="space-y-4">
             <div className="p-3 bg-blue-50 rounded-xl w-fit text-blue-600">
               <Clock className="size-6" />
@@ -123,7 +123,7 @@ export default function SafetyOperationalScale() {
           </Badge>
         </Card>
 
-        <Card className="card-shadow border-none bg-white rounded-[2rem] p-6 flex flex-col justify-between">
+        <Card className="card-shadow border-none bg-white rounded-4xl p-6 flex flex-col justify-between">
           <div className="space-y-4">
             <div className="p-3 bg-orange-50 rounded-xl w-fit text-orange-600">
               <ShieldAlert className="size-6" />
@@ -142,7 +142,7 @@ export default function SafetyOperationalScale() {
           </Badge>
         </Card>
 
-        <Card className="bg-[#090e24] text-white border-none rounded-[2rem] p-6 relative overflow-hidden group">
+        <Card className="bg-[#090e24] text-white border-none rounded-4xl p-6 relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
             <Zap className="size-20" />
           </div>
@@ -222,7 +222,7 @@ export default function SafetyOperationalScale() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="p-8 bg-blue-50 rounded-[2rem] border border-blue-100 flex gap-6 items-start">
+        <div className="p-8 bg-blue-50 rounded-4xl border border-blue-100 flex gap-6 items-start">
           <div className="p-4 bg-primary text-white rounded-2xl shadow-xl shadow-primary/20">
             <ClipboardCheck className="size-6" />
           </div>
@@ -236,7 +236,7 @@ export default function SafetyOperationalScale() {
             </p>
           </div>
         </div>
-        <div className="p-8 bg-orange-50 rounded-[2rem] border border-orange-100 flex gap-6 items-start">
+        <div className="p-8 bg-orange-50 rounded-4xl border border-orange-100 flex gap-6 items-start">
           <div className="p-4 bg-orange-600 text-white rounded-2xl shadow-xl shadow-orange-600/20">
             <ShieldAlert className="size-6" />
           </div>

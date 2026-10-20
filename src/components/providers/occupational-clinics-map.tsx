@@ -300,7 +300,7 @@ export function OccupationalClinicsMap() {
       </div>
 
       {/* BANNER DE CREDENCIAMENTO AUTOMÁTICO 1-CLIQUE */}
-      <Card className="bg-gradient-to-r from-emerald-950 via-slate-900 to-primary text-white border-none rounded-[2rem] p-6 shadow-xl relative overflow-hidden">
+      <Card className="bg-linear-to-r from-emerald-950 via-slate-900 to-primary text-white border-none rounded-4xl p-6 shadow-xl relative overflow-hidden">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
           <div className="space-y-2 max-w-3xl">
             <Badge className="bg-emerald-500 text-white border-none text-[8px] font-black uppercase tracking-widest px-2.5 h-5">
@@ -356,7 +356,7 @@ export function OccupationalClinicsMap() {
                 key={clinic.id}
                 onClick={() => setSelectedClinic(clinic)}
                 className={cn(
-                  "border-2 transition-all cursor-pointer rounded-[2rem] p-6 space-y-4 hover:shadow-lg",
+                  "border-2 transition-all cursor-pointer rounded-4xl p-6 space-y-4 hover:shadow-lg",
                   isSelected
                     ? "border-primary bg-blue-50/40 shadow-xl ring-2 ring-primary/10"
                     : "border-slate-100 bg-white hover:border-slate-300"

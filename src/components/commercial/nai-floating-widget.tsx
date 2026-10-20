@@ -270,7 +270,7 @@ function NaiFloatingWidgetSession() {
                 <button
                   disabled={isLoading}
                   onClick={handleBackToMenu}
-                  className="flex items-center gap-1.5 text-[11px] font-black uppercase text-accent hover:text-white bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-xl backdrop-blur-md transition-all shadow-sm cursor-pointer"
+                  className="flex items-center gap-1.5 text-[11px] font-black uppercase text-accent hover:text-white bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-xl backdrop-blur-md transition-all shadow-xs cursor-pointer"
                   title="Voltar ao Menu Principal"
                 >
                   <ArrowLeft className="size-3.5" /> Voltar ao Menu
@@ -310,7 +310,7 @@ function NaiFloatingWidgetSession() {
             {!chatMode ? (
               /* Specialty Selection Menu View */
               <div className="p-6 overflow-y-auto space-y-6 flex-1 max-h-[480px]">
-                <div className="bg-white p-5 rounded-[2rem] rounded-tl-none border-l-4 border-accent shadow-sm relative">
+                <div className="bg-white p-5 rounded-4xl rounded-tl-none border-l-4 border-accent shadow-xs relative">
                   <Sparkles className="absolute -top-2 -right-2 size-5 text-accent animate-pulse" />
                   <p className="text-xs italic text-slate-700 font-bold leading-relaxed">
                     {AGENT_CONFIG.welcome_msg}
@@ -328,7 +328,7 @@ function NaiFloatingWidgetSession() {
                       <button
                         key={skill.id}
                         onClick={() => handleSelectSkill(skill)}
-                        className="w-full text-left p-4 bg-white border border-slate-100 rounded-2xl shadow-sm hover:border-primary hover:shadow-md transition-all group flex gap-4 items-start cursor-pointer active:scale-[0.98]"
+                        className="w-full text-left p-4 bg-white border border-slate-100 rounded-2xl shadow-xs hover:border-primary hover:shadow-md transition-all group flex gap-4 items-start cursor-pointer active:scale-[0.98]"
                       >
                         <div
                           className={cn(
@@ -385,7 +385,7 @@ function NaiFloatingWidgetSession() {
                         )}
                       >
                         {msg.role === "ai" && (
-                          <div className="size-7 rounded-xl bg-[#090e24] flex items-center justify-center border border-white/20 overflow-hidden relative shrink-0 shadow-sm mt-0.5">
+                          <div className="size-7 rounded-xl bg-[#090e24] flex items-center justify-center border border-white/20 overflow-hidden relative shrink-0 shadow-xs mt-0.5">
                             <Image
                               src={NAI_AVATAR_URL}
                               alt="NAI"
@@ -397,7 +397,7 @@ function NaiFloatingWidgetSession() {
                         )}
                         <div
                           className={cn(
-                            "p-3.5 rounded-2xl shadow-sm text-left whitespace-pre-line text-[11px]",
+                            "p-3.5 rounded-2xl shadow-xs text-left whitespace-pre-line text-[11px]",
                             msg.role === "user"
                               ? "bg-primary text-white rounded-tr-none font-semibold"
                               : "bg-white text-slate-800 rounded-tl-none border border-slate-100"

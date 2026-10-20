@@ -168,7 +168,7 @@ export function TopNav() {
           variant="ghost"
           size="icon"
           onClick={() => toggleSidebar()}
-          className="size-9 rounded-xl hover:bg-slate-100 flex items-center justify-center border border-slate-200/80 shadow-sm transition-all"
+          className="size-9 rounded-xl hover:bg-slate-100 flex items-center justify-center border border-slate-200/80 shadow-xs transition-all"
           title="Menu Principal"
           aria-label="Abrir ou recolher Menu Lateral"
         >
@@ -255,7 +255,7 @@ export function TopNav() {
               Buscar ações, clientes, documentos (ASO, PGR)...
             </span>
           </div>
-          <kbd className="hidden lg:inline-flex items-center gap-0.5 text-[9px] font-black uppercase tracking-wider text-slate-400 group-hover:text-primary bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-xs shrink-0">
+          <kbd className="hidden lg:inline-flex items-center gap-0.5 text-[9px] font-black uppercase tracking-wider text-slate-400 group-hover:text-primary bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-2xs shrink-0">
             <Command className="size-2.5 mr-0.5" /> K
           </kbd>
         </button>
@@ -265,7 +265,7 @@ export function TopNav() {
           <DropdownMenuTrigger asChild>
             <Button
               size="sm"
-              className="hidden sm:inline-flex items-center gap-1.5 h-10 px-3.5 bg-[#001F3F] hover:bg-slate-900 text-white rounded-xl font-bold uppercase text-[10px] tracking-wider shadow-sm transition-all hover:scale-[1.02]"
+              className="hidden sm:inline-flex items-center gap-1.5 h-10 px-3.5 bg-[#001F3F] hover:bg-slate-900 text-white rounded-xl font-bold uppercase text-[10px] tracking-wider shadow-xs transition-all hover:scale-[1.02]"
             >
               <Plus className="size-3.5 text-amber-400" />
               <span>Novo</span>
@@ -354,9 +354,9 @@ export function TopNav() {
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                className="hover:bg-slate-50 gap-2 p-1.5 h-11 rounded-2xl transition-all border border-slate-100 shadow-sm"
+                className="hover:bg-slate-50 gap-2 p-1.5 h-11 rounded-2xl transition-all border border-slate-100 shadow-xs"
               >
-                <div className="relative size-8 rounded-xl overflow-hidden bg-[#001F3F] text-white flex items-center justify-center font-black text-xs uppercase shadow-sm shrink-0 border border-primary/10">
+                <div className="relative size-8 rounded-xl overflow-hidden bg-[#001F3F] text-white flex items-center justify-center font-black text-xs uppercase shadow-xs shrink-0 border border-primary/10">
                   {userPhotoUrl ? (
                     <Image
                       src={userPhotoUrl}

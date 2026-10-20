@@ -288,7 +288,7 @@ export function DreStatementTab() {
       </div>
       {/* Top Banner KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="border-none shadow-sm bg-white rounded-[2rem] p-6 hover:shadow-md transition-all">
+        <Card className="border-none shadow-xs bg-white rounded-4xl p-6 hover:shadow-md transition-all">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
               <DollarSign className="size-6" />
@@ -308,7 +308,7 @@ export function DreStatementTab() {
           </p>
         </Card>
 
-        <Card className="border-none shadow-sm bg-white rounded-[2rem] p-6 hover:shadow-md transition-all">
+        <Card className="border-none shadow-xs bg-white rounded-4xl p-6 hover:shadow-md transition-all">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
               <TrendingUp className="size-6" />
@@ -330,7 +330,7 @@ export function DreStatementTab() {
           </p>
         </Card>
 
-        <Card className="border-none shadow-sm bg-white rounded-[2rem] p-6 hover:shadow-md transition-all">
+        <Card className="border-none shadow-xs bg-white rounded-4xl p-6 hover:shadow-md transition-all">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl">
               <Sparkles className="size-6" />
@@ -350,7 +350,7 @@ export function DreStatementTab() {
           </p>
         </Card>
 
-        <Card className="border-none shadow-sm bg-white rounded-[2rem] p-6 hover:shadow-md transition-all">
+        <Card className="border-none shadow-xs bg-white rounded-4xl p-6 hover:shadow-md transition-all">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl">
               <ArrowDownRight className="size-6" />

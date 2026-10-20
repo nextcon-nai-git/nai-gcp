@@ -190,7 +190,7 @@ export function BillingQueue({
                 : "Nenhum ciclo pendente de conferência de faturamento nesta consulta."}
             </p>
           ) : (
-            <div className="max-h-[36rem] overflow-auto rounded border">
+            <div className="max-h-144 overflow-auto rounded border">
               <table className="w-full min-w-[900px] text-left text-sm">
                 <caption className="sr-only">
                   Ciclos e pendências entre operação e faturamento

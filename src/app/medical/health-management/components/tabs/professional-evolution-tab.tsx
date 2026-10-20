@@ -165,7 +165,7 @@ export function ProfessionalEvolutionTab({ onNavigateToOperation }: Professional
             <Card
               key={key}
               className={cn(
-                "cursor-pointer border-none shadow-sm transition-all duration-300 rounded-2xl overflow-hidden",
+                "cursor-pointer border-none shadow-xs transition-all duration-300 rounded-2xl overflow-hidden",
                 isActive
                   ? "ring-2 ring-primary bg-white scale-[1.02] shadow-lg"
                   : "bg-slate-50 opacity-60 hover:opacity-100"
@@ -237,7 +237,7 @@ export function ProfessionalEvolutionTab({ onNavigateToOperation }: Professional
                   "flex items-center gap-4 p-5 rounded-2xl border-2 transition-all cursor-pointer group",
                   checklistProgress[item.id]
                     ? "bg-emerald-50 border-emerald-100"
-                    : "bg-white border-slate-50 hover:border-primary/10 shadow-sm"
+                    : "bg-white border-slate-50 hover:border-primary/10 shadow-xs"
                 )}
                 onClick={() => handleToggleCheck(item.id)}
               >

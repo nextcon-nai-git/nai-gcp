@@ -185,7 +185,7 @@ export default function ChecklistsPage() {
             Unidade em Inspeção:
           </label>
           <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
-            <SelectTrigger className="bg-white border-muted h-11 text-xs shadow-sm">
+            <SelectTrigger className="bg-white border-muted h-11 text-xs shadow-xs">
               <SelectValue
                 placeholder={loadingCompanies ? "Carregando..." : "Selecione o Cliente"}
               />
@@ -259,7 +259,7 @@ export default function ChecklistsPage() {
         open={isChecklistOpen}
         onOpenChange={(open) => !isFinalizing && setIsChecklistOpen(open)}
       >
-        <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden flex flex-col p-0 border-none shadow-2xl rounded-[2rem]">
+        <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden flex flex-col p-0 border-none shadow-2xl rounded-4xl">
           <DialogHeader className="p-8 bg-primary text-white shrink-0 relative space-y-2 text-left">
             <button
               onClick={() => setIsChecklistOpen(false)}
@@ -283,7 +283,7 @@ export default function ChecklistsPage() {
             {activeNR?.items.map((item) => (
               <div
                 key={item.id}
-                className="p-6 bg-white rounded-3xl border mb-4 shadow-sm group hover:border-primary/20 transition-all text-left"
+                className="p-6 bg-white rounded-3xl border mb-4 shadow-xs group hover:border-primary/20 transition-all text-left"
               >
                 <div className="flex justify-between items-start mb-4 gap-4">
                   <div className="flex-1">
