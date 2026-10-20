@@ -512,7 +512,7 @@ function FieldInspectionSession() {
               !locationName.trim() ||
               (!selectedImage && !notes.trim())
             }
-            className="w-full h-12 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-sm uppercase tracking-wider rounded-xl shadow-lg gap-2"
+            className="w-full h-12 bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-sm uppercase tracking-wider rounded-xl shadow-lg gap-2"
           >
             <Sparkles className={`size-4 ${isAnalyzing ? "animate-spin" : ""}`} />
             {isAnalyzing

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 export function OperationTab() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <Card className="card-shadow border-none bg-white rounded-[2rem] p-8 flex gap-6 items-start">
+      <Card className="card-shadow border-none bg-white rounded-4xl p-8 flex gap-6 items-start">
         <div className="p-4 bg-blue-50 rounded-2xl text-blue-600 shadow-inner">
           <Clock className="size-8" />
         </div>
@@ -29,7 +29,7 @@ export function OperationTab() {
           </Badge>
         </div>
       </Card>
-      <Card className="card-shadow border-none bg-white rounded-[2rem] p-8 flex gap-6 items-start">
+      <Card className="card-shadow border-none bg-white rounded-4xl p-8 flex gap-6 items-start">
         <div className="p-4 bg-primary text-white rounded-2xl shadow-xl shadow-primary/20">
           <ClipboardList className="size-8" />
         </div>

@@ -84,6 +84,7 @@
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^4.0.1",
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.1",
@@ -96,7 +97,7 @@
     "jsdom": "^29.0.2",
     "postcss": "^8.5.28",
     "prettier": "^3.9.9",
-    "tailwindcss": "^3.4.1",
+    "tailwindcss": "^4.3.3",
     "tsx": "^4.19.2",
     "typescript": "^5",
     "vite-tsconfig-paths": "^6.1.1",
@@ -107,6 +108,7 @@
     "picomatch@<2.3.2": "^2.3.2",
     "@grpc/grpc-js": ">=1.14.0",
     "adm-zip": ">=0.5.12",
-    "@opentelemetry/propagator-jaeger": "2.9.0"
+    "@opentelemetry/propagator-jaeger": "2.9.0",
+    "eslint-plugin-react-hooks": "7.0.1"
   }
 }

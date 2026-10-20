@@ -210,7 +210,7 @@ export default function EnvironmentalManagement() {
 
         <TabsContent value="waste" className="mt-8 space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="card-shadow border-none bg-white rounded-[2rem] p-8 space-y-6">
+            <Card className="card-shadow border-none bg-white rounded-4xl p-8 space-y-6">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-red-50 text-red-600 rounded-2xl">
                   <Box className="size-6" />
@@ -234,7 +234,7 @@ export default function EnvironmentalManagement() {
               </Button>
             </Card>
 
-            <Card className="card-shadow border-none bg-white rounded-[2rem] p-8 space-y-6">
+            <Card className="card-shadow border-none bg-white rounded-4xl p-8 space-y-6">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
                   <RefreshCw className="size-6" />
@@ -261,7 +261,7 @@ export default function EnvironmentalManagement() {
               </Button>
             </Card>
 
-            <Card className="card-shadow border-none bg-[#090e24] text-white rounded-[2rem] p-8 relative overflow-hidden group">
+            <Card className="card-shadow border-none bg-[#090e24] text-white rounded-4xl p-8 relative overflow-hidden group">
               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
                 <Leaf className="size-32 text-emerald-400" />
               </div>
@@ -332,7 +332,7 @@ function KpiCard({ label, value, icon: Icon, color, bg }: any) {
 
 function ControlCard({ aspect, impact, control, icon: Icon, color }: any) {
   return (
-    <Card className="border-none shadow-sm bg-white rounded-[2rem] p-6 hover:shadow-xl transition-all group">
+    <Card className="border-none shadow-sm bg-white rounded-4xl p-6 hover:shadow-xl transition-all group">
       <div className="flex gap-4 items-start mb-4">
         <div
           className={cn(

@@ -287,7 +287,7 @@ export function GlobalCommandPalette({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl p-0 overflow-hidden rounded-[2rem] border-slate-200/80 shadow-2xl bg-white/95 backdrop-blur-2xl">
+      <DialogContent className="max-w-2xl p-0 overflow-hidden rounded-4xl border-slate-200/80 shadow-2xl bg-white/95 backdrop-blur-2xl">
         <DialogTitle className="sr-only">Busca Global e Ações Rápidas NAI</DialogTitle>
 
         {/* Input de Busca */}

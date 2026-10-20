@@ -218,7 +218,7 @@ export default function CassiOperationsHubPage() {
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-[1650px] mx-auto pb-24">
       {/* HEADER BANNER CONTRATUAL OFICIAL */}
-      <div className="bg-gradient-to-r from-[#002D62] via-[#003875] to-[#0A192F] p-6 md:p-8 rounded-3xl text-white shadow-2xl relative overflow-hidden border border-amber-400/20">
+      <div className="bg-linear-to-r from-[#002D62] via-[#003875] to-[#0A192F] p-6 md:p-8 rounded-3xl text-white shadow-2xl relative overflow-hidden border border-amber-400/20">
         <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-96 h-96 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-3">

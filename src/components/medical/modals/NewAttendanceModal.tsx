@@ -297,7 +297,7 @@ export function NewAttendanceModal() {
                       <Textarea
                         placeholder="Relate os sintomas e queixas apresentadas pelo colaborador..."
                         {...field}
-                        className="min-h-[180px] bg-slate-50 border-none rounded-[2rem] p-6 text-sm font-medium shadow-inner"
+                        className="min-h-[180px] bg-slate-50 border-none rounded-4xl p-6 text-sm font-medium shadow-inner"
                       />
                     </FormControl>
                   </FormItem>

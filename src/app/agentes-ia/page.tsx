@@ -217,7 +217,7 @@ export default function AgentesIaPage() {
               onClick={() => setMode("individual")}
               className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
                 mode === "individual"
-                  ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/20"
+                  ? "bg-linear-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/20"
                   : "text-slate-400 hover:text-white"
               }`}
             >
@@ -228,7 +228,7 @@ export default function AgentesIaPage() {
               onClick={() => setMode("mesaredonda")}
               className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
                 mode === "mesaredonda"
-                  ? "bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-lg shadow-amber-500/20"
+                  ? "bg-linear-to-r from-amber-600 to-orange-600 text-white shadow-lg shadow-amber-500/20"
                   : "text-slate-400 hover:text-white"
               }`}
             >
@@ -269,7 +269,7 @@ export default function AgentesIaPage() {
                 }`}
               >
                 <div
-                  className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${agent.color}`}
+                  className={`absolute top-0 left-0 right-0 h-1 bg-linear-to-r ${agent.color}`}
                 />
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-3xl">{agent.avatar}</span>
@@ -344,7 +344,7 @@ export default function AgentesIaPage() {
               onChange={(e) => setPromptInput(e.target.value)}
               placeholder={`Digite sua dúvida ou parecer técnico para o ${SESMT_AGENTS_CONFIG[selectedAgentRole]?.title || "Especialista"}...`}
               rows={3}
-              className="w-[100%] bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl p-3.5 pr-28 text-sm text-white placeholder-slate-500 outline-none resize-none transition-all"
+              className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl p-3.5 pr-28 text-sm text-white placeholder-slate-500 outline-none resize-none transition-all"
             />
             <div className="absolute right-3 bottom-3 flex gap-2">
               <button

@@ -1506,7 +1506,7 @@ function ProvidersManagementSession() {
                 </div>
               )}
               {isAiAnalyzing && (
-                <div className="mb-8 p-6 bg-accent/10 border-2 border-dashed border-accent rounded-[2rem] flex flex-col items-center gap-3 animate-pulse">
+                <div className="mb-8 p-6 bg-accent/10 border-2 border-dashed border-accent rounded-4xl flex flex-col items-center gap-3 animate-pulse">
                   <Loader2 className="size-8 animate-spin text-accent" />
                   <p className="text-xs font-black text-primary uppercase tracking-widest">
                     NAI está analisando o contrato...

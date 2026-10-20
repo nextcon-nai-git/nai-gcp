@@ -766,7 +766,7 @@ function ClinicalWorkspaceSession() {
           key={section.id}
           role="region"
           aria-label={section.title}
-          className="card-shadow border-none bg-white rounded-[2rem] overflow-hidden"
+          className="card-shadow border-none bg-white rounded-4xl overflow-hidden"
         >
           <CardHeader className="bg-slate-50 border-b py-6 px-8 flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="text-left w-full">

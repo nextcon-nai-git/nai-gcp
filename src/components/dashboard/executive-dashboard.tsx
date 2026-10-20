@@ -390,7 +390,7 @@ export function ExecutiveDashboardView() {
 
       <section className="relative overflow-hidden rounded-2xl bg-[#102b3b] p-6 text-white sm:p-7">
         <div
-          className="absolute -right-14 -top-24 size-72 rounded-full border-[35px] border-white/[0.025]"
+          className="absolute -right-14 -top-24 size-72 rounded-full border-35 border-white/2.5"
           aria-hidden="true"
         />
         <div className="relative grid items-center gap-6 lg:grid-cols-[1.5fr_1fr]">

@@ -259,7 +259,7 @@ export default function ChecklistsPage() {
         open={isChecklistOpen}
         onOpenChange={(open) => !isFinalizing && setIsChecklistOpen(open)}
       >
-        <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden flex flex-col p-0 border-none shadow-2xl rounded-[2rem]">
+        <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden flex flex-col p-0 border-none shadow-2xl rounded-4xl">
           <DialogHeader className="p-8 bg-primary text-white shrink-0 relative space-y-2 text-left">
             <button
               onClick={() => setIsChecklistOpen(false)}

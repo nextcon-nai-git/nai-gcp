@@ -107,7 +107,7 @@ export function ReceptionDashboard() {
         />
       </div>
 
-      <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden">
+      <div className="bg-white rounded-4xl shadow-xl border border-slate-100 overflow-hidden">
         <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
           <h2 className="text-lg font-black text-primary uppercase">Fila de Atendimento</h2>
           <div className="relative w-full md:w-72">
@@ -188,7 +188,7 @@ function StatCard({ label, value, icon: Icon, color, bg }: any) {
   return (
     <div
       className={cn(
-        "p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center space-x-4 bg-white hover:ring-2 ring-primary/5 transition-all"
+        "p-6 rounded-4xl shadow-sm border border-slate-100 flex items-center space-x-4 bg-white hover:ring-2 ring-primary/5 transition-all"
       )}
     >
       <div className={cn("p-4 rounded-2xl", bg, color)}>

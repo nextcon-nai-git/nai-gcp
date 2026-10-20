@@ -490,7 +490,7 @@ export function AppSidebar() {
                             "rounded-xl px-3 h-10 transition-all duration-200 group",
                             item.parentHref && "ml-4 w-[calc(100%-1rem)] border-l border-white/10",
                             isActive
-                              ? "bg-gradient-to-r from-amber-400/20 to-transparent text-white font-black border-l-4 border-amber-400 shadow-md"
+                              ? "bg-linear-to-r from-amber-400/20 to-transparent text-white font-black border-l-4 border-amber-400 shadow-md"
                               : "hover:bg-white/5 text-slate-300 hover:text-white opacity-85 hover:opacity-100"
                           )}
                         >

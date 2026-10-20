@@ -68,7 +68,7 @@ export function NaiSalesPitch() {
     <div className="space-y-8 animate-in fade-in slide-in-from-left-4 duration-700">
       <div className="flex items-start gap-5 p-6 bg-white rounded-[2.5rem] border shadow-sm relative group">
         <div className="relative shrink-0 mt-2">
-          <div className="size-20 rounded-[1.5rem] bg-[#090e24] flex items-center justify-center overflow-hidden shadow-xl border-2 border-primary/10 relative">
+          <div className="size-20 rounded-3xl bg-[#090e24] flex items-center justify-center overflow-hidden shadow-xl border-2 border-primary/10 relative">
             <Image
               src={NAI_AVATAR_URL}
               alt="Avatar NAI"

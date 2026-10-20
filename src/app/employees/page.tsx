@@ -434,7 +434,7 @@ function EmployeesList() {
         />
       </div>
 
-      <Card className="card-shadow border-none bg-white rounded-[2rem] overflow-hidden">
+      <Card className="card-shadow border-none bg-white rounded-4xl overflow-hidden">
         <CardContent className="p-0">
           <Table>
             <TableHeader className="bg-slate-50/50">
@@ -568,7 +568,7 @@ function EmployeesList() {
                                   </Button>
                                 </div>
                                 <div className="flex items-center gap-5">
-                                  <div className="size-16 rounded-[1.5rem] bg-white/10 flex items-center justify-center text-3xl font-black border border-white/20 shadow-2xl">
+                                  <div className="size-16 rounded-3xl bg-white/10 flex items-center justify-center text-3xl font-black border border-white/20 shadow-2xl">
                                     {emp.name?.substring(0, 2).toUpperCase()}
                                   </div>
                                   <div>
@@ -620,7 +620,7 @@ function EmployeesList() {
                                       <ClipboardList className="size-4 text-accent" /> Protocolo de
                                       Exame
                                     </h4>
-                                    <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-4 shadow-inner">
+                                    <div className="p-6 bg-slate-50 rounded-4xl border border-slate-100 space-y-4 shadow-inner">
                                       {/* ... Checklist existente ... */}
                                       <p className="text-[9px] text-slate-400 italic">
                                         Mapeamento de riscos e condutas clínicas.

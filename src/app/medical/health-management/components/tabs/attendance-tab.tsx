@@ -75,7 +75,7 @@ export function AttendanceTab({ attendances, isLoading }: AttendanceTabProps) {
         />
       </div>
 
-      <Card className="card-shadow border-none bg-white rounded-[2rem] overflow-hidden">
+      <Card className="card-shadow border-none bg-white rounded-4xl overflow-hidden">
         <CardHeader className="bg-slate-50 border-b py-6 px-8 flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-lg font-black text-primary uppercase">

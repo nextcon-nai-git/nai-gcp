@@ -861,7 +861,7 @@ export default function AbsenteeismPage() {
         </Card>
 
         <div className="space-y-6 text-left">
-          <Card className="card-shadow border-none bg-[#090e24] text-white rounded-[2rem] p-8 relative overflow-hidden group">
+          <Card className="card-shadow border-none bg-[#090e24] text-white rounded-4xl p-8 relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform duration-1000">
               <TrendingUp className="size-32 text-accent" />
             </div>

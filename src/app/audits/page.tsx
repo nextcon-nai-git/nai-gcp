@@ -585,7 +585,7 @@ export default function IsoAuditsElite() {
                   {activeChecklist.items.map((item) => (
                     <Card
                       key={item.id}
-                      className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white group border-2 border-transparent hover:border-primary/5 transition-all"
+                      className="border-none shadow-sm rounded-4xl overflow-hidden bg-white group border-2 border-transparent hover:border-primary/5 transition-all"
                     >
                       <CardContent className="p-8 space-y-5">
                         <div className="flex justify-between items-start gap-6">
@@ -625,7 +625,7 @@ export default function IsoAuditsElite() {
                 </div>
               </ScrollArea>
               <div className="p-10 bg-white border-t flex flex-col items-center gap-6">
-                <div className="w-full flex items-center gap-4 p-5 bg-emerald-50 rounded-[1.5rem] border-2 border-dashed border-emerald-200">
+                <div className="w-full flex items-center gap-4 p-5 bg-emerald-50 rounded-3xl border-2 border-dashed border-emerald-200">
                   <ShieldCheck className="size-8 text-emerald-600 shrink-0" />
                   <p className="text-[10px] text-emerald-800 font-black leading-relaxed uppercase italic">
                     O encerramento salva as respostas deste checklist. Não emite certificação ISO

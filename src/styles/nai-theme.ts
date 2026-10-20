@@ -3,7 +3,9 @@ import plugin from "tailwindcss/plugin";
 /** Bridge older module utilities to the shared navy theme, including hover/focus and opacity.
  * Screen-only: printed documents keep their original paper colors.
  */
-export const naiTheme = plugin(({ addUtilities, e }) => {
+export const naiTheme = plugin(({ addUtilities }) => {
+  // All generated names contain only letters, numbers, hyphens and opacity slashes.
+  const e = (name: string) => name.replaceAll("/", "\\/");
   const rules: Record<string, Record<string, string>> = {};
   const add = (name: string, property: string, color: string) => {
     rules[`.dark .${e(name)}`] = { [property]: color };
@@ -90,5 +92,12 @@ export const naiTheme = plugin(({ addUtilities, e }) => {
     for (const shade of [600, 700, 800, 900, 950])
       add(`text-${family}-${shade}`, "color", `hsl(${hue} 90% 82% / var(--tw-text-opacity, 1))`);
   }
-  addUtilities({ "@media screen": rules });
+  addUtilities(
+    Object.fromEntries(
+      Object.entries(rules).map(([selector, declaration]) => [
+        selector,
+        { "@media screen": declaration },
+      ])
+    )
+  );
 });

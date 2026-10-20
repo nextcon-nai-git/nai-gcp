@@ -286,7 +286,7 @@ function ReportsSession() {
               <div className="p-8 space-y-6">
                 {!classifiedResult && !isClassifying && (
                   <div
-                    className="border-2 border-dashed rounded-[2rem] p-12 text-center cursor-pointer hover:bg-slate-50 transition-all"
+                    className="border-2 border-dashed rounded-4xl p-12 text-center cursor-pointer hover:bg-slate-50 transition-all"
                     onClick={() => document.getElementById("ai-sorter")?.click()}
                   >
                     <input
@@ -352,7 +352,7 @@ function ReportsSession() {
           filteredReports.map((report) => (
             <Card
               key={report.id}
-              className="border border-slate-100 rounded-[2rem] hover:shadow-xl transition-all group overflow-hidden bg-white flex flex-col text-left"
+              className="border border-slate-100 rounded-4xl hover:shadow-xl transition-all group overflow-hidden bg-white flex flex-col text-left"
             >
               <CardHeader className="p-6 bg-slate-50/50">
                 <div className="flex justify-between items-start">

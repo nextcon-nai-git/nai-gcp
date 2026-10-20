@@ -60,7 +60,7 @@ export function AttendanceTab({ attendances, loading }: AttendanceTabProps) {
 
   return (
     <div className="space-y-6">
-      <Card className="card-shadow border-none bg-white rounded-[2rem] overflow-hidden">
+      <Card className="card-shadow border-none bg-white rounded-4xl overflow-hidden">
         <CardHeader className="bg-slate-50 border-b py-6 px-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="text-left">
             <CardTitle className="text-lg font-black text-primary uppercase">
@@ -149,7 +149,7 @@ export function AttendanceTab({ attendances, loading }: AttendanceTabProps) {
                             <h4 className="text-[10px] font-black uppercase text-primary tracking-[0.2em] flex items-center gap-2">
                               <ClipboardList className="size-4 text-accent" /> Relato Clínico
                             </h4>
-                            <div className="p-6 bg-slate-50 rounded-[2rem] border italic text-sm text-slate-700 leading-relaxed shadow-inner">
+                            <div className="p-6 bg-slate-50 rounded-4xl border italic text-sm text-slate-700 leading-relaxed shadow-inner">
                               &quot;{item.complaint}&quot;
                             </div>
                           </div>

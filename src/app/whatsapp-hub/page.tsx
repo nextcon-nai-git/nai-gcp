@@ -269,7 +269,7 @@ export default function WhatsappHubPage() {
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8">
       {/* HEADER PRINCIPAL */}
       <div className="max-w-7xl mx-auto mb-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-linear-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
           <div>
             <div className="flex items-center gap-3">
               <span className="flex h-3 w-3 relative">
@@ -480,7 +480,7 @@ export default function WhatsappHubPage() {
                 {/* CABEÇALHO WHATSAPP */}
                 <div className="bg-[#202c33] px-4 py-3 flex items-center justify-between border-b border-[#2a3942]">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white font-bold text-lg shadow">
+                    <div className="w-10 h-10 rounded-full bg-linear-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white font-bold text-lg shadow">
                       N
                     </div>
                     <div>

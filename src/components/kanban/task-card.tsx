@@ -100,7 +100,7 @@ export function TaskCard({ task }: { task: OpsTask }) {
         className={cn(
           "relative p-6 mb-4 rounded-[1.75rem] cursor-grab active:cursor-grabbing transition-all",
           "bg-white border border-slate-200 hover:shadow-2xl hover:border-primary/10 hover:ring-4 ring-primary/5",
-          "border-l-[8px]",
+          "border-l-8",
           priority ? priorityStyles[priority] : "border-l-slate-300",
           isDragging ? "opacity-50 rotate-3 scale-105 shadow-2xl z-50" : "shadow-sm",
           isShaking ? "animate-shake ring-2 ring-accent border-accent" : ""

@@ -115,7 +115,7 @@ export function FiscalIntelligenceTab() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500 text-left">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="card-shadow border-none bg-slate-900 text-white rounded-[2rem] p-6">
+        <Card className="card-shadow border-none bg-slate-900 text-white rounded-4xl p-6">
           <p className="text-[9px] font-black uppercase text-accent tracking-[0.2em] mb-1">
             Passivo Tributário Real-Time
           </p>
@@ -140,7 +140,7 @@ export function FiscalIntelligenceTab() {
             icon={FileCheck}
             desc="Geração de guia e protocolo integrado."
           />
-          <Card className="card-shadow border-none bg-white rounded-[2rem] p-6 flex flex-col justify-between">
+          <Card className="card-shadow border-none bg-white rounded-4xl p-6 flex flex-col justify-between">
             <div className="flex justify-between items-center mb-2">
               <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">
                 Encerramento Mensal
@@ -369,7 +369,7 @@ export function FiscalIntelligenceTab() {
                     <h4 className="text-[10px] font-black uppercase text-primary tracking-widest ml-1">
                       Discriminação das Alíquotas
                     </h4>
-                    <div className="divide-y divide-slate-100 border rounded-[2rem] bg-white overflow-hidden shadow-sm">
+                    <div className="divide-y divide-slate-100 border rounded-4xl bg-white overflow-hidden shadow-sm">
                       {Object.entries(selectedDoc.taxes || {}).map(([tax, val]) => (
                         <div
                           key={tax}
@@ -441,7 +441,7 @@ function StatusCard({
 }) {
   const isDelivered = status === "delivered";
   return (
-    <Card className="card-shadow border-none bg-white rounded-[2rem] p-6 flex flex-col justify-between group hover:ring-2 ring-primary/5 transition-all">
+    <Card className="card-shadow border-none bg-white rounded-4xl p-6 flex flex-col justify-between group hover:ring-2 ring-primary/5 transition-all">
       <div className="flex justify-between items-start">
         <div className="space-y-1">
           <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">{label}</p>

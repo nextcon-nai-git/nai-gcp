@@ -127,7 +127,7 @@ export default function GrupoAvpClientHubPage() {
   return (
     <div className="space-y-10 animate-in fade-in duration-500 pb-24 text-slate-900">
       {/* BANNER PRINCIPAL GRUPO AVP & NEXTCON */}
-      <div className="relative rounded-[3rem] bg-gradient-to-br from-[#00172e] via-[#002244] to-[#0a325c] text-white p-8 sm:p-12 overflow-hidden shadow-2xl border border-white/10">
+      <div className="relative rounded-[3rem] bg-linear-to-br from-[#00172e] via-[#002244] to-[#0a325c] text-white p-8 sm:p-12 overflow-hidden shadow-2xl border border-white/10">
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-96 h-96 bg-accent/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-1/3 -mb-16 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -352,7 +352,7 @@ export default function GrupoAvpClientHubPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
               {/* WHATSAPP OFICIAL */}
-              <Card className="rounded-[2.5rem] border-2 border-emerald-200/80 bg-gradient-to-br from-white via-emerald-50/20 to-emerald-100/30 p-6 shadow-lg flex flex-col justify-between space-y-4">
+              <Card className="rounded-[2.5rem] border-2 border-emerald-200/80 bg-linear-to-br from-white via-emerald-50/20 to-emerald-100/30 p-6 shadow-lg flex flex-col justify-between space-y-4">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="p-3 bg-emerald-500 text-white rounded-2xl shadow-md">
@@ -396,7 +396,7 @@ export default function GrupoAvpClientHubPage() {
               </Card>
 
               {/* E-MAIL OFICIAL */}
-              <Card className="rounded-[2.5rem] border-2 border-blue-200/80 bg-gradient-to-br from-white via-blue-50/20 to-blue-100/30 p-6 shadow-lg flex flex-col justify-between space-y-4">
+              <Card className="rounded-[2.5rem] border-2 border-blue-200/80 bg-linear-to-br from-white via-blue-50/20 to-blue-100/30 p-6 shadow-lg flex flex-col justify-between space-y-4">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-md">
@@ -641,7 +641,7 @@ export default function GrupoAvpClientHubPage() {
 
             {/* REGRAS & SAZONALIDADE */}
             <div className="space-y-6">
-              <Card className="rounded-[2.5rem] bg-gradient-to-br from-amber-500/10 via-amber-50/50 to-white border border-amber-200 p-8 space-y-4">
+              <Card className="rounded-[2.5rem] bg-linear-to-br from-amber-500/10 via-amber-50/50 to-white border border-amber-200 p-8 space-y-4">
                 <div className="flex items-center gap-2 text-amber-800 font-black uppercase text-sm">
                   <Calendar size={18} /> Sazonalidade de Picos de Admissão
                 </div>

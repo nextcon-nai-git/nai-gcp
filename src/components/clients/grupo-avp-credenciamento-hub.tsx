@@ -291,7 +291,7 @@ export function GrupoAvpCredenciamentoHub() {
   return (
     <div className="space-y-6">
       {/* HEADER & METRICAS NACIONAIS */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 p-6 sm:p-8 rounded-3xl border border-slate-700/60 shadow-xl text-white">
+      <div className="bg-linear-to-br from-slate-900 via-slate-800 to-slate-950 p-6 sm:p-8 rounded-3xl border border-slate-700/60 shadow-xl text-white">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-6">
           <div className="space-y-2">
             <div className="flex items-center gap-2">

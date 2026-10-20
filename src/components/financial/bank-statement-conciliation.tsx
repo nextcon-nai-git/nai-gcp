@@ -83,7 +83,7 @@ export function BankStatementConciliation() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500 text-left">
       {/* BANNER PRINCIPAL SANTANDER */}
-      <Card className="border-none bg-gradient-to-r from-red-950 via-slate-900 to-slate-950 text-white rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden border border-red-800/30">
+      <Card className="border-none bg-linear-to-r from-red-950 via-slate-900 to-slate-950 text-white rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden border border-red-800/30">
         <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-96 h-96 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
           <div className="space-y-3">

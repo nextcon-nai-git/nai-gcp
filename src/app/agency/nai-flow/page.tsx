@@ -184,7 +184,7 @@ export default function NaiFlowManual() {
         <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-110 transition-transform duration-1000">
           <Zap className="size-64 text-primary" />
         </div>
-        <div className="size-20 rounded-[2rem] bg-primary flex items-center justify-center text-white text-4xl font-black shadow-2xl relative z-10 shrink-0">
+        <div className="size-20 rounded-4xl bg-primary flex items-center justify-center text-white text-4xl font-black shadow-2xl relative z-10 shrink-0">
           N
         </div>
         <div className="space-y-3 relative z-10">

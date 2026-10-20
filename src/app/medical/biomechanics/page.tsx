@@ -235,7 +235,7 @@ export default function BiomechanicsPage() {
                 />
 
                 {/* OVERLAY DE HUD BIOMECÂNICO / HUD DA IA */}
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent pointer-events-none" />
+                <div className="absolute inset-0 bg-linear-to-t from-slate-950/80 via-transparent to-transparent pointer-events-none" />
 
                 <div className="absolute top-4 left-4 z-10 flex flex-col gap-1.5">
                   <Badge className="bg-emerald-500/90 text-slate-950 text-[8px] font-black uppercase tracking-widest backdrop-blur-md">
@@ -355,7 +355,7 @@ export default function BiomechanicsPage() {
                   </div>
                 </div>
               ) : (
-                <div className="h-64 flex flex-col items-center justify-center border-2 border-dashed border-slate-100 rounded-[2rem] opacity-30 text-center gap-4">
+                <div className="h-64 flex flex-col items-center justify-center border-2 border-dashed border-slate-100 rounded-4xl opacity-30 text-center gap-4">
                   <Scan className="size-16" />
                   <p className="text-sm font-black uppercase tracking-widest">
                     Aguardando Captura de Vídeo
@@ -430,7 +430,7 @@ export default function BiomechanicsPage() {
           )}
 
           <Card className="card-shadow border-none bg-white rounded-[2.5rem] overflow-hidden p-2">
-            <div className="bg-[#001F3F] p-8 rounded-[2rem] text-white flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="bg-[#001F3F] p-8 rounded-4xl text-white flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="flex items-center gap-4">
                 <div className="size-16 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20">
                   <Brain className="size-10 text-accent" />

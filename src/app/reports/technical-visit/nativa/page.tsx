@@ -420,7 +420,7 @@ export default function NativaTechnicalVisitReport() {
                 Recomendações NR-12 (Serra Circular)
               </h2>
             </div>
-            <Card className="border-2 border-red-100 shadow-none rounded-[2rem] bg-white overflow-hidden">
+            <Card className="border-2 border-red-100 shadow-none rounded-4xl bg-white overflow-hidden">
               <CardHeader className="bg-red-50 p-8 border-b border-red-100">
                 <CardTitle className="text-sm font-black uppercase text-red-700 flex items-center gap-2">
                   <AlertTriangle className="size-4" /> Diagnóstico de Risco Elevado

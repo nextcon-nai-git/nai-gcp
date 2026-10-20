@@ -273,7 +273,7 @@ export default function FinancialModule() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="overflow-x-auto pb-4 scrollbar-thin">
-          <TabsList className="flex w-fit bg-muted/50 p-1.5 rounded-[2rem] h-16 shadow-inner">
+          <TabsList className="flex w-fit bg-muted/50 p-1.5 rounded-4xl h-16 shadow-inner">
             <TabsTrigger
               value="dre"
               className="rounded-xl gap-2 text-[10px] font-black uppercase tracking-widest px-8 text-emerald-700 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
@@ -687,7 +687,7 @@ export default function FinancialModule() {
 
 function StatCard({ title, amount, value, trend, icon: Icon, color, bg }: any) {
   return (
-    <Card className="border-none shadow-sm bg-white rounded-[2rem] group hover:ring-2 ring-primary/5 transition-all btn-hover-effect">
+    <Card className="border-none shadow-sm bg-white rounded-4xl group hover:ring-2 ring-primary/5 transition-all btn-hover-effect">
       <CardContent className="pt-8 text-left p-8">
         <div className="flex items-center justify-between mb-8">
           <div

@@ -494,7 +494,7 @@ function ClientsSession() {
 
       {/* NOVO CLIENTE NACIONAL EM DESTAQUE: GRUPO AVP */}
       <Link href="/clients/grupo-avp" className="block group">
-        <Card className="rounded-3xl border-2 border-blue-200/80 bg-gradient-to-br from-[#00172e] via-[#002244] to-[#0a325c] text-white p-6 shadow-xl hover:shadow-2xl hover:scale-[1.01] transition-all relative overflow-hidden">
+        <Card className="rounded-3xl border-2 border-blue-200/80 bg-linear-to-br from-[#00172e] via-[#002244] to-[#0a325c] text-white p-6 shadow-xl hover:shadow-2xl hover:scale-[1.01] transition-all relative overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
@@ -524,7 +524,7 @@ function ClientsSession() {
 
       {/* CLIENTE ESTRATÉGICO CONTRATUAL: CASSI BANCO DO BRASIL */}
       <Link href="/clients/cassi" className="block group">
-        <Card className="rounded-3xl border-2 border-amber-400/40 bg-gradient-to-br from-[#002244] via-[#003366] to-[#0d223a] text-white p-6 shadow-xl hover:shadow-2xl hover:scale-[1.01] transition-all relative overflow-hidden">
+        <Card className="rounded-3xl border-2 border-amber-400/40 bg-linear-to-br from-[#002244] via-[#003366] to-[#0d223a] text-white p-6 shadow-xl hover:shadow-2xl hover:scale-[1.01] transition-all relative overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">

@@ -255,7 +255,7 @@ export default function MedicalAuditingDashboard() {
 
 function MetricCard({ label, value, sub, icon: Icon, color, bg, trend }: any) {
   return (
-    <Card className="border-none shadow-sm bg-white rounded-[2rem] group hover:ring-2 ring-primary/5 transition-all overflow-hidden relative">
+    <Card className="border-none shadow-sm bg-white rounded-4xl group hover:ring-2 ring-primary/5 transition-all overflow-hidden relative">
       <CardContent className="p-6 relative z-10 text-left">
         <div className="flex items-center justify-between mb-4">
           <div

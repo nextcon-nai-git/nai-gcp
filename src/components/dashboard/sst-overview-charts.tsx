@@ -27,7 +27,7 @@ const data = [
 export function SstOverviewCharts() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <Card className="border-none shadow-sm bg-white rounded-[2rem] overflow-hidden">
+      <Card className="border-none shadow-sm bg-white rounded-4xl overflow-hidden">
         <CardHeader className="p-6 border-b bg-slate-50/50">
           <CardTitle className="text-sm font-black uppercase text-primary tracking-widest">
             Evolução de Acidentes (CAT)
@@ -72,7 +72,7 @@ export function SstOverviewCharts() {
         </CardContent>
       </Card>
 
-      <Card className="border-none shadow-sm bg-white rounded-[2rem] overflow-hidden">
+      <Card className="border-none shadow-sm bg-white rounded-4xl overflow-hidden">
         <CardHeader className="p-6 border-b bg-slate-50/50">
           <CardTitle className="text-sm font-black uppercase text-primary tracking-widest">
             Produtividade Ambulatorial (ASOs)

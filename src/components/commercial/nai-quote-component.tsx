@@ -307,7 +307,7 @@ export function NaiQuoteComponent() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                    <div className="p-6 bg-white/5 rounded-[2rem] border border-white/10 backdrop-blur-sm">
+                    <div className="p-6 bg-white/5 rounded-4xl border border-white/10 backdrop-blur-sm">
                       <p className="text-[10px] font-black uppercase text-white/40 mb-2">
                         Saving Anual Projetado
                       </p>
@@ -341,7 +341,7 @@ export function NaiQuoteComponent() {
                     <Card
                       key={i}
                       className={cn(
-                        "border-none shadow-sm rounded-[2rem] overflow-hidden transition-all hover:scale-[1.02]",
+                        "border-none shadow-sm rounded-4xl overflow-hidden transition-all hover:scale-[1.02]",
                         i === 1
                           ? "ring-2 ring-primary bg-white shadow-xl"
                           : "bg-slate-50 opacity-90"
@@ -451,7 +451,7 @@ export function NaiQuoteComponent() {
               </Card>
 
               {/* INSIGHT ESTRATÉGICO */}
-              <div className="p-6 bg-accent text-primary rounded-[2rem] border-2 border-primary/5 flex gap-4 items-start shadow-xl">
+              <div className="p-6 bg-accent text-primary rounded-4xl border-2 border-primary/5 flex gap-4 items-start shadow-xl">
                 <Sparkles className="size-6 shrink-0 mt-1" />
                 <div className="space-y-1">
                   <h4 className="font-black uppercase text-xs tracking-widest">

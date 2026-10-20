@@ -129,7 +129,7 @@ export default function CompliancePublicPage() {
 
       {/* SEÇÃO INFORMATIVA DE PILARES */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-        <Card className="border-none shadow-sm bg-white rounded-[2rem] p-8 flex flex-col gap-4 group hover:ring-2 ring-primary/5 transition-all">
+        <Card className="border-none shadow-sm bg-white rounded-4xl p-8 flex flex-col gap-4 group hover:ring-2 ring-primary/5 transition-all">
           <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl w-fit group-hover:bg-primary group-hover:text-white transition-all">
             <Scale className="size-6" />
           </div>
@@ -144,7 +144,7 @@ export default function CompliancePublicPage() {
           </div>
         </Card>
 
-        <Card className="border-none shadow-sm bg-white rounded-[2rem] p-8 flex flex-col gap-4 group hover:ring-2 ring-primary/5 transition-all">
+        <Card className="border-none shadow-sm bg-white rounded-4xl p-8 flex flex-col gap-4 group hover:ring-2 ring-primary/5 transition-all">
           <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl w-fit group-hover:bg-primary group-hover:text-white transition-all">
             <ClipboardList className="size-6" />
           </div>
@@ -159,7 +159,7 @@ export default function CompliancePublicPage() {
           </div>
         </Card>
 
-        <Card className="border-none shadow-sm bg-white rounded-[2rem] p-8 flex flex-col gap-4 group hover:ring-2 ring-primary/5 transition-all">
+        <Card className="border-none shadow-sm bg-white rounded-4xl p-8 flex flex-col gap-4 group hover:ring-2 ring-primary/5 transition-all">
           <div className="p-3 bg-accent/10 text-accent rounded-2xl w-fit group-hover:bg-primary group-hover:text-white transition-all">
             <ShieldCheck className="size-6" />
           </div>
@@ -260,7 +260,7 @@ export default function CompliancePublicPage() {
         </div>
 
         <div className="lg:col-span-4 space-y-6">
-          <Card className="card-shadow border-none bg-slate-900 text-white rounded-[2rem] p-8 space-y-6">
+          <Card className="card-shadow border-none bg-slate-900 text-white rounded-4xl p-8 space-y-6">
             <h4 className="text-xs font-black uppercase text-accent tracking-[0.2em] flex items-center gap-2">
               {isAnonimo ? <UserX className="size-4" /> : <UserCheck className="size-4" />}{" "}
               Identificação
@@ -316,7 +316,7 @@ export default function CompliancePublicPage() {
             )}
           </Card>
 
-          <Card className="border-none bg-blue-50 rounded-[2rem] p-8 space-y-4">
+          <Card className="border-none bg-blue-50 rounded-4xl p-8 space-y-4">
             <div className="flex items-center gap-2 text-primary font-black uppercase text-[10px]">
               <ShieldCheck className="size-4" /> Garantias NAI
             </div>

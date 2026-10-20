@@ -519,7 +519,7 @@ function PpeManagementSession() {
                 <Plus className="size-4" /> Nova Entrega Digital
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[620px] rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden bg-white text-left">
+            <DialogContent className="sm:max-w-[620px] rounded-4xl border-none shadow-2xl p-0 overflow-hidden bg-white text-left">
               <DialogHeader className="p-6 bg-emerald-700 text-white relative">
                 <DialogTitle className="text-xl font-black uppercase font-headline flex items-center gap-2">
                   <ShieldCheck className="size-5 text-accent" /> Ficha de Entrega de EPI (NR-06)
@@ -1034,7 +1034,7 @@ function PpeManagementSession() {
                     <Plus className="size-4" /> Cadastrar EPI
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[500px] rounded-[2rem] bg-white p-6">
+                <DialogContent className="sm:max-w-[500px] rounded-4xl bg-white p-6">
                   <DialogHeader>
                     <DialogTitle className="text-lg font-black uppercase">
                       Novo EPI no Catálogo

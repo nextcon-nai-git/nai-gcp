@@ -62,9 +62,9 @@ export function StructuredRecordTab({
           <Card
             key={p.id}
             className={cn(
-              "cursor-pointer border-none shadow-sm transition-all duration-500 rounded-[2rem] overflow-hidden group",
+              "cursor-pointer border-none shadow-sm transition-all duration-500 rounded-4xl overflow-hidden group",
               selectedPatientId === p.id
-                ? "ring-2 ring-primary bg-gradient-to-br from-white to-slate-50 scale-[1.02] shadow-xl"
+                ? "ring-2 ring-primary bg-linear-to-br from-white to-slate-50 scale-[1.02] shadow-xl"
                 : "bg-white/50 hover:bg-white opacity-70 hover:opacity-100 hover:scale-[1.01]"
             )}
             style={{ animationDelay: `${i * 100}ms` }}
@@ -103,14 +103,14 @@ export function StructuredRecordTab({
         <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
           <FileCheck className="size-48 text-primary" />
         </div>
-        <CardHeader className="bg-gradient-to-r from-primary to-slate-900 text-white p-8 relative overflow-hidden">
+        <CardHeader className="bg-linear-to-r from-primary to-slate-900 text-white p-8 relative overflow-hidden">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between relative z-10 gap-4">
             <div className="flex items-center gap-5">
               <div className="p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 shadow-xl">
                 <Activity className="size-8 text-accent animate-pulse" />
               </div>
               <div>
-                <CardTitle className="text-3xl font-headline font-black uppercase tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-white/80">
+                <CardTitle className="text-3xl font-headline font-black uppercase tracking-tight text-transparent bg-clip-text bg-linear-to-r from-white to-white/80">
                   Timeline Clínica
                 </CardTitle>
                 <CardDescription className="text-accent/90 font-bold uppercase text-[10px] tracking-widest mt-1.5">
@@ -150,7 +150,7 @@ export function StructuredRecordTab({
                 >
                   <div
                     className={cn(
-                      "absolute -left-[60px] top-4 p-3 rounded-full border-4 transition-all duration-500 z-10",
+                      "absolute left-[-60px] top-4 p-3 rounded-full border-4 transition-all duration-500 z-10",
                       isWarning
                         ? "bg-red-50 border-red-500 text-red-600 group-hover:bg-red-500 group-hover:text-white shadow-[0_0_15px_rgba(239,68,68,0.5)]"
                         : isSuccess
@@ -163,7 +163,7 @@ export function StructuredRecordTab({
 
                   <div
                     className={cn(
-                      "bg-white p-6 sm:p-8 rounded-[2rem] shadow-sm border transition-all duration-300",
+                      "bg-white p-6 sm:p-8 rounded-4xl shadow-sm border transition-all duration-300",
                       isWarning
                         ? "border-red-100 hover:border-red-300 hover:shadow-red-500/10 hover:shadow-xl"
                         : isSuccess
@@ -206,7 +206,7 @@ export function StructuredRecordTab({
               );
             })}
             {activeLines.length === 0 && (
-              <div className="bg-white border border-dashed border-slate-300 rounded-[2rem] p-12 text-center animate-in zoom-in duration-500">
+              <div className="bg-white border border-dashed border-slate-300 rounded-4xl p-12 text-center animate-in zoom-in duration-500">
                 <CheckCircle2 className="size-12 text-emerald-400 mx-auto mb-4" />
                 <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">
                   Nenhuma linha de cuidado ativa.

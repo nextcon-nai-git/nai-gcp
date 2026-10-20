@@ -304,7 +304,7 @@ function LedgerSessionWorkspace({ user }: { user: User }) {
         </span>
       </div>
       <section className="relative overflow-hidden rounded-3xl bg-[#092c3d] p-6 text-white md:p-8">
-        <div className="absolute -right-10 -top-20 size-72 rounded-full border-[42px] border-white/[0.025]" />
+        <div className="absolute -right-10 -top-20 size-72 rounded-full border-42 border-white/2.5" />
         <div className="relative flex flex-wrap items-start justify-between gap-6">
           <div className="max-w-2xl">
             <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-teal-300/20 bg-teal-300/10 px-3 py-1 text-[11px] font-semibold tracking-widest text-teal-200">
@@ -1043,7 +1043,7 @@ function LedgerSessionWorkspace({ user }: { user: User }) {
                   <dl className="mt-5 space-y-4 text-sm">
                     <div>
                       <dt className="text-xs text-slate-400">Documento original</dt>
-                      <dd className="mt-1 break-words">{book.sourceName}</dd>
+                      <dd className="mt-1 wrap-break-word">{book.sourceName}</dd>
                     </div>
                     <div>
                       <dt className="text-xs text-slate-400">Cobertura</dt>

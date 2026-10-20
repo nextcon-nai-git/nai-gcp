@@ -154,7 +154,7 @@ function MedicalCopilotSession({ pacienteId, className }: MedicalCopilotProps) {
   return (
     <div
       className={cn(
-        "flex flex-col h-[550px] w-full border border-slate-100 rounded-[2rem] bg-white shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-500",
+        "flex flex-col h-[550px] w-full border border-slate-100 rounded-4xl bg-white shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-500",
         className
       )}
     >

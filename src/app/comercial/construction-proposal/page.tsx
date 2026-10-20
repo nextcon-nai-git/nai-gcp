@@ -184,7 +184,7 @@ export default function ConstructionProposalPage() {
       </header>
 
       {/* Seletor de Plano */}
-      <Card className="card-shadow border-none bg-slate-100 p-2 rounded-[2rem] max-w-3xl mx-auto">
+      <Card className="card-shadow border-none bg-slate-100 p-2 rounded-4xl max-w-3xl mx-auto">
         <Tabs
           value={activeScenario}
           onValueChange={(v: any) => setActiveScenario(v)}

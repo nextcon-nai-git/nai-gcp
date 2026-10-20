@@ -271,7 +271,7 @@ export function HolidayBillingWidget() {
             </Badge>
           </div>
 
-          <div className="border rounded-[2rem] bg-white overflow-hidden shadow-sm">
+          <div className="border rounded-4xl bg-white overflow-hidden shadow-sm">
             <Table>
               <TableHeader className="bg-slate-50 text-[8px] uppercase font-black">
                 <TableRow>

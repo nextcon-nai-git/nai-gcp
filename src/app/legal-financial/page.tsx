@@ -250,7 +250,7 @@ export default function LegalFinancial() {
               <Slider value={fapValue} onValueChange={setFapValue} max={2} min={0.5} step={0.01} />
             </div>
 
-            <div className="p-6 bg-primary/5 rounded-[2rem] border-2 border-primary/10 flex flex-col items-center gap-2 shadow-inner">
+            <div className="p-6 bg-primary/5 rounded-4xl border-2 border-primary/10 flex flex-col items-center gap-2 shadow-inner">
               <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">
                 Economia Anual Estimada
               </p>

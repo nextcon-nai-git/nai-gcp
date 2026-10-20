@@ -795,7 +795,7 @@ function FinancialActionsSession({ user }: { user: User | null }) {
                       {evidence.detail}
                     </p>
                     {evidence.sourceName && (
-                      <p className="mt-2 break-words text-xs text-slate-500">
+                      <p className="mt-2 wrap-break-word text-xs text-slate-500">
                         {evidence.sourceName}
                         {evidence.page ? ` · página ${evidence.page}` : ""}
                       </p>

@@ -111,7 +111,7 @@ export default function ClientExamsHistory() {
         </Select>
       </div>
 
-      <Card className="card-shadow border-none bg-white rounded-[2rem] overflow-hidden">
+      <Card className="card-shadow border-none bg-white rounded-4xl overflow-hidden">
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-24 text-center flex flex-col items-center gap-4">
@@ -224,7 +224,7 @@ export default function ClientExamsHistory() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="p-6 bg-[#090e24] text-white rounded-[2rem] shadow-2xl relative overflow-hidden group">
+        <div className="p-6 bg-[#090e24] text-white rounded-4xl shadow-2xl relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform">
             <ShieldCheck className="size-32 text-accent" />
           </div>
@@ -240,7 +240,7 @@ export default function ClientExamsHistory() {
             </p>
           </div>
         </div>
-        <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-[2rem] flex flex-col justify-center gap-4">
+        <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-4xl flex flex-col justify-center gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-primary rounded-lg text-white shadow-sm">
               <Globe className="size-4" />

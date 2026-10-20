@@ -839,7 +839,7 @@ export default function CassiBillingPage() {
             {/* COLUNA DIREITA: RESUMO, RPA E CONTROLE DE PRAZOS */}
             <div className="space-y-6">
               {/* Card Resumo Financeiro */}
-              <Card className="border-blue-200 dark:border-blue-900/50 bg-gradient-to-b from-blue-50/50 to-transparent dark:from-blue-950/20">
+              <Card className="border-blue-200 dark:border-blue-900/50 bg-linear-to-b from-blue-50/50 to-transparent dark:from-blue-950/20">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-blue-600" />

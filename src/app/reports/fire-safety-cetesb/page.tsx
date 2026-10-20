@@ -74,8 +74,8 @@ export default function FireSafetyCetesbPage() {
       {/* PAINEL EXECUTIVO PAISAGEM */}
       <div className="max-w-[1400px] mx-auto bg-slate-900/40 border border-slate-800/60 rounded-[3.5rem] p-10 backdrop-blur-3xl shadow-2xl relative overflow-hidden flex flex-col min-h-[750px] text-left">
         {/* GLOW EFFECTS */}
-        <div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-gradient-to-br from-red-500/10 to-transparent rounded-full blur-[140px] pointer-events-none" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-gradient-to-tr from-orange-500/5 to-transparent rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-linear-to-br from-red-500/10 to-transparent rounded-full blur-[140px] pointer-events-none" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-linear-to-tr from-orange-500/5 to-transparent rounded-full blur-[100px] pointer-events-none" />
 
         {/* HEADER */}
         <header className="border-b border-white/5 pb-8 mb-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-6 relative z-10">
@@ -83,7 +83,7 @@ export default function FireSafetyCetesbPage() {
             <Badge className="bg-red-600 text-white border-none font-black uppercase text-[9px] tracking-[0.3em] px-3 h-6">
               Auditoria de Engenharia de Incêndio
             </Badge>
-            <h1 className="text-4xl font-black tracking-tighter bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent uppercase font-headline">
+            <h1 className="text-4xl font-black tracking-tighter bg-linear-to-r from-white to-slate-400 bg-clip-text text-transparent uppercase font-headline">
               Parecer Técnico de Segurança <span className="text-red-500">IT-16</span>
             </h1>
             <div className="flex items-center gap-4">
