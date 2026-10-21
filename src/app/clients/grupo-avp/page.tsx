@@ -27,6 +27,7 @@ import { AvpSchedulingRequestForm } from "@/components/clients/avp-scheduling-re
 import { GrupoAvpCredenciamentoHub } from "@/components/clients/grupo-avp-credenciamento-hub";
 
 import { AvpEvidencePanel } from "@/components/clients/avp-evidence-panel";
+import { AvpPeriodicControlPanel } from "@/components/clients/avp-periodic-control";
 import { useUser } from "@/firebase";
 import { canAccessAvpEvidence } from "@/lib/auth/avp-access";
 
@@ -247,6 +248,12 @@ export default function GrupoAvpClientHubPage() {
 
             {canSeeEvidence && (
               <>
+                <TabsTrigger
+                  value="periodicos"
+                  className="rounded-xl py-2.5 px-4 text-xs font-bold"
+                >
+                  Periódicos e rede AVP
+                </TabsTrigger>
                 <TabsTrigger value="payments" className="rounded-xl py-2.5 px-4 text-xs font-bold">
                   Pagamentos às clínicas
                 </TabsTrigger>
@@ -317,6 +324,9 @@ export default function GrupoAvpClientHubPage() {
 
         {canSeeEvidence && (
           <>
+            <TabsContent value="periodicos">
+              <AvpPeriodicControlPanel />
+            </TabsContent>
             <TabsContent value="payments">
               <AvpEvidencePanel kind="payment" />
             </TabsContent>
