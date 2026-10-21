@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { AVP_SOURCE } from "@/lib/avp-source-config";
 import { formatBrlCents } from "@/lib/avp-costs";
 import type { AvpPeriodicControl, AvpObservedPrice } from "@/lib/avp-periodic-control";
+import { ClinicContractDialog } from "./clinic-contract-dialog";
 
 function Price({ price }: { price: AvpObservedPrice }) {
   const color =
@@ -59,6 +60,7 @@ export function AvpPeriodicControlPanel() {
   const [priceFilter, setPriceFilter] = useState("all");
   const [peopleFilter, setPeopleFilter] = useState("all");
   const [page, setPage] = useState(0);
+  const [contract, setContract] = useState<{ owner: string; clinicId: string | null } | null>(null);
   const load = useCallback(
     async (signal?: AbortSignal) => {
       if (!user || typeof user.getIdToken !== "function") return;
@@ -261,6 +263,12 @@ export function AvpPeriodicControlPanel() {
                 {label}
               </Button>
             ))}
+            <Button
+              variant="outline"
+              onClick={() => setContract({ owner: user!.uid, clinicId: null })}
+            >
+              Modelo de contrato
+            </Button>
           </div>
           <div className="flex flex-wrap gap-3">
             <Input
@@ -429,6 +437,14 @@ export function AvpPeriodicControlPanel() {
                                 ? "Contrato ativo informado na lista"
                                 : "Contrato não confirmado"}
                           </p>
+                          <Button
+                            className="mt-3"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setContract({ owner: user!.uid, clinicId: c.id })}
+                          >
+                            Preparar contrato
+                          </Button>
                         </td>
                         <td className={cellClass}>
                           {c.phones.join(" · ") || "Telefone a confirmar"}
@@ -569,6 +585,16 @@ export function AvpPeriodicControlPanel() {
           )}
         </>
       )}
+      {data &&
+        contract &&
+        contract.owner === user?.uid &&
+        (contract.clinicId === null || data.clinics.some((c) => c.id === contract.clinicId)) && (
+          <ClinicContractDialog
+            key={`${user?.uid}-${contract.clinicId || "template"}`}
+            clinic={data.clinics.find((c) => c.id === contract.clinicId) || null}
+            onClose={() => setContract(null)}
+          />
+        )}
     </section>
   );
 }
