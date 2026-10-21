@@ -265,7 +265,7 @@ export default function ProductionWorkspace() {
 }
 function Workspace() {
   const currentDate = useBrasiliaDate();
-  const scope = useRequestScope();
+  const scopeRef = useRequestScope();
   const reading = React.useRef<AbortController | null>(null);
   const [book, setBook] = React.useState<ProductionBook | null>(null),
     [companies, setCompanies] = React.useState<Company[]>([]);
@@ -282,7 +282,7 @@ function Workspace() {
     lock = React.useRef(false);
   const clearAccess = React.useCallback(
     (error: ApiError) => {
-      scope.current.abort();
+      scopeRef.current.abort();
       reading.current?.abort();
       setError(error.message);
       setNotice("");
@@ -292,23 +292,23 @@ function Workspace() {
       setPending(null);
       setShowCreate(false);
     },
-    [scope]
+    [scopeRef]
   );
   const loadBillingSnapshot = React.useCallback(
     (signal: AbortSignal, expectedVersion: number): Promise<BillingQueueSnapshot> =>
       api(
         `/api/production/billing-queue?expectedVersion=${expectedVersion}`,
-        AbortSignal.any([signal, scope.current.signal]),
+        AbortSignal.any([signal, scopeRef.current.signal]),
         undefined,
         clearAccess
       ),
-    [scope, clearAccess]
+    [scopeRef, clearAccess]
   );
   React.useEffect(() => {
     mounted.current = true;
     const controller = new AbortController();
     reading.current = controller;
-    const signal = AbortSignal.any([controller.signal, scope.current.signal]);
+    const signal = AbortSignal.any([controller.signal, scopeRef.current.signal]);
     void (async () => {
       try {
         const data = await api("/api/production", signal, undefined, clearAccess);
@@ -324,14 +324,14 @@ function Workspace() {
       mounted.current = false;
       controller.abort();
     };
-  }, [scope, clearAccess]);
+  }, [scopeRef, clearAccess]);
   const reload = async () => {
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
     reading.current?.abort();
-    if (scope.current.signal.aborted) scope.current = new AbortController();
-    const signal = scope.current.signal;
+    if (scopeRef.current.signal.aborted) scopeRef.current = new AbortController();
+    const signal = scopeRef.current.signal;
     try {
       const data = await api("/api/production", signal, undefined, clearAccess);
       if (mounted.current) {
@@ -359,7 +359,7 @@ function Workspace() {
     setPending(command);
     reading.current?.abort();
     try {
-      const next = await api("/api/production", scope.current.signal, command, clearAccess);
+      const next = await api("/api/production", scopeRef.current.signal, command, clearAccess);
       if (!mounted.current) return false;
       setBook(next);
       setPending(null);
