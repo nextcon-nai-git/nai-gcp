@@ -5,23 +5,17 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  Building2,
   User,
   ShieldCheck,
-  Calendar as CalendarIcon,
   FileText,
   Download,
   Lock,
   Coffee,
   LogIn,
   LogOut,
-  Search,
-  Sparkles,
-  MapPin,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -32,17 +26,15 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import {
-  collection,
-  query,
-  orderBy,
-  where,
-  doc,
-  setDoc,
-  serverTimestamp,
-} from "firebase/firestore";
+import { collection, query, where, doc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { useSgi } from "@/contexts/sgi-context";
 import { cn } from "@/lib/utils";
+import {
+  eligibleCltEmployee,
+  employeeCollectionPath,
+  brasiliaDay,
+  type TimeClockEmployee,
+} from "@/lib/time-tracking";
 
 interface ClockPunch {
   id: string;
@@ -50,20 +42,40 @@ interface ClockPunch {
   time: string;
   date: string;
   timestamp: string;
-  hash: string;
+  hash?: string;
+  reference?: string;
   ipLocation?: string;
 }
 
 export default function TimeTrackingCLTPage() {
-  const { toast } = useToast();
-  const db = useFirestore();
   const { user } = useUser();
   const { activeClientId, isGlobalStaff } = useSgi();
+  const employeePath = employeeCollectionPath(activeClientId, isGlobalStaff);
+  if (!user || !employeePath)
+    return <p role="alert">Selecione uma empresa autorizada para consultar o ponto.</p>;
+  return (
+    <TimeTrackingSession
+      key={`${user.uid}:${employeePath}`}
+      employeePath={employeePath}
+      userId={user.uid}
+    />
+  );
+}
+
+function TimeTrackingSession({ employeePath, userId }: { employeePath: string; userId: string }) {
+  const { toast } = useToast();
+  const db = useFirestore();
+  const mounted = React.useRef(true);
+  const submitting = React.useRef(false);
+  React.useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const [currentTime, setCurrentTime] = React.useState<Date | null>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string>("");
-  const [searchTerm, setSearchTerm] = React.useState<string>("");
-  const [punchesToday, setPunchesToday] = React.useState<ClockPunch[]>([]);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Live Digital Clock
@@ -75,44 +87,57 @@ export default function TimeTrackingCLTPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Query apenas colaboradores cadastrados como CLT
-  const employeesQuery = useMemoFirebase(() => {
-    if (!db || activeClientId === "unauthorized") return null;
-    if (activeClientId === "all") {
-      if (!isGlobalStaff) return null;
-      return query(collection(db, "companies", "piloto_empresa_demo", "employees"));
-    }
-    return query(collection(db, "companies", activeClientId, "employees"));
-  }, [db, activeClientId, isGlobalStaff]);
-
-  const { data: allEmployees, isLoading: loadingEmployees } = useCollection(employeesQuery);
-
-  // FILTRAR ESTRITAMENTE APENAS COLABORADORES CLT
-  const cltEmployees = React.useMemo(() => {
-    if (!allEmployees) return [];
-    return allEmployees.filter((emp) => {
-      const type = (emp.contractType || emp.regime || emp.type || "CLT").toUpperCase();
-      // Se não especificado explicitamente como PJ/Estágio, tratar como CLT por padrão de folha
-      return (
-        type === "CLT" ||
-        (!type.includes("PJ") && !type.includes("ESTAGIO") && !type.includes("TERCEIRO"))
-      );
-    });
-  }, [allEmployees]);
-
-  const selectedEmployee = React.useMemo(() => {
-    return cltEmployees.find((e) => e.id === selectedEmployeeId) || cltEmployees[0] || null;
-  }, [cltEmployees, selectedEmployeeId]);
-
-  React.useEffect(() => {
-    if (selectedEmployee && !selectedEmployeeId) {
-      setSelectedEmployeeId(selectedEmployee.id);
-    }
-  }, [selectedEmployee, selectedEmployeeId]);
+  const employeesQuery = useMemoFirebase(
+    () => (db ? collection(db, employeePath) : null),
+    [db, employeePath]
+  );
+  const {
+    data: allEmployees,
+    isLoading: loadingEmployees,
+    error: employeesError,
+  } = useCollection<TimeClockEmployee>(employeesQuery);
+  const cltEmployees = React.useMemo(
+    () =>
+      (allEmployees || [])
+        .filter(eligibleCltEmployee)
+        .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+    [allEmployees]
+  );
+  // A seleção é explícita: mudar de empresa ou perder o vínculo não escolhe outra pessoa.
+  const selectedEmployee =
+    cltEmployees.find((employee) => employee.id === selectedEmployeeId) || null;
+  const day = currentTime ? brasiliaDay(currentTime) : "";
+  const punchesQuery = useMemoFirebase(
+    () =>
+      db && selectedEmployee && day
+        ? query(
+            collection(db, employeePath, selectedEmployee.id, "time_clock_entries"),
+            where("date", "==", day)
+          )
+        : null,
+    [db, employeePath, selectedEmployee?.id, day]
+  );
+  const {
+    data: savedPunches,
+    isLoading: loadingPunches,
+    error: punchesError,
+  } = useCollection<ClockPunch>(punchesQuery);
+  const punchesToday = React.useMemo(
+    () => [...(savedPunches || [])].sort((a, b) => a.timestamp.localeCompare(b.timestamp)),
+    [savedPunches]
+  );
+  const canPunch =
+    !!db &&
+    !!selectedEmployee &&
+    !loadingEmployees &&
+    !loadingPunches &&
+    !employeesError &&
+    !punchesError &&
+    !isSubmitting;
 
   // Handle Punch Registration
   const handlePunch = async (type: "entrada" | "almoco_saida" | "almoco_retorno" | "saida") => {
-    if (!selectedEmployee) {
+    if (!canPunch || !selectedEmployee || !db || submitting.current) {
       toast({
         variant: "destructive",
         title: "Seleção Obrigatória",
@@ -121,56 +146,47 @@ export default function TimeTrackingCLTPage() {
       return;
     }
 
+    submitting.current = true;
     setIsSubmitting(true);
     const now = new Date();
     const timeStr = now.toLocaleTimeString("pt-BR", {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
+      timeZone: "America/Sao_Paulo",
     });
-    const dateStr = now.toISOString().split("T")[0];
-    const hash =
-      Math.random().toString(36).substring(2, 10).toUpperCase() +
-      Date.now().toString(36).toUpperCase();
-
+    const dateStr = brasiliaDay(now);
     const newPunch: ClockPunch = {
-      id: Date.now().toString(),
+      id: `${dateStr}_${type}`,
       type,
       time: timeStr,
       date: dateStr,
       timestamp: now.toISOString(),
-      hash: `SHA256-${hash}`,
-      ipLocation: "Curitiba, PR - GPS Auditado",
+      reference: crypto.randomUUID(),
     };
 
     try {
-      if (db && selectedEmployee.companyId) {
-        const punchRef = doc(
-          db,
-          "companies",
-          selectedEmployee.companyId,
-          "employees",
-          selectedEmployee.id,
-          "time_clock_entries",
-          `${dateStr}_${type}`
-        );
-
-        await setDoc(
-          punchRef,
-          {
-            ...newPunch,
-            employeeId: selectedEmployee.id,
-            employeeName: selectedEmployee.name,
-            employeeCpf: selectedEmployee.cpf,
-            contractType: "CLT",
-            compliancePortaria671: true,
-            createdAt: serverTimestamp(),
-          },
-          { merge: true }
-        );
-      }
-
-      setPunchesToday((prev) => [...prev.filter((p) => p.type !== type), newPunch]);
+      const punchRef = doc(
+        db,
+        employeePath,
+        selectedEmployee.id,
+        "time_clock_entries",
+        newPunch.id
+      );
+      await runTransaction(db, async (transaction) => {
+        const existing = await transaction.get(punchRef);
+        if (existing.exists()) throw new Error("Batida já registrada.");
+        transaction.set(punchRef, {
+          ...newPunch,
+          employeeId: selectedEmployee.id,
+          employeeName: selectedEmployee.name,
+          employeeCpf: selectedEmployee.cpf || "",
+          contractType: "CLT",
+          createdBy: userId,
+          createdAt: serverTimestamp(),
+        });
+      });
+      if (!mounted.current) return;
 
       const typeLabels = {
         entrada: "Entrada Registrada 🌅",
@@ -181,16 +197,19 @@ export default function TimeTrackingCLTPage() {
 
       toast({
         title: typeLabels[type],
-        description: `Ponto registrado às ${timeStr} para ${selectedEmployee.name}. Hash Portaria 671: ${newPunch.hash}`,
+        description: `Ponto registrado às ${timeStr} para ${selectedEmployee.name}. Referência: ${newPunch.reference}`,
       });
-    } catch (e) {
+    } catch {
+      if (!mounted.current) return;
       toast({
         variant: "destructive",
         title: "Erro ao registrar ponto",
-        description: "Ocorreu um erro ao gravar o registro de ponto eletrônico.",
+        description:
+          "A batida não foi gravada. Confira a conexão, as permissões e se esse registro já existe.",
       });
     } finally {
-      setIsSubmitting(false);
+      submitting.current = false;
+      if (mounted.current) setIsSubmitting(false);
     }
   };
 
@@ -205,16 +224,15 @@ export default function TimeTrackingCLTPage() {
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 font-black uppercase text-[9px] tracking-widest px-3 py-1">
-              <Lock className="size-3 mr-1 text-emerald-600" /> Apenas Regime CLT (Portaria MTP nº
-              671/2021)
+              <Lock className="size-3 mr-1 text-emerald-600" /> Colaboradores CLT ativos
             </Badge>
           </div>
           <h1 className="text-3xl font-headline font-black text-primary tracking-tight uppercase">
             Registro de Ponto Eletrônico CLT
           </h1>
           <p className="text-slate-500 font-medium text-xs flex items-center gap-2">
-            <ShieldCheck className="size-4 text-emerald-600" /> SistemaREP-P Auditado com Hash de
-            Segurança e Registro de Frequência eSocial.
+            <ShieldCheck className="size-4 text-emerald-600" /> Registro interno de frequência por
+            colaborador.
           </p>
         </div>
 
@@ -222,14 +240,17 @@ export default function TimeTrackingCLTPage() {
           <Clock className="size-8 text-accent animate-pulse" />
           <div>
             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-              Horário Oficial de Brasília
+              Horário de Brasília
             </p>
             <p className="text-2xl font-black font-mono tracking-wider text-white">
-              {currentTime ? currentTime.toLocaleTimeString("pt-BR") : "--:--:--"}
+              {currentTime
+                ? currentTime.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" })
+                : "--:--:--"}
             </p>
             <p className="text-[10px] text-slate-400 font-medium">
               {currentTime
                 ? currentTime.toLocaleDateString("pt-BR", {
+                    timeZone: "America/Sao_Paulo",
                     weekday: "long",
                     day: "2-digit",
                     month: "long",
@@ -251,8 +272,9 @@ export default function TimeTrackingCLTPage() {
                 <User className="size-5 text-accent" /> Seleção do Colaborador CLT
               </CardTitle>
               <CardDescription className="text-xs text-slate-300">
-                Apenas vidas com contrato registrado sob Regime CLT estão habilitadas para ponto
-                eletrônico.
+                {employeePath === "nxc_employees"
+                  ? "Equipe interna NXC: colaboradores ativos com contrato CLT."
+                  : "Colaboradores CLT ativos da empresa selecionada."}
               </CardDescription>
             </CardHeader>
             <CardContent className="p-6 space-y-4">
@@ -260,13 +282,21 @@ export default function TimeTrackingCLTPage() {
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                   Colaborador CLT Habilitado
                 </label>
-                {loadingEmployees ? (
+                {employeesError ? (
+                  <p role="alert" className="text-sm text-red-700">
+                    Não foi possível consultar os colaboradores. Recarregue a página para tentar
+                    novamente.
+                  </p>
+                ) : loadingEmployees ? (
                   <div className="p-4 bg-slate-50 rounded-xl text-xs text-slate-400 font-medium">
-                    Carregando quadro de vidas CLT...
+                    Carregando colaboradores CLT...
                   </div>
                 ) : cltEmployees.length > 0 ? (
                   <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                    <SelectTrigger className="h-14 bg-slate-50 border-slate-200 rounded-2xl text-sm font-bold text-slate-900">
+                    <SelectTrigger
+                      aria-label="Colaborador CLT habilitado"
+                      className="h-14 bg-slate-50 border-slate-200 rounded-2xl text-sm font-bold text-slate-900"
+                    >
                       <SelectValue placeholder="Selecione o colaborador..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -275,7 +305,11 @@ export default function TimeTrackingCLTPage() {
                           <span className="font-bold text-slate-900">{emp.name}</span>
                           <span className="text-xs text-slate-400 ml-2">
                             ({emp.cpf || "CPF Indefinido"}) •{" "}
-                            {emp.jobRole || emp.job_role?.title || "CLT"}
+                            {emp.role ||
+                              emp.jobTitle ||
+                              emp.jobRole ||
+                              emp.job_role?.title ||
+                              "CLT"}
                           </span>
                         </SelectItem>
                       ))}
@@ -284,7 +318,10 @@ export default function TimeTrackingCLTPage() {
                 ) : (
                   <div className="p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl text-xs font-bold flex items-center gap-2">
                     <AlertCircle className="size-5 text-amber-600 shrink-0" /> NENHUM COLABORADOR
-                    CLT ENCONTRADO. Cadastre colaboradores CLT no Quadro de Vidas.
+                    CLT ATIVO ENCONTRADO.{" "}
+                    {employeePath === "nxc_employees"
+                      ? "Confira o cadastro em Colaboradores NXC."
+                      : "Confira o Quadro de Vidas da empresa selecionada."}
                   </div>
                 )}
               </div>
@@ -296,12 +333,17 @@ export default function TimeTrackingCLTPage() {
                       {selectedEmployee.name}
                     </p>
                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                      Cargo: {selectedEmployee.jobRole || selectedEmployee.job_role?.title || "CLT"}{" "}
-                      • CPF: {selectedEmployee.cpf}
+                      Cargo:{" "}
+                      {selectedEmployee.role ||
+                        selectedEmployee.jobTitle ||
+                        selectedEmployee.jobRole ||
+                        selectedEmployee.job_role?.title ||
+                        "CLT"}{" "}
+                      • CPF: {selectedEmployee.cpf || "Não informado"}
                     </p>
                   </div>
                   <Badge className="bg-emerald-600 text-white font-black text-[9px] uppercase px-3 py-1">
-                    Regime CLT Válido
+                    Cadastro CLT ativo
                   </Badge>
                 </div>
               )}
@@ -319,7 +361,7 @@ export default function TimeTrackingCLTPage() {
               {/* ENTRADA */}
               <button
                 onClick={() => handlePunch("entrada")}
-                disabled={isSubmitting || !selectedEmployee}
+                disabled={!canPunch || !!getPunchStatus("entrada")}
                 className={cn(
                   "p-5 rounded-2xl border transition-all flex flex-col justify-between h-32 text-left cursor-pointer group hover:scale-[1.02]",
                   getPunchStatus("entrada")
@@ -341,7 +383,7 @@ export default function TimeTrackingCLTPage() {
                   </p>
                   <p className="text-[9px] font-bold uppercase text-slate-400 mt-1">
                     {getPunchStatus("entrada")
-                      ? `Registrado • ${getPunchStatus("entrada")?.hash}`
+                      ? `Registrado • ${getPunchStatus("entrada")?.reference || getPunchStatus("entrada")?.hash || "Salvo"}`
                       : "Clique para registrar entrada"}
                   </p>
                 </div>
@@ -350,7 +392,7 @@ export default function TimeTrackingCLTPage() {
               {/* SAÍDA ALMOÇO */}
               <button
                 onClick={() => handlePunch("almoco_saida")}
-                disabled={isSubmitting || !selectedEmployee}
+                disabled={!canPunch || !!getPunchStatus("almoco_saida")}
                 className={cn(
                   "p-5 rounded-2xl border transition-all flex flex-col justify-between h-32 text-left cursor-pointer group hover:scale-[1.02]",
                   getPunchStatus("almoco_saida")
@@ -372,7 +414,7 @@ export default function TimeTrackingCLTPage() {
                   </p>
                   <p className="text-[9px] font-bold uppercase text-slate-400 mt-1">
                     {getPunchStatus("almoco_saida")
-                      ? `Registrado • ${getPunchStatus("almoco_saida")?.hash}`
+                      ? `Registrado • ${getPunchStatus("almoco_saida")?.reference || getPunchStatus("almoco_saida")?.hash || "Salvo"}`
                       : "Clique para registrar saída almoço"}
                   </p>
                 </div>
@@ -381,7 +423,7 @@ export default function TimeTrackingCLTPage() {
               {/* RETORNO ALMOÇO */}
               <button
                 onClick={() => handlePunch("almoco_retorno")}
-                disabled={isSubmitting || !selectedEmployee}
+                disabled={!canPunch || !!getPunchStatus("almoco_retorno")}
                 className={cn(
                   "p-5 rounded-2xl border transition-all flex flex-col justify-between h-32 text-left cursor-pointer group hover:scale-[1.02]",
                   getPunchStatus("almoco_retorno")
@@ -403,7 +445,7 @@ export default function TimeTrackingCLTPage() {
                   </p>
                   <p className="text-[9px] font-bold uppercase text-slate-400 mt-1">
                     {getPunchStatus("almoco_retorno")
-                      ? `Registrado • ${getPunchStatus("almoco_retorno")?.hash}`
+                      ? `Registrado • ${getPunchStatus("almoco_retorno")?.reference || getPunchStatus("almoco_retorno")?.hash || "Salvo"}`
                       : "Clique para registrar retorno"}
                   </p>
                 </div>
@@ -412,7 +454,7 @@ export default function TimeTrackingCLTPage() {
               {/* SAÍDA EXPEDIENTE */}
               <button
                 onClick={() => handlePunch("saida")}
-                disabled={isSubmitting || !selectedEmployee}
+                disabled={!canPunch || !!getPunchStatus("saida")}
                 className={cn(
                   "p-5 rounded-2xl border transition-all flex flex-col justify-between h-32 text-left cursor-pointer group hover:scale-[1.02]",
                   getPunchStatus("saida")
@@ -432,7 +474,7 @@ export default function TimeTrackingCLTPage() {
                   </p>
                   <p className="text-[9px] font-bold uppercase text-slate-400 mt-1">
                     {getPunchStatus("saida")
-                      ? `Registrado • ${getPunchStatus("saida")?.hash}`
+                      ? `Registrado • ${getPunchStatus("saida")?.reference || getPunchStatus("saida")?.hash || "Salvo"}`
                       : "Clique para registrar encerramento"}
                   </p>
                 </div>
@@ -450,28 +492,26 @@ export default function TimeTrackingCLTPage() {
                   <FileText className="size-5 text-accent" /> Espelho de Ponto Eletrônico
                 </CardTitle>
                 <Badge className="bg-white/20 text-white font-mono text-[9px]">
-                  CLT Portaria 671
+                  Registros do dia
                 </Badge>
               </div>
               <CardDescription className="text-xs text-slate-300">
-                Demonstrativo diário de frequência e horas trabalhadas.
+                Batidas salvas no cadastro do colaborador selecionado.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-6 space-y-5">
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
                 <div className="flex justify-between items-center text-xs font-bold text-slate-700">
                   <span>Horas Previstas (Expediente CLT):</span>
-                  <span className="font-mono text-slate-900">08:00 hs</span>
+                  <span className="font-mono text-slate-900">Conferir jornada cadastrada</span>
                 </div>
                 <div className="flex justify-between items-center text-xs font-bold text-slate-700">
                   <span>Horas Registradas Hoje:</span>
-                  <span className="font-mono text-emerald-700">
-                    {punchesToday.length >= 2 ? "08:00 hs (Regular)" : "00:00 hs"}
-                  </span>
+                  <span className="font-mono text-emerald-700">A apurar</span>
                 </div>
                 <div className="flex justify-between items-center text-xs font-bold text-slate-700">
                   <span>Saldo de Banco de Horas:</span>
-                  <span className="font-mono text-sky-700">+00:00 hs</span>
+                  <span className="font-mono text-sky-700">A apurar</span>
                 </div>
               </div>
 
@@ -480,7 +520,13 @@ export default function TimeTrackingCLTPage() {
                   Comprovantes Digitais Registrados Hoje:
                 </h4>
 
-                {punchesToday.length > 0 ? (
+                {punchesError ? (
+                  <p role="alert">
+                    Não foi possível consultar as batidas salvas. Recarregue a página.
+                  </p>
+                ) : loadingPunches ? (
+                  <p>Carregando batidas salvas...</p>
+                ) : punchesToday.length > 0 ? (
                   <div className="space-y-2">
                     {punchesToday.map((p) => (
                       <div
@@ -491,7 +537,9 @@ export default function TimeTrackingCLTPage() {
                           <p className="font-bold text-slate-900 uppercase">
                             {p.type.replace("_", " ")}
                           </p>
-                          <p className="text-[9px] text-slate-400 font-mono">{p.hash}</p>
+                          <p className="text-[9px] text-slate-400 font-mono">
+                            {p.reference || p.hash}
+                          </p>
                         </div>
                         <span className="font-mono font-black text-primary text-sm">{p.time}</span>
                       </div>
@@ -499,7 +547,9 @@ export default function TimeTrackingCLTPage() {
                   </div>
                 ) : (
                   <div className="p-4 bg-slate-50 rounded-xl text-xs text-slate-400 font-medium text-center italic">
-                    Nenhuma batida de ponto efetuada hoje para o colaborador selecionado.
+                    {selectedEmployee
+                      ? "Nenhuma batida de ponto registrada hoje para o colaborador selecionado."
+                      : "Selecione um colaborador para consultar o ponto."}
                   </div>
                 )}
               </div>
