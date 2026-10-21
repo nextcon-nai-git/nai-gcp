@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Camera, ShieldCheck, MessageSquare, Menu } from "lucide-react";
+import { Home, Camera, ShieldCheck, Menu } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
@@ -35,12 +35,6 @@ export function MobileBottomNav() {
       href: "/esocial/audit",
       icon: ShieldCheck,
       isActive: pathname.startsWith("/esocial"),
-    },
-    {
-      title: "WhatsApp",
-      href: "/whatsapp-hub",
-      icon: MessageSquare,
-      isActive: pathname.startsWith("/whatsapp"),
     },
   ];
 

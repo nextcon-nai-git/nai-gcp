@@ -15,7 +15,6 @@ import {
   TrendingDown,
   ArrowRight,
   Command,
-  Bot,
   Upload,
   Clock,
   Zap,
@@ -205,15 +204,6 @@ export function GlobalCommandPalette({
       category: "modules",
       icon: MapPin,
       href: "/providers",
-    },
-    {
-      id: "mod-whatsapp",
-      title: "WhatsApp Bot de Atendimento",
-      subtitle: "Canal inteligente para colaboradores e agendamentos",
-      category: "modules",
-      icon: Bot,
-      href: "/whatsapp-hub",
-      badge: "Bot",
     },
     {
       id: "mod-cassi",

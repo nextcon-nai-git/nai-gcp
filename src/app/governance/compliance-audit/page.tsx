@@ -55,7 +55,7 @@ export default function ComplianceAuditPage() {
       try {
         parsed = JSON.parse(inputPayload);
       } catch (e) {
-        throw new Error("O payload deve ser um JSON válido vindo do Data Lab.");
+        throw new Error("Informe um JSON válido com os achados da inspeção.");
       }
 
       const audit = await runComplianceAudit(
@@ -105,7 +105,7 @@ export default function ComplianceAuditPage() {
                 Payload de Entrada
               </CardTitle>
               <CardDescription className="text-[9px] font-bold uppercase">
-                Cole o JSON do Data Lab aqui.
+                Cole os achados da inspeção em formato JSON.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-8 space-y-6">
