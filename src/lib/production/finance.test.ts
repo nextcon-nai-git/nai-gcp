@@ -1,15 +1,29 @@
 import { describe, it, expect } from "vitest";
+import { ContractCommercialTermsSchema } from "@/lib/financial/contract-flow";
 import { emptyFinanceBook } from "@/lib/financial/operations";
 import { checkCycleFinance, receiptIndex } from "./finance";
 
 function fixture() {
   const book = emptyFinanceBook();
+  book.accounts.push({ id: "account1", name: "Conta sintética" });
+  book.contracts.push({
+    id: "f1",
+    name: "Contrato sintético",
+    client: "Cliente sintético",
+    center: "SST",
+    monthlyCents: 10000,
+    dueDay: 10,
+    active: true,
+    commercialTerms: ContractCommercialTermsSchema.parse({}),
+  });
+  book.contractFlows.push({ contractId: "f1", customerDocument: "11.222.333/0001-81" } as never);
   book.titles.push({
     id: "t1",
     contractId: "f1",
     kind: "receivable",
     status: "approved",
     amountCents: 10000,
+    competence: "2026-10",
   } as never);
   book.settlements.push({
     id: "s1",
@@ -36,9 +50,10 @@ function fixture() {
   });
   return book;
 }
-const record = { financeContractId: "f1" };
+const record = { financeContractId: "f1", cnpj: "11222333000181" };
 const cycle = {
   id: "c1",
+  period: "2026-10",
   financeTitleId: "t1",
   invoicedCents: 10000,
   receivedCents: 9000,
@@ -122,13 +137,51 @@ describe("contract receipt reconciliation", () => {
       expect(checkCycleFinance(record, cycle, book).status).toBe("divergent");
     }
   );
+  it.each(["inactive", "missing contract", "missing flow", "other customer"])(
+    "detects ERP contract changes after linking: %s",
+    (scenario) => {
+      const book = fixture();
+      if (scenario === "inactive") book.contracts[0].active = false;
+      if (scenario === "missing contract") book.contracts = [];
+      if (scenario === "missing flow") book.contractFlows = [];
+      if (scenario === "other customer") book.contractFlows[0].customerDocument = "44337647000189";
+      expect(checkCycleFinance(record, cycle, book)).toMatchObject({
+        status: "divergent",
+        receipts: null,
+        outstandingCents: null,
+      });
+    }
+  );
+  it("rejects a fully settled title from a different monthly competence", () => {
+    const book = fixture();
+    book.titles[0].competence = "2026-09";
+    expect(checkCycleFinance(record, cycle, book)).toMatchObject({
+      status: "divergent",
+      receipts: null,
+      outstandingCents: null,
+    });
+    expect(checkCycleFinance(record, { ...cycle, period: "09/2026" }, book).status).toBe(
+      "reconciled"
+    );
+  });
+  it("does not infer a monthly competence from a daily or free-form cycle period", () => {
+    const book = fixture();
+    expect(checkCycleFinance(record, { ...cycle, period: "Inicial" }, book).status).toBe(
+      "reconciled"
+    );
+    expect(checkCycleFinance(record, { ...cycle, period: "2026-09-20" }, book).status).toBe(
+      "reconciled"
+    );
+  });
   it("never labels an unlinked manual cycle as ERP-reconciled", () => {
     expect(checkCycleFinance(record, { ...cycle, financeTitleId: "" }, fixture())).toMatchObject({
       status: "unlinked",
       receipts: null,
       outstandingCents: null,
     });
-    expect(checkCycleFinance({ financeContractId: "" }, cycle, fixture()).status).toBe("divergent");
+    expect(checkCycleFinance({ ...record, financeContractId: "" }, cycle, fixture()).status).toBe(
+      "divergent"
+    );
   });
   it("detects an invoice value mismatch and over-settled legacy title", () => {
     expect(

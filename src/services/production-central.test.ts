@@ -258,6 +258,18 @@ describe("private central persistence", () => {
       JSON.stringify(b)
     );
     const finance = emptyFinanceBook();
+    finance.accounts.push({ id: "account1", name: "Conta sintética" });
+    finance.contracts.push({
+      id: "fin1",
+      name: "Contrato sintético",
+      client: "Cliente sintético",
+      center: "SST",
+      monthlyCents: 10000,
+      dueDay: 10,
+      active: true,
+      commercialTerms: ContractCommercialTermsSchema.parse({}),
+    });
+    finance.contractFlows.push({ contractId: "fin1", customerDocument: "11222333000181" } as never);
     finance.titles.push({
       id: "title1",
       contractId: "fin1",
@@ -306,6 +318,13 @@ describe("private central persistence", () => {
       settlementIds: ["s1"],
       transferPeer: null,
     });
+    finance.contracts[0].active = false;
+    await expect(saveProductionCommand(admin, close)).rejects.toThrow("contrato financeiro ativo");
+    finance.contracts[0].active = true;
+    finance.contractFlows[0].customerDocument = "44337647000189";
+    await expect(saveProductionCommand(admin, close)).rejects.toThrow("CNPJ correspondente");
+    finance.contractFlows[0].customerDocument = "11222333000181";
+    expect(state.writes).toBe(1);
     const closed = await saveProductionCommand(admin, close);
     expect(closed.records[0].cycles[0].cards[5].status).toBe("done");
     expect(closed.records[0].cycles[0].receivedCents).toBe(9000);
@@ -408,6 +427,7 @@ describe("private central persistence", () => {
     };
     await expect(saveProductionCommand(admin, link)).rejects.toMatchObject({ status: 400 });
     const finance = emptyFinanceBook();
+    finance.accounts.push({ id: "account1", name: "Conta sintética" });
     finance.contracts.push({
       id: "fin1",
       name: "Contrato",
@@ -424,6 +444,67 @@ describe("private central persistence", () => {
     expect(linked.records[0].financeContractId).toBe("fin1");
     expect(state.writes).toBe(2);
   });
+  it("checks billing against the stored cycle competence before persisting a title link", async () => {
+    const book = await saveProductionCommand(admin, command());
+    const record = book.records[0];
+    record.financeContractId = "fin1";
+    const cycle = record.cycles[0];
+    cycle.period = "2026-10";
+    state.files.get("financial-operations/v1/production-central.json")!.bytes = Buffer.from(
+      JSON.stringify(book)
+    );
+    const finance = emptyFinanceBook();
+    finance.contracts.push({
+      id: "fin1",
+      name: "Contrato sintético",
+      client: "Cliente sintético",
+      center: "SST",
+      monthlyCents: 10000,
+      dueDay: 10,
+      active: true,
+      commercialTerms: ContractCommercialTermsSchema.parse({}),
+    });
+    finance.contractFlows.push({ contractId: "fin1", customerDocument: "11222333000181" } as never);
+    finance.titles.push({
+      id: "title1",
+      contractId: "fin1",
+      kind: "receivable",
+      status: "approved",
+      amountCents: 10000,
+      competence: "2026-09",
+    } as never);
+    state.finance.mockResolvedValue(finance);
+    const billing = {
+      action: "billing",
+      recordId: record.id,
+      cycleId: cycle.id,
+      requestId: randomUUID(),
+      expectedVersion: book.version,
+      data: {
+        measuredCents: 10000,
+        invoicedCents: 10000,
+        receivedCents: 0,
+        adjustmentCents: 0,
+        measurementEvidence: "Medição aprovada",
+        invoiceReference: "NF teste",
+        invoiceEvidence: "Evidência fiscal",
+        receiptEvidence: "",
+        adjustmentEvidence: "",
+        financeTitleId: "title1",
+      },
+      reason: "Conferência sintética de competência",
+    };
+    await expect(saveProductionCommand(admin, billing)).rejects.toThrow("competência");
+    expect(state.writes).toBe(1);
+    finance.titles[0].competence = "2026-10";
+    const saved = await saveProductionCommand(admin, billing);
+    expect(saved.records[0].cycles[0]).toMatchObject({
+      period: "2026-10",
+      financeTitleId: "title1",
+    });
+    expect(state.writes).toBe(2);
+  });
+
   it("rejects ERP receipt mismatch and revalidates ERP at cycle closure", async () => {
     const b = await saveProductionCommand(admin, command());
     const stored = state.files.get("financial-operations/v1/production-central.json")!;
@@ -441,6 +522,18 @@ describe("private central persistence", () => {
     });
     stored.bytes = Buffer.from(JSON.stringify(b));
     const finance = emptyFinanceBook();
+    finance.accounts.push({ id: "account1", name: "Conta sintética" });
+    finance.contracts.push({
+      id: "fin1",
+      name: "Contrato sintético",
+      client: "Cliente sintético",
+      center: "SST",
+      monthlyCents: 10000,
+      dueDay: 10,
+      active: true,
+      commercialTerms: ContractCommercialTermsSchema.parse({}),
+    });
+    finance.contractFlows.push({ contractId: "fin1", customerDocument: "11222333000181" } as never);
     finance.titles.push({
       id: "title1",
       contractId: "fin1",

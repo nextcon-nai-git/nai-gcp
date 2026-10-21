@@ -174,9 +174,14 @@ export async function saveProductionCommand(user: AuthContext, payload: unknown)
     if (record.cycles.some((c) => c.financeTitleId))
       throw badRequest("Há títulos vinculados; preserve a associação financeira existente.");
   }
+  const billedCycle = record?.cycles.find(
+    (cycle) => cycle.id === ("cycleId" in command ? command.cycleId : "")
+  );
   const checkCycles =
     command.action === "billing"
-      ? [{ ...command.data, id: command.cycleId }]
+      ? billedCycle
+        ? [{ ...billedCycle, ...command.data }]
+        : []
       : command.action === "card" &&
           command.card.status === "done" &&
           ["invoice", "receive"].includes(command.card.id)

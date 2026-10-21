@@ -33,6 +33,39 @@ describe("SPED balance extraction", () => {
     expect(balanceMoney("R$ 0,01")).toBe(1);
     expect(() => balanceMoney("R$ (1,00")).toThrow();
   });
+  it.each([
+    ["R$ 1.234,56", 123456],
+    ["R$ 1234,56", 123456],
+    ["R$ (1.234.567,89)", -123456789],
+    ["R$ 000,01", 1],
+  ])("preserves supported SPED monetary notation: %s", (value, expected) => {
+    expect(balanceMoney(value)).toBe(expected);
+  });
+  it.each([
+    "R$ .,00",
+    "R$ 1.2,34",
+    "R$ 1..234,56",
+    "R$ .123,45",
+    "R$ 1234.567,89",
+    "R$ 1,2",
+    "R$ 1,234",
+    "R$ 1,00)",
+    "R$ (1,00",
+  ])("rejects malformed money instead of changing its value: %s", (value) => {
+    expect(() => balanceMoney(value)).toThrow("monetário inválido");
+  });
+  it("rejects a malformed account even when total assets and liabilities still match", () => {
+    const items = fixture();
+    for (const item of items) {
+      if (item.y === 641 && item.x >= 390) item.text = "R$ 1.2,34";
+    }
+    expect(() => parseBalancePages([items])).toThrow("monetário inválido");
+  });
+  it("still rejects currency outside the supported value columns", () => {
+    const items = fixture();
+    items.find((item) => item.x === 390 && item.y === 641)!.x = 200;
+    expect(() => parseBalancePages([items])).toThrow("Colunas");
+  });
   it("uses column positions, includes wrapped labels and distinguishes debt from total passivo", () => {
     const items = fixture();
     items.push({ text: "ACUMULADA", x: 40, y: 632 });

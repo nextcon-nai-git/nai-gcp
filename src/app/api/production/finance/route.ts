@@ -6,7 +6,12 @@ import { privateFailure, privateHeaders } from "@/lib/http/private-api";
 import { getProductionBook } from "@/services/production-central";
 import { getFinanceBook } from "@/services/financial-operations";
 import { normalizeCnpj } from "@/lib/cnpj";
-import { checkCycleFinance, receiptIndex, emptyReceipts } from "@/lib/production/finance";
+import {
+  checkCycleFinance,
+  receiptIndex,
+  emptyReceipts,
+  matchesFinanceContract,
+} from "@/lib/production/finance";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
@@ -26,14 +31,17 @@ export async function GET(req: NextRequest) {
         (c) =>
           c.active &&
           book.contractFlows.some(
-            (f) => f.contractId === c.id && normalizeCnpj(f.customerDocument) === record.cnpj
+            (f) =>
+              f.contractId === c.id &&
+              normalizeCnpj(f.customerDocument) === normalizeCnpj(record.cnpj)
           )
       )
       .map((c) => ({ id: c.id, name: c.name, client: c.client, monthlyCents: c.monthlyCents }));
+    const linkedContractMatches = matchesFinanceContract(record, book);
     const titles = book.titles
       .filter(
         (t) =>
-          record.financeContractId &&
+          linkedContractMatches &&
           t.contractId === record.financeContractId &&
           t.kind === "receivable" &&
           t.status === "approved"

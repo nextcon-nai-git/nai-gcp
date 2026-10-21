@@ -14,6 +14,7 @@ beforeEach(() => {
   });
   mock.finance.mockResolvedValue({
     version: 3,
+    accounts: [{ id: "bank1", name: "Conta sintética" }],
     bank: [],
     contracts: [
       { id: "f1", name: "Mesmo cliente", client: "Cliente A", active: true, monthlyCents: 10000 },
@@ -78,6 +79,18 @@ describe("ERP selectors", () => {
     ]);
     expect(r.headers.get("cache-control")).toBe("private, no-store");
   });
+  it.each(["inactive", "other customer", "missing flow"])(
+    "withholds stale linked titles after an ERP change: %s",
+    async (scenario) => {
+      const book = await mock.finance();
+      if (scenario === "inactive") book.contracts[0].active = false;
+      if (scenario === "other customer") book.contractFlows[0].customerDocument = "44337647000189";
+      if (scenario === "missing flow") book.contractFlows = [];
+      const response = await GET(req());
+      expect(response.status).toBe(200);
+      expect((await response.json()).titles).toEqual([]);
+    }
+  );
   it("denies tenant admins before reading either ledger", async () => {
     mock.auth.mockResolvedValue({ role: "ADMIN", tenantId: "client" });
     expect((await GET(req())).status).toBe(403);

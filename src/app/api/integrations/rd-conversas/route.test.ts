@@ -72,6 +72,52 @@ describe("Reviewed Tallos messages", () => {
     expect(state.send).not.toHaveBeenCalled();
     expect(state.draft?.status).toBe("REVIEW_REQUIRED");
   });
+  it("stops oversized streamed input before storing a draft or calling Tallos", async () => {
+    const cancel = vi.fn();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(12000));
+        controller.enqueue(new Uint8Array(12000));
+      },
+      cancel,
+    });
+    const response = await POST(
+      new NextRequest("https://nai.local/api/integrations/rd-conversas", {
+        method: "POST",
+        headers: { "content-type": "application/json", "content-length": "1" },
+        body: stream,
+      })
+    );
+    expect(response.status).toBe(413);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(state.draft).toBeNull();
+    expect(state.send).not.toHaveBeenCalled();
+  });
+
+  it("checks the body limit in UTF-8 bytes instead of characters", async () => {
+    const response = await POST(request({ action: "draft", message: "á".repeat(11000) }));
+    expect(response.status).toBe(413);
+    expect(state.draft).toBeNull();
+    expect(state.send).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["application/json", "{", 400],
+    ["text/plain", "{}", 415],
+  ])("rejects invalid input without writing: %s", async (contentType, body, status) => {
+    const response = await POST(
+      new NextRequest("https://nai.local/api/integrations/rd-conversas", {
+        method: "POST",
+        headers: { "content-type": contentType },
+        body,
+      })
+    );
+    expect(response.status).toBe(status);
+    expect(state.draft).toBeNull();
+    expect(state.send).not.toHaveBeenCalled();
+  });
+
   it("requires exact confirmation, ownership and an unused draft", async () => {
     state.draft = { createdBy: "other", status: "REVIEW_REQUIRED", expiresAt: Date.now() + 60000 };
     expect(
