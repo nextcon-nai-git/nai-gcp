@@ -121,6 +121,7 @@ export type PeriodicClinic = {
   origin: "provider-list" | "price-history" | "nai";
   id: string;
   name: string;
+  legalNames?: string[];
   cnpj: string;
   city: string;
   uf: string;
@@ -248,6 +249,7 @@ export function buildAvpPeriodicControl(
       existing.phones = [...new Set([...existing.phones, row[5], row[6]].filter(Boolean))];
       existing.emails = [...new Set([...existing.emails, row[7]].filter(Boolean))];
       existing.addresses = [...new Set([...existing.addresses, row[8]].filter(Boolean))];
+      existing.legalNames = [...new Set([...(existing.legalNames || []), row[1]].filter(Boolean))];
     } else {
       const registered =
         cnpj.length === 14
@@ -261,6 +263,7 @@ export function buildAvpPeriodicControl(
         origin: "provider-list",
         id: key,
         name: row[0],
+        legalNames: row[1] ? [row[1]] : [],
         cnpj: row[2],
         city: row[3],
         uf: row[4],
