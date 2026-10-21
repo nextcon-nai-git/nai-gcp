@@ -60,3 +60,15 @@ lint_errors.txt
 ts_errors.txt
 ts_errors_ascii.txt
 .modified
+
+# Google credentials and local Python environments (keep project JSON files tracked)
+/credentials/
+/secrets/
+*service-account*.json
+*service_account*.json
+*-firebase-adminsdk-*.json
+/credentials.json
+/token.json
+/.venv/
+__pycache__/
+*.pyc
