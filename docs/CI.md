@@ -50,11 +50,9 @@ integrações externas ou substitui homologação operacional.
 ## ESLint
 
 Regras adicionadas: `no-console` (warn; permite `warn`/`error`), `no-debugger` (error), `@typescript-eslint/no-explicit-any` (warn)
-e aviso para cadeias `.then()` (preferir async/await). Violações pré-existentes
-(`react/no-unescaped-entities`, `react-hooks/static-components`, `react-hooks/purity`,
-`react-hooks/set-state-in-effect`, `react-hooks/refs`, `react-hooks/immutability`,
-`react-hooks/preserve-manual-memoization`, `jsx-a11y/alt-text`, `no-require-imports`)
-foram rebaixadas para warning para permitir correção incremental.
+e aviso para cadeias `.then()` (preferir async/await). Violações pré-existentes (`react/no-unescaped-entities`,
+`react-hooks/static-components`, `react-hooks/purity`, `react-hooks/set-state-in-effect`, `jsx-a11y/alt-text`,
+`no-require-imports`) foram rebaixadas para warning para permitir correção incremental.
 A base do PR #99 apresentou 1.471 avisos e zero erros; a medição final da revisão
 está no relatório citado acima.
 `tsconfig.json` já usa `strict: true`.
