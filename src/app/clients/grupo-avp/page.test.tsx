@@ -19,6 +19,9 @@ vi.mock("@/components/clients/grupo-avp-credenciamento-hub", () => ({
 vi.mock("@/components/clients/avp-evidence-panel", () => ({
   AvpEvidencePanel: () => <div data-evidence="true" />,
 }));
+vi.mock("@/components/clients/avp-periodic-control", () => ({
+  AvpPeriodicControlPanel: () => <div data-periodic="true" />,
+}));
 vi.mock("@/components/ui/tabs", () => {
   const View = ({ children }: { children: ReactNode }) => <div>{children}</div>;
   return { Tabs: View, TabsContent: View, TabsList: View, TabsTrigger: View };
@@ -59,6 +62,7 @@ describe("hub AVP: evidências e conferência de entregas", () => {
     expect(host.querySelectorAll("[data-evidence]")).toHaveLength(0);
     expect(host.textContent).not.toContain("Pagamentos às clínicas");
     expect(host.textContent).not.toContain("ASOs recebidos");
+    expect(host.querySelectorAll("[data-periodic]")).toHaveLength(0);
   });
   it("exibe evidências para a operação interna da carteira AVP", async () => {
     session.role = "OPERATIONS";
