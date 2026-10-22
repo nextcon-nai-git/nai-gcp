@@ -201,6 +201,20 @@ function SchedulingSession() {
       if (!mounted.current) return;
       setRequests((prev) => [res.data!, ...prev.filter((r) => r.id !== res.data!.id)]);
       setSelectedRequest(res.data);
+      setFormData({
+        companyName: "",
+        cnpj: "",
+        employeeName: "",
+        cpf: "",
+        roleTitle: "",
+        department: "",
+        examType: "admissional",
+        declaredRisks: "",
+        userPrompt: "",
+        manualReview: false,
+        manualExamNames: "",
+      });
+      setAiAnalysisResult(null);
       setActiveTab("kanban");
       setNotice(
         `Solicitação de ASO ${res.data.id} registrada. Confira os dados e as sugestões antes de prosseguir.`
