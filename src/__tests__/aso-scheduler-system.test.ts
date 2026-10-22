@@ -194,6 +194,18 @@ describe("manual ASO intake", () => {
       alerts: [{ requiresHumanIntervention: true, status: "PENDING" }],
     });
     expect(result.data?.digitalKit).toBeUndefined();
+    for (const stage of [
+      "kit_montado",
+      "kit_enviado",
+      "clinica_confirmou",
+      "exame_realizado",
+      "aso_concluido",
+    ] as const) {
+      expect((await advancePipelineStepAction(result.data!.id, stage, "test-token")).success).toBe(
+        false
+      );
+    }
+    expect(records.get(result.data!.id).status).toBe("solicitado");
   });
   it("rejects missing manual examinations and unauthenticated writes", async () => {
     expect(
