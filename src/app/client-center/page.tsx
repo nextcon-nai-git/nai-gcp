@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -71,7 +71,9 @@ function Workspace({ companyId, token }: { companyId: string; token: () => Promi
   const inFlight = useRef(false);
   const pending = useRef<{ fingerprint: string; id: string } | null>(null);
   const currentToken = useRef(token);
-  currentToken.current = token;
+  useLayoutEffect(() => {
+    currentToken.current = token;
+  }, [token]);
   const controller = useRef<AbortController | null>(null);
   const mounted = useRef(true);
   const refresh = useCallback(async () => {

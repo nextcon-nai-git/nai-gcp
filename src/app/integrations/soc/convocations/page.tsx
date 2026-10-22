@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useUser } from "@/firebase";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,9 @@ export default function ConvocationsPage() {
   const { user, role, tenantId } = useUser();
   const canImport = !!user && (role === "SUPER_ADMIN" || (role === "ADMIN" && !tenantId));
   const identity = useRef(user?.uid);
-  identity.current = user?.uid;
+  useLayoutEffect(() => {
+    identity.current = user?.uid;
+  }, [user?.uid]);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");

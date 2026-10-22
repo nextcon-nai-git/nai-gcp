@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useEffect, useRef, useState } from "react";
 import { Building2, Clock3, FileClock, ListChecks, RefreshCw, Upload } from "lucide-react";
 import { useUser } from "@/firebase";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,9 @@ const categories = {
 export function SocDashboard() {
   const { user } = useUser();
   const identity = useRef(user?.uid);
-  identity.current = user?.uid;
+  useLayoutEffect(() => {
+    identity.current = user?.uid;
+  }, [user?.uid]);
   const [data, setData] = useState<SocDashboardResponse | null>(null);
   const [owner, setOwner] = useState<string | null>(null);
   const [draft, setDraft] = useState<SocDashboardSnapshot | null>(null);

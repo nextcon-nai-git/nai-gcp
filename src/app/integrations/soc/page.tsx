@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useUser } from "@/firebase";
 import { Button } from "@/components/ui/button";
@@ -78,7 +78,9 @@ function Session() {
     };
   }, []);
   const identity = useRef(user?.uid);
-  identity.current = user?.uid;
+  useLayoutEffect(() => {
+    identity.current = user?.uid;
+  }, [user?.uid]);
   const [config, setConfig] = useState<Configuration | null>(null);
   const [resource, setResource] = useState<Resource>("employees");
   const [companyId, setCompanyId] = useState("");
