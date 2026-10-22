@@ -138,6 +138,7 @@ export async function POST(request: NextRequest) {
           tx.create(ref.collection("events").doc(), { action: "revoked", uid: user.uid, at });
         }
         return json({
+          documentReceived: Boolean(record.signedDocument),
           state: record.state,
           revoked: body.action === "revoke" || record.revoked,
           expiresAt: record.expiresAt,

@@ -15,6 +15,7 @@ import type { ClinicalData, PortalRecord } from "@/lib/clinic-portal/schema";
 
 type View = Pick<PortalRecord, "identity" | "clinicName" | "state" | "version" | "expiresAt"> &
   Partial<Pick<PortalRecord, "clinical" | "doctorName" | "crm" | "uf" | "exams" | "risks">> & {
+    documentReceived?: boolean;
     role: "doctor" | "reception";
   };
 const blank: ClinicalData = {
@@ -145,6 +146,7 @@ export default function ClinicPortalPage() {
       const result = await response.json();
       if (current !== generation.current) return;
       if (!response.ok) throw new Error(result.error);
+      setView((current) => (current ? { ...current, documentReceived: true } : current));
       setMessage(result.message);
       setSignedFile(null);
       setSignedAttestation(false);
@@ -272,7 +274,10 @@ export default function ClinicPortalPage() {
                   <p>
                     {view.clinicName} · {view.identity.examType}
                   </p>
-                  <p>Situação: {states[view.state]}</p>
+                  <p>
+                    Situação:{" "}
+                    {view.documentReceived ? "ASO recebido para conferência" : states[view.state]}
+                  </p>
                   <p>Validade do acesso: {new Date(view.expiresAt).toLocaleDateString("pt-BR")}</p>
                   {view.state !== "awaiting_signature" && (
                     <button
@@ -284,71 +289,73 @@ export default function ClinicPortalPage() {
                     </button>
                   )}
                 </section>
-                {view.role === "doctor" && view.state === "awaiting_signature" && (
-                  <section className="rounded-xl border border-cyan-700 p-5 space-y-3">
-                    <h2 className="text-xl font-bold">Assinatura e devolução do ASO</h2>
-                    <p>
-                      Baixe a minuta, confira o PCMSO e as datas dos exames, complete os campos e
-                      assine com seu procedimento habitual. Envie somente o ASO, sem ficha clínica
-                      ou resultados detalhados.
-                    </p>
-                    <button
-                      disabled={busy}
-                      className="rounded border p-3"
-                      onClick={async () => {
-                        if (
-                          view.clinical &&
-                          view.exams &&
-                          view.risks &&
-                          view.doctorName &&
-                          view.crm &&
-                          view.uf
-                        ) {
-                          const { downloadAsoForSignature } =
-                            await import("@/lib/clinic-portal/aso-pdf");
-                          downloadAsoForSignature(
-                            {
-                              ...view,
-                              exams: view.exams,
-                              risks: view.risks,
-                              doctorName: view.doctorName,
-                              crm: view.crm,
-                              uf: view.uf,
-                            },
-                            view.clinical
-                          );
-                        }
-                      }}
-                    >
-                      Baixar ASO para completar e assinar
-                    </button>
-                    <label className="block">
-                      ASO assinado em PDF (até 5 MB)
-                      <input
+                {view.role === "doctor" &&
+                  view.state === "awaiting_signature" &&
+                  !view.documentReceived && (
+                    <section className="rounded-xl border border-cyan-700 p-5 space-y-3">
+                      <h2 className="text-xl font-bold">Assinatura e devolução do ASO</h2>
+                      <p>
+                        Baixe a minuta, confira o PCMSO e as datas dos exames, complete os campos e
+                        assine com seu procedimento habitual. Envie somente o ASO, sem ficha clínica
+                        ou resultados detalhados.
+                      </p>
+                      <button
                         disabled={busy}
-                        type="file"
-                        accept="application/pdf"
-                        className="block"
-                        onChange={(e) => setSignedFile(e.target.files?.[0] || null)}
-                      />
-                    </label>
-                    <label className="flex gap-2">
-                      <input
-                        type="checkbox"
-                        checked={signedAttestation}
-                        onChange={(e) => setSignedAttestation(e.target.checked)}
-                      />
-                      Conferi e assinei o ASO. O arquivo contém somente o ASO deste colaborador.
-                    </label>
-                    <button
-                      disabled={busy || !signedFile || !signedAttestation}
-                      className="rounded bg-cyan-600 p-3 disabled:opacity-50"
-                      onClick={() => void uploadSigned()}
-                    >
-                      Devolver ASO assinado
-                    </button>
-                  </section>
-                )}
+                        className="rounded border p-3"
+                        onClick={async () => {
+                          if (
+                            view.clinical &&
+                            view.exams &&
+                            view.risks &&
+                            view.doctorName &&
+                            view.crm &&
+                            view.uf
+                          ) {
+                            const { downloadAsoForSignature } =
+                              await import("@/lib/clinic-portal/aso-pdf");
+                            downloadAsoForSignature(
+                              {
+                                ...view,
+                                exams: view.exams,
+                                risks: view.risks,
+                                doctorName: view.doctorName,
+                                crm: view.crm,
+                                uf: view.uf,
+                              },
+                              view.clinical
+                            );
+                          }
+                        }}
+                      >
+                        Baixar ASO para completar e assinar
+                      </button>
+                      <label className="block">
+                        ASO assinado em PDF (até 5 MB)
+                        <input
+                          disabled={busy}
+                          type="file"
+                          accept="application/pdf"
+                          className="block"
+                          onChange={(e) => setSignedFile(e.target.files?.[0] || null)}
+                        />
+                      </label>
+                      <label className="flex gap-2">
+                        <input
+                          type="checkbox"
+                          checked={signedAttestation}
+                          onChange={(e) => setSignedAttestation(e.target.checked)}
+                        />
+                        Conferi e assinei o ASO. O arquivo contém somente o ASO deste colaborador.
+                      </label>
+                      <button
+                        disabled={busy || !signedFile || !signedAttestation}
+                        className="rounded bg-cyan-600 p-3 disabled:opacity-50"
+                        onClick={() => void uploadSigned()}
+                      >
+                        Devolver ASO assinado
+                      </button>
+                    </section>
+                  )}
                 {view.role === "reception" ? (
                   <p>
                     Recebimento e identificação disponíveis. A ficha clínica é exclusiva do médico

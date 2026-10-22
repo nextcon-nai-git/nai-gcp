@@ -60,6 +60,7 @@ export interface PortalGrant {
   uid?: string;
 }
 export interface PortalRecord {
+  signedDocument?: { path: string; sha256: string; uploadedAt: string; uploadedBy: string };
   ownerUid: string;
   sourcePath: string;
   requestId: string;
@@ -111,6 +112,7 @@ export function grantFor(
 /** Explicit allowlist: reception never receives risks, exams results, history or conclusions. */
 export function portalView(record: PortalRecord, role: "doctor" | "reception") {
   const basic = {
+    documentReceived: Boolean(record.signedDocument),
     identity: record.identity,
     clinicName: record.clinicName,
     expiresAt: record.expiresAt,

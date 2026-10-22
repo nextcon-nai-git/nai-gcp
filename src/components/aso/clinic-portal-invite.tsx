@@ -49,7 +49,7 @@ export function ClinicPortalInvite({
       if (result.id) setId(result.id);
       if (result.state)
         setStatus(
-          `${result.state}${result.revoked ? " · acesso revogado" : ""} · validade: ${new Date(result.expiresAt).toLocaleDateString("pt-BR")}`
+          `${result.documentReceived ? "ASO recebido para conferência" : ({ invited: "Convite criado", confirmed: "Recebimento confirmado", draft: "Em preenchimento", awaiting_signature: "Aguardando assinatura" } as Record<string, string>)[result.state] || result.state}${result.revoked ? " · acesso revogado" : ""} · validade: ${new Date(result.expiresAt).toLocaleDateString("pt-BR")}`
         );
       setMessage(
         action === "invite"
