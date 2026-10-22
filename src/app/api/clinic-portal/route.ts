@@ -36,16 +36,19 @@ export async function POST(request: NextRequest) {
     );
   try {
     const raw = await request.text();
-    if (raw.length > 100000) throw badRequest("Conteúdo muito grande.");
+    if (raw.length > 700000) throw badRequest("Conteúdo muito grande.");
     const body = z
       .object({
         action: z.enum(["invite", "status", "revoke", "read", "confirm", "save", "submit"]),
         id: portalId.optional(),
         payload: z.unknown().optional(),
         version: z.number().int().min(0).optional(),
+        reviewed: z.boolean().optional(),
       })
       .strict()
       .parse(JSON.parse(raw));
+    if (body.action === "submit" && body.reviewed !== true)
+      throw badRequest("Confirme a revisão médica antes de enviar para assinatura.");
     if (["invite", "status", "revoke"].includes(body.action)) {
       const user = await requireAuth(request);
       if (!["SUPER_ADMIN", "ADMIN", "OPERATIONS", "DOCTOR", "HR", "RH"].includes(user.role))
@@ -175,6 +178,8 @@ export async function POST(request: NextRequest) {
         });
         return json(portalView(record, grant.role));
       }
+      if (body.action === "confirm" && record.state !== "invited")
+        return json(portalView(record, grant.role));
       if (body.version !== record.version)
         return json(
           { error: "O atendimento foi atualizado em outra janela. Recarregue antes de salvar." },
@@ -213,6 +218,7 @@ export async function POST(request: NextRequest) {
         role: grant.role,
         at,
         version: record.version + 1,
+        ...(body.action === "submit" ? { reviewed: true } : {}),
       });
       return json(portalView({ ...record, ...changes } as PortalRecord, grant.role));
     });

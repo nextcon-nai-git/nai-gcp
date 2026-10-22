@@ -82,6 +82,7 @@ export default function ClinicPortalPage() {
         body: JSON.stringify({
           action,
           id,
+          ...(action === "submit" ? { reviewed: confirmed } : {}),
           ...(view ? { version: view.version } : {}),
           ...(["save", "submit"].includes(action) ? { payload: form } : {}),
         }),
@@ -279,7 +280,7 @@ export default function ClinicPortalPage() {
                     {view.documentReceived ? "ASO recebido para conferência" : states[view.state]}
                   </p>
                   <p>Validade do acesso: {new Date(view.expiresAt).toLocaleDateString("pt-BR")}</p>
-                  {view.state !== "awaiting_signature" && (
+                  {view.state === "invited" && (
                     <button
                       disabled={busy}
                       className="rounded border p-3"

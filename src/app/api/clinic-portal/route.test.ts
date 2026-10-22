@@ -76,6 +76,46 @@ describe("portal server authorization and persistence", () => {
     expect((await POST(request({ action: "read", id }))).status).toBe(503);
     expect(mocks.verify).not.toHaveBeenCalled();
   });
+  it("requires server-side clinical-review attestation", async () => {
+    for (const reviewed of [undefined, false]) {
+      expect(
+        (await POST(request({ action: "submit", id, version: 0, payload: clinical, reviewed })))
+          .status
+      ).toBe(400);
+    }
+    expect(mocks.tx.update).not.toHaveBeenCalled();
+  });
+  it("makes repeated confirmation version-neutral even from an old window", async () => {
+    mocks.record.state = "draft";
+    mocks.record.version = 8;
+    mocks.verify.mockResolvedValue({
+      uid: "reception",
+      email: "reception@example.test",
+      email_verified: true,
+    });
+    const response = await POST(request({ action: "confirm", id, version: 0 }));
+    expect(response.status).toBe(200);
+    expect((await response.json()).version).toBe(8);
+    expect(mocks.tx.update).not.toHaveBeenCalled();
+    expect(mocks.tx.create).not.toHaveBeenCalled();
+  });
+  it("accepts all permitted text fields including maximum JSON escaping", async () => {
+    const payload = { ...clinical };
+    for (const key of [
+      "history",
+      "occupationalHistory",
+      "medications",
+      "complaints",
+      "vitalSigns",
+      "physicalExam",
+      "results",
+      "conduct",
+      "observations",
+    ] as const)
+      payload[key] = "\u0001".repeat(12000);
+    const response = await POST(request({ action: "save", id, version: 0, payload }));
+    expect(response.status).toBe(200);
+  });
   it("blocks forwarded links and unverified accounts without writes", async () => {
     mocks.verify.mockResolvedValue({
       uid: "stranger",
@@ -117,7 +157,9 @@ describe("portal server authorization and persistence", () => {
     expect(mocks.tx.update).not.toHaveBeenCalled();
   });
   it("saves clinical content only privately and audits the actor", async () => {
-    const response = await POST(request({ action: "submit", id, version: 0, payload: clinical }));
+    const response = await POST(
+      request({ action: "submit", reviewed: true, id, version: 0, payload: clinical })
+    );
     expect(response.status).toBe(200);
     expect(mocks.tx.update.mock.calls[0][1]).toMatchObject({
       clinical,
@@ -145,6 +187,7 @@ describe("portal server authorization and persistence", () => {
         await POST(
           request({
             action: "submit",
+            reviewed: true,
             id,
             version: 0,
             payload: { ...clinical, conclusion: "pendente" },
