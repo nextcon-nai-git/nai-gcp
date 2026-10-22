@@ -21,7 +21,13 @@ vi.mock("firebase/auth", () => ({
 import Page from "./page";
 let root: Root;
 let container: HTMLDivElement;
-const user = { uid: "doctor", email: "doctor@example.test", getIdToken: async () => "token" };
+const user = {
+  uid: "doctor",
+  email: "doctor@example.test",
+  reload: vi.fn(async () => undefined),
+  emailVerified: true,
+  getIdToken: vi.fn(async () => "token"),
+};
 const view = {
   identity: {
     employeeName: "Private Worker",
@@ -105,4 +111,29 @@ it("discards a late clinical response after sign-out", async () => {
   expect(container.textContent).not.toContain("Private Worker");
   expect(container.textContent).toContain("Entrar com o e-mail convidado");
   expect(container.querySelector("textarea")).toBeNull();
+});
+
+it("reloads the account before refreshing the token after email verification", async () => {
+  const calls: string[] = [];
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => view }));
+  await act(async () =>
+    m.listener?.({
+      ...user,
+      emailVerified: false,
+      reload: async () => {
+        calls.push("reload");
+      },
+      getIdToken: async () => {
+        calls.push("token");
+        return "fresh-token";
+      },
+    })
+  );
+  await act(async () =>
+    Array.from(container.querySelectorAll("button"))
+      .find((b) => b.textContent === "Atualizar confirmação e abrir")!
+      .click()
+  );
+  expect(calls).toEqual(["reload", "token"]);
+  expect(container.textContent).toContain("Private Worker");
 });

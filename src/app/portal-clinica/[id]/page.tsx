@@ -73,6 +73,8 @@ export default function ClinicPortalPage() {
     setBusy(true);
     setMessage("");
     try {
+      await user.reload();
+      if (current !== generation.current) return;
       const token = await user.getIdToken(true);
       if (current !== generation.current) return;
       const response = await fetch("/api/clinic-portal", {
@@ -120,8 +122,31 @@ export default function ClinicPortalPage() {
       } else {
         await signInWithEmailAndPassword(auth, credentials.email, credentials.password);
       }
-    } catch {
-      setMessage("Não foi possível concluir. Confira os dados ou recupere sua senha.");
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+      const errors: Record<string, string> = {
+        "auth/invalid-credential":
+          "E-mail ou senha não conferem. Use a senha da conta do NAI ou clique em Recuperar senha.",
+        "auth/wrong-password":
+          "E-mail ou senha não conferem. Use a senha da conta do NAI ou clique em Recuperar senha.",
+        "auth/user-not-found":
+          "E-mail ou senha não conferem. Use a senha da conta do NAI ou clique em Recuperar senha.",
+        "auth/invalid-email": "Confira o formato do e-mail informado.",
+        "auth/email-already-in-use":
+          "Este e-mail já tem conta no NAI. Entre ou use Recuperar senha.",
+        "auth/weak-password": "Para criar a conta, escolha uma senha com pelo menos 8 caracteres.",
+        "auth/too-many-requests":
+          "Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.",
+        "auth/network-request-failed":
+          "Não foi possível conectar ao serviço de login. Confira a conexão e tente novamente.",
+        "auth/operation-not-allowed":
+          "O login com e-mail e senha está indisponível. Avise a equipe NAI.",
+        "auth/user-disabled": "Esta conta está desativada. Solicite atendimento à equipe NAI.",
+      };
+      setMessage(
+        errors[code] ||
+          "Não foi possível concluir a autenticação. Tente novamente ou use Recuperar senha."
+      );
     } finally {
       setCredentials((c) => ({ ...c, password: "" }));
       setBusy(false);
@@ -133,6 +158,8 @@ export default function ClinicPortalPage() {
     setBusy(true);
     setMessage("");
     try {
+      await user.reload();
+      if (current !== generation.current) return;
       const token = await user.getIdToken(true);
       if (current !== generation.current) return;
       const data = new FormData();
@@ -193,7 +220,6 @@ export default function ClinicPortalPage() {
               <input
                 required
                 type="password"
-                minLength={8}
                 autoComplete="current-password"
                 className="block w-full rounded bg-slate-800 p-3"
                 value={credentials.password}
@@ -226,6 +252,11 @@ export default function ClinicPortalPage() {
           <>
             <section className="rounded-xl border border-slate-700 p-4 space-y-3">
               <p>Conta: {user.email}</p>
+              <p className="text-sm text-slate-300">
+                {user.emailVerified
+                  ? "E-mail confirmado."
+                  : "Confirmação de e-mail pendente. Se já confirmou, clique em Atualizar confirmação e abrir."}
+              </p>
               <div className="flex flex-wrap gap-3">
                 <button
                   disabled={busy}
@@ -234,20 +265,31 @@ export default function ClinicPortalPage() {
                 >
                   {view ? "Recarregar atendimento" : "Abrir atendimento"}
                 </button>
-                <button
-                  disabled={busy}
-                  className="rounded border p-3"
-                  onClick={async () => {
-                    try {
-                      await sendEmailVerification(user);
-                      setMessage("Confirmação enviada ao seu e-mail.");
-                    } catch {
-                      setMessage("Não foi possível enviar a confirmação.");
-                    }
-                  }}
-                >
-                  Confirmar e-mail
-                </button>
+                {!user.emailVerified && (
+                  <button
+                    disabled={busy}
+                    className="rounded border p-3"
+                    onClick={() => void call("read")}
+                  >
+                    Atualizar confirmação e abrir
+                  </button>
+                )}
+                {!user.emailVerified && (
+                  <button
+                    disabled={busy}
+                    className="rounded border p-3"
+                    onClick={async () => {
+                      try {
+                        await sendEmailVerification(user);
+                        setMessage("Confirmação enviada ao seu e-mail.");
+                      } catch {
+                        setMessage("Não foi possível enviar a confirmação.");
+                      }
+                    }}
+                  >
+                    Reenviar confirmação de e-mail
+                  </button>
+                )}
                 <button
                   className="rounded border p-3"
                   onClick={() => {
