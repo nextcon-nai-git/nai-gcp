@@ -261,8 +261,24 @@ export async function advancePipelineStepAction(
       return { success: false, error: "Solicitação de ASO não encontrada." };
     }
 
+    const existing = snapshot.data() as AsoRequest;
+    if (
+      [
+        "kit_montado",
+        "kit_enviado",
+        "clinica_confirmou",
+        "exame_realizado",
+        "aso_concluido",
+      ].includes(targetStep) &&
+      !existing.digitalKit
+    )
+      return {
+        success: false,
+        error: "Revise os exames e gere o kit antes de avançar para esta etapa.",
+      };
+
     const updated = {
-      ...(snapshot.data() as AsoRequest),
+      ...existing,
       status: targetStep,
       updatedAt: new Date().toISOString(),
     };
