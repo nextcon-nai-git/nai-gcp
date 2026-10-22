@@ -59,12 +59,80 @@ export async function createAsoRequestAction(
     examType: ExamType;
     declaredRisks: string[];
     userPrompt?: string;
+    manualReview?: boolean;
+    manualExamNames?: string[];
   },
   token = ""
 ): Promise<{ success: boolean; data?: AsoRequest; error?: string }> {
   try {
     const store = await requestStore(token);
     const newId = store.doc().id;
+
+    if (payload.manualReview === true) {
+      const names = payload.manualExamNames;
+      if (
+        !Array.isArray(names) ||
+        names.length < 1 ||
+        names.length > 50 ||
+        names.some((name) => typeof name !== "string" || !name.trim() || name.length > 200) ||
+        [
+          payload.companyName,
+          payload.cnpj,
+          payload.employeeName,
+          payload.cpf,
+          payload.roleTitle,
+        ].some((value) => typeof value !== "string" || !value.trim() || value.length > 500)
+      )
+        throw new Error(
+          "Preencha empresa, colaborador, documentos, cargo e de 1 a 50 exames para revisão."
+        );
+      const at = new Date().toISOString();
+      const pending: AsoRequest = {
+        id: newId,
+        companyName: payload.companyName,
+        cnpj: payload.cnpj,
+        employeeName: payload.employeeName,
+        cpf: payload.cpf,
+        roleTitle: payload.roleTitle,
+        department: payload.department,
+        examType: payload.examType,
+        declaredRisks: payload.declaredRisks,
+        status: "solicitado",
+        clinicId: "",
+        clinicName: "A confirmar",
+        appointmentDate: "",
+        appointmentTime: "",
+        validationPassed: false,
+        validationNotes: [
+          "Registro manual. Exames informados pela equipe; conferir com o PCMSO antes do atendimento.",
+          payload.userPrompt || "",
+        ],
+        exams: names.map((name, index) => ({
+          code: `manual-${index + 1}`,
+          name: name.trim(),
+          mandatory: "CONDICIONAL",
+          pcmsoJustification: "Informado pela equipe; pendente de conferência do PCMSO.",
+          patientPreparo: "Confirmar com a clínica.",
+        })),
+        alerts: [
+          {
+            id: `ALT-${newId}`,
+            requestId: newId,
+            agentType: "SUPERVISOR",
+            severity: "WARNING",
+            message: "Solicitação manual pendente de revisão profissional.",
+            suggestedAction: "Conferir PCMSO, exames e clínica antes do atendimento.",
+            requiresHumanIntervention: true,
+            status: "PENDING",
+            createdAt: at,
+          },
+        ],
+        createdAt: at,
+        updatedAt: at,
+      };
+      await store.doc(newId).set(pending);
+      return { success: true, data: pending };
+    }
 
     // Executa Orquestração dos 7 Agentes de IA
     const aiResult: AsoSystemOrchestratorOutput = await processAsoSystemOrchestration({
@@ -193,8 +261,24 @@ export async function advancePipelineStepAction(
       return { success: false, error: "Solicitação de ASO não encontrada." };
     }
 
+    const existing = snapshot.data() as AsoRequest;
+    if (
+      [
+        "kit_montado",
+        "kit_enviado",
+        "clinica_confirmou",
+        "exame_realizado",
+        "aso_concluido",
+      ].includes(targetStep) &&
+      !existing.digitalKit
+    )
+      return {
+        success: false,
+        error: "Revise os exames e gere o kit antes de avançar para esta etapa.",
+      };
+
     const updated = {
-      ...(snapshot.data() as AsoRequest),
+      ...existing,
       status: targetStep,
       updatedAt: new Date().toISOString(),
     };
