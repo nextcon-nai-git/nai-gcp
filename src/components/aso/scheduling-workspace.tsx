@@ -93,6 +93,8 @@ function SchedulingSession() {
     examType: "admissional" as ExamType,
     declaredRisks: "",
     userPrompt: "",
+    manualReview: false,
+    manualExamNames: "",
   });
 
   const [aiAnalysisResult, setAiAnalysisResult] = useState<AsoSystemOrchestratorOutput | null>(
@@ -183,6 +185,10 @@ function SchedulingSession() {
       const res = await createAsoRequestAction(
         {
           ...formData,
+          manualExamNames: formData.manualExamNames
+            .split("\n")
+            .map((s) => s.trim())
+            .filter(Boolean),
           declaredRisks: formData.declaredRisks
             .split(",")
             .map((s) => s.trim())
@@ -641,6 +647,39 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                 </div>
               </div>
 
+              <div className="space-y-3 py-4 text-sm text-slate-200">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.manualReview}
+                    onChange={(e) => setFormData({ ...formData, manualReview: e.target.checked })}
+                  />
+                  Registrar para revisão manual, sem depender da IA
+                </label>
+                {formData.manualReview && (
+                  <>
+                    <label htmlFor="manual-exams">
+                      Exames informados pela equipe (um por linha)
+                    </label>
+                    <textarea
+                      id="manual-exams"
+                      required
+                      maxLength={10000}
+                      rows={3}
+                      value={formData.manualExamNames}
+                      onChange={(e) =>
+                        setFormData({ ...formData, manualExamNames: e.target.value })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white"
+                    />
+                    <p className="text-xs text-amber-300">
+                      O pedido ficará solicitado, sem confirmação de clínica ou aptidão. Confira os
+                      exames com o PCMSO antes do atendimento.
+                    </p>
+                  </>
+                )}
+              </div>
+
               <div className="flex items-center justify-between pt-4 border-t border-slate-800 gap-3">
                 <button
                   type="button"
@@ -666,7 +705,9 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                   ) : (
                     <Send className="w-4 h-4" />
                   )}
-                  Criar & Processar com IA
+                  {formData.manualReview
+                    ? "Registrar para revisão manual"
+                    : "Criar & Processar com IA"}
                 </button>
               </div>
             </form>
