@@ -22,6 +22,7 @@ export function AppContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [mounted, setMounted] = React.useState(false);
 
+  const isClinicPortal = /^\/portal-clinica\/[a-f0-9]{48}$/.test(pathname);
   const isInfoPage = pathname === "/privacy" || pathname === "/terms";
   const isLoginPage = React.useMemo(() => pathname === "/login", [pathname]);
 
@@ -31,10 +32,12 @@ export function AppContent({ children }: { children: React.ReactNode }) {
 
   // Lógica de Redirecionamento Estrito
   React.useEffect(() => {
-    if (mounted && !isUserLoading && !user && !isLoginPage && !isInfoPage) {
+    if (mounted && !isUserLoading && !user && !isLoginPage && !isInfoPage && !isClinicPortal) {
       router.replace("/login");
     }
-  }, [user, isUserLoading, isLoginPage, pathname, router, mounted, isInfoPage]);
+  }, [user, isUserLoading, isLoginPage, pathname, router, mounted, isInfoPage, isClinicPortal]);
+
+  if (isClinicPortal) return <>{children}</>;
 
   if (isInfoPage) return <main className="min-h-screen bg-white p-6 md:p-12">{children}</main>;
 

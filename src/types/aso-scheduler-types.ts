@@ -101,6 +101,8 @@ export interface AsoAgentAlert {
 }
 
 export interface AsoRequest {
+  clinicPortalId?: string;
+  clinicPortalStatus?: string;
   source?: "rd-conversas";
   sourceMessageId?: string;
   requestedCity?: string;

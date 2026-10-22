@@ -1,5 +1,6 @@
 "use client";
 
+import { ClinicPortalInvite } from "@/components/aso/clinic-portal-invite";
 import { KitPdfGenerator } from "@/components/aso/kit-pdf-generator";
 import React, { useState, useEffect } from "react";
 import { useSgi } from "@/contexts/sgi-context";
@@ -801,6 +802,12 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                     </button>
                   </div>
                 </div>
+
+                <ClinicPortalInvite
+                  key={`${user?.uid}:${selectedRequest.id}`}
+                  requestId={selectedRequest.id}
+                  existingId={selectedRequest.clinicPortalId}
+                />
 
                 <KitPdfGenerator
                   key={`${selectedRequest.id}:${selectedRequest.updatedAt}`}
