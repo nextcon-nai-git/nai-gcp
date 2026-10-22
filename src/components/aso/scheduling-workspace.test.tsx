@@ -111,7 +111,7 @@ describe("scheduling persistence and session boundaries", () => {
     expect(v.container.textContent).toContain("Pessoa sintética");
     await v.click("Nova Solicitação de ASO");
     expect(
-      [...v.container.querySelectorAll("input,textarea")]
+      [...v.container.querySelectorAll('input:not([type="checkbox"]),textarea')]
         .map((e) => (e as HTMLInputElement).value)
         .every((x) => x === "")
     ).toBe(true);
