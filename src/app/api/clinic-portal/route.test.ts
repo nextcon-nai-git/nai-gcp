@@ -198,3 +198,35 @@ describe("portal server authorization and persistence", () => {
     expect(mocks.tx.update).not.toHaveBeenCalled();
   });
 });
+
+describe("access denial diagnostics", () => {
+  it("explains an unverified session without granting access", async () => {
+    mocks.verify.mockResolvedValue({
+      uid: "doctor",
+      email: "doctor@example.test",
+      email_verified: false,
+    });
+    const response = await POST(request({ action: "read", id }));
+    expect(response.status).toBe(403);
+    expect((await response.json()).error).toContain("confirmação do seu e-mail");
+    expect(mocks.tx.update).not.toHaveBeenCalled();
+  });
+  it("does not reveal the invited address to another account", async () => {
+    mocks.verify.mockResolvedValue({
+      uid: "other",
+      email: "other@example.test",
+      email_verified: true,
+    });
+    const response = await POST(request({ action: "read", id }));
+    const body = await response.json();
+    expect(response.status).toBe(403);
+    expect(body.error).not.toContain("doctor@example.test");
+    expect(body.error).toContain("não tem acesso");
+  });
+  it("distinguishes a recreated account from the bound account", async () => {
+    mocks.record.grants = [{ email: "doctor@example.test", role: "doctor", uid: "old-user" }];
+    const response = await POST(request({ action: "read", id }));
+    expect(response.status).toBe(403);
+    expect((await response.json()).error).toContain("outro cadastro");
+  });
+});

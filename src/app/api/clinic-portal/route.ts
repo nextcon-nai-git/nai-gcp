@@ -162,10 +162,27 @@ export async function POST(request: NextRequest) {
       const snap = await tx.get(ref);
       const record = snap.data() as PortalRecord | undefined;
       const grant = record && grantFor(record, identity);
-      if (!record || !grant)
+      if (!record || !grant) {
+        const invited = record?.grants.find((g) => g.email === identity.email?.toLowerCase());
+        // Detailed reasons are visible only to the invited e-mail; never reveal it to a third party.
+        if (record && invited) {
+          if (record.revoked)
+            throw forbidden("Este convite foi revogado. Peça um novo link à equipe NAI.");
+          if (Date.parse(record.expiresAt) <= Date.now())
+            throw forbidden("Este convite venceu. Peça um novo link à equipe NAI.");
+          if (!identity.email_verified)
+            throw forbidden(
+              "A confirmação do seu e-mail ainda não consta na sessão. Confirme o e-mail recebido e clique em Atualizar confirmação e abrir."
+            );
+          if (invited.uid && invited.uid !== identity.uid)
+            throw forbidden(
+              "O convite está vinculado a outro cadastro deste e-mail. Peça um novo convite à equipe NAI."
+            );
+        }
         throw forbidden(
-          "Convite indisponível para esta conta. Verifique o e-mail, a confirmação da conta e a validade do convite."
+          "Esta conta não tem acesso a este convite. Saia e entre com o e-mail que recebeu o link."
         );
+      }
       const at = new Date().toISOString();
       const grants = record.grants.map((g) => (g === grant ? { ...g, uid: identity.uid } : g));
       if (body.action === "read") {
