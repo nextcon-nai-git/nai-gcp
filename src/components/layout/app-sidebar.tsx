@@ -220,8 +220,6 @@ const NAV_MODULES: NavModule[] = [
         title: "Ordens de Serviço (NR-01)",
         icon: LifeBuoy,
         href: "/work-orders",
-        badge: "Construfam",
-        badgeColor: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
         providerAudience: "engineering",
       },
       {
