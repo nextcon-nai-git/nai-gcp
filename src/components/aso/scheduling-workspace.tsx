@@ -1,5 +1,6 @@
 "use client";
 
+import { ClinicPortalInvite } from "@/components/aso/clinic-portal-invite";
 import { KitPdfGenerator } from "@/components/aso/kit-pdf-generator";
 import React, { useState, useEffect } from "react";
 import { useSgi } from "@/contexts/sgi-context";
@@ -766,6 +767,13 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                 ))}
               </select>
             </label>
+            {selectedRequest && (
+              <ClinicPortalInvite
+                key={`${user?.uid}:${selectedRequest.id}`}
+                requestId={selectedRequest.id}
+                existingId={selectedRequest.clinicPortalId}
+              />
+            )}
             {selectedRequest?.digitalKit ? (
               <div className="bg-slate-900/90 border border-cyan-500/40 p-6 rounded-2xl shadow-2xl space-y-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-800 pb-4 gap-4">
