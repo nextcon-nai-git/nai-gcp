@@ -165,3 +165,40 @@ describe("Suíte do Sistema Agendador de ASOs + Montador de Kits", () => {
     });
   });
 });
+
+describe("manual ASO intake", () => {
+  const manual = {
+    companyName: "TESTE NAI",
+    cnpj: "00.000.000/0000-00",
+    employeeName: "COLABORADOR FICTÍCIO",
+    cpf: "000.000.000-00",
+    roleTitle: "Homologação",
+    department: "Teste",
+    examType: "periodico" as const,
+    declaredRisks: [],
+    manualReview: true,
+    manualExamNames: ["Exame fictício de homologação"],
+  };
+  it("persists a pending manual request even when AI is unavailable, without inventing a kit or appointment", async () => {
+    model.generate.mockRejectedValue(new Error("Unavailable"));
+    model.generate.mockClear();
+    const result = await createAsoRequestAction(manual, "test-token");
+    expect(result.success).toBe(true);
+    expect(model.generate).not.toHaveBeenCalled();
+    expect(records.get(result.data!.id)).toMatchObject({
+      status: "solicitado",
+      validationPassed: false,
+      clinicId: "",
+      appointmentDate: "",
+      exams: [{ name: "Exame fictício de homologação", mandatory: "CONDICIONAL" }],
+      alerts: [{ requiresHumanIntervention: true, status: "PENDING" }],
+    });
+    expect(result.data?.digitalKit).toBeUndefined();
+  });
+  it("rejects missing manual examinations and unauthenticated writes", async () => {
+    expect(
+      (await createAsoRequestAction({ ...manual, manualExamNames: [] }, "test-token")).success
+    ).toBe(false);
+    expect((await createAsoRequestAction(manual, "")).success).toBe(false);
+  });
+});
