@@ -1,5 +1,6 @@
 "use client";
 
+import { KitPdfGenerator } from "@/components/aso/kit-pdf-generator";
 import React, { useState, useEffect } from "react";
 import { useSgi } from "@/contexts/sgi-context";
 import { useUser } from "@/firebase";
@@ -28,7 +29,6 @@ import {
   Send,
   Loader2,
   Sparkles,
-  Printer,
   Copy,
   Check,
   FileText,
@@ -747,6 +747,25 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
         {/* TAB 3: MONTADOR DE KIT DIGITAL (PREVIEW DA GUIA) */}
         {activeTab === "kit_digital" && (
           <div className="space-y-6">
+            <label className="block text-sm text-slate-200">
+              Solicitação para gerar o kit
+              <select
+                className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-950 p-3 text-white"
+                value={selectedRequest?.id || ""}
+                onChange={(event) =>
+                  setSelectedRequest(
+                    requests.find((request) => request.id === event.target.value) || null
+                  )
+                }
+              >
+                <option value="">Selecione uma solicitação</option>
+                {requests.map((request) => (
+                  <option key={request.id} value={request.id}>
+                    {request.employeeName} — {request.companyName}
+                  </option>
+                ))}
+              </select>
+            </label>
             {selectedRequest?.digitalKit ? (
               <div className="bg-slate-900/90 border border-cyan-500/40 p-6 rounded-2xl shadow-2xl space-y-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-800 pb-4 gap-4">
@@ -780,15 +799,13 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                       )}
                       {copiedKit ? "Kit Copiado!" : "Copiar Kit para Envio"}
                     </button>
-                    <button
-                      onClick={() => window.print()}
-                      className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-lg shadow-cyan-600/20"
-                    >
-                      <Printer className="w-4 h-4" />
-                      Imprimir Guia OS
-                    </button>
                   </div>
                 </div>
+
+                <KitPdfGenerator
+                  key={`${selectedRequest.id}:${selectedRequest.updatedAt}`}
+                  kit={selectedRequest.digitalKit}
+                />
 
                 {/* Printable Order Sheet */}
                 <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-6 text-xs text-slate-300">
