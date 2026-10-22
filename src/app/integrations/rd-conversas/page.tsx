@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   MessageSquare,
@@ -96,7 +96,9 @@ function DataTable({ rows, columns }: { rows: Row[]; columns: [string, string][]
 export default function TallosWorkspace() {
   const { user } = useUser();
   const identity = useRef(user?.uid);
-  identity.current = user?.uid;
+  useLayoutEffect(() => {
+    identity.current = user?.uid;
+  }, [user?.uid]);
   const [tab, setTab] = useState<Tab>("contacts");
   const [status, setStatus] = useState<Status | null>(null);
   const [busy, setBusy] = useState(false);

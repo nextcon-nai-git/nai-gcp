@@ -642,7 +642,10 @@ function ClientsSession() {
 
           <div className="p-5 sm:p-10 max-h-[72vh] overflow-y-auto scrollbar-thin space-y-6 flex-1">
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(handleSave)} className="space-y-6">
+              <form
+                onSubmit={(event) => form.handleSubmit(handleSave)(event)}
+                className="space-y-6"
+              >
                 <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col md:flex-row items-end gap-4">
                   <div className="flex-1 w-full">
                     <FormField

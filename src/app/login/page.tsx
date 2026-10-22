@@ -8,11 +8,17 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/firebase";
 import {
   GoogleAuthProvider,
+  type Auth,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
 } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
+
+// Firebase exposes languageCode as a mutable SDK setting.
+function configureAuthLanguage(auth: Auth) {
+  auth.languageCode = "pt-BR";
+}
 
 export default function LoginPage() {
   const [email, setEmail] = React.useState("");
@@ -70,7 +76,7 @@ export default function LoginPage() {
     setGoogleError("");
 
     try {
-      auth.languageCode = "pt-BR";
+      configureAuthLanguage(auth);
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
       await signInWithPopup(auth, provider);
@@ -112,7 +118,7 @@ export default function LoginPage() {
     setLoading(true);
     setResetError("");
     try {
-      auth.languageCode = "pt-BR";
+      configureAuthLanguage(auth);
       await sendPasswordResetEmail(auth, targetEmail);
       setResetSent(true);
     } catch (error: unknown) {

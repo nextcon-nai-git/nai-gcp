@@ -169,12 +169,12 @@ class ApiError extends Error {
   }
 }
 function useRequestScope() {
-  const scope = React.useRef(new AbortController());
+  const scopeRef = React.useRef(new AbortController());
   React.useEffect(() => {
-    if (scope.current.signal.aborted) scope.current = new AbortController();
-    return () => scope.current.abort();
+    if (scopeRef.current.signal.aborted) scopeRef.current = new AbortController();
+    return () => scopeRef.current.abort();
   }, []);
-  return scope;
+  return scopeRef;
 }
 type AccessDeniedHandler = (error: ApiError) => void;
 const AccessContext = React.createContext<AccessDeniedHandler>(() => {});
@@ -265,7 +265,7 @@ export default function ProductionWorkspace() {
 }
 function Workspace() {
   const currentDate = useBrasiliaDate();
-  const scope = useRequestScope();
+  const scopeRef = useRequestScope();
   const reading = React.useRef<AbortController | null>(null);
   const [book, setBook] = React.useState<ProductionBook | null>(null),
     [companies, setCompanies] = React.useState<Company[]>([]);
@@ -282,7 +282,7 @@ function Workspace() {
     lock = React.useRef(false);
   const clearAccess = React.useCallback(
     (error: ApiError) => {
-      scope.current.abort();
+      scopeRef.current.abort();
       reading.current?.abort();
       setError(error.message);
       setNotice("");
@@ -292,23 +292,23 @@ function Workspace() {
       setPending(null);
       setShowCreate(false);
     },
-    [scope]
+    [scopeRef]
   );
   const loadBillingSnapshot = React.useCallback(
     (signal: AbortSignal, expectedVersion: number): Promise<BillingQueueSnapshot> =>
       api(
         `/api/production/billing-queue?expectedVersion=${expectedVersion}`,
-        AbortSignal.any([signal, scope.current.signal]),
+        AbortSignal.any([signal, scopeRef.current.signal]),
         undefined,
         clearAccess
       ),
-    [scope, clearAccess]
+    [scopeRef, clearAccess]
   );
   React.useEffect(() => {
     mounted.current = true;
     const controller = new AbortController();
     reading.current = controller;
-    const signal = AbortSignal.any([controller.signal, scope.current.signal]);
+    const signal = AbortSignal.any([controller.signal, scopeRef.current.signal]);
     void (async () => {
       try {
         const data = await api("/api/production", signal, undefined, clearAccess);
@@ -324,14 +324,14 @@ function Workspace() {
       mounted.current = false;
       controller.abort();
     };
-  }, [scope, clearAccess]);
+  }, [scopeRef, clearAccess]);
   const reload = async () => {
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
     reading.current?.abort();
-    if (scope.current.signal.aborted) scope.current = new AbortController();
-    const signal = scope.current.signal;
+    if (scopeRef.current.signal.aborted) scopeRef.current = new AbortController();
+    const signal = scopeRef.current.signal;
     try {
       const data = await api("/api/production", signal, undefined, clearAccess);
       if (mounted.current) {
@@ -359,7 +359,7 @@ function Workspace() {
     setPending(command);
     reading.current?.abort();
     try {
-      const next = await api("/api/production", scope.current.signal, command, clearAccess);
+      const next = await api("/api/production", scopeRef.current.signal, command, clearAccess);
       if (!mounted.current) return false;
       setBook(next);
       setPending(null);
@@ -656,7 +656,7 @@ function SourceUpload({
   onBusy: (busy: boolean) => void;
 }) {
   const { api, authorizedFetch } = useProtectedRequest();
-  const scope = useRequestScope();
+  const scopeRef = useRequestScope();
   const lock = React.useRef(false);
   const [busy, setBusy] = React.useState(false),
     [error, setError] = React.useState(""),
@@ -697,7 +697,7 @@ function SourceUpload({
             const file = e.target.files?.[0];
             if (!file || lock.current) return;
             lock.current = true;
-            const signal = AbortSignal.any([scope.current.signal, AbortSignal.timeout(60000)]);
+            const signal = AbortSignal.any([scopeRef.current.signal, AbortSignal.timeout(60000)]);
             setDocument(null);
             onChange(null, null);
             setBusy(true);
@@ -726,10 +726,10 @@ function SourceUpload({
               setDocument(d);
               onChange(d, null);
             } catch (e) {
-              if (!scope.current.signal.aborted) setError((e as Error).message);
+              if (!scopeRef.current.signal.aborted) setError((e as Error).message);
             } finally {
               lock.current = false;
-              if (!scope.current.signal.aborted) {
+              if (!scopeRef.current.signal.aborted) {
                 setBusy(false);
                 onBusy(false);
               }
@@ -749,7 +749,7 @@ function SourceUpload({
             onClick={async () => {
               if (lock.current) return;
               lock.current = true;
-              const signal = scope.current.signal;
+              const signal = scopeRef.current.signal;
               setBusy(true);
               onBusy(true);
               setError("");
@@ -1025,7 +1025,7 @@ function RecordView({
   mutate: (c: Mutation) => Promise<boolean>;
 }) {
   const { api } = useProtectedRequest();
-  const scope = useRequestScope();
+  const scopeRef = useRequestScope();
   const [finance, setFinance] = React.useState<FinanceOptions | null>(null);
   const [financeBusy, setFinanceBusy] = React.useState(false);
   const financeAlive = React.useRef(true);
@@ -1043,7 +1043,7 @@ function RecordView({
     try {
       const data = await api(
         `/api/production/finance?recordId=${encodeURIComponent(record.id)}`,
-        scope.current.signal
+        scopeRef.current.signal
       );
       if (financeAlive.current) setFinance(data);
     } catch (e) {
@@ -1229,7 +1229,7 @@ function RecordView({
                   size="sm"
                   variant="outline"
                   onClick={async () => {
-                    const signal = scope.current.signal;
+                    const signal = scopeRef.current.signal;
                     try {
                       const r = await authorizedFetch("/api/production/source", signal, {
                         method: "POST",
@@ -1860,7 +1860,7 @@ function Training() {
 }
 function Agents({ record }: { record: ProductionRecord }) {
   const { api } = useProtectedRequest();
-  const scope = useRequestScope();
+  const scopeRef = useRequestScope();
   const [stage, setStage] = React.useState<Stage>("comercial"),
     [question, setQuestion] = React.useState(
       "Revise as pendências desta etapa e indique o próximo passo com as evidências necessárias."
@@ -1905,7 +1905,7 @@ function Agents({ record }: { record: ProductionRecord }) {
           setError("");
           setAnswer("");
           try {
-            const result = await api("/api/production/assistant", scope.current.signal, {
+            const result = await api("/api/production/assistant", scopeRef.current.signal, {
               action: "consult",
               stage,
               recordId: record.id,
