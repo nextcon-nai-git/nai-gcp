@@ -126,8 +126,8 @@ export function GlobalCommandPalette({
     },
     {
       id: "action-os-nr01",
-      title: "Ordem de Serviço NR-01 (Construfam / Trabalho Embarcado)",
-      subtitle: "Geração de PDF oficial, salvatagem e diretrizes de trabalho embarcado",
+      title: "Ordem de Serviço de SST (NR-01)",
+      subtitle: "Minuta por cliente, função, atividades e PGR",
       category: "actions",
       icon: LifeBuoy,
       href: "/work-orders",
