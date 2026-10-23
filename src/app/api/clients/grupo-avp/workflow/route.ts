@@ -56,6 +56,24 @@ export async function POST(req: NextRequest) {
       const current = await tx.get(ref);
       if ((current.data()?.version ?? 0) !== version)
         throw new AuthError("Outro usuário alterou este caso. Atualize antes de salvar.", 409);
+      const previous = current.data();
+      if (
+        previous &&
+        previous.evidenceId !== record.evidenceId &&
+        (record.documentChecked ||
+          record.deliveryReference ||
+          ["ready", "delivered"].includes(record.stage))
+      )
+        throw new AuthError(
+          "Ao substituir o PDF, salve em conferência e refaça a revisão e a entrega.",
+          400
+        );
+      const previousOrder = typeof previous?.socOrder === "string" ? previous.socOrder : "";
+      const previousOrderRef =
+        previousOrder && previousOrder !== record.socOrder
+          ? root().collection("orders").doc(hash(previousOrder))
+          : null;
+      const previousReservation = previousOrderRef ? await tx.get(previousOrderRef) : null;
       // Read every dependency before writing; evidence receipt is never inferred from sheet status.
       if (record.evidenceId) {
         const evidence = await tx.get(
@@ -93,6 +111,8 @@ export async function POST(req: NextRequest) {
       }
       const updatedAt = new Date().toISOString();
       const saved = { ...record, id, version: version + 1, updatedAt, updatedBy: user.uid };
+      if (previousOrderRef && previousReservation?.data()?.caseId === id)
+        tx.delete(previousOrderRef);
       tx.set(ref, saved);
       tx.create(ref.collection("history").doc(String(version + 1)), saved);
       if (orderRef) tx.set(orderRef, { caseId: id });

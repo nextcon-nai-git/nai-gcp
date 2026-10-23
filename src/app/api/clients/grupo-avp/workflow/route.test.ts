@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   data: new Map<string, Record<string, unknown>>(),
   writes: vi.fn(),
   tx: vi.fn(),
+  deletes: vi.fn(),
 }));
 vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: mocks.auth }));
 vi.mock("@/lib/firebase-admin", () => {
@@ -32,6 +33,7 @@ vi.mock("@/lib/firebase-admin", () => {
           }),
           set: mocks.writes,
           create: mocks.writes,
+          delete: mocks.deletes,
         });
       },
     },
@@ -134,4 +136,49 @@ describe("API da esteira AVP", () => {
     }
     expect(mocks.writes).not.toHaveBeenCalled();
   });
+});
+
+describe("correções de pedido e documento", () => {
+  const caseId = () =>
+    createHash("sha256")
+      .update(JSON.stringify([base().sourceId, base().unit, base().admission]))
+      .digest("hex");
+  const orderPath = (order: string) =>
+    `webhook_deliveries/grupo-avp-workflow/orders/${createHash("sha256").update(order).digest("hex")}`;
+  it.each(["456", ""])("libera reserva anterior ao corrigir pedido para %s", async (socOrder) => {
+    const id = caseId();
+    mocks.data.set(`webhook_deliveries/grupo-avp-workflow/cases/${id}`, {
+      ...base(),
+      version: 1,
+      socOrder: "123",
+    });
+    mocks.data.set(orderPath("123"), { caseId: id });
+    const response = await POST(request({ record: { ...base(), socOrder }, version: 1 }));
+    expect(response.status).toBe(200);
+    expect(mocks.deletes).toHaveBeenCalledWith(expect.objectContaining({ path: orderPath("123") }));
+  });
+  it("preserva reserva que pertence a outro caso", async () => {
+    mocks.data.set(`webhook_deliveries/grupo-avp-workflow/cases/${caseId()}`, {
+      ...base(),
+      version: 1,
+      socOrder: "123",
+    });
+    mocks.data.set(orderPath("123"), { caseId: "outro" });
+    expect((await POST(request({ record: base(), version: 1 }))).status).toBe(200);
+    expect(mocks.deletes).not.toHaveBeenCalled();
+  });
+  it.each([{ documentChecked: true }, { deliveryReference: "envio anterior" }])(
+    "recusa confirmação herdada de outro PDF: %o",
+    async (confirmation) => {
+      mocks.data.set(`webhook_deliveries/grupo-avp-workflow/cases/${caseId()}`, {
+        ...base(),
+        version: 1,
+        evidenceId: "a".repeat(64),
+      });
+      const response = await POST(request({ record: { ...base(), ...confirmation }, version: 1 }));
+      expect(response.status).toBe(400);
+      expect(mocks.writes).not.toHaveBeenCalled();
+      expect(mocks.deletes).not.toHaveBeenCalled();
+    }
+  );
 });

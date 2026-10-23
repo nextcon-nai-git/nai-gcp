@@ -116,7 +116,18 @@ function Session() {
     }
   }
   function field(key: keyof AvpWorkflow, value: string | boolean) {
-    setEditing((old) => (old ? { ...old, [key]: value } : old));
+    setEditing((old) => {
+      if (!old) return old;
+      if (key === "evidenceId" && value !== old.evidenceId)
+        return {
+          ...old,
+          evidenceId: String(value),
+          documentChecked: false,
+          deliveryReference: "",
+          stage: value ? "review" : "waiting",
+        };
+      return { ...old, [key]: value };
+    });
     setDraft("");
   }
   const today = new Intl.DateTimeFormat("en-CA", {
