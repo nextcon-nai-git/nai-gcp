@@ -20,3 +20,31 @@ A aba **Esteira de ASOs** em `/clients/grupo-avp` consulta os participantes da c
 - A entrega não cadastra contatos de coordenadores por inferência. Eles precisam ser confirmados pela equipe.
 - Esta esteira cobre a campanha de periódicos. A fila de admissionais permanece na aba existente e não é unificada silenciosamente por nome.
 - Nenhum caso real foi marcado como concluído por esta alteração de código.
+
+## Correção de pedido e substituição de PDF
+
+A correção do PR #189 libera a reserva antiga do pedido na mesma transação que salva o caso,
+cria a nova versão do histórico e reserva o novo pedido. A exclusão só ocorre quando a reserva
+antiga ainda pertence ao caso; conflito no novo pedido ou versão desatualizada não libera nada.
+Todas as leituras são feitas antes das escritas. As associações anteriores ficam no histórico.
+
+Ao trocar ou remover o PDF, a tela limpa a conferência humana, a referência de envio e o
+rascunho, retornando para conferência ou aguardando ASO. A API recusa confirmações herdadas
+na mesma alteração: salve a substituição e depois registre a nova revisão e a nova entrega.
+O histórico conserva o documento e as confirmações anteriores, sem atribuí-los ao substituto.
+
+Regressões com dados sintéticos:
+
+```sh
+npx vitest run src/app/api/clients/grupo-avp/workflow/route.test.ts src/components/clients/avp-workflow-panel.test.tsx src/lib/avp-workflow.test.ts
+```
+
+Os testes verificam reutilização do pedido por outro caso, conflitos sem alterações parciais,
+propriedade da reserva, versão otimista, histórico, permissões, troca/remoção do PDF na tela e
+bloqueio de revisão/entrega herdadas na API. O simulador transacional recusa leitura após escrita
+e aplica alterações somente no sucesso. Não substitui um teste de concorrência no emulador
+Firestore. Os testes da tela usam fetch simulado; nenhum documento ou mensagem é enviado.
+
+CI aprovado e rollout bem-sucedido são evidências separadas. A validação operacional exige
+confirmar a versão publicada e testar o fluxo autenticado com casos sintéticos, sem marcar
+exames reais como concluídos ou enviar ASOs durante a homologação.

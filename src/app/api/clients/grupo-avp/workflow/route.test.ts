@@ -26,15 +26,35 @@ vi.mock("@/lib/firebase-admin", () => {
       collection: (n: string) => ref(n),
       runTransaction: async (fn: (tx: unknown) => unknown) => {
         mocks.tx();
-        return fn({
-          get: async (r: { path: string }) => ({
-            exists: mocks.data.has(r.path),
-            data: () => mocks.data.get(r.path),
-          }),
-          set: mocks.writes,
-          create: mocks.writes,
-          delete: mocks.deletes,
+        // Commit only after success, and reject reads after the first write as Firestore does.
+        const pending: Array<() => void> = [];
+        let writing = false;
+        const set = (r: { path: string }, value: Record<string, unknown>) => {
+          writing = true;
+          mocks.writes(r, value);
+          pending.push(() => mocks.data.set(r.path, structuredClone(value)));
+        };
+        const result = await fn({
+          get: async (r: { path: string }) => {
+            if (writing) throw new Error("Transaction read after write");
+            return {
+              exists: mocks.data.has(r.path),
+              data: () => mocks.data.get(r.path),
+            };
+          },
+          set,
+          create: (r: { path: string }, value: Record<string, unknown>) => {
+            if (mocks.data.has(r.path)) throw new Error("History already exists");
+            set(r, value);
+          },
+          delete: (r: { path: string }) => {
+            writing = true;
+            mocks.deletes(r);
+            pending.push(() => mocks.data.delete(r.path));
+          },
         });
+        pending.forEach((commit) => commit());
+        return result;
       },
     },
   };
@@ -181,4 +201,131 @@ describe("correções de pedido e documento", () => {
       expect(mocks.deletes).not.toHaveBeenCalled();
     }
   );
+  it.each(["456", ""])(
+    "permite reutilizar 123 depois de alterar para %s sem perder histórico",
+    async (socOrder) => {
+      const first = { ...base(), socOrder: "123" };
+      const initial = await POST(request({ record: first, version: 0 }));
+      expect(initial.status).toBe(200);
+      const { record: before } = await initial.json();
+      const history = `webhook_deliveries/grupo-avp-workflow/cases/${before.id}/history`;
+      expect((await POST(request({ record: { ...base(), socOrder }, version: 1 }))).status).toBe(
+        200
+      );
+      expect(mocks.data.has(orderPath("123"))).toBe(false);
+      const other = { ...base(), sourceId: "campaign-2", socOrder: "123" };
+      const response = await POST(request({ record: other, version: 0 }));
+      expect(response.status).toBe(200);
+      const { record: second } = await response.json();
+      expect(mocks.data.get(orderPath("123"))?.caseId).toBe(second.id);
+      expect(mocks.data.get(`${history}/1`)).toEqual(before);
+      expect(mocks.data.get(`${history}/2`)).toMatchObject({
+        socOrder,
+        version: 2,
+        updatedBy: "operator",
+      });
+    }
+  );
+  it("não libera a reserva nem grava histórico quando o novo pedido está ocupado", async () => {
+    expect(
+      (await POST(request({ record: { ...base(), socOrder: "123" }, version: 0 }))).status
+    ).toBe(200);
+    mocks.data.set(orderPath("456"), { caseId: "outro" });
+    const before = structuredClone(mocks.data);
+    expect(
+      (await POST(request({ record: { ...base(), socOrder: "456" }, version: 1 }))).status
+    ).toBe(409);
+    expect(mocks.data).toEqual(before);
+    expect(mocks.deletes).not.toHaveBeenCalled();
+  });
+  it("mantém a reserva ao salvar o mesmo pedido e rejeita um segundo editor com versão antiga", async () => {
+    const record = { ...base(), socOrder: "123" };
+    expect((await POST(request({ record, version: 0 }))).status).toBe(200);
+    expect((await POST(request({ record, version: 1 }))).status).toBe(200);
+    const before = structuredClone(mocks.data);
+    expect(
+      (await POST(request({ record: { ...record, socOrder: "456" }, version: 1 }))).status
+    ).toBe(409);
+    expect(mocks.data).toEqual(before);
+    expect(mocks.deletes).not.toHaveBeenCalled();
+  });
+  it("exige salvar a substituição antes de nova revisão e conserva a entrega antiga no histórico", async () => {
+    const a = "a".repeat(64),
+      b = "b".repeat(64);
+    for (const id of [a, b])
+      mocks.data.set(`webhook_deliveries/grupo-avp-evidence/records/${id}`, {
+        kind: "aso",
+        uploaded: true,
+        review: "Recebido",
+        employee: base().employee,
+      });
+    const delivered = {
+      ...base(),
+      stage: "delivered",
+      identityChecked: true,
+      socCheck: "existing-order",
+      socReference: "consulta sintética",
+      socOrder: "123",
+      clinic: "Clínica Teste",
+      clinicEmail: "clinica@example.test",
+      owner: "operator",
+      scheduledDate: "2026-10-20",
+      attendedDate: "2026-10-20",
+      dueDate: "2026-10-23",
+      coordinator: "Teste",
+      coordinatorEmail: "coordenador@example.test",
+      evidenceId: a,
+      documentChecked: true,
+      deliveryReference: "envio sintético antigo",
+    };
+    expect((await POST(request({ record: delivered, version: 0 }))).status).toBe(200);
+    const previous = structuredClone(mocks.data);
+    expect(
+      (await POST(request({ record: { ...delivered, evidenceId: b }, version: 1 }))).status
+    ).toBe(400);
+    expect(mocks.data).toEqual(previous);
+    const replacement = {
+      ...delivered,
+      evidenceId: b,
+      stage: "review",
+      documentChecked: false,
+      deliveryReference: "",
+    };
+    const response = await POST(request({ record: replacement, version: 1 }));
+    expect(response.status).toBe(200);
+    const { record: saved } = await response.json();
+    expect(saved).toMatchObject({
+      evidenceId: b,
+      documentChecked: false,
+      deliveryReference: "",
+      stage: "review",
+      version: 2,
+    });
+    const history = `webhook_deliveries/grupo-avp-workflow/cases/${saved.id}/history`;
+    expect(mocks.data.get(`${history}/1`)).toMatchObject({
+      evidenceId: a,
+      documentChecked: true,
+      deliveryReference: delivered.deliveryReference,
+    });
+    expect(
+      (await POST(request({ record: { ...replacement, stage: "ready" }, version: 2 }))).status
+    ).toBe(400);
+    expect(
+      (
+        await POST(
+          request({ record: { ...replacement, stage: "ready", documentChecked: true }, version: 2 })
+        )
+      ).status
+    ).toBe(200);
+    expect(
+      (
+        await POST(
+          request({
+            record: { ...replacement, stage: "delivered", documentChecked: true },
+            version: 3,
+          })
+        )
+      ).status
+    ).toBe(400);
+  });
 });
