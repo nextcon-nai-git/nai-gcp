@@ -29,6 +29,18 @@ A API exige autenticação e o mesmo acesso interno de evidências AVP. Não ret
 
 A atualização é manual pelo botão do painel. A exportação CSV contém apenas o resumo de cobertura por município, com proteção contra fórmulas. Não altera prestadores, contratos, preços, fila existente ou permissões da planilha.
 
+## Fila de trabalho dos periódicos
+
+Na aba **Fila de trabalho**, cada participante consolidado gera um card de consulta sem criar agendamento. Os cards começam em **Validar convocação**, inclusive quando a fonte já diz “Agendado”. Cancelamentos, unidade ausente e duplicidades permitem atribuir a revisão, mas impedem avançar para convocação.
+
+O operador registra responsável, data opcional da próxima ação e referência datada de evidência. O fluxo segue uma etapa por vez: validar → agendar → confirmar realização → resgatar/conferir ASO → conferir eSocial → concluído. A conclusão exige registro do recibo de aceitação ou justificativa documentada de não aplicabilidade. Os documentos e recibos não são verificados automaticamente: são evidências declaradas pelo operador, sujeitas a conferência. Não registrar diagnóstico, CPF ou credenciais nesses campos.
+
+As ações ficam em `integrations/grupo-avp/periodic-work-2026`, cuja escrita direta pelo cliente já é negada nas regras de integrações. A API exige acesso interno AVP, valida a fonte novamente e usa transação com revisão para impedir sobrescrita concorrente. Estado e histórico são gravados juntos. Mudanças nos dados do participante, inclusive último exame, periodicidade e conferência, invalidam a liberação anterior e retornam o card para validação sem apagar o histórico. O painel exibe os 30 eventos de auditoria mais recentes por card.
+
+Os filtros de cidade, responsável, etapa e próxima ação vencida organizam a revisão e o resgate. Prazos vencidos referem-se às datas escolhidas pelos operadores; não representam cálculo automático de infração ao eSocial. Nenhum responsável é inventado ou distribuído sem registro. A fonte permanece somente leitura; atualizações dos cards são próprias do NAI.
+
+Esta entrega não ativa mensagens a terceiros, agenda em clínicas, transmissão ao eSocial ou integração contínua com SOC/RD. Esses passos exigem validação dos acessos e evidências nas fontes respectivas. A consulta é atualizada ao abrir a fila ou clicar em atualizar; não há tarefa agendada de sincronização nesta entrega.
+
 ## Validação
 
 Testes cobrem deduplicação, filiais ambíguas, cidades/UF, preço de R$ 40, pacotes, contratos divergentes, acesso restrito, revogação e respostas antigas após troca de conta. O upload inicial foi conferido célula a célula contra a origem, sem divergências.
