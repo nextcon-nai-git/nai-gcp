@@ -23,8 +23,18 @@ let element: HTMLDivElement;
 let root: Root;
 let apps: FirebaseApp[];
 let target: Query;
-function Subscriber({ target, label }: { target: Query | null; label: string }) {
-  const { data, isLoading, error } = useCollectionDeduped<{ name: string }>(target);
+function Subscriber({
+  target,
+  label,
+  permissionErrors,
+}: {
+  target: Query | null;
+  label: string;
+  permissionErrors?: "global" | "local";
+}) {
+  const { data, isLoading, error } = useCollectionDeduped<{ name: string }>(target, {
+    permissionErrors,
+  });
   return (
     <span data-testid={label} data-loading={String(isLoading)} data-error={error?.message || ""}>
       {data === null ? "none" : data.map((doc) => doc.name).join(",") || "empty"}
@@ -119,6 +129,44 @@ describe("useCollectionDeduped", () => {
     expect(read("first").getAttribute("data-error")).toBe("Permission denied");
     expect(read("second").getAttribute("data-error")).toBe("Permission denied");
     expect(mocks.emit).toHaveBeenCalledOnce();
+  });
+
+  it("returns a handled permission denial locally, clears cached data and avoids the global fatal event", async () => {
+    await act(async () =>
+      root.render(<Subscriber target={target} label="local" permissionErrors="local" />)
+    );
+    await publish(0, "Private contract");
+    await fail(0, "permission-denied");
+    expect(read("local").textContent).toBe("none");
+    expect(read("local").getAttribute("data-error")).toBe("Permission denied");
+    expect(mocks.emit).not.toHaveBeenCalled();
+    await act(async () =>
+      root.render(
+        <>
+          <Subscriber target={target} label="local" permissionErrors="local" />
+          <Subscriber target={target} label="late" permissionErrors="local" />
+        </>
+      )
+    );
+    expect(read("late").getAttribute("data-error")).toBe("Permission denied");
+    expect(mocks.emit).not.toHaveBeenCalled();
+  });
+  it("does not let a local handler suppress the existing global policy of another consumer", async () => {
+    await act(async () =>
+      root.render(
+        <>
+          <Subscriber target={target} label="local" permissionErrors="local" />
+          <Subscriber target={target} label="global" />
+        </>
+      )
+    );
+    expect(mocks.onSnapshot).toHaveBeenCalledTimes(2);
+    await fail(0, "permission-denied");
+    expect(mocks.emit).not.toHaveBeenCalled();
+    await fail(1, "permission-denied");
+    expect(mocks.emit).toHaveBeenCalledOnce();
+    expect(read("local").getAttribute("data-error")).toBe("Permission denied");
+    expect(read("global").getAttribute("data-error")).toBe("Permission denied");
   });
 
   it("keeps the listener when the original consumer unmounts and releases it after the last", async () => {

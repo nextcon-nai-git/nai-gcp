@@ -35,11 +35,14 @@ vi.mock("@/firebase", () => ({
   useFirestore: () => ({}),
   useStorage: () => ({}),
   useMemoFirebase: (factory: () => unknown) => factory(),
-  useCollection: (source: { group?: boolean }) => ({
-    data: source.group ? mocks.contracts : mocks.companies,
-    isLoading: false,
-    error: source.group ? mocks.contractsError : mocks.companiesError,
-  }),
+  useCollection: (source: { group?: boolean }, options?: { permissionErrors: string }) => {
+    expect(options?.permissionErrors).toBe("local");
+    return {
+      data: source.group ? mocks.contracts : mocks.companies,
+      isLoading: false,
+      error: source.group ? mocks.contractsError : mocks.companiesError,
+    };
+  },
 }));
 vi.mock("firebase/firestore", () => ({
   collection: () => ({ group: false }),
@@ -196,6 +199,7 @@ describe("contract import review and lifecycle", () => {
     expect(document.body.textContent).not.toContain("Resumo para revisão");
     expect(host.querySelector('input[type="file"]')).toBeNull();
     expect(host.textContent).toContain("Os dados da importação foram retirados da tela");
+    expect(host.querySelector('a[href="/production"]')).not.toBeNull();
   });
 
   it("ends a failed file read without hanging or calling the AI", async () => {

@@ -19,10 +19,16 @@ export interface UseCollectionDedupedResult<T> {
   error: FirestoreError | Error | null;
 }
 
+export interface CollectionOptions {
+  /** Use local only when the caller clears private state and renders its own denied-access UI. */
+  permissionErrors?: "global" | "local";
+}
+
 type Target = CollectionReference<DocumentData> | Query<DocumentData>;
 type SharedResult = UseCollectionDedupedResult<DocumentData>;
 interface Subscription {
   target: Target;
+  permissionErrors: "global" | "local";
   result: SharedResult;
   listeners: Set<(result: SharedResult) => void>;
   unsubscribe: () => void;
@@ -39,7 +45,11 @@ function broadcast(subscription: Subscription, result: SharedResult) {
   subscription.listeners.forEach((listener) => listener(result));
 }
 
-function contextualizeError(target: Target, serverError: FirestoreError): Error {
+function contextualizeError(
+  target: Target,
+  serverError: FirestoreError,
+  permissionErrors: "global" | "local"
+): Error {
   if (serverError.code !== "permission-denied") return serverError;
   let path = "collection-group";
   const reference = target as CollectionReference;
@@ -49,7 +59,7 @@ function contextualizeError(target: Target, serverError: FirestoreError): Error 
       operation: "list",
       path,
     } satisfies SecurityRuleContext);
-    errorEmitter.emit("permission-error", error);
+    if (permissionErrors === "global") errorEmitter.emit("permission-error", error);
     return error;
   } catch {
     // Diagnostic context must never prevent all consumers from receiving the failure.
@@ -59,27 +69,37 @@ function contextualizeError(target: Target, serverError: FirestoreError): Error 
 
 /** Shares the live listener and its latest data/error with every mounted consumer. */
 export function useCollectionDeduped<T = any>(
-  memoizedTargetRefOrQuery: Target | null | undefined
+  memoizedTargetRefOrQuery: Target | null | undefined,
+  options: CollectionOptions = {}
 ): UseCollectionDedupedResult<T> {
   const target = memoizedTargetRefOrQuery ?? null;
-  const [state, setState] = useState<{ target: Target | null; result: SharedResult }>({
+  const permissionErrors = options.permissionErrors ?? "global";
+  const [state, setState] = useState<{
+    target: Target | null;
+    permissionErrors: "global" | "local";
+    result: SharedResult;
+  }>({
     target: null,
+    permissionErrors,
     result: emptyResult,
   });
 
   useEffect(() => {
     if (!target) {
-      setState({ target: null, result: emptyResult });
+      setState({ target: null, permissionErrors, result: emptyResult });
       return;
     }
 
     // Public equality includes Firestore instance, query constraints and converter.
     // Serializing SDK internals loses that identity and may contain circular objects.
-    let subscription = [...subscriptions].find((entry) => queryEqual(entry.target, target));
+    let subscription = [...subscriptions].find(
+      (entry) => entry.permissionErrors === permissionErrors && queryEqual(entry.target, target)
+    );
     const isNew = !subscription;
     if (!subscription) {
       subscription = {
         target,
+        permissionErrors,
         result: { data: null, isLoading: true, error: null },
         listeners: new Set(),
         unsubscribe: () => {},
@@ -88,7 +108,7 @@ export function useCollectionDeduped<T = any>(
       subscriptions.add(subscription);
     }
     const entry = subscription;
-    const receive = (result: SharedResult) => setState({ target, result });
+    const receive = (result: SharedResult) => setState({ target, permissionErrors, result });
     entry.listeners.add(receive);
     // A late subscriber must not wait for another database change to leave loading.
     receive(entry.result);
@@ -109,7 +129,7 @@ export function useCollectionDeduped<T = any>(
             broadcast(entry, {
               data: null,
               isLoading: false,
-              error: contextualizeError(target, serverError),
+              error: contextualizeError(target, serverError, permissionErrors),
             });
           }
         );
@@ -130,9 +150,10 @@ export function useCollectionDeduped<T = any>(
         subscriptions.delete(entry);
       }
     };
-  }, [target]);
+  }, [target, permissionErrors]);
 
   // Never render the previous company's records while the new effect is pending.
-  if (state.target !== target) return { data: null, error: null, isLoading: !!target };
+  if (state.target !== target || state.permissionErrors !== permissionErrors)
+    return { data: null, error: null, isLoading: !!target };
   return state.result as UseCollectionDedupedResult<T>;
 }
