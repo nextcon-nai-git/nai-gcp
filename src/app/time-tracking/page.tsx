@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { MonthlyTimesheet } from "@/components/time-tracking/monthly-timesheet";
 import {
   Clock,
   CheckCircle2,
@@ -8,14 +9,12 @@ import {
   User,
   ShieldCheck,
   FileText,
-  Download,
   Lock,
   Coffee,
   LogIn,
   LogOut,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -228,7 +227,7 @@ function TimeTrackingSession({ employeePath, userId }: { employeePath: string; u
             </Badge>
           </div>
           <h1 className="text-3xl font-headline font-black text-primary tracking-tight uppercase">
-            Registro de Ponto Eletrônico CLT
+            Controle interno de frequência CLT
           </h1>
           <p className="text-slate-500 font-medium text-xs flex items-center gap-2">
             <ShieldCheck className="size-4 text-emerald-600" /> Registro interno de frequência por
@@ -489,7 +488,7 @@ function TimeTrackingSession({ employeePath, userId }: { employeePath: string; u
             <CardHeader className="bg-primary text-white p-6">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-black uppercase tracking-tight flex items-center gap-2">
-                  <FileText className="size-5 text-accent" /> Espelho de Ponto Eletrônico
+                  <FileText className="size-5 text-accent" /> Resumo de frequência do dia
                 </CardTitle>
                 <Badge className="bg-white/20 text-white font-mono text-[9px]">
                   Registros do dia
@@ -517,7 +516,7 @@ function TimeTrackingSession({ employeePath, userId }: { employeePath: string; u
 
               <div className="space-y-3">
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  Comprovantes Digitais Registrados Hoje:
+                  Marcações originais registradas hoje:
                 </h4>
 
                 {punchesError ? (
@@ -553,19 +552,16 @@ function TimeTrackingSession({ employeePath, userId }: { employeePath: string; u
                   </div>
                 )}
               </div>
-
-              <Button
-                onClick={() => window.print()}
-                variant="outline"
-                className="w-full h-12 border-primary text-primary font-black uppercase text-[10px] tracking-widest rounded-2xl gap-2 cursor-pointer"
-              >
-                <Download className="size-4 text-accent" /> Imprimir / Imprimir Espelho de Ponto
-                (PDF)
-              </Button>
             </CardContent>
           </Card>
         </div>
       </div>
+      <MonthlyTimesheet
+        key={selectedEmployee?.id || "no-employee"}
+        employee={selectedEmployee}
+        employeePath={employeePath}
+        rosterReady={!loadingEmployees && !employeesError}
+      />
     </div>
   );
 }

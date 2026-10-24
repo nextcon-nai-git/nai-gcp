@@ -1,0 +1,71 @@
+.sheet {
+  color: #111;
+  background: #fff;
+  font:
+    10pt/1.35 Arial,
+    sans-serif;
+  overflow-wrap: anywhere;
+}
+.sheet h2 {
+  font-size: 16pt;
+  margin: 0 0 8px;
+}
+.sheet p {
+  margin: 8px 0;
+}
+.identity {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 16px;
+  margin: 12px 0;
+}
+.identity div {
+  break-inside: avoid;
+}
+.identity dt {
+  font-weight: bold;
+}
+.identity dd {
+  margin: 0;
+}
+.sheet table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 8.5pt;
+}
+.sheet th,
+.sheet td {
+  border: 1px solid #777;
+  text-align: left;
+  padding: 4px;
+  vertical-align: top;
+}
+.sheet thead {
+  display: table-header-group;
+}
+.sheet tr {
+  break-inside: avoid;
+}
+.sheet li {
+  font-size: 8pt;
+}
+.signatures {
+  display: flex;
+  gap: 28px;
+  margin-top: 24px;
+  break-inside: avoid;
+}
+@media print {
+  .sheet details > summary {
+    display: none;
+  }
+  .sheet details > ul {
+    display: block !important;
+  }
+}
+
+@media print {
+  .audit[data-print-details="false"] {
+    display: none !important;
+  }
+}

@@ -18,6 +18,7 @@ const db = {};
 vi.mock("@/firebase", () => ({
   useUser: () => ({ user: m.user }),
   useFirestore: () => db,
+  useDoc: () => ({ data: null, isLoading: false, error: null }),
   useMemoFirebase: (fn: () => unknown) => fn(),
   useCollection: (path: string | null) => {
     if (path) m.paths.push(path);
