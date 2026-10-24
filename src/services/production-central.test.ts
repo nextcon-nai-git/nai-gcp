@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { randomUUID, createHash } from "node:crypto";
 import type { AuthContext } from "@/lib/auth/auth-context";
-import { emptyFinanceBook } from "@/lib/financial/operations";
+import {
+  emptyFinanceBook,
+  applyFinanceCommand,
+  FinanceCommandSchema,
+} from "@/lib/financial/operations";
+import { checkCycleFinance } from "@/lib/production/finance";
+import { progress, type ProductionCard } from "@/lib/production/model";
 import { ContractCommercialTermsSchema } from "@/lib/financial/contract-flow";
 const state = vi.hoisted(() => ({
   files: new Map<string, { bytes: Buffer; generation: string; metadata?: object }>(),
@@ -605,5 +611,386 @@ describe("immutable source upload", () => {
     state.failRead = false;
     await preserveProductionSource(admin, Buffer.from("%PDF-1.7"));
     expect(state.writes).toBe(1);
+  });
+});
+
+/** All persistence stays in state.files; finance commands use the real domain model.
+ * This is service/domain integration, not a browser or live-provider homologation. */
+async function integratedContract() {
+  let finance = emptyFinanceBook();
+  const fin = (payload: object, actor = "finance-creator") => {
+    const command = FinanceCommandSchema.parse({
+      requestId: randomUUID(),
+      expectedVersion: finance.version,
+      ...payload,
+    });
+    finance = applyFinanceCommand(
+      finance,
+      command,
+      actor,
+      "2026-10-24T12:00:00Z",
+      JSON.stringify(command)
+    );
+    return finance;
+  };
+  state.finance.mockImplementation(async () => structuredClone(finance));
+  fin({
+    action: "erpParty",
+    id: null,
+    data: {
+      name: "Cliente sintético",
+      document: "11222333000181",
+      role: "customer",
+      email: "",
+      phone: "",
+      active: true,
+    },
+    reason: "Cadastro de homologação",
+  });
+  fin({
+    action: "erpCategory",
+    id: null,
+    data: { code: "1.01", name: "Mensalidade", kind: "revenue", active: true },
+    reason: "Categoria sintética",
+  });
+  fin({
+    action: "erpCenter",
+    id: null,
+    data: { code: "SST", name: "SST", active: true },
+    reason: "Centro sintético",
+  });
+  fin({
+    action: "erpOrder",
+    id: null,
+    data: {
+      kind: "sale",
+      number: "HOMOLOG-001",
+      partyId: finance.erp.parties[0].id,
+      categoryId: finance.erp.categories[0].id,
+      centerId: finance.erp.centers[0].id,
+      competence: "2026-10",
+      dueDate: "2026-10-24",
+      items: [{ description: "Serviço mensal sintético", quantity: 1, unitCents: 10000 }],
+      discountCents: 0,
+      evidence: "Proposta sintética aprovada",
+    },
+    reason: "Pedido de homologação",
+  });
+  const orderId = finance.erp.orders[0].id;
+  fin({ action: "erpReviewOrder", id: orderId, status: "submitted", reason: "Revisão do pedido" });
+  fin(
+    { action: "erpReviewOrder", id: orderId, status: "approved", reason: "Segunda conferência" },
+    "finance-reviewer"
+  );
+  fin({
+    action: "contractFromOrder",
+    orderId,
+    owner: "Operação sintética",
+    acceptedOn: "2026-10-01",
+    implementationDue: "2026-10-10",
+    dueDay: 24,
+    billingRequiresReadiness: true,
+    monthlyPriceConfirmed: true,
+    acceptanceEvidence: "Contrato sintético conferido",
+    commercialTerms: { buyerCnpj: "11222333000181" },
+  });
+  const contractId = finance.contracts[0].id;
+  expect(finance.titles).toHaveLength(0);
+  const source = await preserveProductionSource(
+    admin,
+    Buffer.from("%PDF-1.7\ncontrato sintetico de homologacao")
+  );
+  const initial = command();
+  let central = await saveProductionCommand(admin, {
+    ...initial,
+    document: { name: "contrato-sintetico.pdf", kind: "contrato", source },
+    terms: {
+      ...initial.terms,
+      obligations: [
+        {
+          id: "report",
+          title: "Relatório sintético",
+          serviceType: "OUTRO",
+          owner: "Técnico sintético",
+          due: "2026-10-20",
+          deadlineRule: "Prazo contratual conferido",
+          sourceReference: "Cláusula 1",
+          sourceExcerpt: "Entregar relatório revisado no ciclo mensal.",
+        },
+      ],
+    },
+  });
+  const cycleId = central.records[0].cycles[0].id;
+  const save = async (payload: object) => {
+    central = await saveProductionCommand(admin, {
+      requestId: randomUUID(),
+      expectedVersion: central.version,
+      recordId: "record1",
+      ...payload,
+    });
+    return central;
+  };
+  const card = async (id: ProductionCard["id"]) => {
+    const r = central.records[0];
+    const commercial = ["budget", "proposal", "contract"].includes(id);
+    const value = (commercial ? r.commercial : r.cycles[0].cards).find((c) => c.id === id)!;
+    return save({
+      action: "card",
+      cycleId: commercial ? "" : cycleId,
+      card: {
+        ...value,
+        owner: "Revisor sintético",
+        status: "done",
+        checks: [true, true, true, true],
+        evidence: "Conferência humana sintética registrada",
+      },
+      reason: "Homologação sem operação real",
+    });
+  };
+  for (const id of ["budget", "proposal", "contract"] as const) await card(id);
+  await save({
+    action: "linkFinance",
+    financeContractId: contractId,
+    reason: "CNPJ e contrato conferidos",
+  });
+  expect(() => fin({ action: "recurring", contractId, month: "2026-10" })).toThrow(/implantação/i);
+  fin({
+    action: "flowChecklist",
+    contractId,
+    checklist: { clientData: true, scope: true, network: true, schedule: true },
+    reason: "Implantação sintética conferida",
+  });
+  await card("mobilize");
+  await expect(card("produce")).rejects.toThrow(/obrigaç/i);
+  await save({
+    action: "task",
+    cycleId,
+    taskId: "report",
+    data: {
+      owner: "Técnico sintético",
+      due: "2026-10-20",
+      status: "done",
+      checks: [true, true, true, true],
+      evidence: "Relatório sintético revisado e entregue",
+      blocker: "",
+    },
+    reason: "Execução sintética",
+  });
+  await card("produce");
+  await card("deliver");
+  fin({
+    action: "service",
+    data: {
+      contractId,
+      date: "2026-10-20",
+      description: "Relatório sintético",
+      supplier: "Equipe sintética",
+      city: "Curitiba",
+      quantity: 1,
+      unitRevenueCents: 10000,
+      unitCostCents: 2000,
+      evidence: "Execução sintética",
+      billingMode: "included",
+    },
+  });
+  const serviceId = finance.services[0].id;
+  fin(
+    { action: "flowReviewService", contractId, serviceId, evidence: "Segunda revisão sintética" },
+    "finance-reviewer"
+  );
+  expect(() => fin({ action: "billService", id: serviceId, dueDate: "2026-10-24" })).toThrow(
+    /incluído/i
+  );
+  fin({ action: "recurring", contractId, month: "2026-10" });
+  expect(() => fin({ action: "recurring", contractId, month: "2026-10" })).toThrow(/já possui/i);
+  const titleId = finance.titles[0].id;
+  fin({ action: "review", id: titleId, status: "submitted", reason: "Submeter medição sintética" });
+  fin(
+    { action: "review", id: titleId, status: "approved", reason: "Título sintético conferido" },
+    "finance-reviewer"
+  );
+  const billing = async (patch: object = {}) => {
+    const c = central.records[0].cycles[0];
+    const {
+      measuredCents,
+      invoicedCents,
+      receivedCents,
+      adjustmentCents,
+      measurementEvidence,
+      invoiceReference,
+      invoiceEvidence,
+      receiptEvidence,
+      adjustmentEvidence,
+      financeTitleId,
+    } = c;
+    return save({
+      action: "billing",
+      cycleId,
+      data: {
+        measuredCents,
+        invoicedCents,
+        receivedCents,
+        adjustmentCents,
+        measurementEvidence,
+        invoiceReference,
+        invoiceEvidence,
+        receiptEvidence,
+        adjustmentEvidence,
+        financeTitleId,
+        ...patch,
+      },
+      reason: "Registro sintético de medição e conciliação",
+    });
+  };
+  await billing({ measuredCents: 10000, measurementEvidence: "Medição sintética aprovada" });
+  await card("measure");
+  await billing({
+    invoicedCents: 10000,
+    invoiceReference: "SINTETICO/TESTE/001",
+    invoiceEvidence: "Referência fiscal fictícia para teste isolado",
+    financeTitleId: titleId,
+  });
+  await card("invoice");
+  fin({ action: "account", name: "Banco sintético" });
+  const accountId = finance.accounts[0].id;
+  const settle = (principalCents: number, withholdingCents = 0, interestCents = 0) => {
+    fin({
+      action: "settle",
+      data: {
+        titleId,
+        accountId,
+        date: "2026-10-24",
+        principalCents,
+        interestCents,
+        fineCents: 0,
+        discountCents: 0,
+        withholdingCents,
+        evidence: "Comprovante sintético",
+      },
+    });
+    return finance.settlements.at(-1)!;
+  };
+  const reconcile = (settlementId: string, amountCents: number) => {
+    fin({
+      action: "bank",
+      accountId,
+      rows: [
+        {
+          bankId: `sintetico-${settlementId}`,
+          date: "2026-10-24",
+          amountCents,
+          memo: "Crédito sintético",
+        },
+      ],
+    });
+    const row = finance.bank.at(-1)!;
+    fin({ action: "match", id: row.id, settlementIds: [settlementId] });
+    return row.id;
+  };
+  return {
+    fin,
+    save,
+    card,
+    billing,
+    settle,
+    reconcile,
+    contractId,
+    titleId,
+    central: () => central,
+    finance: () => finance,
+  };
+}
+
+describe("homologação sintética integrada do contrato ao recebimento", () => {
+  it("percorre upload, nove cards, revisão, medição e quitação conciliada preservando o contrato recorrente", async () => {
+    const f = await integratedContract();
+    const partial = f.settle(4000);
+    f.reconcile(partial.id, 4000);
+    await f.billing({ receivedCents: 4000, receiptEvidence: "Extrato sintético parcial" });
+    const before = await getProductionBook(admin);
+    await expect(f.card("receive")).rejects.toThrow(/saldo/i);
+    expect(await getProductionBook(admin)).toEqual(before);
+    const last = f.settle(6000, 1000, 200);
+    await f.billing({
+      receivedCents: 9000,
+      adjustmentCents: 1000,
+      receiptEvidence: "Baixas sintéticas conferidas",
+      adjustmentEvidence: "Retenção sintética comprovada",
+    });
+    await expect(f.card("receive")).rejects.toThrow(/conciliação bancária/i);
+    f.reconcile(last.id, 5200);
+    await f.card("receive");
+    const final = await getProductionBook(admin);
+    expect(progress(final.records[0])).toEqual({ completed: 10, total: 10 });
+    expect(final.records[0].active).toBe(true);
+    expect(f.finance().contracts[0].active).toBe(true);
+    expect(f.finance().titles).toHaveLength(1);
+    expect(final.records[0].documents[0].source).toEqual(before.records[0].documents[0].source);
+    expect(final.audit.length).toBeGreaterThan(before.audit.length);
+    expect(
+      checkCycleFinance(final.records[0], final.records[0].cycles[0], f.finance())
+    ).toMatchObject({
+      status: "reconciled",
+      outstandingCents: 0,
+      receipts: {
+        receivedCents: 9000,
+        adjustmentCents: 1000,
+        cashCents: 9200,
+        unreconciledCount: 0,
+      },
+    });
+  });
+  it("revalida um estorno posterior e impede encerrar o contrato com recebimento divergente", async () => {
+    const f = await integratedContract();
+    const receipt = f.settle(10000);
+    const bankId = f.reconcile(receipt.id, 10000);
+    await f.billing({ receivedCents: 10000, receiptEvidence: "Extrato sintético integral" });
+    await f.card("receive");
+    expect(() => f.fin({ action: "reverse", id: receipt.id, reason: "Estorno sintético" })).toThrow(
+      /conciliação/i
+    );
+    f.fin({ action: "unmatch", id: bankId, reason: "Desfazer conciliação sintética" });
+    f.fin({ action: "reverse", id: receipt.id, reason: "Estorno sintético" });
+    const before = await getProductionBook(admin);
+    await expect(
+      f.save({ action: "active", active: false, reason: "Tentar encerrar após estorno" })
+    ).rejects.toThrow(/divergem/i);
+    expect(await getProductionBook(admin)).toEqual(before);
+    expect(
+      checkCycleFinance(before.records[0], before.records[0].cycles[0], f.finance())
+    ).toMatchObject({ status: "divergent", outstandingCents: 10000 });
+  });
+  it("rejeita confirmação concorrente sem apagar o histórico nem duplicar a gravação confirmada", async () => {
+    const f = await integratedContract();
+    const current = await getProductionBook(admin);
+    const payload = {
+      action: "billing",
+      requestId: randomUUID(),
+      expectedVersion: current.version,
+      recordId: "record1",
+      cycleId: current.records[0].cycles[0].id,
+      data: {
+        measuredCents: 10000,
+        invoicedCents: 10000,
+        receivedCents: 0,
+        adjustmentCents: 0,
+        measurementEvidence: "Medição sintética aprovada",
+        invoiceReference: "SINTETICO/TESTE/001",
+        invoiceEvidence: "Referência fiscal fictícia para teste isolado",
+        receiptEvidence: "",
+        adjustmentEvidence: "",
+        financeTitleId: f.titleId,
+      },
+      reason: "Confirmar versão sintética",
+    };
+    const saved = await saveProductionCommand(admin, payload);
+    const writes = state.writes;
+    expect(await saveProductionCommand(admin, payload)).toEqual(saved);
+    expect(state.writes).toBe(writes);
+    await expect(
+      saveProductionCommand(admin, { ...payload, requestId: randomUUID() })
+    ).rejects.toMatchObject({ status: 409 });
+    expect(await getProductionBook(admin)).toEqual(saved);
+    expect(saved.audit.slice(0, current.audit.length)).toEqual(current.audit);
   });
 });
