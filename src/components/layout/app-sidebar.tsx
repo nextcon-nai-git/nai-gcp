@@ -77,9 +77,10 @@ interface NavModule {
   label: string;
   icon: LucideIcon;
   items: NavItem[];
+  description?: string;
 }
 
-const NAV_MODULES: NavModule[] = [
+const NAV_CATALOG: NavModule[] = [
   {
     label: "Dashboard Executivo",
     icon: Zap,
@@ -294,6 +295,70 @@ const NAV_MODULES: NavModule[] = [
   },
 ];
 
+// The main menu follows delivery from contract to receipt. Supporting tools remain discoverable.
+const catalogItems = NAV_CATALOG.flatMap((module) => module.items);
+const operationalRoutes = new Set([
+  "/suppliers/qualification",
+  "/nai-importa",
+  "/clients/grupo-avp",
+  "/agentes-ia",
+  "/health-control",
+  "/clients/cassi",
+  "/risk-management",
+  "/action-plans",
+  "/reports",
+  "/work-orders",
+  "/employees",
+  "/integrations/soc",
+  "/providers",
+  "/accredited-network",
+]);
+const commercialItems: NavItem[] = [
+  { title: "Comercial e propostas", icon: ShoppingCart, href: "/comercial" },
+  { title: "CRM comercial", icon: Users, href: "/crm" },
+  { title: "Contratos", icon: FileText, href: "/contracts" },
+  ...NAV_CATALOG[1].items,
+];
+const financialItems: NavItem[] = [
+  { title: "Faturamento e recebimentos", icon: DollarSign, href: "/financial/faturamento" },
+  {
+    title: "Faturamento mensal por grupo",
+    icon: FileSpreadsheet,
+    href: "/financial/monthly-billing",
+  },
+  ...NAV_CATALOG[3].items,
+];
+const mainRoutes = new Set([
+  "/",
+  ...commercialItems.map((item) => item.href),
+  ...operationalRoutes,
+  ...financialItems.map((item) => item.href),
+]);
+const NAV_MODULES: NavModule[] = [
+  {
+    label: "NAI Painel Estratégico",
+    icon: Zap,
+    items: [{ title: "NAI Painel Estratégico", icon: Zap, href: "/" }],
+  },
+  { label: "COMERCIAL / CONTRATOS", icon: ShoppingCart, items: commercialItems },
+  {
+    label: "IMPLANTAÇÃO / OPERAÇÕES",
+    icon: HardHat,
+    items: catalogItems
+      .filter((item) => operationalRoutes.has(item.href))
+      .map((item) =>
+        item.href === "/integrations/soc" ? { ...item, parentHref: undefined } : item
+      ),
+  },
+  { label: "FATURAMENTO / FINANCEIRO", icon: DollarSign, items: financialItems },
+  {
+    label: "EXTRAS",
+    icon: LayoutGrid,
+    description: "Ferramentas de apoio e módulos a revisar, fora da esteira principal.",
+    items: catalogItems.filter((item) => !mainRoutes.has(item.href)),
+  },
+];
+
 export function AppSidebar() {
   const pathname = usePathname();
   const auth = useAuth();
@@ -460,10 +525,15 @@ export function AppSidebar() {
           filteredModules.map((module) => {
             return (
               <SidebarGroup key={module.label} className="py-2">
-                <SidebarGroupLabel className="text-slate-400/80 text-[9px] font-black uppercase tracking-[0.2em] mb-1.5 px-3 flex items-center justify-between">
-                  <span>{module.label}</span>
+                <SidebarGroupLabel className="text-slate-400/80 text-[9px] font-black uppercase tracking-[0.08em] mb-1.5 px-3 flex items-center justify-between h-auto min-h-8 gap-2 py-1 leading-4">
+                  <span className="whitespace-normal">{module.label}</span>
                   <span className="text-[8px] opacity-40 font-mono">({module.items.length})</span>
                 </SidebarGroupLabel>
+                {module.description && (
+                  <p className="px-3 pb-2 text-[11px] leading-4 text-slate-400">
+                    {module.description}
+                  </p>
+                )}
                 <SidebarMenu className="space-y-0.5">
                   {module.items.map((item) => {
                     const isActive = activeHref === item.href;
@@ -483,6 +553,7 @@ export function AppSidebar() {
                         >
                           <Link
                             href={item.href}
+                            title={item.title}
                             className="flex items-center justify-between w-full"
                             onClick={() => {
                               if (isMobile) setOpenMobile(false);

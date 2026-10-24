@@ -241,7 +241,7 @@ export function ExecutiveDashboardView() {
             <span className="text-teal-700">Visão executiva</span>
           </div>
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            Gestão de SST<span className="text-teal-600">.</span>
+            NAI Painel Estratégico
           </h1>
           <p className="mt-2 text-sm text-slate-500">
             Clientes, prazos e decisões. Uma visão da sua operação registrada.
