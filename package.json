@@ -65,7 +65,7 @@
     "exceljs": "^4.4.0",
     "firebase": "^11.9.1",
     "firebase-admin": "^13.7.0",
-    "genkit": "^1.29.0",
+    "genkit": "^1.43.0",
     "googleapis": "^185.0.0",
     "jspdf": "4.2.1",
     "jszip": "^3.10.2",
