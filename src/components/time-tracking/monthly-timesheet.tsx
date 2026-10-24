@@ -22,7 +22,8 @@ interface Employer {
   caepf?: string;
   cno?: string;
 }
-const missing = "NÃO INFORMADO — regularizar cadastro";
+const subscribeToClient = () => () => undefined;
+const missing = "NÃO INFORMADO - regularizar cadastro";
 const dateLabel = (date?: string) =>
   /^\d{4}-\d{2}-\d{2}$/.test(date || "") ? date!.split("-").reverse().join("/") : missing;
 export function MonthlyTimesheet({
@@ -36,9 +37,12 @@ export function MonthlyTimesheet({
 }) {
   const db = useFirestore();
   const [month, setMonth] = React.useState(() => brasiliaDay(new Date()).slice(0, 7));
-  const [mounted, setMounted] = React.useState(false);
+  const mounted = React.useSyncExternalStore(
+    subscribeToClient,
+    () => true,
+    () => false
+  );
   const [includeReferences, setIncludeReferences] = React.useState(false);
-  React.useEffect(() => setMounted(true), []);
   const period = monthPeriod(month);
   const employerRef = useMemoFirebase(
     () =>
@@ -96,7 +100,7 @@ export function MonthlyTimesheet({
     <article className={styles.sheet} aria-label="Relatório mensal de frequência">
       <h2>Relatório mensal de frequência CLT</h2>
       <p>
-        <strong>PRELIMINAR — registros internos para conferência.</strong> Não substitui espelho de
+        <strong>PRELIMINAR - registros internos para conferência.</strong> Não substitui espelho de
         REP/PTRP validado.
       </p>
       {!ready ? (
@@ -165,7 +169,7 @@ export function MonthlyTimesheet({
             <div>
               <dt>Emissão / fuso</dt>
               <dd>
-                {new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })} —
+                {new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })} -
                 America/Sao_Paulo
               </dd>
             </div>
@@ -203,10 +207,10 @@ export function MonthlyTimesheet({
                       {row.entries
                         .filter((p) => p.type === type)
                         .map((p) => p.time)
-                        .join("; ") || "—"}
+                        .join("; ") || "-"}
                     </td>
                   ))}
-                  <td>{row.seconds === null ? "—" : hours(row.seconds)}</td>
+                  <td>{row.seconds === null ? "-" : hours(row.seconds)}</td>
                   <td title={row.status}>
                     {!row.entries.length ? "M" : row.seconds === null ? "P" : row.night ? "N" : "D"}
                     {row.entries
@@ -238,7 +242,7 @@ export function MonthlyTimesheet({
             exigem conferência no registrador de origem.
           </p>
           <details open className={styles.audit} data-print-details={includeReferences}>
-            <summary>Referências dos registros originais — rastreabilidade</summary>
+            <summary>Referências dos registros originais - rastreabilidade</summary>
             <ul>
               {rows.flatMap((row) =>
                 row.entries.map((p) => (
