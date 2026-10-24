@@ -480,6 +480,20 @@ describe("production workspace", () => {
     expect(host.textContent).not.toContain("Conferência com o ERP · versão 4");
     expect(host.textContent).toContain("ERP indisponível");
   });
+  it("abre o procedimento completo dentro da central sem alterar cards", async () => {
+    await render();
+    const calls = state.fetch.mock.calls.length;
+    await click("Procedimento completo");
+    expect(host.textContent).toContain("Procedimento completo do contrato ao recebimento");
+    expect(host.querySelectorAll('details[id^="pop-"]')).toHaveLength(9);
+    expect(state.fetch).toHaveBeenCalledTimes(calls);
+    await click("Esteira de produção");
+    await selectRecord();
+    expect(host.textContent).toContain("0/9 cards concluídos");
+    state.user = null;
+    await render();
+    expect(host.textContent).not.toContain("Procedimento completo");
+  });
   it("renders nine work instructions and three agent entry points", async () => {
     await render();
     await click("Instruções de trabalho");

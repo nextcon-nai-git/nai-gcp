@@ -40,6 +40,7 @@ import {
 import type { Extraction } from "@/lib/production/analysis";
 import type { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { OperatingProcedure } from "./operating-procedure";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Company = { id: string; name: string; cnpj: string };
@@ -271,7 +272,9 @@ function Workspace() {
     [companies, setCompanies] = React.useState<Company[]>([]);
   const [selectedCycle, setSelectedCycle] = React.useState("");
   const [selected, setSelected] = React.useState(""),
-    [tab, setTab] = React.useState<"work" | "billing" | "training" | "agents">("work");
+    [tab, setTab] = React.useState<"work" | "billing" | "training" | "procedure" | "agents">(
+      "work"
+    );
   const [busy, setBusy] = React.useState(false),
     [error, setError] = React.useState(""),
     [notice, setNotice] = React.useState("");
@@ -454,6 +457,7 @@ function Workspace() {
                   ["work", "Esteira de produção"],
                   ["billing", "Operação e faturamento"],
                   ["training", "Instruções de trabalho"],
+                  ["procedure", "Procedimento completo"],
                   ["agents", "3 agentes IA"],
                 ] as const
               ).map(([id, label]) => (
@@ -497,7 +501,9 @@ function Workspace() {
                 }}
               />
             )}
-            {tab === "training" ? (
+            {tab === "procedure" ? (
+              <OperatingProcedure />
+            ) : tab === "training" ? (
               <Training />
             ) : tab === "billing" ? (
               <BillingQueue
