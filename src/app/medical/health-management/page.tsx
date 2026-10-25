@@ -114,7 +114,11 @@ export default function HealthManagementUnified() {
         <TabsContent value="attendance">
           {error ? (
             <p role="alert" className="p-6">
-              Não foi possível consultar os atendimentos. Verifique seu acesso e tente novamente.
+              {"code" in error && error.code === "failed-precondition"
+                ? "A consulta depende de um índice do banco de dados. A equipe técnica deve conferir os índices publicados para empresa e data."
+                : "code" in error && error.code === "permission-denied"
+                  ? "A consulta foi negada pelas regras de acesso. Confira o perfil autorizado e a empresa selecionada."
+                  : "Não foi possível consultar os atendimentos. Verifique seu acesso e tente novamente."}{" "}
               Essa falha não significa ausência de registros.
             </p>
           ) : (
