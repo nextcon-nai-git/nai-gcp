@@ -78,7 +78,7 @@ perfil. Se recusar, revisar a diferença; não remover as verificações.
 `tests/rules/contracts-archive-release.test.ts` reproduz negativa interna removendo
 somente o match recursivo de uma baseline sintética, aplica o patch e repete a
 mesma consulta. Verifica autorização interna e negativas para cliente e perfil
-inexistente. O teste também impede sobrescrita do candidato, política divergente
+inexistente. O teste também impede reaplicação da regra, política divergente
 e uso de uma baseline cujo hash mudou.
 
 `tests/rules/contracts-import.test.ts` testa o grupo com SUPER_ADMIN, ADMIN e
@@ -105,3 +105,24 @@ Após publicação, ainda é necessário:
 A publicação e a vinculação operacional real permanecem pendentes até existir
 aprovação e evidência autenticada. Resultados automatizados não comprovam o
 funcionamento do ambiente publicado.
+
+## Resultados desta execução
+
+- Aplicação: 2.996/2.996 testes aprovados em 297 arquivos. A execução direcionada
+  contratual/produção aprovou 254/254 em 15 arquivos; é subconjunto da suíte.
+- TypeScript aprovado. ESLint sem erros, com 1.206 avisos no conjunto do projeto.
+- Emulador completo: 158 aprovados e 16 falhas em 174 testes, 4 arquivos com
+  falhas. As falhas envolvem Storage (negativas ao ler perfil via `firestore.get`
+  e timeouts); não houve alteração em `storage.rules`. Esse resultado **não** é
+  aprovação da suíte de regras. Causa dessas falhas locais ainda não confirmada.
+- Os dois cenários de consulta global e segregação em `contracts-import.test.ts`
+  passaram nessa execução. A reprodução antes/depois em
+  `contracts-archive-release.test.ts` passou também em execução isolada com
+  emulador Firestore: 1/1. A baseline usada é sintética.
+- Primeiro build: compilação e 146 páginas geradas, mas finalização falhou com
+  `ENOTEMPTY` no diretório `.next/export`. A repetição com saída nova
+  apresentou novamente ENOTEMPTY na finalização. Nenhum build local é considerado
+  aprovado. Security do GitHub passou no SHA 9d8bbaa; CI e Firebase validation
+  ainda estavam em execução ao registrar estes resultados.
+- Acesso publicado: `/contracts` apresentou a tela de login nesta sessão; não
+  houve teste autenticado, alteração de perfil ou gravação operacional.
