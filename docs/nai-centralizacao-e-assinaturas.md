@@ -53,3 +53,9 @@ O adaptador e a integração externa ainda não estão implementados neste incre
 Essa base ainda não é chamada por rotas ou telas e não grava dados nem envia documentos. O servidor deve autenticar e autorizar o responsável, conferir a resposta real do provedor e persistir as alterações atomicamente. O adaptador de webhook deve verificar autenticidade e resolver referências pela base confiável; nunca considerar o JSON recebido como autorização. A conclusão requer referência das evidências, mas não equivale à validação criptográfica do certificado.
 
 O histórico é limitado a 500 eventos por solicitação. Atingido esse limite, exige revisão; não descarta eventos antigos silenciosamente. Um reenvio após cancelamento, expiração ou troca da versão exige nova solicitação e aprovação.
+
+## Correções da revisão
+
+A preparação agora fixa provedor e ambiente de destino antes da aprovação. Uma confirmação de envio para outro provedor ou ambiente exige nova solicitação e aprovação; a validação também rejeita registros persistidos incoerentes com esse destino.
+
+Repetir a confirmação do mesmo envelope, com o mesmo documento e destino, retorna o estado existente sem duplicar eventos nem apagar progresso ou reabrir estados encerrados. Vincular outro envelope à mesma solicitação continua bloqueado. Essas regras não substituem idempotência da chamada externa ou transação da persistência no futuro adaptador.

@@ -4,6 +4,10 @@ import { z } from "zod";
 const id = z.string().trim().min(1).max(180);
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const instant = z.string().datetime();
+const destination = z
+  .object({ provider: id, environment: z.enum(["sandbox", "production"]) })
+  .strict();
+const submissionSchema = destination.extend({ envelopeId: id }).strict();
 const status = z.enum([
   "draft",
   "approved",
@@ -23,11 +27,9 @@ export const SignatureRequestSchema = binding
   .extend({
     id,
     status,
+    destination,
     approval: z.object({ actorId: id, at: instant }).strict().nullable(),
-    submission: z
-      .object({ provider: id, envelopeId: id, environment: z.enum(["sandbox", "production"]) })
-      .strict()
-      .nullable(),
+    submission: submissionSchema.nullable(),
     events: z.array(z.object({ id, fingerprint: hash }).strict()).max(500),
     finalArtifact: z.object({ sha256: hash, evidenceReference: id }).strict().nullable(),
   })
@@ -42,12 +44,18 @@ export const SignatureRequestSchema = binding
       invalid("A conclusão do provedor exige documento final e referência das evidências.");
     if (new Set(request.events.map((event) => event.id)).size !== request.events.length)
       invalid("Eventos repetidos na solicitação.");
+    if (
+      request.submission &&
+      (request.submission.provider !== request.destination.provider ||
+        request.submission.environment !== request.destination.environment)
+    )
+      invalid("O envio deve corresponder ao destino aprovado.");
     if (!request.submission && request.events.length) invalid("Eventos exigem envio ao provedor.");
   });
 export type SignatureRequest = z.infer<typeof SignatureRequestSchema>;
 
 export function prepareSignature(
-  input: z.infer<typeof binding> & { id: string }
+  input: z.infer<typeof binding> & { id: string; destination: z.infer<typeof destination> }
 ): SignatureRequest {
   return SignatureRequestSchema.parse({
     ...input,
@@ -78,7 +86,13 @@ export function recordSignatureSubmission(
 ) {
   const request = SignatureRequestSchema.parse(input);
   const current = binding.strict().parse(currentDocument);
-  if (request.status !== "approved") throw new Error("Aprovação necessária antes do envio.");
+  const confirmed = submissionSchema.parse(submission);
+  if (!request.approval) throw new Error("Aprovação necessária antes do envio.");
+  if (
+    confirmed.provider !== request.destination.provider ||
+    confirmed.environment !== request.destination.environment
+  )
+    throw new Error("O destino diverge da aprovação. Prepare nova solicitação.");
   if (
     request.tenantId !== current.tenantId ||
     request.recordId !== current.recordId ||
@@ -88,7 +102,13 @@ export function recordSignatureSubmission(
     throw new Error(
       "O documento foi alterado ou pertence a outro registro. Prepare nova solicitação."
     );
-  return SignatureRequestSchema.parse({ ...request, status: "submitted", submission });
+  if (request.submission) {
+    if (request.submission.envelopeId !== confirmed.envelopeId)
+      throw new Error("A solicitação já está vinculada a outro envio.");
+    // A repeated confirmed response must not erase partial/completed states or audit history.
+    return request;
+  }
+  return SignatureRequestSchema.parse({ ...request, status: "submitted", submission: confirmed });
 }
 
 export const SignatureEventSchema = binding
