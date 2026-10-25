@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 import { NextRequest } from "next/server";
 const m = vi.hoisted(() => ({
   verify: vi.fn(),
@@ -35,7 +36,10 @@ const record = {
   ],
   expiresAt: "2030-01-01T00:00:00Z",
   revoked: false,
-  signedDocument: { path: "private/file.pdf" },
+  signedDocument: {
+    path: "private/file.pdf",
+    sha256: createHash("sha256").update("%PDF-synthetic").digest("hex"),
+  },
 };
 function req(method: string, auth = true, body?: FormData) {
   return new NextRequest(`https://nai.test/api/clinic-portal/document?id=${id}`, {
@@ -70,6 +74,33 @@ describe("signed ASO isolation", () => {
     expect(m.audit).toHaveBeenCalledWith(
       expect.objectContaining({ action: "signed_pdf_read", uid: "doctor" })
     );
+  });
+  it("blocks altered PDF bytes and never records a successful download", async () => {
+    m.download.mockResolvedValue([Buffer.from("%PDF-altered")]);
+    const response = await GET(req("GET"));
+    expect(response.status).toBe(409);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(await response.text()).not.toContain("%PDF-altered");
+    expect(m.audit).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ action: "signed_pdf_integrity_failed", uid: "doctor" })
+    );
+  });
+  it.each([undefined, "", "not-a-sha256", "a".repeat(64)])(
+    "blocks missing or divergent document hash (%s)",
+    async (sha256) => {
+      m.get.mockResolvedValue({
+        data: () => ({ ...record, signedDocument: { ...record.signedDocument, sha256 } }),
+      });
+      expect((await GET(req("GET"))).status).toBe(409);
+      expect(m.audit).not.toHaveBeenCalledWith(
+        expect.objectContaining({ action: "signed_pdf_read" })
+      );
+    }
+  );
+  it("does not report a successful read when storage fails", async () => {
+    m.download.mockRejectedValue(new Error("storage unavailable"));
+    expect((await GET(req("GET"))).status).toBe(500);
+    expect(m.audit).not.toHaveBeenCalled();
   });
   it("allows owner operational access to ASO only", async () => {
     m.verify.mockResolvedValue({ uid: "owner", email: "owner@example.test", email_verified: true });

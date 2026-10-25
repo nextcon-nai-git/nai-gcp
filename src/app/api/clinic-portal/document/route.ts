@@ -133,13 +133,33 @@ export async function GET(request: NextRequest) {
       )
         throw forbidden();
     }
-    await ref
-      .collection("events")
-      .add({ action: "signed_pdf_read", uid: actor.uid, at: new Date().toISOString() });
     const [bytes] = await getStorage()
       .bucket(firebaseConfig.storageBucket)
       .file(record.signedDocument.path)
       .download();
+    // The upload hash binds this download to the reviewed, immutable document.
+    // This checks integrity only; it does not validate a digital certificate.
+    const actualHash = createHash("sha256").update(bytes).digest("hex");
+    if (
+      !/^[a-f0-9]{64}$/.test(record.signedDocument.sha256 ?? "") ||
+      actualHash !== record.signedDocument.sha256
+    ) {
+      await ref.collection("events").add({
+        action: "signed_pdf_integrity_failed",
+        uid: actor.uid,
+        at: new Date().toISOString(),
+      });
+      return NextResponse.json(
+        { error: "Integridade do documento não confirmada. Solicite conferência ao responsável." },
+        { status: 409, headers }
+      );
+    }
+    await ref.collection("events").add({
+      action: "signed_pdf_read",
+      uid: actor.uid,
+      at: new Date().toISOString(),
+      sha256: actualHash,
+    });
     return new NextResponse(new Uint8Array(bytes), {
       headers: {
         ...headers,
