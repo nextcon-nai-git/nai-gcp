@@ -169,6 +169,9 @@ function ClientsSession() {
         (showInactive || c.active !== false) &&
         ((c.name || c.companyName || "").toLowerCase().includes(term) ||
           (c.cnpj || "").includes(term) ||
+          (/^[\d.\/\-\s]+$/.test(term) &&
+            term.replace(/\D/g, "").length > 0 &&
+            (c.cnpj || "").replace(/\D/g, "").includes(term.replace(/\D/g, ""))) ||
           (c.segment || "").toLowerCase().includes(term) ||
           (c.city || "").toLowerCase().includes(term))
     );

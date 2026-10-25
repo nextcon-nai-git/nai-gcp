@@ -344,34 +344,26 @@ export function NewAttendanceModal() {
                         </div>
                         <div className="grid grid-cols-1 gap-2">
                           {group.items.map((item) => (
-                            <FormField
+                            <label
                               key={item.id}
-                              control={form.control}
-                              name="care_lines"
-                              render={({ field }) => (
-                                <FormItem
-                                  className="flex items-center space-x-3 space-y-0 p-4 bg-white border border-white rounded-2xl shadow-sm hover:border-primary/10 transition-all cursor-pointer"
-                                  onClick={() => {
-                                    const current = field.value || [];
-                                    const next = current.includes(item.id)
-                                      ? current.filter((v) => v !== item.id)
-                                      : [...current, item.id];
-                                    field.onChange(next);
-                                  }}
-                                >
-                                  <FormControl>
-                                    <Checkbox
-                                      checked={field.value?.includes(item.id)}
-                                      className="size-5 rounded-md border-slate-300"
-                                    />
-                                  </FormControl>
-                                  <FormLabel className="text-[11px] font-bold text-slate-600 uppercase cursor-pointer leading-tight">
-                                    {item.label}
-                                  </FormLabel>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
+                              className="flex items-center gap-3 p-4 bg-white rounded-2xl cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={(form.watch("care_lines") || []).includes(item.id)}
+                                onChange={(event) => {
+                                  const current = form.getValues("care_lines") || [];
+                                  form.setValue(
+                                    "care_lines",
+                                    event.target.checked
+                                      ? [...new Set([...current, item.id])]
+                                      : current.filter((value) => value !== item.id),
+                                    { shouldDirty: true }
+                                  );
+                                }}
+                              />
+                              <span className="text-xs font-bold text-slate-600">{item.label}</span>
+                            </label>
                           ))}
                         </div>
                       </div>

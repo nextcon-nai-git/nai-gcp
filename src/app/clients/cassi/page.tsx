@@ -70,28 +70,27 @@ export default function CassiOperationsHubPage() {
     uf: "PR",
     guideSadtNumber: "",
     authPassword: "",
-    doctorName: "Dr. Rodrigo Martins (CRM-PR 38.921)",
+    doctorName: "",
   });
 
-  // Formulário CAT Anexo II State
+  // Draft only: a clinical record and verified professional review are required for issuance.
   const [catForm, setCatForm] = React.useState({
     employeeName: "",
     matricula: "",
     dependencia: "",
-    medicalUnit: "NXC Saúde Empresarial - Curitiba",
-    date: new Date().toISOString().split("T")[0],
-    time: "10:00",
-    internacao: "NAO",
-    provavelDuracaoDias: "15",
-    afastamentoTrabalho: "SIM",
-    descricaoLesao:
-      "Trauma contuso em membro superior direito com escoriações após evento em agência bancária.",
-    diagnosticoProvavel: "Transtorno de estresse agudo e contusão osteomuscular",
-    cid: "F43.0 / S60",
-    observacoes: "Encaminhado para acolhimento PAVAS e avaliação de estresse pós-traumático.",
-    doctorName: "Dr. Rodrigo Martins",
-    doctorCrm: "38.921",
-    doctorUf: "PR",
+    medicalUnit: "",
+    date: "",
+    time: "",
+    internacao: "",
+    provavelDuracaoDias: "",
+    afastamentoTrabalho: "",
+    descricaoLesao: "",
+    diagnosticoProvavel: "",
+    cid: "",
+    observacoes: "",
+    doctorName: "",
+    doctorCrm: "",
+    doctorUf: "",
   });
 
   const handleCopyBank = () => {
@@ -332,7 +331,7 @@ export default function CassiOperationsHubPage() {
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 Retorno ao Trabalho (SLA D0)
               </span>
-              <div className="text-2xl font-black text-emerald-400">100% no Prazo</div>
+              <div className="text-2xl font-black text-emerald-400">SLA não apurado</div>
               <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
                 <CheckCircle2 size={12} /> {totalRetornosD0} devolutivas no mesmo dia
               </span>
@@ -938,13 +937,14 @@ export default function CassiOperationsHubPage() {
                     Trabalho (CAT)
                   </CardTitle>
                   <CardDescription className="text-xs text-slate-400">
-                    Modelo oficial contratual preenchido pelo médico examinador após atendimento
-                    (Físico & Digital).
+                    Rascunho não emitido. A emissão depende de atendimento vinculado, identificação
+                    do médico e revisão profissional. Nenhum certificado foi verificado.
                   </CardDescription>
                 </div>
 
                 <Button
-                  onClick={() => window.print()}
+                  disabled
+                  title="Emissão requer atendimento vinculado e revisão profissional verificada."
                   className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs uppercase rounded-xl flex items-center gap-2"
                 >
                   <Printer size={14} /> Imprimir / Exportar CAT
@@ -954,8 +954,11 @@ export default function CassiOperationsHubPage() {
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">Nome do Funcionário</Label>
+                  <Label htmlFor="cat-employeeName" className="text-xs text-slate-300 font-bold">
+                    Nome do Funcionário
+                  </Label>
                   <Input
+                    id="cat-employeeName"
                     value={catForm.employeeName}
                     onChange={(e) => setCatForm({ ...catForm, employeeName: e.target.value })}
                     placeholder="Ex: MARCOS AURÉLIO DA SILVA"
@@ -963,10 +966,11 @@ export default function CassiOperationsHubPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">
+                  <Label htmlFor="cat-matricula" className="text-xs text-slate-300 font-bold">
                     Matrícula Banco do Brasil
                   </Label>
                   <Input
+                    id="cat-matricula"
                     value={catForm.matricula}
                     onChange={(e) => setCatForm({ ...catForm, matricula: e.target.value })}
                     placeholder="Ex: BB-7.892.411-0"
@@ -974,10 +978,11 @@ export default function CassiOperationsHubPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">
+                  <Label htmlFor="cat-dependencia" className="text-xs text-slate-300 font-bold">
                     Dependência / Agência BB
                   </Label>
                   <Input
+                    id="cat-dependencia"
                     value={catForm.dependencia}
                     onChange={(e) => setCatForm({ ...catForm, dependencia: e.target.value })}
                     placeholder="Ex: Agência Centro Cívico (0042)"
@@ -988,25 +993,38 @@ export default function CassiOperationsHubPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">Data do Atendimento</Label>
+                  <Label htmlFor="cat-date" className="text-xs text-slate-300 font-bold">
+                    Data do Atendimento
+                  </Label>
                   <Input
                     type="date"
+                    id="cat-date"
                     value={catForm.date}
                     onChange={(e) => setCatForm({ ...catForm, date: e.target.value })}
                     className="bg-slate-950 border-slate-800 text-xs text-white rounded-xl"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">Hora</Label>
+                  <Label htmlFor="cat-time" className="text-xs text-slate-300 font-bold">
+                    Hora
+                  </Label>
                   <Input
+                    type="time"
+                    required
+                    id="cat-time"
                     value={catForm.time}
                     onChange={(e) => setCatForm({ ...catForm, time: e.target.value })}
                     className="bg-slate-950 border-slate-800 text-xs text-white rounded-xl"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">Houve Internação?</Label>
+                  <Label htmlFor="cat-internacao" className="text-xs text-slate-300 font-bold">
+                    Houve Internação?
+                  </Label>
                   <Input
+                    pattern="SIM|NAO|NÃO"
+                    required
+                    id="cat-internacao"
                     value={catForm.internacao}
                     onChange={(e) => setCatForm({ ...catForm, internacao: e.target.value })}
                     placeholder="SIM / NÃO"
@@ -1014,10 +1032,18 @@ export default function CassiOperationsHubPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">
+                  <Label
+                    htmlFor="cat-provavelDuracaoDias"
+                    className="text-xs text-slate-300 font-bold"
+                  >
                     Duração do Tratamento (dias)
                   </Label>
                   <Input
+                    type="number"
+                    min={0}
+                    step={1}
+                    required
+                    id="cat-provavelDuracaoDias"
                     value={catForm.provavelDuracaoDias}
                     onChange={(e) =>
                       setCatForm({ ...catForm, provavelDuracaoDias: e.target.value })
@@ -1028,10 +1054,11 @@ export default function CassiOperationsHubPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs text-slate-300 font-bold">
+                <Label htmlFor="cat-descricaoLesao" className="text-xs text-slate-300 font-bold">
                   Descrição e Natureza da Lesão
                 </Label>
                 <Input
+                  id="cat-descricaoLesao"
                   value={catForm.descricaoLesao}
                   onChange={(e) => setCatForm({ ...catForm, descricaoLesao: e.target.value })}
                   className="bg-slate-950 border-slate-800 text-xs text-white rounded-xl"
@@ -1040,8 +1067,14 @@ export default function CassiOperationsHubPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">Diagnóstico Provável</Label>
+                  <Label
+                    htmlFor="cat-diagnosticoProvavel"
+                    className="text-xs text-slate-300 font-bold"
+                  >
+                    Diagnóstico Provável
+                  </Label>
                   <Input
+                    id="cat-diagnosticoProvavel"
                     value={catForm.diagnosticoProvavel}
                     onChange={(e) =>
                       setCatForm({ ...catForm, diagnosticoProvavel: e.target.value })
@@ -1050,8 +1083,11 @@ export default function CassiOperationsHubPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">CID-10 ou CID-11</Label>
+                  <Label htmlFor="cat-cid" className="text-xs text-slate-300 font-bold">
+                    CID-10 ou CID-11
+                  </Label>
                   <Input
+                    id="cat-cid"
                     value={catForm.cid}
                     onChange={(e) => setCatForm({ ...catForm, cid: e.target.value })}
                     className="bg-slate-950 border-slate-800 text-xs text-white rounded-xl"
@@ -1063,14 +1099,14 @@ export default function CassiOperationsHubPage() {
                 <div className="text-xs space-y-1">
                   <span className="text-slate-400">Médico Examinador:</span>
                   <div className="font-bold text-white">
-                    {catForm.doctorName} — CRM/{catForm.doctorUf} {catForm.doctorCrm}
+                    Profissional ainda não vinculado a atendimento
                   </div>
                   <span className="text-emerald-400 text-[11px] font-semibold flex items-center gap-1">
-                    <ShieldCheck size={13} /> Certificado Digital ICP-Brasil A1 Ativo
+                    <ShieldCheck size={13} /> Certificado não verificado
                   </span>
                 </div>
                 <Badge className="bg-amber-400 text-slate-950 font-bold text-xs px-3 py-1">
-                  Pronto para Envio à CASSI
+                  Rascunho — emissão indisponível
                 </Badge>
               </div>
             </CardContent>
