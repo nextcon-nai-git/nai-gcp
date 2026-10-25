@@ -72,6 +72,13 @@ describe("Tallos access and boundaries", () => {
     });
     expect(() => items({ unexpected: true })).toThrow();
   });
+  it("accepts the documented reports docs envelope without treating a malformed response as empty", () => {
+    expect(items({ message: "success", docs: [{ id: 1, title: "Synthetic report" }] })).toEqual([
+      { id: 1, title: "Synthetic report" },
+    ]);
+    expect(items({ docs: [] })).toEqual([]);
+    expect(() => items({ docs: null })).toThrow();
+  });
   it("uses server credentials, disallows redirects and does not leak provider error bodies", async () => {
     vi.stubEnv("TALLOS_API_TOKEN", "synthetic-test-token");
     const fetcher = vi.fn().mockResolvedValue(

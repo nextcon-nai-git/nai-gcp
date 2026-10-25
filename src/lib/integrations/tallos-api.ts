@@ -30,7 +30,16 @@ export const string = (v: unknown, max = 500) => (typeof v === "string" ? v.slic
 export function items(v: unknown): Record<string, unknown>[] {
   if (Array.isArray(v)) return v.map(object);
   const r = object(v);
-  for (const key of ["data", "items", "results", "reports", "customers", "employees", "messages"]) {
+  for (const key of [
+    "data",
+    "docs",
+    "items",
+    "results",
+    "reports",
+    "customers",
+    "employees",
+    "messages",
+  ]) {
     if (Array.isArray(r[key])) return (r[key] as unknown[]).map(object);
   }
   if (r.data && typeof r.data === "object") return items(r.data);

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useUser } from "@/firebase";
+import { formatClinicPortalStatus } from "@/lib/clinic-portal-status";
 
 export function ClinicPortalInvite({
   requestId,
@@ -47,10 +48,7 @@ export function ClinicPortalInvite({
       if (!response.ok) throw new Error(result.error);
       if (!alive.current) return;
       if (result.id) setId(result.id);
-      if (result.state)
-        setStatus(
-          `${result.documentReceived ? "ASO recebido para conferência" : ({ invited: "Convite criado", confirmed: "Recebimento confirmado", draft: "Em preenchimento", awaiting_signature: "Aguardando assinatura" } as Record<string, string>)[result.state] || result.state}${result.revoked ? " · acesso revogado" : ""} · validade: ${new Date(result.expiresAt).toLocaleDateString("pt-BR")}`
-        );
+      if (result.state) setStatus(formatClinicPortalStatus(result));
       setMessage(
         action === "invite"
           ? "Link criado. Nenhuma mensagem foi enviada."
