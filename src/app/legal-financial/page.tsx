@@ -234,8 +234,9 @@ export default function LegalFinancial() {
               </div>
               <Input
                 type="number"
+                min={0}
                 value={payroll}
-                onChange={(e) => setPayroll(Number(e.target.value))}
+                onChange={(e) => setPayroll(Math.max(0, Number(e.target.value) || 0))}
                 className="h-12 bg-slate-50 border-none rounded-xl font-bold shadow-inner"
               />
             </div>

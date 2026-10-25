@@ -956,8 +956,9 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
               <div className="text-xs text-slate-500 italic py-16 text-center border border-dashed border-slate-800 rounded-xl space-y-2">
                 <FileText className="w-8 h-8 mx-auto text-slate-700" />
                 <p>
-                  Selecione uma solicitação no Pipeline Kanban para visualizar ou exportar o Kit
-                  Digital de Atendimento.
+                  {selectedRequest
+                    ? "A solicitação selecionada ainda não possui kit digital. Confira os dados e gere o kit antes de visualizar ou exportar."
+                    : "Selecione uma solicitação no Pipeline Kanban para visualizar ou exportar o Kit Digital de Atendimento."}
                 </p>
               </div>
             )}

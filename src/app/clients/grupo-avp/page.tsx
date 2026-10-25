@@ -432,7 +432,7 @@ export default function GrupoAvpClientHubPage() {
                   </p>
                   <div className="p-3 bg-white rounded-2xl border border-blue-200 text-center overflow-hidden">
                     <strong className="text-[11px] font-black font-mono text-blue-900 truncate block">
-                      atendimento.grupavp@nextonsaude.com.br
+                      atendimento.grupavp@nextconsaude.com.br
                     </strong>
                   </div>
                 </div>
@@ -442,13 +442,13 @@ export default function GrupoAvpClientHubPage() {
                     asChild
                     className="flex-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-[11px] uppercase tracking-wider h-10 gap-1.5 shadow-md"
                   >
-                    <a href="mailto:atendimento.grupavp@nextonsaude.com.br">
+                    <a href="mailto:atendimento.grupavp@nextconsaude.com.br">
                       <Mail size={14} /> Enviar E-mail
                     </a>
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => handleCopy("atendimento.grupavp@nextonsaude.com.br", "E-mail")}
+                    onClick={() => handleCopy("atendimento.grupavp@nextconsaude.com.br", "E-mail")}
                     className="rounded-xl border-blue-200 text-blue-800 h-10 px-3"
                   >
                     {copiedChannel === "E-mail" ? <Check size={16} /> : <Copy size={16} />}
