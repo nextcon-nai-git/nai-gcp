@@ -1,0 +1,57 @@
+name: Publish required Firestore indexes
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/deploy-indexes.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nai-production-indexes
+  cancel-in-progress: false
+
+jobs:
+  deploy-indexes:
+    name: Validate and publish indexes only
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --prefer-offline --no-audit
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Test existing access rules
+        run: npm run test:rules
+      - name: Prepare existing release credential
+        env:
+          NAI_RELEASE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const value = process.env.NAI_RELEASE_ACCOUNT;
+          try {
+            const account = JSON.parse(value || 'null');
+            if (!account?.client_email || !account?.private_key) throw new Error();
+          } catch {
+            throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON ausente ou inválido; nenhum índice publicado.');
+          }
+          const target = path.join(process.env.RUNNER_TEMP, 'nai-index-release.json');
+          fs.writeFileSync(target, value, { mode: 0o600 });
+          fs.appendFileSync(process.env.GITHUB_ENV, `GOOGLE_APPLICATION_CREDENTIALS=${target}\n`);
+          NODE
+      - name: Publish indexes without changing rules
+        run: npx --yes firebase-tools@15.33.0 deploy --only firestore:indexes --project studio-8439299034-125c7 --non-interactive
+      - name: Remove temporary credential
+        if: always()
+        run: rm -f "$RUNNER_TEMP/nai-index-release.json"
