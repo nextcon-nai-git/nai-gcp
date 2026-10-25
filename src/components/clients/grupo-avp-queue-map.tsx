@@ -15,7 +15,6 @@ import {
   ExternalLink,
   Copy,
   Check,
-  Sparkles,
   Layers,
   Users,
   ShieldAlert,
@@ -546,24 +545,9 @@ export function GrupoAvpQueueMap({
       <CardHeader className="border-b border-slate-800/80 bg-slate-900/60 p-6 md:p-8">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] font-black uppercase tracking-widest px-2.5 h-6">
-                <Sparkles size={12} className="mr-1 text-emerald-400" /> Resumo Cartográfico NAI 3.8
-              </Badge>
-              <Badge className="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[9px] font-black uppercase tracking-widest px-2.5 h-6">
-                Zoom em 4 Níveis: Brasil • Região • Estado • Cidade
-              </Badge>
-              <Badge className="bg-purple-500/20 text-purple-400 border border-purple-500/30 text-[9px] font-black uppercase tracking-widest px-2.5 h-6">
-                {allAggregates.length} Polos Mapeados
-              </Badge>
-              <Badge className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-[9px] font-black uppercase tracking-widest px-2.5 h-6">
-                Zoom Atual: {zoomFactor}x ({zoomLevelName})
-              </Badge>
-            </div>
-
             <CardTitle className="text-xl md:text-2xl font-black font-headline uppercase tracking-tight text-white flex items-center gap-2.5">
               <Activity className="text-cyan-400 size-6 animate-pulse" />
-              Centro de Comando Tático Nacional — Zoom Estado & Cidades
+              MAPA NEXTCON - AVP
             </CardTitle>
             <CardDescription className="text-xs text-slate-400 font-medium max-w-3xl">
               Navegue com scroll wheel, arraste com o mouse ou use os seletores para aproximar a
