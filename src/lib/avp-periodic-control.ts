@@ -102,6 +102,9 @@ export type PeriodicPerson = {
   classification: "cancelled" | "review" | "listed";
   duplicateRows: number;
   sourceRows: number[];
+  lastExam?: string;
+  periodicityMonths?: string;
+  reviewDetail?: string;
 };
 export type AvpObservedPrice = {
   clinic: string;
@@ -233,6 +236,12 @@ export function buildAvpPeriodicControl(
       classification,
       duplicateRows: rows.length - 1,
       sourceRows: rows.map((r) => Number(r[30])).filter(Number.isInteger),
+      lastExam: row[27],
+      periodicityMonths: row[23],
+      reviewDetail: rows
+        .map((r) => r[29])
+        .filter(Boolean)
+        .join(" / "),
     };
   });
   const clinicMap = new Map<string, PeriodicClinic>();

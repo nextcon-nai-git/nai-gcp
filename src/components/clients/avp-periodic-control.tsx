@@ -8,6 +8,7 @@ import { AVP_SOURCE } from "@/lib/avp-source-config";
 import { formatBrlCents } from "@/lib/avp-costs";
 import type { AvpPeriodicControl, AvpObservedPrice } from "@/lib/avp-periodic-control";
 import { ClinicContractDialog } from "./clinic-contract-dialog";
+import { AvpPeriodicWork } from "./avp-periodic-work";
 
 function Price({ price }: { price: AvpObservedPrice }) {
   const color =
@@ -254,6 +255,7 @@ export function AvpPeriodicControlPanel() {
               ["cities", "Cobertura por cidade"],
               ["clinics", "Clínicas e valores"],
               ["people", "Lista de periódicos"],
+              ["work", "Fila de trabalho"],
             ].map(([value, label]) => (
               <Button
                 key={value}
@@ -500,6 +502,7 @@ export function AvpPeriodicControlPanel() {
               )}
             </>
           )}
+          {view === "work" && <AvpPeriodicWork />}
           {view === "people" && (
             <>
               <select
