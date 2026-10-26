@@ -60,6 +60,13 @@ beforeEach(() => {
   m.download.mockResolvedValue([Buffer.from("%PDF-synthetic")]);
 });
 describe("signed ASO isolation", () => {
+  it("denies the cards-only expert even when an old clinical invitation matches the email", async () => {
+    m.get.mockResolvedValue({ data: () => ({ role: "MEDICAL_EXPERT" }) });
+    expect((await GET(req("GET"))).status).toBe(403);
+    expect((await POST(req("POST"))).status).toBe(403);
+    expect(m.download).not.toHaveBeenCalled();
+    expect(m.save).not.toHaveBeenCalled();
+  });
   it("blocks downloads without login and when disabled", async () => {
     expect((await GET(req("GET", false))).status).toBe(401);
     vi.stubEnv("CLINIC_PORTAL_ENABLED", "false");

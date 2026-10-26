@@ -71,6 +71,12 @@ beforeEach(() => {
   mocks.tx.get.mockImplementation(async () => ({ exists: true, data: () => mocks.record }));
 });
 describe("portal server authorization and persistence", () => {
+  it("blocks a cards-only expert even if a prior invitation matches the email", async () => {
+    mocks.record.role = "MEDICAL_EXPERT";
+    expect((await POST(request({ action: "read", id }))).status).toBe(403);
+    expect(mocks.tx.update).not.toHaveBeenCalled();
+    expect(mocks.tx.create).not.toHaveBeenCalled();
+  });
   it("fails closed until security rules have been deployed and activation is explicit", async () => {
     vi.stubEnv("CLINIC_PORTAL_ENABLED", "false");
     expect((await POST(request({ action: "read", id }))).status).toBe(503);
