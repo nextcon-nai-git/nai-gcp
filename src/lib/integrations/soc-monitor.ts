@@ -5,6 +5,12 @@ import { SocError, socRead, socCompanyIds, type SocResource, type SocRow } from 
 export const socRuns = () =>
   adminDb.collection("webhook_deliveries").doc("soc-monitor").collection("runs");
 type SocReadInput = { companyId?: string; start?: string; end?: string; employeeIds?: string };
+const validPeriodDate = (value?: string) =>
+  !!value &&
+  /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+  Number.isFinite(Date.parse(value)) &&
+  new Date(value).toISOString().slice(0, 10) === value;
+
 export async function monitoredSocRead(
   resource: SocResource,
   input: SocReadInput,
@@ -28,9 +34,9 @@ export async function monitoredSocRead(
     companyId: socCompanyIds().includes(input.companyId || "") ? input.companyId : "",
     status: failure ? "error" : "success",
     code: failure instanceof SocError ? failure.code : failure ? "INTERNAL_ERROR" : "OK",
-    // Preserve the requested period for failed ASO reads as well as successful ones.
-    periodStart: resource === "asos" ? input.start || null : null,
-    periodEnd: resource === "asos" ? input.end || null : null,
+    // Preserve valid requested dates for failed ASO reads; never echo malformed input.
+    periodStart: resource === "asos" && validPeriodDate(input.start) ? input.start : null,
+    periodEnd: resource === "asos" && validPeriodDate(input.end) ? input.end : null,
     records: result?.length ?? null,
     needsReview: result?.filter((r) => "review" in r && r.review).length ?? null,
   };
@@ -59,14 +65,10 @@ export type SocBatchFailure = {
  */
 export async function recordSocBatchFailure(input: SocBatchFailure): Promise<boolean> {
   const allowed = socCompanyIds();
-  const validDate = (value: string) =>
-    /^\d{4}-\d{2}-\d{2}$/.test(value) &&
-    Number.isFinite(Date.parse(value)) &&
-    new Date(value).toISOString().slice(0, 10) === value;
   if (
     !allowed.includes(input.companyId) ||
-    !validDate(input.start) ||
-    !validDate(input.end) ||
+    !validPeriodDate(input.start) ||
+    !validPeriodDate(input.end) ||
     input.end < input.start ||
     !Number.isInteger(input.offset) ||
     input.offset < 0 ||

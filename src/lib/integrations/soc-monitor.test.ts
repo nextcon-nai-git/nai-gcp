@@ -49,6 +49,29 @@ it("records the requested ASO period and safe reason when a provider query fails
   });
   expect(JSON.stringify(recorded)).not.toContain("private");
 });
+it("does not retain malformed ASO period input in history", async () => {
+  mocks.read.mockRejectedValue(new SocError(400, "INVALID_QUERY", "Invalid date."));
+  await expect(
+    monitoredSocRead(
+      "asos",
+      {
+        companyId: "101",
+        start: "private-secret-token",
+        end: "2026-10-26",
+        employeeIds: "12",
+      },
+      "manual"
+    )
+  ).rejects.toThrow();
+  const recorded = mocks.set.mock.calls[0][0];
+  expect(recorded).toMatchObject({
+    companyId: "101",
+    periodStart: null,
+    periodEnd: "2026-10-26",
+    code: "INVALID_QUERY",
+  });
+  expect(JSON.stringify(recorded)).not.toContain("private-secret-token");
+});
 it("records an interrupted company batch as partial coverage without clinical or secret data", async () => {
   expect(
     await recordSocBatchFailure({
