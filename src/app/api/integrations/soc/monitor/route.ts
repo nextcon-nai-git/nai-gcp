@@ -114,7 +114,10 @@ export async function POST(req: NextRequest) {
       });
       if (!recorded)
         return reply(
-          { error: "A falha ocorreu, mas não pôde ser registrada no histórico operacional.", code: "AUDIT_UNAVAILABLE" },
+          {
+            error: "A falha ocorreu, mas não pôde ser registrada no histórico operacional.",
+            code: "AUDIT_UNAVAILABLE",
+          },
           503
         );
     }
