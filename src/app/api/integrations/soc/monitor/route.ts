@@ -8,6 +8,7 @@ import {
   validateBatch,
   type BatchInput,
 } from "@/lib/integrations/soc-scheduled-batch";
+import { recordSocBatchFailure } from "@/lib/integrations/soc-monitor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +40,8 @@ export async function POST(req: NextRequest) {
       503
     );
   let lock: ReturnType<typeof adminDb.doc> | undefined;
+  let auditedBatch: BatchInput | undefined;
+  let batchStarted = false;
   const owner = randomUUID();
   try {
     // Bound streamed input before parsing; never accept provider URLs or credentials in the body.
@@ -87,6 +90,7 @@ export async function POST(req: NextRequest) {
       ...(body.rosterHash ? { rosterHash: body.rosterHash } : {}),
     };
     validateBatch(input);
+    auditedBatch = input;
     lock = adminDb.collection("webhook_deliveries").doc(`soc-monitor-company-${input.companyId}`);
     const acquired = await adminDb.runTransaction(async (tx) => {
       const prior = await tx.get(lock!);
@@ -96,8 +100,27 @@ export async function POST(req: NextRequest) {
     });
     if (!acquired)
       return reply({ error: "Consulta desta empresa em andamento.", code: "BUSY" }, 429);
+    batchStarted = true;
     return reply(await monitorSocBatch(input));
   } catch (error) {
+    if (batchStarted && auditedBatch) {
+      const code = error instanceof SocError ? error.code : "INTERNAL_ERROR";
+      const recorded = await recordSocBatchFailure({
+        companyId: auditedBatch.companyId,
+        start: auditedBatch.start,
+        end: auditedBatch.end,
+        offset: auditedBatch.offset,
+        code,
+      });
+      if (!recorded)
+        return reply(
+          {
+            error: "A falha ocorreu, mas não pôde ser registrada no histórico operacional.",
+            code: "AUDIT_UNAVAILABLE",
+          },
+          503
+        );
+    }
     if (error instanceof SocError)
       return reply({ error: error.message, code: error.code }, error.status);
     return reply({ error: "O lote não foi concluído.", code: "INTERNAL_ERROR" }, 500);
