@@ -14,7 +14,7 @@ beforeEach(() => {
     exists: true,
     data: () => ({
       email: "expert@example.test",
-      role: "MEDICAL_EXPERT",
+      role: "SCOPED_PROVIDER",
       accessEnabled: true,
       servedCompanies: ["allowed"],
       permissions: ["*"],
@@ -28,7 +28,7 @@ const request = (path: string, method = "GET") =>
   });
 it("allows only GET on the exclusive workspace using the stored role", async () => {
   expect((await requireAuth(request("/api/expert/workspace?company=allowed"))).role).toBe(
-    "MEDICAL_EXPERT"
+    "SCOPED_PROVIDER"
   );
   expect(mocks.verify).toHaveBeenCalledWith("synthetic", true);
 });
@@ -49,7 +49,7 @@ it.each(["POST", "PUT", "PATCH", "DELETE"])("denies mutation %s", async (method)
 it("rejects revoked access and revoked authentication", async () => {
   mocks.get.mockResolvedValue({
     exists: true,
-    data: () => ({ role: "MEDICAL_EXPERT", accessEnabled: false }),
+    data: () => ({ role: "SCOPED_PROVIDER", accessEnabled: false }),
   });
   await expect(requireAuth(request("/api/expert/workspace"))).rejects.toMatchObject({
     status: 403,

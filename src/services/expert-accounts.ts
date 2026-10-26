@@ -17,6 +17,7 @@ export function expertProviderSource(id: string, data: Record<string, unknown>) 
     data.isDeleted === true ||
     !name ||
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+    /(^seu@email\.com\.br$|@prestador\.nai\.com\.br$|@nextconsaude\.com\.br$)/i.test(email) ||
     !companyIds.length ||
     companyIds.length > 30
   )
@@ -29,6 +30,53 @@ export function expertProviderSource(id: string, data: Record<string, unknown>) 
 }
 function validateId(id: string) {
   if (!id || id.length > 128 || /[\/\u0000]/.test(id)) throw badRequest("Prestador inválido.");
+}
+export async function listExpertAccounts(user: AuthContext) {
+  requireAdmin(user);
+  const [providers, companies] = await Promise.all([
+    adminDb.collection("providers").limit(1001).get(),
+    adminDb.collection("companies").limit(1001).get(),
+  ]);
+  if (providers.size > 1000 || companies.size > 1000)
+    throw new AuthError(
+      "A base excede o limite desta revisão. Abra os prestadores individualmente.",
+      409
+    );
+  const units = new Map(
+    companies.docs
+      .filter((d) => d.data().isDeleted !== true)
+      .map((d) => [d.id, projectExpertCompany(d.id, d.data())])
+  );
+  return {
+    providers: providers.docs
+      .filter((d) => d.data().isDeleted !== true)
+      .map((d) => {
+        const data = d.data();
+        try {
+          const source = expertProviderSource(d.id, data);
+          if (data.active !== true && data.accessReviewStatus !== "confirmed")
+            throw badRequest(
+              "Cadastro profissional inativo ou pendente. Confirme a relação atual antes de liberar acesso."
+            );
+          const linked = source.companyIds.map((id) => units.get(id));
+          if (linked.some((c) => !c)) throw badRequest("Vínculo de unidade indisponível.");
+          return { ...source, companies: linked, ready: true, reason: "" };
+        } catch (error) {
+          return {
+            id: d.id,
+            name: String(data.name || ""),
+            email: String(data.email || ""),
+            revision: "",
+            accessUid: "",
+            companyIds: [],
+            companies: [],
+            ready: false,
+            reason: error instanceof AuthError ? error.message : "Revise o cadastro.",
+          };
+        }
+      })
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  };
 }
 export async function previewExpertAccount(user: AuthContext, providerId: string) {
   requireAdmin(user);

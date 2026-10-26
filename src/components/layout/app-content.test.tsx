@@ -78,16 +78,16 @@ describe("application access gate", () => {
     "/clients",
     "/medical/health-management",
   ])("never mounts a forbidden page or the global shell for an expert (%s)", async (pathname) => {
-    Object.assign(state, { user: { uid: "expert" }, role: "MEDICAL_EXPERT", pathname });
+    Object.assign(state, { user: { uid: "expert" }, role: "SCOPED_PROVIDER", pathname });
     expect(await renderProtectedChild()).not.toHaveBeenCalled();
     expect(state.replace).toHaveBeenCalledWith("/expert");
     expect(element.textContent).not.toContain("Sidebar navigation");
     expect(element.textContent).not.toContain("Top navigation");
   });
   it("mounts only the exclusive expert portal", async () => {
-    Object.assign(state, { user: { uid: "expert" }, role: "MEDICAL_EXPERT", pathname: "/expert" });
+    Object.assign(state, { user: { uid: "expert" }, role: "SCOPED_PROVIDER", pathname: "/expert" });
     expect(await renderProtectedChild()).toHaveBeenCalled();
-    expect(element.textContent).toContain("Portal de perícias");
+    expect(element.textContent).toContain("Portal de prestadores");
     expect(element.textContent).not.toContain("Top navigation");
   });
   it("never mounts protected children while redirecting a signed-out account", async () => {

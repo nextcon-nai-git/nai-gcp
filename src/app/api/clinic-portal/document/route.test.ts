@@ -61,7 +61,7 @@ beforeEach(() => {
 });
 describe("signed ASO isolation", () => {
   it("denies the cards-only expert even when an old clinical invitation matches the email", async () => {
-    m.get.mockResolvedValue({ data: () => ({ role: "MEDICAL_EXPERT" }) });
+    m.get.mockResolvedValue({ data: () => ({ role: "SCOPED_PROVIDER" }) });
     expect((await GET(req("GET"))).status).toBe(403);
     expect((await POST(req("POST"))).status).toBe(403);
     expect(m.download).not.toHaveBeenCalled();

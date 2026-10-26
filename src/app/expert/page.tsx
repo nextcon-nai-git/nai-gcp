@@ -18,7 +18,7 @@ export default function ExpertPage() {
   return role === EXPERT_ROLE ? (
     <Workspace key={user?.uid} />
   ) : (
-    <p>Acesso exclusivo para médico perito autorizado.</p>
+    <p>Acesso exclusivo para prestador autorizado.</p>
   );
 }
 function Workspace() {
@@ -62,7 +62,7 @@ function Workspace() {
     <section className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Perícias · CNPJs e cards</h1>
+          <h1 className="text-2xl font-bold">Prestadores · CNPJs e cards</h1>
           <p className="text-sm text-muted-foreground">
             Consulta das unidades expressamente liberadas para sua conta.
           </p>

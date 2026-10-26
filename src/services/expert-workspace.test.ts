@@ -13,7 +13,7 @@ import type { AuthContext } from "@/lib/auth/auth-context";
 const actor: AuthContext = {
   uid: "expert",
   email: "expert@example.test",
-  role: "MEDICAL_EXPERT",
+  role: "SCOPED_PROVIDER",
   tenantId: null,
   permissions: [],
   servedCompanies: ["allowed"],
@@ -23,7 +23,7 @@ beforeEach(() => {
   m.profiles = 0;
   m.revoke = false;
   m.profile = {
-    role: "MEDICAL_EXPERT",
+    role: "SCOPED_PROVIDER",
     accessEnabled: true,
     providerId: "provider",
     servedCompanies: ["allowed", "stale"],

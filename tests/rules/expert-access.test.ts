@@ -17,7 +17,7 @@ beforeAll(async () => {
   });
   await env.withSecurityRulesDisabled(async (ctx) => {
     for (const [uid, role] of [
-      ["expert-restricted", "MEDICAL_EXPERT"],
+      ["expert-restricted", "SCOPED_PROVIDER"],
       ["provider-restricted", "PROVIDER"],
     ]) {
       await setDoc(doc(ctx.firestore(), "users", uid), {

@@ -5,6 +5,7 @@ import { useUser } from "@/firebase";
 import { getActionIdToken } from "@/lib/auth/action-token";
 import type { ExpertCompany } from "@/lib/expert-workspace";
 import { Button } from "@/components/ui/button";
+import { ProviderAccountBatch } from "@/components/providers/provider-account-batch";
 
 interface Preview {
   id: string;
@@ -19,12 +20,15 @@ export default function ExpertAccountPage() {
   return (
     <React.Suspense fallback={<p>Carregando revisão…</p>}>
       {role === "SUPER_ADMIN" ? (
-        <Account key={user?.uid} />
+        <AccessMode key={user?.uid} />
       ) : (
         <p>Acesso exclusivo do administrador.</p>
       )}
     </React.Suspense>
   );
+}
+function AccessMode() {
+  return useSearchParams().get("provider") ? <Account /> : <ProviderAccountBatch />;
 }
 function Account() {
   const provider = useSearchParams().get("provider") || "";
@@ -103,7 +107,7 @@ function Account() {
   }
   return (
     <section className="mx-auto max-w-3xl space-y-5">
-      <h1 className="text-2xl font-bold">Criar acesso de médico perito</h1>
+      <h1 className="text-2xl font-bold">Criar acesso restrito de prestador</h1>
       <p>
         Consulta de CNPJs e cards nas unidades vinculadas. Sem contratos, faturamento, prontuários,
         outros clientes ou permissões de edição.

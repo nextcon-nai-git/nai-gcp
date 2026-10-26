@@ -25,7 +25,7 @@ export async function requireAuth(request: NextRequest): Promise<AuthContext> {
   // This read-only role has one server-mediated surface. Never let legacy
   // tenant checks or accidentally assigned permissions widen its access.
   if (
-    parsed.role === "MEDICAL_EXPERT" &&
+    parsed.role === "SCOPED_PROVIDER" &&
     (profile.accessEnabled !== true ||
       request.method !== "GET" ||
       request.nextUrl.pathname !== "/api/expert/workspace")

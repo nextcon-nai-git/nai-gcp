@@ -1,6 +1,6 @@
-# Acesso de médicos peritos: CNPJs e cards
+# Acesso restrito de prestadores: CNPJs e cards
 
-O perfil `MEDICAL_EXPERT` possui somente consulta em `/expert`. O servidor
+O perfil `SCOPED_PROVIDER` possui somente consulta em `/expert`. O servidor
 retorna projeções de identificação das empresas e dos cards, nunca documentos
 integrais de empresas, contratos, faturamento, arquivos ou prontuários. A tela
 não monta navegação, busca ou assistente globais. Os cards são de consulta;
@@ -22,7 +22,7 @@ existente dos demais prestadores continua regido pelas suas regras clínicas.
 ## Provisionamento administrativo
 
 1. Na ficha do prestador, conferir nome, e-mail e as unidades vinculadas.
-2. Como SUPER_ADMIN, abrir **Acesso de médico perito · somente CNPJs e cards**.
+2. Como SUPER_ADMIN, abrir **Acesso restrito de prestador · somente CNPJs e cards**.
 3. Rever a lista completa de unidades e CNPJs. Identificação fiscal pendente
    não deve ser confundida com identidade fiscal validada ou contratação.
 4. O administrador informa a senha inicial e confirma a concessão. A senha
@@ -48,9 +48,9 @@ vínculo no prestador também bloqueia a unidade na próxima consulta.
   Firestore/Storage; a CI usa Java 21.
 - Publicar aplicação e regras separadamente. O workflow **Firebase validation**
   permite publicar Firestore, índices e Storage depois dos testes. Merge e CI
-  não comprovam publicação, criação dos logins ou teste autenticado dos peritos.
+  não comprovam publicação, criação dos logins ou teste autenticado dos prestadores.
 - Após publicar, criar as contas pela tela administrativa e testar com a conta
-  do perito: somente as unidades concedidas, cards reais, bloqueio de URLs
+  do prestador: somente as unidades concedidas, cards reais, bloqueio de URLs
   financeiras/contratuais e recusa de empresa não autorizada pela API.
 
 Não foram criadas contas reais ou enviados convites por testes automatizados.

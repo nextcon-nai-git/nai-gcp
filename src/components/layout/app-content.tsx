@@ -142,7 +142,7 @@ export function AppContent({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
-          <span className="font-bold">NAI · Portal de perícias</span>
+          <span className="font-bold">NAI · Portal de prestadores</span>
           <span className="text-sm">{user?.email}</span>
           <button className="rounded-lg border px-4 py-2" onClick={() => void signOut(auth)}>
             Sair

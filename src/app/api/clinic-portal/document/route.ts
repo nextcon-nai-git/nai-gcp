@@ -34,7 +34,7 @@ async function identity(request: NextRequest) {
     throw new AuthError("Sessão inválida.");
   }
   const profile = (await adminDb.collection("users").doc(actor.uid).get()).data();
-  if (profile?.role === "MEDICAL_EXPERT")
+  if (profile?.role === "SCOPED_PROVIDER")
     throw forbidden("Este perfil possui somente consulta de CNPJs e cards.");
   return actor;
 }

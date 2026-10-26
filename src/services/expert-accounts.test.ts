@@ -74,7 +74,7 @@ it("creates a disabled account first and enables only after the narrow profile a
   expect(m.createUser).toHaveBeenCalledWith(expect.objectContaining({ disabled: true }));
   const profile = m.create.mock.calls.find(([ref]) => ref.collection === "users")![1];
   expect(profile).toMatchObject({
-    role: "MEDICAL_EXPERT",
+    role: "SCOPED_PROVIDER",
     servedCompanies: ["allowed"],
     permissions: [],
     providerId: "provider",

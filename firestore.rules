@@ -27,7 +27,15 @@ service cloud.firestore {
     function belongsToCompany(companyId) {
       let profile = getUserProfile();
       return isSignedIn() && profile != null &&
-        !(profile.role in ['PROVIDER', 'MEDICAL_EXPERT']) && profile.companyId == companyId;
+        !(profile.role in ['PROVIDER', 'SCOPED_PROVIDER']) && profile.companyId == companyId;
+    }
+
+    function isOperationalProvider(companyId, name) {
+      let profile = getUserProfile();
+      return isSignedIn() && profile != null && profile.role == 'PROVIDER' &&
+        name in ['tasks', 'risks', 'pgr_cards'] &&
+        (('companyId' in profile && profile.companyId == companyId) ||
+          ('servedCompanies' in profile && profile.servedCompanies is list && companyId in profile.servedCompanies));
     }
 
     function isAuthorizedDoctorForCompany(companyId) {
@@ -317,7 +325,8 @@ service cloud.firestore {
         ? hasClinicalImportAccess(companyId)
         : isClinicalCollection(subcollection)
           ? hasClinicalAccess(companyId)
-          : isSignedIn() && (belongsToCompany(companyId) || isNextconOfficial());
+          : isSignedIn() && (belongsToCompany(companyId) || isNextconOfficial() ||
+            isOperationalProvider(companyId, subcollection));
       // Import records are written by authenticated server handlers. Checking
       // both versions of sourceType also blocks changing/removing the marker to
       // bypass checklist, classification or clinical-review validation.

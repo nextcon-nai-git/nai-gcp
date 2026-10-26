@@ -1,5 +1,5 @@
 /** Explicit projections: company documents can also contain commercial data. */
-export const EXPERT_ROLE = "MEDICAL_EXPERT" as const;
+export const EXPERT_ROLE = "SCOPED_PROVIDER" as const;
 export function expertCompanyIds(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return [

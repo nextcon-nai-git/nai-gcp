@@ -72,7 +72,7 @@ beforeEach(() => {
 });
 describe("portal server authorization and persistence", () => {
   it("blocks a cards-only expert even if a prior invitation matches the email", async () => {
-    mocks.record.role = "MEDICAL_EXPERT";
+    mocks.record.role = "SCOPED_PROVIDER";
     expect((await POST(request({ action: "read", id }))).status).toBe(403);
     expect(mocks.tx.update).not.toHaveBeenCalled();
     expect(mocks.tx.create).not.toHaveBeenCalled();
