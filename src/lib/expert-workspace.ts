@@ -1,5 +1,17 @@
+import { isValid, parseISO } from "date-fns";
+
 /** Explicit projections: company documents can also contain commercial data. */
 export const EXPERT_ROLE = "SCOPED_PROVIDER" as const;
+export function formatExpertDeadline(value: string): string {
+  const match =
+    /^(\d{4})-(\d{2})-(\d{2})(?:T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2}))?$/.exec(
+      value
+    );
+  if (!match || !isValid(parseISO(value))) return "Não informado";
+  // A card deadline is a calendar date. Preserve its stored day regardless
+  // of the browser timezone (date inputs are persisted at midnight UTC).
+  return `${match[3]}/${match[2]}/${match[1]}`;
+}
 export function expertCompanyIds(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return [

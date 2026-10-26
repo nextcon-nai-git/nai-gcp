@@ -1,5 +1,25 @@
 import { expect, it } from "vitest";
-import { expertCompanyIds, projectExpertCompany, projectExpertTask } from "./expert-workspace";
+import {
+  expertCompanyIds,
+  formatExpertDeadline,
+  projectExpertCompany,
+  projectExpertTask,
+} from "./expert-workspace";
+it.each([
+  ["2026-11-03", "03/11/2026"],
+  ["2026-11-03T00:00:00.000Z", "03/11/2026"],
+  ["2026-11-03T23:59:59Z", "03/11/2026"],
+  ["2026-11-03T23:59:59.999-03:00", "03/11/2026"],
+  ["2028-02-29T00:00:00.000Z", "29/02/2028"],
+  ["", "Não informado"],
+  ["invalid", "Não informado"],
+  ["2026-02-29", "Não informado"],
+  ["2026-02-30T00:00:00.000Z", "Não informado"],
+  ["2026-11-03T99:00:00.000Z", "Não informado"],
+  ["2026-11-03garbage", "Não informado"],
+])("formats card deadline %s without changing its calendar day", (input, expected) => {
+  expect(formatExpertDeadline(input)).toBe(expected);
+});
 it("drops commercial, clinical, attachment and internal fields instead of returning whole documents", () => {
   const company = projectExpertCompany("allowed", {
     name: "Sintética",

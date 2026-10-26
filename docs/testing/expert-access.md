@@ -18,6 +18,16 @@ acesso direto aos documentos brutos. O papel não tem `companyId` ou `tenantId`.
 As regras também removem a herança genérica de `companyId` para `PROVIDER`:
 ela não deve conceder acesso a contratos ou faturamento. O acesso clínico
 existente dos demais prestadores continua regido pelas suas regras clínicas.
+O resumo de contratos em `/api/financial/contracts` também recusa `PROVIDER`
+antes de consultar o Admin SDK. O escopo operacional do dashboard não autoriza
+essa leitura comercial.
+
+Os prazos dos cards aceitam `YYYY-MM-DD` e timestamps ISO completos, preservando
+o dia registrado sem deslocamento pelo fuso horário do navegador. Valores
+ausentes ou inválidos continuam identificados como **Não informado**.
+Se a unidade selecionada for revogada ou excluída, a tela descarta os dados
+anteriores e consulta uma vez os vínculos atuais sem a seleção inválida.
+Se não houver mais acesso, apresenta o erro sem restaurar os dados antigos.
 
 ## Provisionamento administrativo
 
@@ -54,3 +64,38 @@ vínculo no prestador também bloqueia a unidade na próxima consulta.
   financeiras/contratuais e recusa de empresa não autorizada pela API.
 
 Não foram criadas contas reais ou enviados convites por testes automatizados.
+
+## Regressões e aceite da revisão do PR #206
+
+- `src/app/expert/page.test.tsx`: prazo ISO na tela; revogação (403) e exclusão
+  (400) da unidade; seleção de outra unidade válida; revogação total sem loop;
+  falha de sessão/servidor; troca de conta durante a recuperação.
+- `src/lib/expert-workspace.test.ts`: datas simples, ISO UTC e com offset,
+  anos bissextos, valores ausentes e inválidos.
+- `tests/rules/expert-access.test.ts`: prestador legado com `companyId`, com
+  `servedCompanies` ou ambos; leitura operacional de tasks/risks/pgr_cards
+  apenas nas unidades vinculadas; bloqueio de escrita operacional, contratos,
+  faturamento, consultas globais e documentos/arquivos de outro cliente.
+  O acesso clínico já autorizado ao prestador legado é preservado; o perfil
+  novo `SCOPED_PROVIDER` continua sem acesso bruto ou clínico.
+- `src/app/api/financial/contracts/route.test.ts`: bloqueio de ambos os perfis
+  de prestador, incluindo solicitações da própria unidade, de outro cliente e
+  `all`, antes de qualquer leitura de contratos; preservação do escopo do
+  administrador cliente e do portfólio da administração interna.
+
+### Evidências a registrar depois da aprovação e do merge
+
+1. **Aplicação:** SHA efetivamente publicado, ID/data do rollout e resposta da
+   rota publicada. Build ou merge isolados não comprovam rollout.
+2. **Regras:** execução separada de publicação de Firestore e Storage, com o
+   resultado e a versão efetivamente ativa de cada conjunto de regras.
+3. **Teste autenticado:** conta de teste aprovada, perfil persistido, unidades
+   vinculadas e resultado real da consulta; prazo ISO exibido; revogação de
+   uma unidade sem perder acesso às demais; recusas de contratos, faturamento,
+   prontuários e clientes não vinculados para `SCOPED_PROVIDER`.
+4. **Legado:** leitura operacional autorizada e rejeição de consultas comerciais
+   e de outro cliente. Registrar evidências sem dados pessoais ou credenciais.
+5. **Contas:** conferir separadamente existência/ativação no Auth e perfil/vínculos
+   no Firestore. Não marcar logins como criados a partir de testes, merge ou deploy.
+
+As etapas de produção acima permanecem pendentes até execução e confirmação.

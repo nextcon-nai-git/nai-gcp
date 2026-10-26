@@ -2,7 +2,7 @@
 import * as React from "react";
 import { useUser } from "@/firebase";
 import { getActionIdToken } from "@/lib/auth/action-token";
-import { EXPERT_ROLE, type ExpertWorkspace } from "@/lib/expert-workspace";
+import { EXPERT_ROLE, formatExpertDeadline, type ExpertWorkspace } from "@/lib/expert-workspace";
 import { Button } from "@/components/ui/button";
 
 const statuses: Record<string, string> = {
@@ -45,6 +45,14 @@ function Workspace() {
           }
         );
         const result = await response.json();
+        if (!response.ok && company && (response.status === 400 || response.status === 403)) {
+          // A selected unit may have been deleted or unlinked. Discard its
+          // data and re-fetch the current grants without the stale selection.
+          // The empty selection makes this recovery a single retry; a revoked
+          // account still fails closed on the server.
+          if (active) setCompany("");
+          return;
+        }
         if (!response.ok) throw new Error(result.error || "Não foi possível consultar os cards.");
         if (active) setData(result);
       } catch (err) {
@@ -109,9 +117,7 @@ function Workspace() {
                 <h2 className="text-lg font-semibold">{task.title}</h2>
                 <p className="text-sm text-muted-foreground">
                   {statuses[task.status] || task.status} · Prazo:{" "}
-                  {/^\d{4}-\d{2}-\d{2}$/.test(task.dueDate)
-                    ? task.dueDate.split("-").reverse().join("/")
-                    : "Não informado"}
+                  {formatExpertDeadline(task.dueDate)}
                 </p>
                 <ul className="space-y-2 text-sm">
                   {task.checklist.map((item, index) => (

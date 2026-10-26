@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { dashboardScope } from "@/lib/auth/dashboard-access";
-import { AuthError } from "@/lib/auth/errors";
+import { AuthError, forbidden } from "@/lib/auth/errors";
 export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const headers = { "Cache-Control": "private, no-store" };
   try {
     const user = await requireAuth(request);
+    // Operational company scope must not grant providers commercial access
+    // through the Admin SDK, which bypasses the Firestore client rules.
+    if (user.role === "PROVIDER" || user.role === "SCOPED_PROVIDER") throw forbidden();
     const scope = dashboardScope(user, request.nextUrl.searchParams.get("company") || "all");
     // Server-authorized aggregation avoids the forbidden browser collectionGroup query.
     const query = scope
