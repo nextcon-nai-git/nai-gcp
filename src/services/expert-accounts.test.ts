@@ -15,7 +15,7 @@ vi.mock("@/lib/firebase-admin", () => ({
   adminAuth: { getUserByEmail: m.getUser, createUser: m.createUser, updateUser: m.updateUser },
   adminDb: { collection: m.collection, runTransaction: m.transaction },
 }));
-import { createExpertAccount, previewExpertAccount } from "./expert-accounts";
+import { createExpertAccount, previewExpertAccount, listExpertAccounts } from "./expert-accounts";
 import type { AuthContext } from "@/lib/auth/auth-context";
 const admin: AuthContext = {
   uid: "admin",
@@ -102,5 +102,39 @@ it("denies provider and non-security administrators before any reads", async () 
   await expect(previewExpertAccount({ ...admin, role: "ADMIN" }, "provider")).rejects.toMatchObject(
     { status: 403 }
   );
+  expect(m.collection).not.toHaveBeenCalled();
+});
+
+it("only offers valid, current providers with existing client units in the batch", async () => {
+  const entries = [
+    { id: "ready", data: { ...m.provider, active: true } },
+    { id: "inactive", data: { ...m.provider, active: false } },
+    { id: "placeholder", data: { ...m.provider, active: true, email: "seu@email.com.br" } },
+    { id: "internal", data: { ...m.provider, active: true, email: "nextcon@nextconsaude.com.br" } },
+    { id: "orphan", data: { ...m.provider, active: true, servedCompanies: ["missing"] } },
+    { id: "deleted", data: { ...m.provider, active: true, isDeleted: true } },
+  ];
+  m.collection.mockImplementation((name: string) => ({
+    limit: () => ({
+      get: async () => ({
+        size: name === "providers" ? entries.length : 1,
+        docs:
+          name === "providers"
+            ? entries.map((row) => ({ id: row.id, data: () => row.data }))
+            : [{ id: "allowed", data: () => ({ name: "Empresa sintética" }) }],
+      }),
+    }),
+  }));
+  const result = await listExpertAccounts(admin);
+  expect(result.providers.filter((p) => p.ready).map((p) => p.id)).toEqual(["ready"]);
+  expect(result.providers.some((p) => p.id === "deleted")).toBe(false);
+  expect(result.providers.filter((p) => !p.ready)).toHaveLength(4);
+  expect(m.createUser).not.toHaveBeenCalled();
+});
+
+it("does not expose the provider directory to non-security administrators", async () => {
+  await expect(listExpertAccounts({ ...admin, role: "PROVIDER" })).rejects.toMatchObject({
+    status: 403,
+  });
   expect(m.collection).not.toHaveBeenCalled();
 });
