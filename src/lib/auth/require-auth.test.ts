@@ -10,18 +10,16 @@ beforeEach(() => {
   mocks.verify
     .mockReset()
     .mockResolvedValue({ uid: "expert", email: "expert@example.test", role: "SUPER_ADMIN" });
-  mocks.get
-    .mockReset()
-    .mockResolvedValue({
-      exists: true,
-      data: () => ({
-        email: "expert@example.test",
-        role: "MEDICAL_EXPERT",
-        accessEnabled: true,
-        servedCompanies: ["allowed"],
-        permissions: ["*"],
-      }),
-    });
+  mocks.get.mockReset().mockResolvedValue({
+    exists: true,
+    data: () => ({
+      email: "expert@example.test",
+      role: "MEDICAL_EXPERT",
+      accessEnabled: true,
+      servedCompanies: ["allowed"],
+      permissions: ["*"],
+    }),
+  });
 });
 const request = (path: string, method = "GET") =>
   new NextRequest(`https://nai.test${path}`, {
