@@ -1239,6 +1239,14 @@ function ProvidersManagementSession() {
                           >
                             {provider.name}
                           </button>
+                          {role === "SUPER_ADMIN" && (
+                            <Link
+                              href={`/providers/access?provider=${encodeURIComponent(provider.id)}`}
+                              className="mt-2 block text-xs underline"
+                            >
+                              Acesso de médico perito · somente CNPJs e cards
+                            </Link>
+                          )}
                           <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">
                             Vínculo: {provider.id}
                           </p>

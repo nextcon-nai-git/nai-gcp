@@ -26,7 +26,8 @@ service cloud.firestore {
 
     function belongsToCompany(companyId) {
       let profile = getUserProfile();
-      return isSignedIn() && profile != null && profile.companyId == companyId;
+      return isSignedIn() && profile != null &&
+        !(profile.role in ['PROVIDER', 'MEDICAL_EXPERT']) && profile.companyId == companyId;
     }
 
     function isAuthorizedDoctorForCompany(companyId) {
@@ -445,7 +446,7 @@ service cloud.firestore {
 
     match /{rootCollection}/{document=**} {
       allow read: if isSignedIn() && isNextconOfficial() && !isClinicalCollection(rootCollection) && !(rootCollection in ['clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries']);
-      allow write: if isNextconOfficial() && !isClinicalCollection(rootCollection) && !(rootCollection in ['clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'agendamentos', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'analisesPGR']);
+      allow write: if isNextconOfficial() && !isClinicalCollection(rootCollection) && !(rootCollection in ['clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'agendamentos', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'expert_access_audit', 'analisesPGR']);
     }
   }
 }

@@ -6,6 +6,7 @@ export type UserRole =
   | "NURSE"
   | "ENGINEER"
   | "PROVIDER"
+  | "MEDICAL_EXPERT"
   | "COMPLIANCE"
   | "HEALTH_PROFESSIONAL"
   | "HR"

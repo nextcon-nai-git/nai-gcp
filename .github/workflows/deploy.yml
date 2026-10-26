@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       deploy_firestore:
-        description: Deploy tested Firestore rules and indexes (requires configured credentials)
+        description: Deploy tested Firestore/Storage rules and indexes (requires configured credentials)
         required: false
         type: boolean
         default: false
@@ -129,8 +129,8 @@ jobs:
           }
           NODE
 
-      - name: Deploy tested Firestore rules
-        run: npx --yes firebase-tools@14.22.0 deploy --only firestore:rules,firestore:indexes --project studio-8439299034-125c7 --non-interactive
+      - name: Deploy tested Firestore and Storage rules
+        run: npx --yes firebase-tools@14.22.0 deploy --only firestore:rules,firestore:indexes,storage --project studio-8439299034-125c7 --non-interactive
 
       - name: Remove temporary release credentials
         if: always()

@@ -26,7 +26,8 @@ service firebase.storage {
 
     function belongsToCompany(companyId) {
       let user = getUserData();
-      return isSignedIn() && user != null && user.companyId == companyId;
+      return isSignedIn() && user != null &&
+        !(user.role in ['PROVIDER', 'MEDICAL_EXPERT']) && user.companyId == companyId;
     }
 
     function isCompanyAdmin(companyId) {
