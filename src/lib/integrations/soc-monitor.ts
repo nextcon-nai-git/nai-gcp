@@ -27,6 +27,8 @@ export async function monitoredSocRead(
     companyId: socCompanyIds().includes(input.companyId || "") ? input.companyId : "",
     status: failure ? "error" : "success",
     code: failure instanceof SocError ? failure.code : failure ? "INTERNAL_ERROR" : "OK",
+    periodStart: result && resource === "asos" ? input.start : null,
+    periodEnd: result && resource === "asos" ? input.end : null,
     records: result?.length ?? null,
     needsReview: result?.filter((r) => "review" in r && r.review).length ?? null,
   };
