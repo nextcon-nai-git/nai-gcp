@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useUser } from "@/firebase";
+import { useSgi } from "@/contexts/sgi-context";
 import { getActionIdToken } from "@/lib/auth/action-token";
 import { BRITANIA_TEAM, BRITANIA_ANCHOR, BRITANIA_GROUP_NAME } from "@/lib/britania-group";
 import { readBritaniaDossier, type FapDossier } from "@/lib/britania-dossier";
@@ -9,8 +10,9 @@ import { ClientDocuments } from "@/components/clients/client-documents";
 const panel = "rounded-2xl border border-slate-600 bg-[#102b46] p-5";
 const field = "rounded-lg border border-slate-500 bg-[#071d32] p-3 text-white";
 export default function BritaniaGroupPage() {
-  const { user, role, tenantId, isUserLoading } = useUser();
-  const authorized = !!user && !tenantId && ["SUPER_ADMIN", "ADMIN"].includes(role || "");
+  const { user, isUserLoading } = useUser();
+  const { isGlobalStaff } = useSgi();
+  const authorized = !!user && isGlobalStaff;
   return isUserLoading ? (
     <p role="status">Verificando acesso…</p>
   ) : authorized ? (

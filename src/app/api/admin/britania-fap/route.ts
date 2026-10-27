@@ -5,18 +5,19 @@ import { adminDb } from "@/lib/firebase-admin";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { AuthError, forbidden } from "@/lib/auth/errors";
 import { fapDossierSchema } from "@/lib/britania-dossier";
+import { isBritaniaFapAdmin } from "@/lib/auth/britania-fap-access";
 import { BRITANIA_ANCHOR, BRITANIA_GROUP_NAME, isBritaniaSite } from "@/lib/britania-group";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 const ref = () =>
   adminDb
-    .collection("companies")
-    .doc(BRITANIA_ANCHOR)
-    .collection("clinical_records")
-    .doc("fap_group_2027");
+    // This existing private root is excluded from both Firestore client
+    // fallbacks, including internal staff. Only authenticated server APIs read it.
+    .collection("clinic_portal_private")
+    .doc("britania_group_fap_2027");
 async function authorize(request: NextRequest) {
   const user = await requireAuth(request);
-  if (user.tenantId || !["SUPER_ADMIN", "ADMIN"].includes(user.role)) throw forbidden();
+  if (!isBritaniaFapAdmin(user)) throw forbidden();
   return user;
 }
 function failure(error: unknown) {

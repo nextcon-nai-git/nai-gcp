@@ -50,6 +50,44 @@ beforeEach(() => {
   mock.transaction.mockImplementation((fn) => fn({ get: mock.document, create: mock.create }));
 });
 describe("private client documents and action import", () => {
+  it.each(["DOCTOR", "PROVIDER", "CLIENT_ADMIN", "ENGINEER", "OPERATIONS"])(
+    "denies consolidated Britânia PDFs to a site-scoped %s",
+    async (role) => {
+      mock.auth.mockResolvedValue({
+        role,
+        tenantId: "BRITANIA_JOINVILLE",
+        servedCompanies: ["BRITANIA_JOINVILLE"],
+      });
+      const ctx = { params: Promise.resolve({ id: "BRITANIA_JOINVILLE" }) };
+      expect(
+        (
+          await GET(
+            new NextRequest(
+              "https://test/api/clients/BRITANIA_JOINVILLE/documents?pdf=" + "a".repeat(64)
+            ),
+            ctx
+          )
+        ).status
+      ).toBe(403);
+      expect(mock.download).not.toHaveBeenCalled();
+      expect(mock.collection).not.toHaveBeenCalled();
+    }
+  );
+  it("allows an internal legacy Nextcon admin to retrieve the consolidated original", async () => {
+    mock.auth.mockResolvedValue({ role: "ADMIN", tenantId: "nextcon", servedCompanies: [] });
+    mock.document.mockResolvedValue({ exists: true });
+    mock.download.mockResolvedValue([Buffer.from("%PDF-1.7 test")]);
+    expect(
+      (
+        await GET(
+          new NextRequest(
+            "https://test/api/clients/BRITANIA_JOINVILLE/documents?pdf=" + "a".repeat(64)
+          ),
+          { params: Promise.resolve({ id: "BRITANIA_JOINVILLE" }) }
+        )
+      ).status
+    ).toBe(200);
+  });
   it("rejects anonymous users and keeps responses private", async () => {
     mock.auth.mockRejectedValue(new AuthError("Entre novamente", 401));
     const r = await GET(new NextRequest(url), context);

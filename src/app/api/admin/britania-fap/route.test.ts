@@ -5,11 +5,15 @@ const m = vi.hoisted(() => ({
   get: vi.fn(),
   transaction: vi.fn(),
   create: vi.fn(),
+  collection: vi.fn(),
 }));
 vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: m.auth }));
 vi.mock("@/lib/firebase-admin", () => ({
   adminDb: {
-    collection: () => ({ doc: () => ({ collection: () => ({ doc: () => ({ get: m.get }) }) }) }),
+    collection: (name: string) => {
+      m.collection(name);
+      return { doc: () => ({ get: m.get }) };
+    },
     runTransaction: m.transaction,
   },
 }));
@@ -54,6 +58,16 @@ beforeEach(() => {
   m.auth.mockResolvedValue({ uid: "a", role: "SUPER_ADMIN", tenantId: null });
 });
 describe("restricted group FAP dossier", () => {
+  it.each([null, "nextcon"])(
+    "accepts internal legacy admin (%s) using the server-only root",
+    async (tenantId) => {
+      m.auth.mockResolvedValue({ uid: "internal", role: "ADMIN", tenantId });
+      m.get.mockResolvedValue({ exists: false });
+      expect((await GET(req())).status).toBe(200);
+      expect(m.collection).toHaveBeenCalledWith("clinic_portal_private");
+      expect(m.collection).not.toHaveBeenCalledWith("companies");
+    }
+  );
   it("creates missing historical sites with dossier and audit atomically, without user access changes", async () => {
     const get = vi
       .fn()
