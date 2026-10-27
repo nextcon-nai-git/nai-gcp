@@ -125,7 +125,7 @@ describe("Imported operation card editing", () => {
     expect(checkbox.getAttribute("data-state")).toBe("checked");
     expect(task.checklist![0].checked).toBe(false);
     const save = Array.from(element.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Protocolar Alterações")
+      button.textContent?.includes("Salvar alterações")
     )!;
     await act(async () => save.click());
     expect(state.updatePgrTask).toHaveBeenCalledWith(
@@ -162,7 +162,7 @@ describe("Imported operation card editing", () => {
 
 const actionButton = (action: "save" | "delete") =>
   Array.from(element.querySelectorAll("button")).find((button) =>
-    button.textContent?.includes(action === "save" ? "Protocolar Alterações" : "Excluir Registro")
+    button.textContent?.includes(action === "save" ? "Salvar alterações" : "Excluir Registro")
   )!;
 const manualTask = (): OpsTask => ({ ...fixture(), sourceType: undefined });
 

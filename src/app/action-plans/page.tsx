@@ -34,8 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { OpsTask } from "@/types/schema";
-import { KanbanBoard } from "@/components/kanban/kanban-board";
-import { OPERATIONAL_COLUMNS } from "@/types/kanban";
+import { TaskWorkspace } from "@/components/kanban/task-workspace";
 
 export default function EnterpriseOpsHub() {
   const { user, role, companyId, tenantId } = useUser();
@@ -234,7 +233,7 @@ function EnterpriseOpsContent() {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
+    <div className="min-w-0 space-y-5">
       <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
@@ -242,12 +241,12 @@ function EnterpriseOpsContent() {
               <Activity className="size-6" />
             </div>
             <h1 className="text-3xl font-black text-primary uppercase tracking-tight font-headline">
-              Cards Operação
+              Operações
             </h1>
           </div>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
-            <Brain className="size-4 text-accent" /> Gestão tática e designação de ordens de serviço
-            externas.
+            <Brain className="size-4 text-accent" /> Atividades, pessoas e entregas conectadas ao
+            cliente.
           </p>
         </div>
 
@@ -349,7 +348,7 @@ function EnterpriseOpsContent() {
           {pgrTasks.error || pgrCompanies.error}
         </p>
       )}
-      <div className="min-h-[600px] glass-panel rounded-[3rem] p-8 relative flex flex-col items-center justify-center">
+      <div className="min-w-0 min-h-[500px] rounded-xl border border-border p-3 md:p-4">
         {loadingTasks ? (
           <div className="flex flex-col items-center justify-center gap-6 py-20">
             <div className="size-20 rounded-[2rem] bg-[#090e24] flex items-center justify-center text-white font-black text-4xl shadow-2xl animate-bounce">
@@ -363,11 +362,7 @@ function EnterpriseOpsContent() {
           <p>O quadro está indisponível enquanto a consulta não for confirmada.</p>
         ) : operationalTasks.length > 0 ? (
           <div className="w-full h-full">
-            <KanbanBoard
-              tasks={operationalTasks}
-              columns={OPERATIONAL_COLUMNS}
-              boardType="operational"
-            />
+            <TaskWorkspace tasks={operationalTasks} />
           </div>
         ) : (
           <div className="text-center opacity-30 space-y-4">

@@ -17,7 +17,6 @@ import {
   History,
   ExternalLink,
   Paperclip,
-  Bot,
 } from "lucide-react";
 import {
   Sheet,
@@ -39,8 +38,6 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useCollection, useMemoFirebase, useStorage, useUser } from "@/firebase";
 import { updatePgrTask } from "@/hooks/use-pgr-workspace";
@@ -58,6 +55,9 @@ import { useSgi } from "@/contexts/sgi-context";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { cn } from "@/lib/utils";
 import { STORAGE_PATHS } from "@/lib/storage-paths";
+import { OPERATIONAL_COLUMNS, COMMERCIAL_COLUMNS } from "@/types/kanban";
+import { displayTaskDate, downloadTaskCalendar, taskDate } from "@/lib/task-workspace";
+import { Textarea } from "@/components/ui/textarea";
 import { PgrAgentReview } from "@/components/pgr-agent-review";
 
 interface TaskEditDialogProps {
@@ -216,8 +216,33 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
       const taskRef = doc(db, "companies", task.companyId, "tasks", task.id);
       const responsible = providers?.find((p) => p.id === editedTask.responsibleId);
 
+      if (!editedTask.title.trim()) throw new Error("Informe o título da atividade.");
+      if (editedTask.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editedTask.contactEmail))
+        throw new Error("Confira o e-mail do contato.");
+      if (
+        editedTask.emailThreadUrl &&
+        !/^https:\/\/(mail\.google\.com|outlook\.office\.com|outlook\.office365\.com|outlook\.live\.com)\//i.test(
+          editedTask.emailThreadUrl
+        )
+      )
+        throw new Error("Use um link HTTPS do Gmail ou Outlook.");
+      for (const [coordinate, limit] of [
+        [editedTask.latitude, 90],
+        [editedTask.longitude, 180],
+      ] as const) {
+        if (
+          coordinate !== undefined &&
+          (!Number.isFinite(coordinate) || Math.abs(coordinate) > limit)
+        )
+          throw new Error("Coordenadas inválidas.");
+      }
       const updateData = {
-        title: editedTask.title,
+        title: editedTask.title.trim(),
+        description: editedTask.description || "",
+        contactEmail: editedTask.contactEmail || "",
+        emailThreadUrl: editedTask.emailThreadUrl || "",
+        latitude: editedTask.latitude ?? deleteField(),
+        longitude: editedTask.longitude ?? deleteField(),
         type: editedTask.type,
         status: editedTask.status,
         ...(editedTask.priority ? { priority: editedTask.priority } : {}),
@@ -293,24 +318,24 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-xl p-0 border-none shadow-2xl flex flex-col bg-white">
-        <SheetHeader className="p-8 bg-[#001F3F] text-white shrink-0 relative overflow-hidden">
+        <SheetHeader className="p-5 bg-[#001F3F] text-white shrink-0 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4 opacity-10">
             <ClipboardList className="size-32 text-accent" />
           </div>
           <div className="relative z-10 text-left space-y-2">
             <Badge className="bg-accent text-primary border-none text-[8px] font-black uppercase tracking-[0.3em]">
-              Editor de Atividade v2.7
+              Detalhes da atividade
             </Badge>
             <SheetTitle className="text-2xl font-headline font-black uppercase tracking-tight text-white leading-tight">
               {editedTask.title || "Nova Atividade"}
             </SheetTitle>
             <SheetDescription className="text-white/60 font-medium italic text-xs">
-              ID: {task.id} | Edição multi-tenant ativa.
+              {task.companyName}
             </SheetDescription>
           </div>
         </SheetHeader>
 
-        <ScrollArea className="flex-1 p-8 scrollbar-thin">
+        <ScrollArea className="flex-1 p-5 scrollbar-thin">
           {task.sourceType === "client_request" && (
             <div className="mx-6 mt-4 rounded-xl border bg-slate-50 p-4 space-y-2">
               <p className="font-semibold">Solicitação da Central do Cliente</p>
@@ -331,32 +356,119 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
               encaminhamentos administrativos.
             </p>
           )}
-          <div className="space-y-8 pb-20 text-left">
-            {task.sourceType !== "pgr" && (
-              <Card className="border-none bg-accent/5 rounded-[2rem] p-6 flex items-center justify-between shadow-sm">
-                <div className="flex items-center gap-4">
-                  <div
-                    className={cn(
-                      "p-3 rounded-2xl shadow-inner transition-all",
-                      editedTask.agentEnabled ? "bg-accent text-white" : "bg-white text-slate-300"
-                    )}
-                  >
-                    <Bot className="size-6" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-black text-primary uppercase">
-                      Agente NAI (Autônomo)
-                    </h4>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase">
-                      Monitoramento via WhatsApp
-                    </p>
-                  </div>
-                </div>
-                <Switch
-                  checked={!!editedTask.agentEnabled}
-                  onCheckedChange={(v) => handleUpdateField("agentEnabled", v)}
+          <div className="space-y-5 pb-8 text-left">
+            <div className="space-y-2">
+              <label htmlFor="task-stage" className="text-sm font-medium">
+                Etapa
+              </label>
+              <select
+                id="task-stage"
+                value={editedTask.status}
+                onChange={(e) => handleUpdateField("status", e.target.value as OpsTask["status"])}
+                className="w-full rounded-md border border-input bg-background p-2 text-sm"
+              >
+                {[
+                  ...OPERATIONAL_COLUMNS,
+                  ...COMMERCIAL_COLUMNS,
+                  { id: "archived", title: "Arquivado" },
+                ].map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="task-description" className="text-sm font-medium">
+                Descrição e orientações
+              </label>
+              <Textarea
+                id="task-description"
+                value={
+                  restrictedImport
+                    ? "Conteúdo disponível somente no registro clínico restrito."
+                    : editedTask.description || ""
+                }
+                readOnly={imported}
+                onChange={(e) => handleUpdateField("description", e.target.value)}
+                rows={4}
+                placeholder="Escopo, contexto e critérios de entrega"
+              />
+            </div>
+            {!imported && (
+              <div className="space-y-3 rounded-xl border border-border p-3">
+                <h3 className="text-sm font-semibold">E-mail e agenda</h3>
+                <label className="block text-xs" htmlFor="task-contact-email">
+                  E-mail do contato
+                </label>
+                <Input
+                  id="task-contact-email"
+                  type="email"
+                  value={editedTask.contactEmail || ""}
+                  onChange={(e) => handleUpdateField("contactEmail", e.target.value)}
+                  placeholder="contato@empresa.com.br"
                 />
-              </Card>
+                <label className="block text-xs" htmlFor="task-email-thread">
+                  Link da conversa (Gmail ou Outlook)
+                </label>
+                <Input
+                  id="task-email-thread"
+                  value={editedTask.emailThreadUrl || ""}
+                  onChange={(e) => handleUpdateField("emailThreadUrl", e.target.value)}
+                  placeholder="https://mail.google.com/…"
+                />
+                <div className="flex flex-wrap gap-2">
+                  {editedTask.contactEmail &&
+                    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editedTask.contactEmail) && (
+                      <Button asChild variant="outline" size="sm">
+                        <a
+                          href={`mailto:${encodeURIComponent(editedTask.contactEmail)}?subject=${encodeURIComponent(editedTask.title)}&body=${encodeURIComponent(`Olá,\n\nSobre a atividade: ${editedTask.title}\nCliente: ${editedTask.companyName}\nPrazo: ${displayTaskDate(editedTask.dueDate)}\n\n`)}`}
+                        >
+                          Preparar e-mail
+                        </a>
+                      </Button>
+                    )}
+                  {editedTask.emailThreadUrl &&
+                    /^https:\/\/(mail\.google\.com|outlook\.office\.com|outlook\.office365\.com|outlook\.live\.com)\//i.test(
+                      editedTask.emailThreadUrl
+                    ) && (
+                      <Button asChild variant="outline" size="sm">
+                        <a
+                          href={editedTask.emailThreadUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Abrir conversa
+                        </a>
+                      </Button>
+                    )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!taskDate(editedTask.dueDate)}
+                    onClick={() => downloadTaskCalendar([editedTask])}
+                  >
+                    Exportar para agenda
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  O e-mail abre para revisão no seu aplicativo. Nenhum envio automático. Agenda por
+                  arquivo .ics, sem sincronização.
+                </p>
+              </div>
+            )}
+            {!restrictedImport && (
+              <div className="space-y-2">
+                <label htmlFor="task-update" className="text-sm font-medium">
+                  Última atualização
+                </label>
+                <Textarea
+                  id="task-update"
+                  value={editedTask.lastComment || ""}
+                  onChange={(e) => handleUpdateField("lastComment", e.target.value)}
+                  placeholder="Registre o andamento e a próxima ação"
+                />
+              </div>
             )}
 
             <div className="space-y-4">
@@ -441,8 +553,14 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                   />
                 ) : (
                   <Select
-                    value={editedTask.responsibleId}
-                    onValueChange={(v) => handleUpdateField("responsibleId", v)}
+                    value={editedTask.responsibleId || "unassigned"}
+                    onValueChange={(v) => {
+                      handleUpdateField("responsibleId", v === "unassigned" ? "" : v);
+                      handleUpdateField(
+                        "responsibleName",
+                        v === "unassigned" ? "" : providers?.find((p) => p.id === v)?.name || ""
+                      );
+                    }}
                   >
                     <SelectTrigger className="h-12 bg-slate-50 border-none rounded-xl font-bold shadow-inner">
                       <div className="flex items-center gap-2">
@@ -451,6 +569,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                       </div>
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="unassigned">Sem prestador designado</SelectItem>
                       {providers?.map((p) => (
                         <SelectItem key={p.id} value={p.id} className="text-xs font-bold uppercase">
                           {p.name}
@@ -462,112 +581,130 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
               </div>
             </div>
 
-            {task.sourceType !== "pgr" && (
-              <div className="p-6 bg-slate-900 text-white rounded-[2rem] space-y-4 shadow-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-5">
-                  <Paperclip className="size-16" />
-                </div>
-                <p className="text-[10px] font-black uppercase text-accent tracking-widest flex items-center gap-2 relative z-10">
-                  <ShieldCheck className="size-3" /> Dossiê Documental
+            {!imported && !editedTask.responsibleId && (
+              <div className="space-y-2">
+                <label htmlFor="task-owner-name" className="text-sm font-medium">
+                  Responsável interno / nome de referência
+                </label>
+                <Input
+                  id="task-owner-name"
+                  value={editedTask.responsibleName || ""}
+                  onChange={(e) => handleUpdateField("responsibleName", e.target.value)}
+                  placeholder="Nome de quem acompanha a entrega"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Este nome organiza o quadro; não cria usuário nem concede acesso.
                 </p>
-
-                <div className="grid grid-cols-1 gap-4 relative z-10">
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-bold text-white/40 uppercase ml-1">
-                      PGR Histórico (Antigo)
-                    </label>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "flex-1 h-11 rounded-xl border-2 border-dashed bg-white/5 gap-2 text-[10px] font-black uppercase",
-                          editedTask.oldPgrUrl
-                            ? "border-emerald-500 text-emerald-400"
-                            : "border-white/10 text-white/40"
-                        )}
-                        disabled={isUploadingOld}
-                        onClick={() => document.getElementById("pgr-old-up")?.click()}
-                      >
-                        {isUploadingOld ? (
-                          <Loader2 className="size-3 animate-spin" />
-                        ) : (
-                          <History className="size-3" />
-                        )}
-                        {editedTask.oldPgrUrl ? "Substituir Antigo" : "Subir PGR Antigo"}
-                      </Button>
-                      {editedTask.oldPgrUrl && (
-                        <Button
-                          asChild
-                          size="icon"
-                          variant="ghost"
-                          className="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/20"
-                        >
-                          <a href={editedTask.oldPgrUrl} target="_blank">
-                            <ExternalLink className="size-4" />
-                          </a>
-                        </Button>
-                      )}
-                    </div>
-                    <input
-                      id="pgr-old-up"
-                      type="file"
-                      className="hidden"
-                      accept=".pdf,image/*"
-                      onChange={(e) =>
-                        e.target.files?.[0] && handleFileUpload("old", e.target.files[0])
-                      }
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-bold text-white/40 uppercase ml-1">
-                      Novo PGR (Entrega 2026)
-                    </label>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "flex-1 h-11 rounded-xl border-2 border-dashed bg-white/5 gap-2 text-[10px] font-black uppercase",
-                          editedTask.newPgrUrl
-                            ? "border-accent text-accent"
-                            : "border-white/10 text-white/40"
-                        )}
-                        disabled={isUploadingNew}
-                        onClick={() => document.getElementById("pgr-new-up")?.click()}
-                      >
-                        {isUploadingNew ? (
-                          <Loader2 className="size-3 animate-spin" />
-                        ) : (
-                          <FileUp className="size-3" />
-                        )}
-                        {editedTask.newPgrUrl ? "Substituir Novo" : "Subir PGR Novo"}
-                      </Button>
-                      {editedTask.newPgrUrl && (
-                        <Button
-                          asChild
-                          size="icon"
-                          variant="ghost"
-                          className="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/20"
-                        >
-                          <a href={editedTask.newPgrUrl} target="_blank">
-                            <ExternalLink className="size-4" />
-                          </a>
-                        </Button>
-                      )}
-                    </div>
-                    <input
-                      id="pgr-new-up"
-                      type="file"
-                      className="hidden"
-                      accept=".pdf,image/*"
-                      onChange={(e) =>
-                        e.target.files?.[0] && handleFileUpload("new", e.target.files[0])
-                      }
-                    />
-                  </div>
-                </div>
               </div>
             )}
+
+            {task.sourceType !== "pgr" &&
+              (editedTask.type === "pgr" || editedTask.oldPgrUrl || editedTask.newPgrUrl) && (
+                <div className="p-6 bg-slate-900 text-white rounded-[2rem] space-y-4 shadow-xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-5">
+                    <Paperclip className="size-16" />
+                  </div>
+                  <p className="text-[10px] font-black uppercase text-accent tracking-widest flex items-center gap-2 relative z-10">
+                    <ShieldCheck className="size-3" /> Dossiê Documental
+                  </p>
+
+                  <div className="grid grid-cols-1 gap-4 relative z-10">
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-bold text-white/40 uppercase ml-1">
+                        PGR Histórico (Antigo)
+                      </label>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "flex-1 h-11 rounded-xl border-2 border-dashed bg-white/5 gap-2 text-[10px] font-black uppercase",
+                            editedTask.oldPgrUrl
+                              ? "border-emerald-500 text-emerald-400"
+                              : "border-white/10 text-white/40"
+                          )}
+                          disabled={isUploadingOld}
+                          onClick={() => document.getElementById("pgr-old-up")?.click()}
+                        >
+                          {isUploadingOld ? (
+                            <Loader2 className="size-3 animate-spin" />
+                          ) : (
+                            <History className="size-3" />
+                          )}
+                          {editedTask.oldPgrUrl ? "Substituir Antigo" : "Subir PGR Antigo"}
+                        </Button>
+                        {editedTask.oldPgrUrl && (
+                          <Button
+                            asChild
+                            size="icon"
+                            variant="ghost"
+                            className="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/20"
+                          >
+                            <a href={editedTask.oldPgrUrl} target="_blank">
+                              <ExternalLink className="size-4" />
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                      <input
+                        id="pgr-old-up"
+                        type="file"
+                        className="hidden"
+                        accept=".pdf,image/*"
+                        onChange={(e) =>
+                          e.target.files?.[0] && handleFileUpload("old", e.target.files[0])
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-bold text-white/40 uppercase ml-1">
+                        Novo PGR (Entrega 2026)
+                      </label>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "flex-1 h-11 rounded-xl border-2 border-dashed bg-white/5 gap-2 text-[10px] font-black uppercase",
+                            editedTask.newPgrUrl
+                              ? "border-accent text-accent"
+                              : "border-white/10 text-white/40"
+                          )}
+                          disabled={isUploadingNew}
+                          onClick={() => document.getElementById("pgr-new-up")?.click()}
+                        >
+                          {isUploadingNew ? (
+                            <Loader2 className="size-3 animate-spin" />
+                          ) : (
+                            <FileUp className="size-3" />
+                          )}
+                          {editedTask.newPgrUrl ? "Substituir Novo" : "Subir PGR Novo"}
+                        </Button>
+                        {editedTask.newPgrUrl && (
+                          <Button
+                            asChild
+                            size="icon"
+                            variant="ghost"
+                            className="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/20"
+                          >
+                            <a href={editedTask.newPgrUrl} target="_blank">
+                              <ExternalLink className="size-4" />
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                      <input
+                        id="pgr-new-up"
+                        type="file"
+                        className="hidden"
+                        accept=".pdf,image/*"
+                        onChange={(e) =>
+                          e.target.files?.[0] && handleFileUpload("new", e.target.files[0])
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
             <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-4 shadow-inner">
               <p className="text-[9px] font-black uppercase text-primary/40 tracking-widest flex items-center gap-2">
@@ -611,12 +748,49 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                     value={editedTask.location || ""}
                     disabled={task.sourceType === "pgr"}
                     onChange={(e) => handleUpdateField("location", e.target.value)}
-                    placeholder="Ex: Galpão de Pintura"
+                    placeholder="Endereço, cidade e UF da atividade"
                     className="h-10 bg-white border-none rounded-lg text-xs font-bold"
                   />
                 </div>
               </div>
             </div>
+
+            {!imported && (
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-xs">
+                  Latitude
+                  <Input
+                    type="number"
+                    step="any"
+                    min={-90}
+                    max={90}
+                    value={editedTask.latitude ?? ""}
+                    onChange={(e) =>
+                      handleUpdateField(
+                        "latitude",
+                        e.target.value === "" ? undefined : Number(e.target.value)
+                      )
+                    }
+                  />
+                </label>
+                <label className="text-xs">
+                  Longitude
+                  <Input
+                    type="number"
+                    step="any"
+                    min={-180}
+                    max={180}
+                    value={editedTask.longitude ?? ""}
+                    onChange={(e) =>
+                      handleUpdateField(
+                        "longitude",
+                        e.target.value === "" ? undefined : Number(e.target.value)
+                      )
+                    }
+                  />
+                </label>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-2">
@@ -646,13 +820,8 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                   <Calendar className="absolute left-4 top-3.5 size-4 text-slate-300" />
                   <Input
                     type="date"
-                    value={editedTask.dueDate?.split("T")[0]}
-                    onChange={(e) =>
-                      handleUpdateField(
-                        "dueDate",
-                        e.target.value ? new Date(e.target.value).toISOString() : ""
-                      )
-                    }
+                    value={taskDate(editedTask.dueDate)}
+                    onChange={(e) => handleUpdateField("dueDate", e.target.value)}
                     className="h-12 bg-slate-50 border-none rounded-xl font-bold pl-12 shadow-inner"
                   />
                 </div>
@@ -726,7 +895,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
           </div>
         </ScrollArea>
 
-        <SheetFooter className="p-8 bg-slate-50 border-t shrink-0 flex flex-col gap-4">
+        <SheetFooter className="p-5 bg-slate-50 border-t shrink-0 flex flex-col gap-4">
           <div className="flex gap-3 w-full">
             <Button
               variant="outline"
@@ -752,7 +921,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
               ) : (
                 <Save className="size-4 text-accent" />
               )}
-              Protocolar Alterações
+              Salvar alterações
             </Button>
           </div>
           <p className="text-[8px] text-slate-300 font-black uppercase text-center tracking-[0.4em]">
