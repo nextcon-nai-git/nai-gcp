@@ -8,6 +8,8 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { requirePgrCompany, isPgrGlobalAdmin } from "@/lib/auth/require-pgr-access";
 import { AuthError, badRequest, forbidden } from "@/lib/auth/errors";
 import { ClientActions } from "@/lib/client-documents";
+import { BRITANIA_ANCHOR } from "@/lib/britania-group";
+import { isBritaniaFapAdmin } from "@/lib/auth/britania-fap-access";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
@@ -30,7 +32,12 @@ export async function GET(request: NextRequest, context: Context) {
   try {
     const user = await requireAuth(request);
     const { id } = await context.params;
-    requirePgrCompany(user, id);
+    // This archive contains the consolidated group's HR sources. Site-only
+    // grants cannot expose other establishments through the original PDFs.
+    if (id === BRITANIA_ANCHOR) {
+      if (!isBritaniaFapAdmin(user))
+        throw forbidden("O acervo consolidado exige administração interna.");
+    } else requirePgrCompany(user, id);
     const documents = adminDb.collection("companies").doc(id).collection("sourceDocuments");
     const pdf = request.nextUrl.searchParams.get("pdf");
     if (pdf) {
@@ -60,8 +67,11 @@ export async function POST(request: NextRequest, context: Context) {
   try {
     const user = await requireAuth(request);
     const { id } = await context.params;
-    requirePgrCompany(user, id);
-    if (!isPgrGlobalAdmin(user))
+    if (id === BRITANIA_ANCHOR) {
+      if (!isBritaniaFapAdmin(user))
+        throw forbidden("O acervo consolidado exige administração interna.");
+    } else requirePgrCompany(user, id);
+    if (!(id === BRITANIA_ANCHOR ? isBritaniaFapAdmin(user) : isPgrGlobalAdmin(user)))
       throw forbidden("Somente a administração pode importar documentos e ações.");
     if (Number(request.headers.get("content-length") || "0") > 16 * 1024 * 1024)
       throw badRequest("Limite de upload excedido.");
