@@ -51,6 +51,8 @@ const columns: Record<Resource, [string, string][]> = {
     ["companyId", "Empresa SOC"],
     ["status", "Resultado"],
     ["code", "Diagnóstico"],
+    ["periodStart", "Emissão inicial"],
+    ["periodEnd", "Emissão final"],
     ["records", "Registros"],
     ["needsReview", "Conferir"],
   ],
@@ -227,6 +229,12 @@ function Session() {
                 {user ? "Aguardando verificação da configuração." : "Entre no NAI para consultar."}
               </p>
             )}
+            {config && (
+              <p>
+                Escopo da conexão: {config.companyIds.length} empresas autorizadas no servidor. A
+                carteira do levantamento manual não amplia esse escopo automaticamente.
+              </p>
+            )}
             <p>A credencial de login no SOC é diferente da chave de cada Exporta Dados.</p>
           </CardContent>
         </Card>
@@ -334,9 +342,10 @@ function Session() {
             )}
             {resource === "runs" && (
               <p className="text-sm text-muted-foreground">
-                O monitoramento diário consulta cadastros das empresas autorizadas quando o
-                agendador está configurado. Nenhuma execução diária é presumida a partir da presença
-                das credenciais.
+                O agendador, quando habilitado, consulta empresas autorizadas confirmadas como
+                ativas e ASOs emitidos nos últimos 31 dias, em lotes. Este relatório não comprova
+                vencimentos nem paralisações. Falhas e cobertura parcial precisam ser conferidas no
+                histórico; credenciais configuradas não confirmam uma execução.
               </p>
             )}
           </CardContent>

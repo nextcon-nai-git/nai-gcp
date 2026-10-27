@@ -78,7 +78,7 @@ Os códigos foram observados; as chaves não foram copiadas para código ou rela
 
 Workflow `.github/workflows/soc-monitor.yml`: 07:00 de São Paulo (10:00 UTC), sujeito ao atraso normal do GitHub Actions. Permanece desabilitado até definir a variável de repositório `SOC_MONITOR_ENABLED=true` e o segredo GitHub `SOC_MONITOR_SECRET`, igual ao segredo do runtime NAI. Habilitar somente após homologação e publicação do endpoint. O workflow não envia e-mails nem mensagens; notificações nativas do GitHub dependem das preferências dos usuários.
 
-`POST /api/integrations/soc/monitor` consulta sequencialmente cadastros das empresas autorizadas (máximo 5), registra contagens e indícios de matrícula, bloqueia repetição em 10 min e falha se não conseguir registrar o resumo. O agendador não consulta ASOs automaticamente, não corrige dados, não extrai logs de terceiros e não prova sucesso das cargas RM. Histórico protegido por API em `webhook_deliveries/soc-monitor/runs`; regras existentes vedam acesso direto do SDK cliente. Os resumos não contêm dados de pessoas. Definir retenção operacional antes de escala prolongada.
+`POST /api/integrations/soc/monitor` agora fornece um plano de empresas autorizadas confirmadas como ativas no SOC e lê ASOs emitidos nos últimos 31 dias, em lotes de até 150 colaboradores (três consultas de 50). Cada lote confirma novamente a atividade da empresa. A alteração do cadastro entre lotes interrompe a empresa com cobertura parcial, evitando saltos silenciosos. O driver percorre o plano completo, continua nas demais empresas quando uma falha e encerra com erro se houver lacunas. Nenhuma escrita no SOC/RM ou comunicação é executada. Histórico protegido por API em `webhook_deliveries/soc-monitor/runs`; regras existentes vedam acesso direto do SDK cliente. Os resumos não contêm dados de pessoas. Definir retenção operacional antes de escala prolongada.
 
 ## Requisitos para Ricardo Junior — minuta para revisão, não enviada
 
@@ -108,4 +108,12 @@ Validação local de código em 16/10/2026: 48 testes direcionados aprovados (co
 
 ## Ampliação da carteira
 
-Consultas manuais aceitam até 2.000 códigos explicitamente autorizados, sem curinga ou autorização por nome. O cadastro do painel não amplia automaticamente o escopo do conector. O endpoint de monitoramento continua limitado a cinco empresas por execução: recusa carteiras maiores antes de qualquer consulta, evitando exceder o tempo de execução ou declarar cobertura parcial como completa. O agendador continua desabilitado; a orquestração de lotes exige implementação e homologação próprias. Chaves e alteração efetiva do escopo no ambiente continuam necessárias.
+Consultas manuais e o plano agendado aceitam até 2.000 códigos explicitamente autorizados, sem curinga ou autorização por nome. O cadastro do painel não amplia automaticamente o escopo do conector. O limite de cinco empresas por execução foi substituído por chamadas limitadas e continuidade por empresa, sem declarar um lote isolado como carteira concluída. `SOC_ALLOWED_COMPANY_IDS` ainda precisa refletir a carteira autorizada atual; códigos ausentes no retorno e atividade desconhecida são lacunas, não empresas inativas presumidas.
+
+## Limites operacionais e evidências de 26/10/2026
+
+- O relatório 221493 comprova emissões no intervalo consultado. Não fornece no contrato validado data de vencimento ou histórico de avanço. A rotina retorna `dueDatesVerified=false` e `stalledCasesVerified=false`: zero emissões não significa ausência de pendências.
+- Cada chamada registra contagens, origem, período e data; nenhum nome, CPF, parecer ou resultado clínico entra no histórico ou no log do agendador. Todos os vínculos retornados para a empresa ativa são consultados; não se presume o significado de situações cadastrais desconhecidas.
+- As chaves de produção continuam pendentes de provisionamento seguro no runtime. Nenhuma chave é incluída nesta alteração.
+- O agendador deve permanecer desabilitado até provisionamento seguro das chaves, confirmação atual da carteira e homologação real do transporte/escopo. Publicação de código não comprova conexão nem retomada do monitoramento de pendências.
+- Para vencimentos e paralisações, obter contrato de relatório com prazo explícito e histórico/status de avanço e cruzar com evidências do NAI. Não calcular validade pela data de emissão sem regra clínica aprovada.

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { UserAccessSettings } from "@/components/access/user-access-settings";
 import Link from "next/link";
 import {
   Users,
@@ -434,6 +435,7 @@ function NcxTeamSession() {
                       <div>
                         <div className="font-extrabold text-xs text-white flex items-center gap-2">
                           {emp.name}
+                          <UserAccessSettings kind="employee" id={emp.id} name={emp.name} />
                           {emp.name.includes("João") && (
                             <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[8px] font-black uppercase">
                               CLT COCEL

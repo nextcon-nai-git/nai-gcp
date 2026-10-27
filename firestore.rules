@@ -2,7 +2,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function isSignedIn() {
-      return request.auth != null;
+      return request.auth != null &&
+        (!exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accessEnabled', true) != false);
     }
 
     function getUserProfile() {
@@ -60,6 +62,10 @@ service cloud.firestore {
 
     function isSelf(userId) {
       return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function accessFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['accessUid', 'accessVersion', 'accessOperationId']);
     }
 
     function isSecurityAdmin() {
@@ -361,9 +367,21 @@ service cloud.firestore {
 
     match /providers/{providerId} {
       allow read: if isSignedIn() && isNextconOfficial();
-      allow create: if isSignedIn() && isNextconOfficial() && providerFiscalCreateIsValid(providerId);
-      allow update: if isSignedIn() && isNextconOfficial() && providerFiscalUpdateIsValid();
+      allow create: if isSignedIn() && isNextconOfficial() && providerFiscalCreateIsValid(providerId) && !request.resource.data.keys().hasAny(['accessUid', 'accessVersion', 'accessOperationId']);
+      allow update: if isSignedIn() && isNextconOfficial() && providerFiscalUpdateIsValid() && accessFieldsUnchanged();
       allow delete: if false;
+    }
+
+    match /nxc_employees/{employeeId} {
+      allow read: if isNextconOfficial();
+      allow create: if isNextconOfficial() && !request.resource.data.keys().hasAny(['accessUid', 'accessVersion', 'accessOperationId']);
+      allow update: if isNextconOfficial() && accessFieldsUnchanged();
+      allow delete: if isSecurityAdmin() && !('accessUid' in resource.data);
+    }
+
+    match /user_access_audit/{auditId} {
+      allow read: if isSecurityAdmin();
+      allow write: if false;
     }
 
     match /provider_tax_id_reservations/{reservationId} {
@@ -454,8 +472,8 @@ service cloud.firestore {
     }
 
     match /{rootCollection}/{document=**} {
-      allow read: if isSignedIn() && isNextconOfficial() && !isClinicalCollection(rootCollection) && !(rootCollection in ['clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries']);
-      allow write: if isNextconOfficial() && !isClinicalCollection(rootCollection) && !(rootCollection in ['clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'agendamentos', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'expert_access_audit', 'analisesPGR']);
+      allow read: if isSignedIn() && isNextconOfficial() && !isClinicalCollection(rootCollection) && !(rootCollection in ['clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nxc_employees', 'user_access_audit', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries']);
+      allow write: if isNextconOfficial() && !isClinicalCollection(rootCollection) && !(rootCollection in ['clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nxc_employees', 'agendamentos', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'expert_access_audit', 'user_access_audit', 'analisesPGR']);
     }
   }
 }

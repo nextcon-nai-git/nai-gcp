@@ -2,6 +2,7 @@
 import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
+import { UserAccessSettings } from "@/components/access/user-access-settings";
 import Link from "next/link";
 import {
   MapPin,
@@ -1247,6 +1248,11 @@ function ProvidersManagementSession() {
                           >
                             {provider.name}
                           </button>
+                          <UserAccessSettings
+                            kind="provider"
+                            id={provider.id}
+                            name={provider.name}
+                          />
                           {role === "SUPER_ADMIN" && (
                             <Link
                               href={`/providers/access?provider=${encodeURIComponent(provider.id)}`}

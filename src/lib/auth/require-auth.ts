@@ -21,6 +21,7 @@ export async function requireAuth(request: NextRequest): Promise<AuthContext> {
   const snapshot = await adminDb.collection("users").doc(decoded.uid).get();
   if (!snapshot.exists) throw unauthorized("Perfil NAI não cadastrado.");
   const profile = snapshot.data()!;
+  if (profile.accessEnabled === false) throw forbidden("Acesso suspenso pelo administrador.");
   const parsed = parseClaims(profile);
   // This read-only role has one server-mediated surface. Never let legacy
   // tenant checks or accidentally assigned permissions widen its access.

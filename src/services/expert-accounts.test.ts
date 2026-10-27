@@ -31,6 +31,7 @@ beforeEach(() => {
   m.existing = null;
   m.provider = {
     name: "Perito sintético",
+    active: true,
     email: "expert@example.test",
     servedCompanies: ["allowed"],
   };

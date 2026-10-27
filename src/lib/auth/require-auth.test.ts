@@ -59,3 +59,9 @@ it("rejects revoked access and revoked authentication", async () => {
     status: 401,
   });
 });
+it.each(["OPERATIONS", "DOCTOR", "SUPER_ADMIN"])("denies a suspended %s profile", async (role) => {
+  mocks.get.mockResolvedValue({ exists: true, data: () => ({ role, accessEnabled: false }) });
+  await expect(requireAuth(request("/api/admin/user-access"))).rejects.toMatchObject({
+    status: 403,
+  });
+});

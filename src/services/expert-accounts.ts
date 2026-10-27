@@ -15,6 +15,7 @@ export function expertProviderSource(id: string, data: Record<string, unknown>) 
   const companyIds = expertCompanyIds(data.servedCompanies).sort();
   if (
     data.isDeleted === true ||
+    (data.active !== true && data.accessReviewStatus !== "confirmed") ||
     !name ||
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
     /(^seu@email\.com\.br$|@prestador\.nai\.com\.br$|@nextconsaude\.com\.br$)/i.test(email) ||
