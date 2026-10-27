@@ -69,3 +69,26 @@ it("returns a retryable error without leaking internal failures", async () => {
   expect(response.status).toBe(503);
   expect(await response.text()).not.toContain("private infrastructure");
 });
+
+it.each(["Basic token", "Bearer", "Bearer token extra", "Bearer token,other"])(
+  "rejects malformed authorization: %s",
+  async (header) => {
+    if (header === "Bearer token,other") state.verify.mockRejectedValue(new Error("invalid token"));
+    expect((await POST(request(header))).status).toBe(401);
+    expect(state.process).not.toHaveBeenCalled();
+  }
+);
+it("accepts case-insensitive bearer scheme", async () => {
+  expect((await POST(request("bearer token"))).status).toBe(200);
+});
+it("fails closed when audience is absent", async () => {
+  vi.stubEnv("WEBHOOK_WORKER_AUDIENCE", "");
+  expect((await POST(request())).status).toBe(503);
+  expect(state.verify).not.toHaveBeenCalled();
+  expect(state.process).not.toHaveBeenCalled();
+});
+it("rejects missing identity claims", async () => {
+  state.verify.mockResolvedValue({ getPayload: () => undefined });
+  expect((await POST(request())).status).toBe(403);
+  expect(state.process).not.toHaveBeenCalled();
+});

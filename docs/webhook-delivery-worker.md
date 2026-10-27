@@ -29,6 +29,9 @@ de tentativas; PENDING, RETRYING e DELIVERED retornam conflito.
 Esta mudança de código não provisiona recursos em produção.
 
 1. Publicar os índices de `firestore.indexes.json` e aguardar ficarem prontos.
+   O workflow `Publish required Firestore indexes` é acionado quando esse arquivo
+   muda em `main`. Exige o secret existente `FIREBASE_SERVICE_ACCOUNT_JSON` no
+   ambiente de produção; sua ausência interrompe a publicação sem expor credenciais.
 2. Publicar o app com a rota e as variáveis WEBHOOK_INVOKER_EMAIL e
    WEBHOOK_WORKER_AUDIENCE. O audience deve ser exatamente a URL HTTPS do worker.
 3. Habilitar Cloud Scheduler no projeto. A identidade que provisiona o job precisa
@@ -67,3 +70,22 @@ retentativa apenas no prazo, recuperação de concessão expirada, orçamento de
 tentativas, proteção contra finalização atrasada, revogação do destino, isolamento
 por empresa, replay e autenticação do agendador. São testes com Firestore e HTTP
 simulados; a ativação exige também a verificação de ponta a ponta acima.
+
+### Evidências exigidas para concluir a ativação
+
+- Registrar o SHA aprovado no CI e a revisão efetivamente publicada pelo App Hosting.
+- Confirmar os dois índices da fila em estado pronto antes de habilitar o job.
+- Sem token, o worker deve responder 401 sem alterar a fila. Com OIDC do job,
+  deve responder 200; identidade ou audience incorretos devem ser recusados.
+- Usar um destino HTTPS controlado e payload sintético, sem dados pessoais.
+  Registrar o ID da entrega, a execução do job e o estado DELIVERED.
+- Fazer o destino responder 503 uma vez e depois 200. Confirmar RETRYING,
+  respeito ao prazo, incremento da tentativa e DELIVERED com o mesmo ID.
+- Em ambiente de homologação, interromper após o recebimento e antes da gravação
+  do sucesso. Após dois minutos, confirmar a recuperação com o mesmo ID; o
+  destinatário deve aplicar o efeito somente uma vez por deduplicação.
+- Verificar que falhas de gravação retornam 503 ao agendador e preservam a
+  concessão. Ao esgotar cinco tentativas, confirmar DEAD_LETTER sem novos envios.
+
+Não registrar tokens, chaves ou payloads sensíveis como evidência. Testes unitários,
+merge e build não comprovam ativação do agendador ou entrega real em produção.

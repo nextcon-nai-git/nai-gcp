@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   validate: vi.fn(),
   tail: Promise.resolve(),
   sequence: 0,
+  failFinish: false,
 }));
 vi.mock("@/lib/firebase-admin", () => {
   const doc = (path: string) => ({
@@ -63,8 +64,11 @@ vi.mock("@/lib/firebase-admin", () => {
         const result = state.tail.then(() =>
           callback({
             get: (ref: ReturnType<typeof doc>) => ref.get(),
-            update: (ref: ReturnType<typeof doc>, patch: Record<string, unknown>) =>
-              state.rows.set(ref.path, { ...state.rows.get(ref.path), ...patch }),
+            update: (ref: ReturnType<typeof doc>, patch: Record<string, unknown>) => {
+              if (state.failFinish && patch.status === "DELIVERED")
+                throw new Error("Firestore unavailable");
+              state.rows.set(ref.path, { ...state.rows.get(ref.path), ...patch });
+            },
           })
         );
         state.tail = result.then(
@@ -86,6 +90,7 @@ beforeEach(() => {
   state.tail = Promise.resolve();
   state.rows.clear();
   state.sequence = 0;
+  state.failFinish = false;
   state.rows.set("webhook_deliveries/d", {
     clientId: "a",
     webhookId: "w",
@@ -226,4 +231,48 @@ it("dead-letters unsafe targets without sending", async () => {
   await executeWebhookDelivery("d");
   expect(row()).toMatchObject({ status: "DEAD_LETTER", nextRetryAt: null });
   expect(state.post).not.toHaveBeenCalled();
+});
+
+it("preserves interrupted success and stable deduplication IDs during recovery", async () => {
+  state.failFinish = true;
+  await expect(processWebhookQueue()).rejects.toThrow("fila foi preservada");
+  expect(row()).toMatchObject({ status: "RETRYING", attempt: 1 });
+  expect(row().leaseToken).toBeTruthy();
+  await processWebhookQueue();
+  expect(state.post).toHaveBeenCalledTimes(1);
+  state.failFinish = false;
+  Object.assign(row(), {
+    leaseUntil: "2026-01-01T00:00:00.000Z",
+    nextRetryAt: "2026-01-01T00:00:00.000Z",
+  });
+  await processWebhookQueue();
+  expect(row()).toMatchObject({ status: "DELIVERED", attempt: 2 });
+  const firstHeaders = state.post.mock.calls[0][2];
+  const secondHeaders = state.post.mock.calls[1][2];
+  expect(secondHeaders["X-NAI-Delivery-Id"]).toBe(firstHeaders["X-NAI-Delivery-Id"]);
+  expect(secondHeaders["X-NAI-Event-Id"]).toBe(firstHeaders["X-NAI-Event-Id"]);
+});
+it("dead-letters an interrupted final attempt without another send", async () => {
+  Object.assign(row(), {
+    status: "RETRYING",
+    attempt: 5,
+    leaseToken: "crashed",
+    leaseUntil: "2026-01-01T00:00:00.000Z",
+    nextRetryAt: "2026-01-01T00:00:00.000Z",
+  });
+  await processWebhookQueue();
+  expect(row()).toMatchObject({ status: "DEAD_LETTER", attempt: 5, leaseToken: null });
+  expect(state.post).not.toHaveBeenCalled();
+});
+it("enforces the default retry budget for legacy records", async () => {
+  delete row().maxAttempts;
+  row().attempt = 5;
+  await executeWebhookDelivery("d");
+  expect(row().status).toBe("DEAD_LETTER");
+  expect(state.post).not.toHaveBeenCalled();
+});
+it("concurrent queue workers send each delivery only once", async () => {
+  await Promise.all([processWebhookQueue(), processWebhookQueue()]);
+  expect(state.post).toHaveBeenCalledTimes(1);
+  expect(row().status).toBe("DELIVERED");
 });

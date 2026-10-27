@@ -96,7 +96,8 @@ async function claimDelivery(ref: DocumentReference) {
     if (!["PENDING", "RETRYING"].includes(delivery.status)) return null;
     if (delivery.leaseUntil && delivery.leaseUntil > now) return null;
     if (delivery.nextRetryAt && delivery.nextRetryAt > now) return null;
-    if (delivery.attempt >= delivery.maxAttempts) {
+    const maxAttempts = delivery.maxAttempts || DEFAULT_MAX_ATTEMPTS;
+    if (delivery.attempt >= maxAttempts) {
       tx.update(ref, {
         status: "DEAD_LETTER",
         nextRetryAt: null,
@@ -111,7 +112,7 @@ async function claimDelivery(ref: DocumentReference) {
     const claimed = {
       ...delivery,
       attempt: (delivery.attempt || 0) + 1,
-      maxAttempts: delivery.maxAttempts || DEFAULT_MAX_ATTEMPTS,
+      maxAttempts,
       leaseToken,
       leaseUntil,
     };
@@ -149,6 +150,7 @@ export async function executeWebhookDelivery(deliveryId: string): Promise<void> 
   let lastError = "Falha de conexão com o endpoint.";
   let permanent = false;
   let signature = delivery.signature;
+  let delivered = false;
   try {
     // Recheck revocation, tenant and destination on every attempt, including retries.
     const webhook = (await adminDb.collection("webhooks").doc(delivery.webhookId).get()).data();
@@ -186,20 +188,22 @@ export async function executeWebhookDelivery(deliveryId: string): Promise<void> 
       REQUEST_TIMEOUT_MS
     );
     httpStatus = response.status;
-    if (response.ok) {
-      await finishDelivery(ref, delivery.leaseToken, {
-        status: "DELIVERED",
-        httpStatus,
-        signature,
-        deliveredAt: new Date().toISOString(),
-        lastError: null,
-        nextRetryAt: null,
-      });
-      return;
-    }
+    delivered = response.ok;
     lastError = `HTTP ${httpStatus}`;
   } catch (error) {
     lastError = error instanceof Error ? error.message : lastError;
+  }
+  // Persistence failures must reach the scheduler; preserve the lease for recovery.
+  if (delivered) {
+    await finishDelivery(ref, delivery.leaseToken, {
+      status: "DELIVERED",
+      httpStatus,
+      signature,
+      deliveredAt: new Date().toISOString(),
+      lastError: null,
+      nextRetryAt: null,
+    });
+    return;
   }
   const exhausted = permanent || delivery.attempt >= delivery.maxAttempts;
   await finishDelivery(ref, delivery.leaseToken, {
