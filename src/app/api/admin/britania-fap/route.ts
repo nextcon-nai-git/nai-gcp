@@ -5,7 +5,7 @@ import { adminDb } from "@/lib/firebase-admin";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { AuthError, forbidden } from "@/lib/auth/errors";
 import { fapDossierSchema } from "@/lib/britania-dossier";
-import { BRITANIA_ANCHOR } from "@/lib/britania-group";
+import { BRITANIA_ANCHOR, BRITANIA_GROUP_NAME, isBritaniaSite } from "@/lib/britania-group";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 const ref = () =>
@@ -65,6 +65,48 @@ export async function POST(request: NextRequest) {
           409
         );
       }
+      const companies = await tx.get(adminDb.collection("companies"));
+      if (companies.size > 1000)
+        throw new AuthError("Diretório excede o limite de conciliação.", 409);
+      const existing = companies.docs;
+      const createdSites: string[] = [];
+      for (const cnpj of new Set(dossier.cases.map((c) => c.sourceCnpj))) {
+        const matching = existing.filter(
+          (d) => String(d.data().cnpj || d.id).replace(/\D/g, "") === cnpj
+        );
+        if (matching.length > 1)
+          throw new AuthError(
+            "CNPJ com mais de um cadastro. Concilie as sedes antes de importar.",
+            409
+          );
+        if (!matching.length) {
+          // Source establishes a historical site, not its current commercial status.
+          if (existing.some((d) => d.id === cnpj))
+            throw new AuthError("Identificador de sede em conflito.", 409);
+          tx.create(adminDb.collection("companies").doc(cnpj), {
+            name: `${BRITANIA_GROUP_NAME} - Sede ${cnpj}`,
+            cnpj,
+            active: false,
+            portfolioClientId: "britania",
+            portfolioClientName: BRITANIA_GROUP_NAME,
+            entityType: "branch",
+            sourceStatus: "historical_pending_reconciliation",
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          createdSites.push(cnpj);
+        }
+      }
+      for (const company of existing.filter((d) =>
+        isBritaniaSite({ id: d.id, cnpj: d.data().cnpj })
+      )) {
+        tx.update(company.ref, {
+          portfolioClientId: "britania",
+          portfolioClientName: BRITANIA_GROUP_NAME,
+          entityType: "branch",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
       tx.create(target, {
         companyId: BRITANIA_ANCHOR,
         type: "fap_group_dossier",
@@ -78,6 +120,7 @@ export async function POST(request: NextRequest) {
         actorUid: user.uid,
         companyId: BRITANIA_ANCHOR,
         cases: dossier.cases.length,
+        createdSites,
         contentHash,
         createdAt: FieldValue.serverTimestamp(),
       });

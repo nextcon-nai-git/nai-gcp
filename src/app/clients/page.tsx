@@ -167,7 +167,7 @@ function ClientsSession() {
     const term = searchTerm.toLowerCase();
     return activeCompaniesList.filter(
       (c: ClientCompanyItem) =>
-        (showInactive || c.active !== false) &&
+        (showInactive || c.active !== false || (isGlobalStaff && isBritaniaSite(c))) &&
         ((c.name || c.companyName || "").toLowerCase().includes(term) ||
           (c.cnpj || "").includes(term) ||
           (/^[\d.\/\-\s]+$/.test(term) &&
@@ -176,7 +176,7 @@ function ClientsSession() {
           (c.segment || "").toLowerCase().includes(term) ||
           (c.city || "").toLowerCase().includes(term))
     );
-  }, [activeCompaniesList, searchTerm, showInactive]);
+  }, [activeCompaniesList, searchTerm, showInactive, isGlobalStaff]);
 
   const form = useForm<CompanyFormValues>({
     resolver: zodResolver(companySchema),

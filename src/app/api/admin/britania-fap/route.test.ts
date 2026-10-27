@@ -54,15 +54,39 @@ beforeEach(() => {
   m.auth.mockResolvedValue({ uid: "a", role: "SUPER_ADMIN", tenantId: null });
 });
 describe("restricted group FAP dossier", () => {
-  it("writes dossier and audit atomically without altering companies or user access", async () => {
-    m.transaction.mockImplementation(async (fn) =>
-      fn({ get: async () => ({ exists: false }), create: m.create })
-    );
+  it("creates missing historical sites with dossier and audit atomically, without user access changes", async () => {
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ exists: false })
+      .mockResolvedValueOnce({ size: 0, docs: [] });
+    m.transaction.mockImplementation(async (fn) => fn({ get, create: m.create, update: vi.fn() }));
     const response = await POST(req(dossier));
     expect(response.status).toBe(200);
+    expect(m.create).toHaveBeenCalledTimes(3);
+    expect(m.create.mock.calls[0][1]).toMatchObject({
+      cnpj: "76492701001129",
+      active: false,
+      portfolioClientId: "britania",
+    });
+    expect(m.create.mock.calls[1][1]).toMatchObject({ companyId: "BRITANIA_JOINVILLE", dossier });
+    expect(m.create.mock.calls[2][1]).not.toHaveProperty("dossier");
+  });
+  it("does not duplicate an existing legal site or change its active/fiscal fields", async () => {
+    const update = vi.fn();
+    const company = {
+      id: "BRITANIA_JOINVILLE",
+      ref: {},
+      data: () => ({ cnpj: "76.492.701/0011-29" }),
+    };
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ exists: false })
+      .mockResolvedValueOnce({ size: 1, docs: [company] });
+    m.transaction.mockImplementation(async (fn) => fn({ get, create: m.create, update }));
+    expect((await POST(req(dossier))).status).toBe(200);
     expect(m.create).toHaveBeenCalledTimes(2);
-    expect(m.create.mock.calls[0][1]).toMatchObject({ companyId: "BRITANIA_JOINVILLE", dossier });
-    expect(m.create.mock.calls[1][1]).not.toHaveProperty("dossier");
+    expect(update.mock.calls[0][1]).not.toHaveProperty("active");
+    expect(update.mock.calls[0][1]).not.toHaveProperty("cnpj");
   });
   it("rejects a different existing dossier without partial writes", async () => {
     m.transaction.mockImplementation(async (fn) =>
