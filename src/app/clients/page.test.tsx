@@ -277,3 +277,63 @@ describe("persisted client directory", () => {
     expect(m.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Erro na Consulta" }));
   });
 });
+
+const brdeRecords = () => [
+  { ...a, id: "CLI_BRDE", name: "BRDE", cnpj: "00.000.000/0001-01", portfolioClientId: "brde" },
+  {
+    ...a,
+    id: "92816560000137",
+    name: "BANCO REGIONAL DE DESENVOLVIMENTO DO EXTREMO SUL",
+    cnpj: "92816560000137",
+    portfolioClientId: "brde",
+  },
+];
+it("shows one BRDE client with its real CNPJ and preserves both authorized histories", async () => {
+  m.data = brdeRecords();
+  await v.render(<Page />);
+  const headings = [...v.container.querySelectorAll("h3")].filter((h) =>
+    h.textContent?.includes("BRDE")
+  );
+  expect(headings).toHaveLength(1);
+  expect(headings[0].textContent).toContain("Banco Regional");
+  expect(v.container.textContent).toContain("CNPJ: 92816560000137");
+  expect(v.container.textContent).not.toContain("CNPJ: 00.000.000/0001-01");
+  await v.click("Cockpit");
+  expect(m.scope.setActiveClientId).toHaveBeenLastCalledWith("92816560000137");
+  await v.click("Ver contratos e tarefas vinculados ao BRDE");
+  expect(m.scope.setActiveClientId).toHaveBeenLastCalledWith("CLI_BRDE");
+  expect(m.push).toHaveBeenLastCalledWith("/clients/CLI_BRDE");
+  expect(m.update).not.toHaveBeenCalled();
+  expect(m.remove).not.toHaveBeenCalled();
+  for (const term of ["BRDE", "Banco Regional", "92816560000137", "00000000000101"]) {
+    await v.input('input[placeholder^="Pesquisar"]', term);
+    expect(v.container.textContent).toContain("Ver contratos e tarefas vinculados ao BRDE");
+  }
+});
+it("does not expose the other BRDE record to a company-scoped login", async () => {
+  m.data = brdeRecords();
+  m.scope.isGlobalStaff = false;
+  m.profile.companyId = "CLI_BRDE";
+  await v.render(<Page />);
+  expect(v.container.textContent).not.toContain("Banco Regional");
+  expect(v.container.textContent).not.toContain("92816560000137");
+  expect(v.container.textContent).not.toContain("Ver contratos e tarefas vinculados ao BRDE");
+  await v.click("Cockpit");
+  expect(m.push).toHaveBeenLastCalledWith("/clients/CLI_BRDE");
+});
+it.each(["different-cnpj", "different-group", "inactive", "deleted"])(
+  "keeps BRDE records separate when identity or lifecycle differs: %s",
+  async (reason) => {
+    const records = brdeRecords();
+    if (reason === "different-cnpj") records[0].cnpj = "11222333000181";
+    if (reason === "different-group") records[0].portfolioClientId = "other";
+    if (reason === "inactive") records[0].active = false;
+    m.data = records.map((record, index) => ({
+      ...record,
+      isDeleted: reason === "deleted" && index === 0,
+    }));
+    await v.render(<Page />);
+    expect(v.container.textContent).not.toContain("Ver contratos e tarefas vinculados ao BRDE");
+    expect(v.container.textContent).toContain("BANCO REGIONAL DE DESENVOLVIMENTO DO EXTREMO SUL");
+  }
+);
