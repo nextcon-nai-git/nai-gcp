@@ -1,0 +1,38 @@
+name: Verify webhook queue patch
+on:
+  push:
+    branches: [codex/verify-webhook-queue]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --prefer-offline --no-audit
+      - name: Format changed sources
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs/promises';
+          import prettier from 'prettier';
+          const files = ["src/services/webhooks/webhook-dispatcher.ts","src/services/webhooks/webhook-dispatcher.test.ts","src/app/api/internal/webhook-deliveries/route.ts","src/app/api/internal/webhook-deliveries/route.test.ts","firestore.indexes.json","apphosting.yaml","docs/webhook-delivery-worker.md"];
+          for (const file of files) {
+            const options = await prettier.resolveConfig(file);
+            const source = await prettier.format(await fs.readFile(file, 'utf8'), { ...options, filepath: file });
+            await fs.writeFile(file, source);
+            console.log('FORMATTED_FILE:' + JSON.stringify({ path: file, content: source }));
+          }
+          NODE
+      - name: Targeted regression tests
+        run: npx vitest run src/services/webhooks/webhook-dispatcher.test.ts src/app/api/internal/webhook-deliveries/route.test.ts
+      - name: Typecheck
+        if: always()
+        run: npm run typecheck
+      - name: Lint
+        if: always()
+        run: npx eslint src/services/webhooks/webhook-dispatcher.ts src/services/webhooks/webhook-dispatcher.test.ts src/app/api/internal/webhook-deliveries/route.ts src/app/api/internal/webhook-deliveries/route.test.ts
