@@ -125,7 +125,7 @@ describe("Imported operation card editing", () => {
     expect(checkbox.getAttribute("data-state")).toBe("checked");
     expect(task.checklist![0].checked).toBe(false);
     const save = Array.from(element.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Protocolar Alterações")
+      button.textContent?.includes("Salvar alterações")
     )!;
     await act(async () => save.click());
     expect(state.updatePgrTask).toHaveBeenCalledWith(
@@ -162,7 +162,7 @@ describe("Imported operation card editing", () => {
 
 const actionButton = (action: "save" | "delete") =>
   Array.from(element.querySelectorAll("button")).find((button) =>
-    button.textContent?.includes(action === "save" ? "Protocolar Alterações" : "Excluir Registro")
+    button.textContent?.includes(action === "save" ? "Salvar alterações" : "Excluir Registro")
   )!;
 const manualTask = (): OpsTask => ({ ...fixture(), sourceType: undefined });
 
@@ -246,4 +246,31 @@ describe("Confirmed persistence for manual operation cards", () => {
     expect(state.toast).not.toHaveBeenCalled();
     expect(state.onOpenChange).not.toHaveBeenCalled();
   });
+});
+
+it("limits imported PGR cards to statuses supported by their endpoint", async () => {
+  await render(fixture());
+  const statuses = Array.from(
+    element.querySelectorAll<HTMLSelectElement>("#task-stage option")
+  ).map((option) => option.value);
+  expect(statuses).toContain("doing");
+  expect(statuses).toContain("archived");
+  expect(statuses).not.toContain("sent");
+  expect(statuses).not.toContain("approved");
+  expect(statuses).not.toContain("implementation");
+});
+
+it("preserves an unsaved draft when the same PGR is refreshed", async () => {
+  const task = fixture();
+  await render(task);
+  const input = inputWith(task.title);
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+      input,
+      "Edição ainda não salva"
+    );
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await render({ ...task, lastComment: "Nova leitura periódica" });
+  expect(inputWith("Edição ainda não salva")).toBeTruthy();
 });

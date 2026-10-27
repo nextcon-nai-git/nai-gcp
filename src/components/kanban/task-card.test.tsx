@@ -32,7 +32,7 @@ describe("contract task compatibility", () => {
   });
   it("preserves an explicitly assigned priority", () => {
     expect(renderToStaticMarkup(<TaskCard task={{ ...task, priority: "high" }} />)).toContain(
-      "HIGH"
+      "Alta"
     );
   });
 });
