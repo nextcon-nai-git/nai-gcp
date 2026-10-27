@@ -51,6 +51,9 @@ jobs:
       - name: Run tests
         run: npm run test:run
 
+      - name: Verify dependency security backports
+        run: npm run test:dependency-security
+
       - name: Set up Java for Firestore emulator
         uses: actions/setup-java@v6
         with:
