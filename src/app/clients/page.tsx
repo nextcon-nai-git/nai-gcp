@@ -72,6 +72,7 @@ import { enriquecerDadosEmpresa } from "@/actions/company-enrichment";
 import { REAL_COMPANIES } from "@/lib/real-data";
 import { getActionIdToken } from "@/lib/auth/action-token";
 import { sortCompaniesByName } from "@/lib/company-order";
+import { unifyBrdeClients } from "@/lib/brde-client";
 
 const companySchema = z.object({
   name: z.string().min(3, "Nome ou Razão Social obrigatória"),
@@ -155,8 +156,11 @@ function ClientsSession() {
   const activeCompaniesList = React.useMemo(
     () =>
       sortCompaniesByName(
-        (companies || []).filter(
-          (company) => company.isDeleted !== true && (isGlobalStaff || company.id === userCompanyId)
+        unifyBrdeClients(
+          (companies || []).filter(
+            (company) =>
+              company.isDeleted !== true && (isGlobalStaff || company.id === userCompanyId)
+          )
         )
       ),
     [companies, isGlobalStaff, userCompanyId]
@@ -168,6 +172,9 @@ function ClientsSession() {
       (c: ClientCompanyItem) =>
         (showInactive || c.active !== false) &&
         ((c.name || c.companyName || "").toLowerCase().includes(term) ||
+          (c.linkedClientRecords?.length > 0 &&
+            (c.displayName || "").toLowerCase().includes(term)) ||
+          (c.clientSearchAliases || "").toLowerCase().includes(term) ||
           (c.cnpj || "").includes(term) ||
           (/^[\d.\/\-\s]+$/.test(term) &&
             term.replace(/\D/g, "").length > 0 &&
@@ -590,20 +597,30 @@ function ClientsSession() {
           </div>
         ) : (
           filteredCompanies.map((company) => (
-            <SwipeableCompanyRow
-              key={company.id}
-              company={company}
-              disabled={!canManage || isSubmitting}
-              activeClientId={activeClientId}
-              onSelect={() => navigateToCockpit(company.id)}
-              onOpenCockpit={() => navigateToCockpit(company.id)}
-              onEdit={() => {
-                setEditingCompany(company);
-                setIsCreateOpen(true);
-              }}
-              onDelete={() => handleDeleteCompany(company.id, company.name)}
-              onToggleActive={() => handleToggleActiveCompany(company.id, company.active ?? true)}
-            />
+            <div key={company.id}>
+              <SwipeableCompanyRow
+                company={company}
+                disabled={!canManage || isSubmitting}
+                activeClientId={activeClientId}
+                onSelect={() => navigateToCockpit(company.id)}
+                onOpenCockpit={() => navigateToCockpit(company.id)}
+                onEdit={() => {
+                  setEditingCompany(company);
+                  setIsCreateOpen(true);
+                }}
+                onDelete={() => handleDeleteCompany(company.id, company.name)}
+                onToggleActive={() => handleToggleActiveCompany(company.id, company.active ?? true)}
+              />
+              {company.linkedClientRecords.map((linked: ClientCompanyItem) => (
+                <Button
+                  key={linked.id}
+                  variant="outline"
+                  onClick={() => navigateToCockpit(linked.id!)}
+                >
+                  Ver contratos e tarefas vinculados ao BRDE
+                </Button>
+              ))}
+            </div>
           ))
         )}
 
@@ -1104,7 +1121,9 @@ function SwipeableCompanyRow({
           </div>
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-black text-sm text-primary uppercase">{company.name}</h3>
+              <h3 className="font-black text-sm text-primary uppercase">
+                {company.linkedClientRecords?.length ? company.displayName : company.name}
+              </h3>
               <Badge
                 className={cn(
                   "text-[8px] font-black uppercase border-none px-2 h-4",
