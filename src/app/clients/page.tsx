@@ -659,7 +659,9 @@ function ClientsSession() {
                     setIsCreateOpen(true);
                   }}
                   onDelete={() => handleDeleteCompany(company.id, company.name)}
-                  onToggleActive={() => handleToggleActiveCompany(company.id, company.active ?? true)}
+                  onToggleActive={() =>
+                    handleToggleActiveCompany(company.id, company.active ?? true)
+                  }
                 />
                 {company.linkedClientRecords.map((linked: ClientCompanyItem) => (
                   <Button
