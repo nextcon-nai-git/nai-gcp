@@ -3,13 +3,11 @@ import "server-only";
 import { FieldValue, type DocumentReference } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase-admin";
 import { ApiGuardError, requireClient } from "@/lib/developer-api-guard";
-import type { DeveloperPrincipal } from "@/types/developer";
-import { WebhookRecord, WebhookEvent } from "@/types/developer";
+import type { DeveloperPrincipal, WebhookRecord, WebhookEvent } from "@/types/developer";
 import { postWebhook } from "./post-webhook";
 import { validateWebhookTargetUrl } from "@/lib/webhook-security-guard";
 
 export type WebhookDeliveryStatus = "PENDING" | "DELIVERED" | "FAILED" | "RETRYING" | "DEAD_LETTER";
-
 export interface WebhookDeliveryRecord {
   id: string;
   eventId: string;
@@ -27,147 +25,156 @@ export interface WebhookDeliveryRecord {
   deliveredAt: string | null;
   payload: Record<string, unknown>;
   signature: string;
+  leaseToken?: string | null;
+  leaseUntil?: string | null;
 }
-
+type Delivery = Omit<WebhookDeliveryRecord, "id">;
 const DEFAULT_MAX_ATTEMPTS = 5;
-const REQUEST_TIMEOUT_MS = 10000; // 10s timeout por tentativa
+const REQUEST_TIMEOUT_MS = 10000;
+const LEASE_MS = 120000;
+const timestamp = () => FieldValue.serverTimestamp();
 
-/**
- * Calcula a assinatura HMAC-SHA256 do payload do webhook
- */
 export function signWebhookPayload(payloadString: string, secret: string): string {
   return createHmac("sha256", secret).update(payloadString).digest("hex");
 }
 
-/**
- * Dispara um evento para todos os webhooks cadastrados para o tenant.
- * Cria os registros na coleção `webhook_deliveries` e inicia o ciclo de entrega assíncrono.
- */
+/** Persist before returning. Only the scheduled worker performs network delivery. */
 export async function emitWebhookEvent(
   eventType: WebhookEvent,
   clientId: string,
   eventData: Record<string, unknown>
 ): Promise<{ eventId: string; deliveriesCount: number }> {
   const eventId = `evt_${randomUUID()}`;
-  const db = adminDb;
-
-  // 1. Localiza os endpoints de Webhook ativos para este tenant que escutam este evento
-  const snapshot = await db
+  const snapshot = await adminDb
     .collection("webhooks")
     .where("clientId", "==", clientId)
     .where("active", "==", true)
     .get();
-  if (snapshot.empty) {
-    return { eventId, deliveriesCount: 0 };
-  }
-
-  const matchingWebhooks = snapshot.docs
-    .map((d) => ({ id: d.id, ...d.data() }) as WebhookRecord)
-    .filter((w) => w.events.includes(eventType) || (w.events as any[]).includes("*"));
-
-  if (matchingWebhooks.length === 0) {
-    return { eventId, deliveriesCount: 0 };
-  }
-
+  const webhooks = snapshot.docs
+    .map((doc) => ({ ...doc.data(), id: doc.id }) as WebhookRecord)
+    .filter(
+      (webhook) =>
+        webhook.events.includes(eventType) || (webhook.events as readonly string[]).includes("*")
+    );
   const createdAt = new Date().toISOString();
-
-  // 2. Enfileira as entregas na coleção `webhook_deliveries`
-  const deliveryPromises = matchingWebhooks.map(async (wh) => {
-    const rawPayload = {
-      id: eventId,
-      event: eventType,
-      createdAt,
-      clientId,
-      data: eventData,
-    };
-
-    const payloadString = JSON.stringify(rawPayload);
-    const signature = signWebhookPayload(payloadString, wh.secret);
-
-    const deliveryData = {
-      eventId,
-      webhookId: wh.id,
-      clientId,
-      eventType,
-      targetUrl: wh.url,
-      attempt: 0,
-      maxAttempts: DEFAULT_MAX_ATTEMPTS,
-      status: "PENDING" as WebhookDeliveryStatus,
-      httpStatus: null,
-      lastError: null,
-      nextRetryAt: null,
-      createdAt,
-      deliveredAt: null,
-      payload: rawPayload,
-      signature: `sha256=${signature}`,
-      serverTimestamp: FieldValue.serverTimestamp(),
-    };
-
-    const deliveryDoc = await db.collection("webhook_deliveries").add(deliveryData);
-
-    // Inicia entrega imediata em background
-    executeWebhookDelivery(deliveryDoc.id, wh.secret, deliveryData).catch((err) => {
-      console.error(`[Webhook Dispatcher Error ${deliveryDoc.id}]`, err);
-    });
-
-    return deliveryDoc.id;
-  });
-
-  await Promise.all(deliveryPromises);
-
-  return { eventId, deliveriesCount: matchingWebhooks.length };
+  await Promise.all(
+    webhooks.map(async (webhook) => {
+      const payload = { id: eventId, event: eventType, createdAt, clientId, data: eventData };
+      await adminDb.collection("webhook_deliveries").add({
+        eventId,
+        webhookId: webhook.id,
+        clientId,
+        eventType,
+        targetUrl: webhook.url,
+        attempt: 0,
+        maxAttempts: DEFAULT_MAX_ATTEMPTS,
+        status: "PENDING",
+        httpStatus: null,
+        lastError: null,
+        nextRetryAt: createdAt,
+        createdAt,
+        deliveredAt: null,
+        payload,
+        signature: `sha256=${signWebhookPayload(JSON.stringify(payload), webhook.secret)}`,
+        leaseToken: null,
+        leaseUntil: null,
+        serverTimestamp: timestamp(),
+      });
+    })
+  );
+  return { eventId, deliveriesCount: webhooks.length };
 }
 
-/**
- * Executa uma tentativa de envio HTTP com tratamento de timeout, retries exponenciais e Dead-Letter Queue
- */
-export async function executeWebhookDelivery(
-  deliveryId: string,
-  secret: string,
-  initialData?: any
-): Promise<{
-  success: boolean;
-  status: WebhookDeliveryStatus;
-  httpStatus?: number;
-  error?: string;
-}> {
-  const db = adminDb;
-
-  const deliveryRef = db.collection("webhook_deliveries").doc(deliveryId);
-  let delivery = initialData;
-
-  if (!delivery) {
-    const snap = await deliveryRef.get();
-    if (!snap.exists) {
-      throw new Error(`Entrega ${deliveryId} não encontrada.`);
+/** Claim atomically. Expired leases are retryable after a process interruption. */
+async function claimDelivery(ref: DocumentReference) {
+  const now = new Date().toISOString();
+  const leaseToken = randomUUID();
+  return adminDb.runTransaction(async (tx) => {
+    const snapshot = await tx.get(ref);
+    if (!snapshot.exists) return null;
+    const delivery = snapshot.data() as Delivery;
+    if (!["PENDING", "RETRYING"].includes(delivery.status)) return null;
+    if (delivery.leaseUntil && delivery.leaseUntil > now) return null;
+    if (delivery.nextRetryAt && delivery.nextRetryAt > now) return null;
+    const maxAttempts = delivery.maxAttempts || DEFAULT_MAX_ATTEMPTS;
+    if (delivery.attempt >= maxAttempts) {
+      tx.update(ref, {
+        status: "DEAD_LETTER",
+        nextRetryAt: null,
+        leaseToken: null,
+        leaseUntil: null,
+        lastError: "Limite de tentativas atingido após interrupção da entrega.",
+        updatedAt: timestamp(),
+      });
+      return null;
     }
-    delivery = snap.data();
-  }
-
-  const currentAttempt = (delivery.attempt || 0) + 1;
-  const maxAttempts = delivery.maxAttempts || DEFAULT_MAX_ATTEMPTS;
-  const payloadString = JSON.stringify(delivery.payload);
-  const signature = `sha256=${signWebhookPayload(payloadString, secret)}`;
-
-  // Validação Estrita contra SSRF e DNS Rebinding antes do disparo
-  const urlCheck = await validateWebhookTargetUrl(delivery.targetUrl);
-  if (!urlCheck.valid) {
-    const errorMsg = `Disparo Bloqueado por Egress Guard: ${urlCheck.error}`;
-    return await handleDeliveryFailure(
-      db,
-      deliveryRef,
-      delivery,
+    const leaseUntil = new Date(Date.now() + LEASE_MS).toISOString();
+    const claimed = {
+      ...delivery,
+      attempt: (delivery.attempt || 0) + 1,
       maxAttempts,
-      maxAttempts,
-      400,
-      errorMsg
-    );
-  }
+      leaseToken,
+      leaseUntil,
+    };
+    tx.update(ref, {
+      status: "RETRYING",
+      attempt: claimed.attempt,
+      leaseToken,
+      leaseUntil,
+      nextRetryAt: leaseUntil,
+      updatedAt: timestamp(),
+    });
+    return claimed;
+  });
+}
 
+/** A late worker must not overwrite the state of a newer attempt. */
+async function finishDelivery(
+  ref: DocumentReference,
+  leaseToken: string,
+  update: Record<string, unknown>
+) {
+  return adminDb.runTransaction(async (tx) => {
+    const snapshot = await tx.get(ref);
+    if (!snapshot.exists || snapshot.data()?.leaseToken !== leaseToken) return false;
+    tx.update(ref, { ...update, leaseToken: null, leaseUntil: null, updatedAt: timestamp() });
+    return true;
+  });
+}
+
+export async function executeWebhookDelivery(deliveryId: string): Promise<void> {
+  const ref = adminDb.collection("webhook_deliveries").doc(deliveryId);
+  const delivery = await claimDelivery(ref);
+  if (!delivery) return;
+  let httpStatus: number | null = null;
+  let lastError = "Falha de conexão com o endpoint.";
+  let permanent = false;
+  let signature = delivery.signature;
+  let delivered = false;
   try {
+    // Recheck revocation, tenant and destination on every attempt, including retries.
+    const webhook = (await adminDb.collection("webhooks").doc(delivery.webhookId).get()).data();
+    if (
+      !webhook ||
+      !webhook.active ||
+      webhook.clientId !== delivery.clientId ||
+      webhook.url !== delivery.targetUrl ||
+      typeof webhook.secret !== "string" ||
+      !webhook.secret
+    ) {
+      permanent = true;
+      throw new Error("Webhook inativo, inexistente ou incompatível com a entrega.");
+    }
+    const url = await validateWebhookTargetUrl(delivery.targetUrl);
+    if (!url.valid) {
+      permanent = !url.retryable;
+      throw new Error(`Disparo bloqueado por Egress Guard: ${url.error}`);
+    }
+    const body = JSON.stringify(delivery.payload);
+    signature = `sha256=${signWebhookPayload(body, webhook.secret)}`;
     const response = await postWebhook(
-      urlCheck.normalizedUrl!,
-      urlCheck.resolvedIps!,
+      url.normalizedUrl!,
+      url.resolvedIps!,
       {
         "Content-Type": "application/json",
         "User-Agent": "NAI-Webhook-Dispatcher/2.0",
@@ -175,148 +182,102 @@ export async function executeWebhookDelivery(
         "X-NAI-Event-Id": delivery.eventId,
         "X-NAI-Delivery-Id": deliveryId,
         "X-NAI-Signature": signature,
-        "X-NAI-Attempt": String(currentAttempt),
+        "X-NAI-Attempt": String(delivery.attempt),
       },
-      payloadString,
+      body,
       REQUEST_TIMEOUT_MS
     );
-
-    if (response.ok) {
-      // Sucesso na Entrega
-      const deliveredAt = new Date().toISOString();
-      await deliveryRef.update({
-        attempt: currentAttempt,
-        status: "DELIVERED",
-        httpStatus: response.status,
-        deliveredAt,
-        lastError: null,
-        nextRetryAt: null,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-
-      return { success: true, status: "DELIVERED", httpStatus: response.status };
-    } else {
-      const errMsg = `HTTP ${response.status}`;
-      return await handleDeliveryFailure(
-        db,
-        deliveryRef,
-        delivery,
-        currentAttempt,
-        maxAttempts,
-        response.status,
-        errMsg
-      );
-    }
-  } catch (error: any) {
-    const isTimeout = error.name === "AbortError";
-    const errMsg = isTimeout
-      ? `Timeout excedido (${REQUEST_TIMEOUT_MS / 1000}s)`
-      : error.message || "Falha de conexão com o endpoint";
-    return await handleDeliveryFailure(
-      db,
-      deliveryRef,
-      delivery,
-      currentAttempt,
-      maxAttempts,
-      null,
-      errMsg
-    );
+    httpStatus = response.status;
+    delivered = response.ok;
+    lastError = `HTTP ${httpStatus}`;
+  } catch (error) {
+    lastError = error instanceof Error ? error.message : lastError;
   }
-}
-
-/**
- * Trata falha de envio calculando backoff exponencial ou encaminhando para Dead-Letter
- */
-async function handleDeliveryFailure(
-  db: typeof adminDb,
-  deliveryRef: DocumentReference,
-  delivery: any,
-  currentAttempt: number,
-  maxAttempts: number,
-  httpStatus: number | null,
-  errorMessage: string
-): Promise<{
-  success: boolean;
-  status: WebhookDeliveryStatus;
-  httpStatus?: number;
-  error?: string;
-}> {
-  if (currentAttempt >= maxAttempts) {
-    // Excedeu o limite de tentativas -> Encaminha para Dead-Letter Queue (DLQ)
-    await deliveryRef.update({
-      attempt: currentAttempt,
-      status: "DEAD_LETTER",
+  // Persistence failures must reach the scheduler; preserve the lease for recovery.
+  if (delivered) {
+    await finishDelivery(ref, delivery.leaseToken, {
+      status: "DELIVERED",
       httpStatus,
-      lastError: errorMessage,
+      signature,
+      deliveredAt: new Date().toISOString(),
+      lastError: null,
       nextRetryAt: null,
-      updatedAt: FieldValue.serverTimestamp(),
     });
-
-    return {
-      success: false,
-      status: "DEAD_LETTER",
-      httpStatus: httpStatus || undefined,
-      error: errorMessage,
-    };
+    return;
   }
-
-  // Backoff Exponencial: (2 ^ attempt) * 30 segundos
-  const backoffSeconds = Math.pow(2, currentAttempt) * 30;
-  const nextRetryDate = new Date(Date.now() + backoffSeconds * 1000);
-
-  await deliveryRef.update({
-    attempt: currentAttempt,
-    status: "RETRYING",
+  const exhausted = permanent || delivery.attempt >= delivery.maxAttempts;
+  await finishDelivery(ref, delivery.leaseToken, {
+    status: exhausted ? "DEAD_LETTER" : "RETRYING",
     httpStatus,
-    lastError: errorMessage,
-    nextRetryAt: nextRetryDate.toISOString(),
-    updatedAt: FieldValue.serverTimestamp(),
+    lastError,
+    signature,
+    nextRetryAt: exhausted
+      ? null
+      : new Date(Date.now() + Math.pow(2, delivery.attempt) * 30000).toISOString(),
   });
-
-  return {
-    success: false,
-    status: "RETRYING",
-    httpStatus: httpStatus || undefined,
-    error: errorMessage,
-  };
 }
 
-/**
- * Re-executa uma entrega em Dead-Letter manualmente (Replay DLQ)
- */
+/** Bounded work; await all sends before the authenticated HTTP invocation ends. */
+export async function processWebhookQueue() {
+  const queue = adminDb.collection("webhook_deliveries");
+  const [pending, retrying] = await Promise.all([
+    // Also picks up legacy PENDING records whose nextRetryAt is null.
+    queue.where("status", "==", "PENDING").orderBy("createdAt").limit(10).get(),
+    queue
+      .where("status", "==", "RETRYING")
+      .where("nextRetryAt", "<=", new Date().toISOString())
+      .orderBy("nextRetryAt")
+      .limit(10)
+      .get(),
+  ]);
+  const docs = [...pending.docs, ...retrying.docs];
+  let failures = 0;
+  for (let offset = 0; offset < docs.length; offset += 5) {
+    const results = await Promise.allSettled(
+      docs.slice(offset, offset + 5).map((doc) => executeWebhookDelivery(doc.id))
+    );
+    failures += results.filter((result) => result.status === "rejected").length;
+  }
+  if (failures)
+    throw new Error("Não foi possível processar todas as entregas. A fila foi preservada.");
+  return { examined: docs.length };
+}
+
+/** Requeue a failed delivery atomically, resetting its retry budget. */
 export async function replayWebhookDelivery(
   deliveryId: string,
   authKey: DeveloperPrincipal
 ): Promise<{ success: boolean; message: string }> {
-  const db = adminDb;
-
-  const deliveryRef = db.collection("webhook_deliveries").doc(deliveryId);
-  const snap = await deliveryRef.get();
-  if (!snap.exists) {
-    throw new ApiGuardError("Entrega não encontrada.", 404);
-  }
-
-  const delivery = snap.data()!;
-  if (typeof delivery.clientId !== "string" || !delivery.clientId)
-    throw new ApiGuardError("Entrega sem empresa válida.", 409);
-  requireClient(authKey, delivery.clientId);
-  const webhookSnap = await db.collection("webhooks").doc(delivery.webhookId).get();
-  const webhook = webhookSnap.data();
-  if (!webhook || !webhook.active || webhook.clientId !== delivery.clientId || !webhook.secret)
-    throw new ApiGuardError("Webhook inexistente, inativo ou incompatível com a entrega.", 409);
-  if (webhook.url !== delivery.targetUrl)
-    throw new ApiGuardError("O destino mudou. O replay da entrega antiga foi bloqueado.", 409);
-  const secret = webhook.secret;
-
-  await deliveryRef.update({
-    status: "PENDING",
-    lastError: null,
-    nextRetryAt: null,
-    updatedAt: FieldValue.serverTimestamp(),
+  const ref = adminDb.collection("webhook_deliveries").doc(deliveryId);
+  await adminDb.runTransaction(async (tx) => {
+    const snapshot = await tx.get(ref);
+    if (!snapshot.exists) throw new ApiGuardError("Entrega não encontrada.", 404);
+    const delivery = snapshot.data() as Delivery;
+    if (typeof delivery.clientId !== "string" || !delivery.clientId)
+      throw new ApiGuardError("Entrega sem empresa válida.", 409);
+    requireClient(authKey, delivery.clientId);
+    if (!["DEAD_LETTER", "FAILED"].includes(delivery.status))
+      throw new ApiGuardError(
+        "Somente entregas com falha definitiva podem ser reenfileiradas.",
+        409
+      );
+    const webhook = (await tx.get(adminDb.collection("webhooks").doc(delivery.webhookId))).data();
+    if (!webhook || !webhook.active || webhook.clientId !== delivery.clientId || !webhook.secret)
+      throw new ApiGuardError("Webhook inexistente, inativo ou incompatível com a entrega.", 409);
+    if (webhook.url !== delivery.targetUrl)
+      throw new ApiGuardError("O destino mudou. O replay da entrega antiga foi bloqueado.", 409);
+    tx.update(ref, {
+      status: "PENDING",
+      attempt: 0,
+      maxAttempts: DEFAULT_MAX_ATTEMPTS,
+      lastError: null,
+      httpStatus: null,
+      deliveredAt: null,
+      nextRetryAt: new Date().toISOString(),
+      leaseToken: null,
+      leaseUntil: null,
+      updatedAt: timestamp(),
+    });
   });
-
-  // Executa imediatamente
-  executeWebhookDelivery(deliveryId, secret, delivery).catch(() => {});
-
   return { success: true, message: `Replay da entrega ${deliveryId} enfileirado com sucesso.` };
 }

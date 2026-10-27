@@ -70,3 +70,12 @@ env:
     value: "221493"
     availability:
       - RUNTIME
+  # Scheduled webhook worker; provision the scheduler after deploying its indexes.
+  - variable: WEBHOOK_INVOKER_EMAIL
+    value: firebase-app-hosting-compute@studio-8439299034-125c7.iam.gserviceaccount.com
+    availability:
+      - RUNTIME
+  - variable: WEBHOOK_WORKER_AUDIENCE
+    value: https://nai--studio-8439299034-125c7.us-central1.hosted.app/api/internal/webhook-deliveries
+    availability:
+      - RUNTIME

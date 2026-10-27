@@ -119,6 +119,7 @@ export function isPrivateOrReservedIp(ip: string): boolean {
 
 export interface WebhookUrlValidationResult {
   valid: boolean;
+  retryable?: boolean;
   error?: string;
   resolvedIps?: string[];
   normalizedUrl?: string;
@@ -209,7 +210,11 @@ export async function validateWebhookTargetUrl(
     const addresses = await dns.lookup(hostname, { all: true });
 
     if (!addresses || addresses.length === 0) {
-      return { valid: false, error: `Não foi possível resolver o hostname '${hostname}' via DNS.` };
+      return {
+        valid: false,
+        retryable: true,
+        error: `Não foi possível resolver o hostname '${hostname}' via DNS.`,
+      };
     }
 
     const resolvedIps = addresses.map((a) => a.address);
@@ -227,6 +232,7 @@ export async function validateWebhookTargetUrl(
   } catch (err: any) {
     return {
       valid: false,
+      retryable: true,
       error: `Falha na verificação de DNS para o domínio '${hostname}': ${err.message}`,
     };
   }

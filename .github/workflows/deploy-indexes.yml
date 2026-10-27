@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: [.github/workflows/deploy-indexes.yml]
+    paths: [.github/workflows/deploy-indexes.yml, firestore.indexes.json]
 
 permissions:
   contents: read
