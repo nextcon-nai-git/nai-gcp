@@ -40,6 +40,7 @@ import { useSgi } from "@/contexts/sgi-context";
 import { useCompanyDirectory } from "@/hooks/use-company-directory";
 import { useSidebar } from "@/components/ui/sidebar";
 import { GlobalCommandPalette } from "@/components/layout/global-command-palette";
+import { isBritaniaSite, BRITANIA_ANCHOR, BRITANIA_GROUP_NAME } from "@/lib/britania-group";
 
 /**
  * TOPNAV v3.1 - GESTÃO MESTRE MULTI-TENANT & CLIENT SELECTION
@@ -139,9 +140,17 @@ export function TopNav() {
     if (activeClientId === "all" && canBrowseAllCompanies) return "Rede Global Nextcon";
     if (activeClientId === "unauthorized") return "Acesso Restrito";
     const found = filteredCompanies?.find((c) => c?.id === activeClientId);
+    if (found && isGlobalStaff && isBritaniaSite(found)) return BRITANIA_GROUP_NAME;
     if (found) return found?.displayName || found?.name || found?.razaoSocial || found?.id;
     return "Selecione uma unidade autorizada";
-  }, [activeClientId, filteredCompanies, directoryError, directoryLoading, canBrowseAllCompanies]);
+  }, [
+    activeClientId,
+    filteredCompanies,
+    directoryError,
+    directoryLoading,
+    canBrowseAllCompanies,
+    isGlobalStaff,
+  ]);
 
   const handleClientChange = (newClientId: string) => {
     if (!canBrowseAllCompanies && !authorizedCompanies.includes(newClientId)) return;
@@ -151,7 +160,9 @@ export function TopNav() {
       return;
     }
     const lower = newClientId.toLowerCase();
-    if (lower === "cassi_matriz" || lower.includes("cassi")) {
+    if (isGlobalStaff && newClientId === BRITANIA_ANCHOR) {
+      router.push("/clients/grupo-britania");
+    } else if (lower === "cassi_matriz" || lower.includes("cassi")) {
       router.push("/clients/cassi");
     } else if (lower === "grupo_avp" || lower.includes("grupo-avp") || lower.includes("avp")) {
       router.push("/clients/grupo-avp");
@@ -219,25 +230,32 @@ export function TopNav() {
                   🌐 Rede Global (Filtro Zero)
                 </SelectItem>
               )}
-              {filteredCompanies.filter(Boolean).map((c) => {
-                const label = c?.displayName || c?.name || c?.razaoSocial || c?.id || "Empresa";
-                return (
-                  <SelectItem
-                    key={c.id}
-                    value={c.id}
-                    className="text-[9px] font-bold uppercase py-2 cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between w-full gap-2">
-                      <span className="truncate">{label}</span>
-                      {c.city && (
-                        <span className="text-[8px] font-medium text-slate-400 lowercase shrink-0">
-                          ({c.city}/{c.state || "BR"})
-                        </span>
-                      )}
-                    </div>
-                  </SelectItem>
-                );
-              })}
+              {filteredCompanies
+                .filter(
+                  (c) => c && (!isGlobalStaff || !isBritaniaSite(c) || c.id === BRITANIA_ANCHOR)
+                )
+                .map((c) => {
+                  const label =
+                    isGlobalStaff && c.id === BRITANIA_ANCHOR
+                      ? BRITANIA_GROUP_NAME
+                      : c?.displayName || c?.name || c?.razaoSocial || c?.id || "Empresa";
+                  return (
+                    <SelectItem
+                      key={c.id}
+                      value={c.id}
+                      className="text-[9px] font-bold uppercase py-2 cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between w-full gap-2">
+                        <span className="truncate">{label}</span>
+                        {c.city && (
+                          <span className="text-[8px] font-medium text-slate-400 lowercase shrink-0">
+                            ({c.city}/{c.state || "BR"})
+                          </span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  );
+                })}
             </SelectContent>
           </Select>
         </div>
