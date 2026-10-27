@@ -128,7 +128,7 @@ export async function executeWebhookDelivery(deliveryId: string): Promise<void> 
     }
     const url = await validateWebhookTargetUrl(delivery.targetUrl);
     if (!url.valid) {
-      permanent = true;
+      permanent = !url.retryable;
       throw new Error(`Disparo bloqueado por Egress Guard: ${url.error}`);
     }
     const body = JSON.stringify(delivery.payload);

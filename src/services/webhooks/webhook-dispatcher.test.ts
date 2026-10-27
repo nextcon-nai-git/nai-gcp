@@ -163,3 +163,16 @@ it("requeues a dead letter once and restores the retry budget", async () => {
   await processWebhookQueue();
   expect(row()).toMatchObject({ status: "DELIVERED", attempt: 1 });
 });
+
+it("retries transient DNS failures returned by the egress guard", async () => {
+  state.validate.mockResolvedValueOnce({ valid: false, retryable: true, error: "DNS unavailable" });
+  await executeWebhookDelivery("d");
+  expect(row()).toMatchObject({ status: "RETRYING", leaseToken: null });
+  expect(state.post).not.toHaveBeenCalled();
+});
+it("dead-letters unsafe targets without sending", async () => {
+  state.validate.mockResolvedValueOnce({ valid: false, error: "SSRF blocked" });
+  await executeWebhookDelivery("d");
+  expect(row()).toMatchObject({ status: "DEAD_LETTER", nextRetryAt: null });
+  expect(state.post).not.toHaveBeenCalled();
+});

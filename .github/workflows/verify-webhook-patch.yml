@@ -20,7 +20,7 @@ jobs:
           node --input-type=module <<'NODE'
           import fs from 'node:fs/promises';
           import prettier from 'prettier';
-          const files = ["src/services/webhooks/webhook-dispatcher.ts","src/services/webhooks/webhook-dispatcher.test.ts","src/app/api/internal/webhook-deliveries/route.ts","src/app/api/internal/webhook-deliveries/route.test.ts","firestore.indexes.json","apphosting.yaml","docs/webhook-delivery-worker.md"];
+          const files = ["src/services/webhooks/webhook-dispatcher.ts","src/services/webhooks/webhook-dispatcher.test.ts","src/app/api/internal/webhook-deliveries/route.ts","src/app/api/internal/webhook-deliveries/route.test.ts","firestore.indexes.json","apphosting.yaml","docs/webhook-delivery-worker.md","src/lib/webhook-security-guard.ts"];
           for (const file of files) {
             const options = await prettier.resolveConfig(file);
             const source = await prettier.format(await fs.readFile(file, 'utf8'), { ...options, filepath: file });
