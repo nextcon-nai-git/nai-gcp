@@ -349,7 +349,7 @@ function EnterpriseOpsContent() {
         </p>
       )}
       <div className="min-w-0 min-h-[500px] rounded-xl border border-border p-3 md:p-4">
-        {loadingTasks ? (
+        {loadingTasks && operationalTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-6 py-20">
             <div className="size-20 rounded-[2rem] bg-[#090e24] flex items-center justify-center text-white font-black text-4xl shadow-2xl animate-bounce">
               N
@@ -362,7 +362,10 @@ function EnterpriseOpsContent() {
           <p>O quadro está indisponível enquanto a consulta não for confirmada.</p>
         ) : operationalTasks.length > 0 ? (
           <div className="w-full h-full">
-            <TaskWorkspace tasks={operationalTasks} />
+            <TaskWorkspace
+              key={`${pgrSource ? "pgr" : "legacy"}:${selectedCompanyId}`}
+              tasks={operationalTasks}
+            />
           </div>
         ) : (
           <div className="text-center opacity-30 space-y-4">

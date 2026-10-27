@@ -351,6 +351,7 @@ export function TaskWorkspace({ tasks }: { tasks: OpsTask[] }) {
       )}
       {activeTask && (
         <TaskEditDialog
+          key={`${taskKey(activeTask)}:${activeTask.restricted}:${activeTask.documentType}`}
           task={activeTask}
           isOpen
           onOpenChange={(open) => {

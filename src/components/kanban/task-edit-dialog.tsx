@@ -84,9 +84,8 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
     (task.restricted === true ||
       ["PCMSO", "ASO", "PERICIA_MEDICA"].includes(task.documentType || ""));
 
-  React.useEffect(() => {
-    setEditedTask(task);
-  }, [task]);
+  // Callers mount a fresh editor on open or record/scope change. A background
+  // snapshot of the same record must not replace the user's unsaved draft.
 
   const { isGlobalStaff, authorizedCompanies } = useSgi();
 
@@ -369,7 +368,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
               >
                 {[
                   ...OPERATIONAL_COLUMNS,
-                  ...COMMERCIAL_COLUMNS,
+                  ...(imported ? [] : COMMERCIAL_COLUMNS),
                   { id: "archived", title: "Arquivado" },
                 ].map((c) => (
                   <option key={c.id} value={c.id}>

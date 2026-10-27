@@ -104,7 +104,14 @@ export function TaskCard({ task, preview = false }: { task: OpsTask; preview?: b
           </div>
         </button>
       </article>
-      {open && <TaskEditDialog task={task} isOpen={open} onOpenChange={setOpen} />}
+      {open && (
+        <TaskEditDialog
+          key={`${taskKey(task)}:${task.restricted}:${task.documentType}`}
+          task={task}
+          isOpen={open}
+          onOpenChange={setOpen}
+        />
+      )}
     </>
   );
 }
