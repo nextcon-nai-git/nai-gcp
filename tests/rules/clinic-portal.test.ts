@@ -25,7 +25,22 @@ beforeAll(async () => {
     await setDoc(doc(ctx.firestore(), "clinic_portal_private/case/events/read"), {
       uid: "synthetic",
     });
+    await setDoc(doc(ctx.firestore(), "users/britania-site-doctor"), {
+      role: "DOCTOR",
+      companyId: "BRITANIA_JOINVILLE",
+      servedCompanies: ["BRITANIA_JOINVILLE"],
+    });
+    await setDoc(doc(ctx.firestore(), "clinic_portal_private/britania_group_fap_2027"), {
+      dossier: { cases: [{ synthetic: true }] },
+    });
   });
+});
+it("keeps the consolidated Britânia dossier inaccessible to a doctor authorized for one site", async () => {
+  const db = env.authenticatedContext("britania-site-doctor").firestore();
+  const target = doc(db, "clinic_portal_private/britania_group_fap_2027");
+  await assertFails(getDoc(target));
+  await assertFails(setDoc(target, { forged: true }));
+  await assertFails(updateDoc(target, { dossier: { cases: [] } }));
 });
 afterAll(async () => {
   await env?.cleanup();

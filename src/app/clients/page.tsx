@@ -73,6 +73,7 @@ import { REAL_COMPANIES } from "@/lib/real-data";
 import { getActionIdToken } from "@/lib/auth/action-token";
 import { sortCompaniesByName } from "@/lib/company-order";
 import { unifyBrdeClients } from "@/lib/brde-client";
+import { isBritaniaSite, BRITANIA_GROUP_NAME } from "@/lib/britania-group";
 
 const companySchema = z.object({
   name: z.string().min(3, "Nome ou Razão Social obrigatória"),
@@ -170,7 +171,7 @@ function ClientsSession() {
     const term = searchTerm.toLowerCase();
     return activeCompaniesList.filter(
       (c: ClientCompanyItem) =>
-        (showInactive || c.active !== false) &&
+        (showInactive || c.active !== false || (isGlobalStaff && isBritaniaSite(c))) &&
         ((c.name || c.companyName || "").toLowerCase().includes(term) ||
           (c.linkedClientRecords?.length > 0 &&
             (c.displayName || "").toLowerCase().includes(term)) ||
@@ -182,7 +183,7 @@ function ClientsSession() {
           (c.segment || "").toLowerCase().includes(term) ||
           (c.city || "").toLowerCase().includes(term))
     );
-  }, [activeCompaniesList, searchTerm, showInactive]);
+  }, [activeCompaniesList, searchTerm, showInactive, isGlobalStaff]);
 
   const form = useForm<CompanyFormValues>({
     resolver: zodResolver(companySchema),
@@ -588,6 +589,53 @@ function ClientsSession() {
         </p>
       )}
       <div className="space-y-3">
+        {isGlobalStaff && filteredCompanies.some(isBritaniaSite) && (
+          <Card className="rounded-2xl border-slate-600 bg-[#102b46] p-6 text-white">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-bold">{BRITANIA_GROUP_NAME}</h3>
+                <p className="text-sm text-slate-300">
+                  Sedes, colaboradores e programa de redução do FAP
+                </p>
+              </div>
+              <Link
+                href="/clients/grupo-britania"
+                className="rounded-xl border border-slate-400 px-4 py-3 font-semibold"
+              >
+                Abrir Grupo BRITANIA
+              </Link>
+            </div>
+            <details className="mt-4">
+              <summary className="cursor-pointer">
+                Sedes cadastradas ({filteredCompanies.filter(isBritaniaSite).length})
+              </summary>
+              <div className="mt-3 space-y-3">
+                {filteredCompanies.filter(isBritaniaSite).map((company) => (
+                  <div
+                    key={company.id}
+                    className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-600 pt-3"
+                  >
+                    <span>
+                      {company.name} · {company.cnpj || "CNPJ não informado"}
+                    </span>
+                    <div className="flex gap-4">
+                      <button onClick={() => navigateToCockpit(company.id)}>Abrir sede</button>
+                      <button
+                        disabled={!canManage || isSubmitting}
+                        onClick={() => {
+                          setEditingCompany(company);
+                          setIsCreateOpen(true);
+                        }}
+                      >
+                        Editar sede
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          </Card>
+        )}
         {isLoading ? (
           <div className="py-24 text-center bg-white rounded-[2.5rem] shadow-sm">
             <Loader2 className="size-12 animate-spin mx-auto opacity-20 text-primary" />
@@ -596,32 +644,34 @@ function ClientsSession() {
             </p>
           </div>
         ) : (
-          filteredCompanies.map((company) => (
-            <div key={company.id}>
-              <SwipeableCompanyRow
-                company={company}
-                disabled={!canManage || isSubmitting}
-                activeClientId={activeClientId}
-                onSelect={() => navigateToCockpit(company.id)}
-                onOpenCockpit={() => navigateToCockpit(company.id)}
-                onEdit={() => {
-                  setEditingCompany(company);
-                  setIsCreateOpen(true);
-                }}
-                onDelete={() => handleDeleteCompany(company.id, company.name)}
-                onToggleActive={() => handleToggleActiveCompany(company.id, company.active ?? true)}
-              />
-              {company.linkedClientRecords.map((linked: ClientCompanyItem) => (
-                <Button
-                  key={linked.id}
-                  variant="outline"
-                  onClick={() => navigateToCockpit(linked.id!)}
-                >
-                  Ver contratos e tarefas vinculados ao BRDE
-                </Button>
-              ))}
-            </div>
-          ))
+          filteredCompanies
+            .filter((company) => !isGlobalStaff || !isBritaniaSite(company))
+            .map((company) => (
+              <div key={company.id}>
+                <SwipeableCompanyRow
+                  company={company}
+                  disabled={!canManage || isSubmitting}
+                  activeClientId={activeClientId}
+                  onSelect={() => navigateToCockpit(company.id)}
+                  onOpenCockpit={() => navigateToCockpit(company.id)}
+                  onEdit={() => {
+                    setEditingCompany(company);
+                    setIsCreateOpen(true);
+                  }}
+                  onDelete={() => handleDeleteCompany(company.id, company.name)}
+                  onToggleActive={() => handleToggleActiveCompany(company.id, company.active ?? true)}
+                />
+                {company.linkedClientRecords.map((linked: ClientCompanyItem) => (
+                  <Button
+                    key={linked.id}
+                    variant="outline"
+                    onClick={() => navigateToCockpit(linked.id!)}
+                  >
+                    Ver contratos e tarefas vinculados ao BRDE
+                  </Button>
+                ))}
+              </div>
+            ))
         )}
 
         {(!filteredCompanies || filteredCompanies.length === 0) && !isLoading && (
