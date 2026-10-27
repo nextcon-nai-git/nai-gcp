@@ -1,22 +1,33 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import type { DeveloperPrincipal } from "@/types/developer";
 import {
-  emitWebhookEvent, executeWebhookDelivery, processWebhookQueue, replayWebhookDelivery,
+  emitWebhookEvent,
+  executeWebhookDelivery,
+  processWebhookQueue,
+  replayWebhookDelivery,
 } from "./webhook-dispatcher";
 
 const state = vi.hoisted(() => ({
   rows: new Map<string, Record<string, unknown>>(),
-  post: vi.fn(), validate: vi.fn(), tail: Promise.resolve(), sequence: 0,
+  post: vi.fn(),
+  validate: vi.fn(),
+  tail: Promise.resolve(),
+  sequence: 0,
 }));
 vi.mock("@/lib/firebase-admin", () => {
   const doc = (path: string) => ({
     path,
     get: async () => {
       const row = state.rows.get(path);
-      return { exists: !!row, data: () => row ? { ...row } : undefined };
+      return { exists: !!row, data: () => (row ? { ...row } : undefined) };
     },
   });
-  const query = (name: string, filters: Array<[string, string, unknown]> = [], order = "", count = 100) => ({
+  const query = (
+    name: string,
+    filters: Array<[string, string, unknown]> = [],
+    order = "",
+    count = 100
+  ) => ({
     doc: (id: string) => doc(name + "/" + id),
     where: (field: string, op: string, value: unknown) =>
       query(name, [...filters, [field, op, value]], order, count),
@@ -29,10 +40,15 @@ vi.mock("@/lib/firebase-admin", () => {
     },
     get: async () => {
       const docs = [...state.rows.entries()]
-        .filter(([path, row]) => path.startsWith(name + "/") && filters.every(
-          ([field, op, value]) => op === "==" ? row[field] === value :
-            typeof row[field] === "string" && String(row[field]) <= String(value)
-        ))
+        .filter(
+          ([path, row]) =>
+            path.startsWith(name + "/") &&
+            filters.every(([field, op, value]) =>
+              op === "=="
+                ? row[field] === value
+                : typeof row[field] === "string" && String(row[field]) <= String(value)
+            )
+        )
         .sort((a, b) => String(a[1][order]).localeCompare(String(b[1][order])))
         .slice(0, count)
         .map(([path, row]) => ({ id: path.split("/")[1], data: () => ({ ...row }) }));
@@ -44,12 +60,17 @@ vi.mock("@/lib/firebase-admin", () => {
       collection: (name: string) => query(name),
       runTransaction: (callback: (tx: unknown) => Promise<unknown>) => {
         // Serialize transactions to model atomic claims/rechecks.
-        const result = state.tail.then(() => callback({
-          get: (ref: ReturnType<typeof doc>) => ref.get(),
-          update: (ref: ReturnType<typeof doc>, patch: Record<string, unknown>) =>
-            state.rows.set(ref.path, { ...state.rows.get(ref.path), ...patch }),
-        }));
-        state.tail = result.then(() => undefined, () => undefined);
+        const result = state.tail.then(() =>
+          callback({
+            get: (ref: ReturnType<typeof doc>) => ref.get(),
+            update: (ref: ReturnType<typeof doc>, patch: Record<string, unknown>) =>
+              state.rows.set(ref.path, { ...state.rows.get(ref.path), ...patch }),
+          })
+        );
+        state.tail = result.then(
+          () => undefined,
+          () => undefined
+        );
         return result;
       },
     },
@@ -66,18 +87,31 @@ beforeEach(() => {
   state.rows.clear();
   state.sequence = 0;
   state.rows.set("webhook_deliveries/d", {
-    clientId: "a", webhookId: "w", targetUrl: "https://example.test/",
-    eventId: "evt", eventType: "aso.expired", payload: {}, signature: "",
-    attempt: 0, maxAttempts: 5, status: "PENDING",
-    createdAt: "2026-01-01T00:00:00.000Z", nextRetryAt: null,
+    clientId: "a",
+    webhookId: "w",
+    targetUrl: "https://example.test/",
+    eventId: "evt",
+    eventType: "aso.expired",
+    payload: {},
+    signature: "",
+    attempt: 0,
+    maxAttempts: 5,
+    status: "PENDING",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    nextRetryAt: null,
   });
   state.rows.set("webhooks/w", {
-    clientId: "a", active: true, secret: "secret", url: "https://example.test/",
+    clientId: "a",
+    active: true,
+    secret: "secret",
+    url: "https://example.test/",
     events: ["aso.expired"],
   });
   state.post.mockResolvedValue({ status: 200, ok: true });
   state.validate.mockResolvedValue({
-    valid: true, normalizedUrl: "https://example.test/", resolvedIps: ["8.8.8.8"],
+    valid: true,
+    normalizedUrl: "https://example.test/",
+    resolvedIps: ["8.8.8.8"],
   });
 });
 it("persists events without starting untracked HTTP work", async () => {
@@ -88,9 +122,12 @@ it("persists events without starting untracked HTTP work", async () => {
 });
 it("claims concurrent invocations only once and awaits delivery", async () => {
   let release!: () => void;
-  state.post.mockImplementation(() => new Promise((resolve) => {
-    release = () => resolve({ status: 200, ok: true });
-  }));
+  state.post.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        release = () => resolve({ status: 200, ok: true });
+      })
+  );
   const first = executeWebhookDelivery("d");
   await vi.waitFor(() => expect(state.post).toHaveBeenCalledTimes(1));
   await executeWebhookDelivery("d");
@@ -110,13 +147,20 @@ it("retries only when due and preserves validated IP pinning", async () => {
   await processWebhookQueue();
   expect(row()).toMatchObject({ status: "DELIVERED", attempt: 2 });
   expect(state.post).toHaveBeenCalledWith(
-    "https://example.test/", ["8.8.8.8"], expect.any(Object), "{}", 10000
+    "https://example.test/",
+    ["8.8.8.8"],
+    expect.any(Object),
+    "{}",
+    10000
   );
 });
 it("recovers expired leases and stops after the retry budget", async () => {
   Object.assign(row(), {
-    status: "RETRYING", attempt: 4, leaseToken: "crashed",
-    leaseUntil: "2026-01-01T00:00:00.000Z", nextRetryAt: "2026-01-01T00:00:00.000Z",
+    status: "RETRYING",
+    attempt: 4,
+    leaseToken: "crashed",
+    leaseUntil: "2026-01-01T00:00:00.000Z",
+    nextRetryAt: "2026-01-01T00:00:00.000Z",
   });
   state.post.mockRejectedValue(new Error("timeout"));
   await processWebhookQueue();
@@ -133,7 +177,8 @@ it("does not overwrite a newer lease after a slow send", async () => {
   expect(row()).toMatchObject({ leaseToken: "new-worker", status: "RETRYING" });
 });
 it.each([{ active: false }, { clientId: "b" }, { url: "https://changed.test/" }, { secret: "" }])(
-  "blocks revoked or changed destinations on automatic retry: %j", async (change) => {
+  "blocks revoked or changed destinations on automatic retry: %j",
+  async (change) => {
     Object.assign(webhook(), change);
     await executeWebhookDelivery("d");
     expect(row().status).toBe("DEAD_LETTER");
@@ -143,11 +188,17 @@ it.each([{ active: false }, { clientId: "b" }, { url: "https://changed.test/" },
 it("captures DNS validation exceptions as retryable failures", async () => {
   state.validate.mockRejectedValueOnce(new Error("DNS unavailable"));
   await executeWebhookDelivery("d");
-  expect(row()).toMatchObject({ status: "RETRYING", lastError: "DNS unavailable", leaseToken: null });
+  expect(row()).toMatchObject({
+    status: "RETRYING",
+    lastError: "DNS unavailable",
+    leaseToken: null,
+  });
 });
 it("rejects cross-tenant replay before mutation", async () => {
   row().status = "DEAD_LETTER";
-  await expect(replayWebhookDelivery("d", { ...principal, clientId: "b" })).rejects.toThrow("Isolamento");
+  await expect(replayWebhookDelivery("d", { ...principal, clientId: "b" })).rejects.toThrow(
+    "Isolamento"
+  );
   expect(row().status).toBe("DEAD_LETTER");
 });
 it.each(["PENDING", "RETRYING", "DELIVERED"])("rejects replay of %s deliveries", async (status) => {
@@ -162,4 +213,17 @@ it("requeues a dead letter once and restores the retry budget", async () => {
   await expect(replayWebhookDelivery("d", principal)).rejects.toThrow();
   await processWebhookQueue();
   expect(row()).toMatchObject({ status: "DELIVERED", attempt: 1 });
+});
+
+it("retries transient DNS failures returned by the egress guard", async () => {
+  state.validate.mockResolvedValueOnce({ valid: false, retryable: true, error: "DNS unavailable" });
+  await executeWebhookDelivery("d");
+  expect(row()).toMatchObject({ status: "RETRYING", leaseToken: null });
+  expect(state.post).not.toHaveBeenCalled();
+});
+it("dead-letters unsafe targets without sending", async () => {
+  state.validate.mockResolvedValueOnce({ valid: false, error: "SSRF blocked" });
+  await executeWebhookDelivery("d");
+  expect(row()).toMatchObject({ status: "DEAD_LETTER", nextRetryAt: null });
+  expect(state.post).not.toHaveBeenCalled();
 });

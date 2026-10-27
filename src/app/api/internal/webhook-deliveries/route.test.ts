@@ -3,18 +3,24 @@ import { NextRequest } from "next/server";
 import { POST } from "./route";
 
 const state = vi.hoisted(() => ({
-  verify: vi.fn(), process: vi.fn(),
+  verify: vi.fn(),
+  process: vi.fn(),
 }));
 vi.mock("googleapis/build/src/apis/oauth2", () => ({
-  auth: { OAuth2: class { verifyIdToken = state.verify; } },
+  auth: {
+    OAuth2: class {
+      verifyIdToken = state.verify;
+    },
+  },
 }));
 vi.mock("@/services/webhooks/webhook-dispatcher", () => ({
   processWebhookQueue: state.process,
 }));
-const request = (token = "Bearer token") => new NextRequest(
-  "https://example.test/api/internal/webhook-deliveries",
-  { method: "POST", headers: token ? { authorization: token } : {} }
-);
+const request = (token = "Bearer token") =>
+  new NextRequest("https://example.test/api/internal/webhook-deliveries", {
+    method: "POST",
+    headers: token ? { authorization: token } : {},
+  });
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("WEBHOOK_INVOKER_EMAIL", "worker@example.test");
@@ -37,7 +43,8 @@ it("fails closed when worker configuration is absent", async () => {
 it("verifies the configured audience and awaits processing", async () => {
   const response = await POST(request());
   expect(state.verify).toHaveBeenCalledWith({
-    idToken: "token", audience: "https://example.test/api/internal/webhook-deliveries",
+    idToken: "token",
+    audience: "https://example.test/api/internal/webhook-deliveries",
   });
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({ examined: 2 });

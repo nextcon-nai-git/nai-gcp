@@ -8,8 +8,9 @@ export const maxDuration = 180;
 const headers = { "Cache-Control": "private, no-store" };
 
 export async function POST(request: NextRequest) {
-  const token = request.headers.get("authorization")?.match(/^Bearer (\S+)$/)?.[1];
-  if (!token) return NextResponse.json({ error: "Agendador não autorizado." }, { status: 401, headers });
+  const token = request.headers.get("authorization")?.match(/^***;
+  if (!token)
+    return NextResponse.json({ error: "Agendador não autorizado." }, { status: 401, headers });
   const email = process.env.WEBHOOK_INVOKER_EMAIL;
   const audience = process.env.WEBHOOK_WORKER_AUDIENCE;
   if (!email || !audience)
