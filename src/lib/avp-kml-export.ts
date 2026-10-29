@@ -21,7 +21,9 @@ export function buildAvpKml(asos: GrupoAvpAso[], now = new Date(), clinics: AvpM
   const pins = places
     .map((loc) => {
       const costs = avpCostSummary(loc.asos);
-      const current = clinics.filter((clinic) => avpMapCityKey(clinic.cidade, clinic.uf) === loc.key);
+      const current = clinics.filter(
+        (clinic) => avpMapCityKey(clinic.cidade, clinic.uf) === loc.key
+      );
       const mapCost = current.length ? avpMapClinicCost(current) : costs.maximumCostCents;
       const style = avpCostBand(mapCost);
       const contacts = new Map<string, { nome: string; url: string; phone: string }>();

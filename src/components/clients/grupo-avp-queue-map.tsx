@@ -1753,10 +1753,7 @@ export function GrupoAvpQueueMap({
                   </p>
                 </div>
                 {avpCostSummary(activeLocality.asos).aboveTarget > 0 && (
-                  <AvpClinicAlternatives
-                    cidade={activeLocality.cidade}
-                    uf={activeLocality.uf}
-                  />
+                  <AvpClinicAlternatives cidade={activeLocality.cidade} uf={activeLocality.uf} />
                 )}
                 {/* DISTRIBUIÇÃO DE STATUS NA LOCALIDADE */}
                 <div className="space-y-2">

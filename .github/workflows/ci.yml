@@ -28,12 +28,7 @@ jobs:
         run: npm ci --prefer-offline --no-audit
 
       - name: Prettier (check)
-        run: |
-          npm run format:check || {
-            npx prettier --write src/components/clients/grupo-avp-queue-map.tsx src/lib/avp-kml-export.ts
-            git diff -- src/components/clients/grupo-avp-queue-map.tsx src/lib/avp-kml-export.ts
-            exit 1
-          }
+        run: npm run format:check
 
       - name: ESLint
         run: npm run lint
