@@ -63,7 +63,7 @@ import {
   AsoUrgency,
   AVP_STATUSES,
 } from "@/lib/grupo-avp-asos-data";
-import { GrupoAvpQueueMap } from "@/components/clients/grupo-avp-queue-map";
+import { GrupoAvpLiveCostMap } from "@/components/clients/grupo-avp-live-cost-map";
 import { GrupoAvpSheetSyncModal } from "@/components/clients/grupo-avp-sheet-sync-modal";
 import { AvpClinicAlternatives } from "@/components/clients/avp-clinic-alternatives";
 import { GrupoAvpRedundancyModal } from "@/components/clients/grupo-avp-redundancy-modal";
@@ -599,7 +599,7 @@ export function GrupoAvpAsoManager({
       </div>
 
       {/* RESUMO EXECUTIVO COM MAPA CARTOGRÁFICO DE PINS COLORIDOS POR STATUS */}
-      <GrupoAvpQueueMap
+      <GrupoAvpLiveCostMap
         asos={asosList}
         onSelectCityFilter={(cityName) => {
           setSearchTerm(cityName);

@@ -50,6 +50,7 @@ import {
 } from "@/lib/brazil-states-paths";
 import { AVP_COST_BANDS, avpCostBand } from "@/lib/avp-evidence";
 import { avpCostSummary, formatBrlCents } from "@/lib/avp-costs";
+import { avpMapCityKey, avpMapClinicCost, type AvpMapClinic } from "@/lib/avp-map-clinics";
 import { AvpClinicAlternatives } from "./avp-clinic-alternatives";
 import { buildAvpKml } from "@/lib/avp-kml-export";
 import { GLOBAL_CLINICS_CATALOG } from "@/lib/avp-clinics-data";
@@ -61,6 +62,7 @@ import {
 
 interface GrupoAvpQueueMapProps {
   asos: GrupoAvpAso[];
+  clinics?: AvpMapClinic[];
   onSelectCityFilter?: (cityName: string) => void;
   selectedCityFilter?: string;
 }
@@ -103,6 +105,7 @@ export function GrupoAvpQueueMap({
   asos,
   onSelectCityFilter,
   selectedCityFilter,
+  clinics,
 }: GrupoAvpQueueMapProps) {
   const { toast } = useToast();
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -139,12 +142,22 @@ export function GrupoAvpQueueMap({
   } | null>(null);
 
   // Agrega todas as localidades
-  const aggregates = useMemo(() => aggregateAvpLocalities(asos), [asos]);
+  const aggregates = useMemo(() => aggregateAvpLocalities(asos, clinics), [asos, clinics]);
+  const clinicsByCity = useMemo(() => {
+    const grouped = new Map<string, AvpMapClinic[]>();
+    for (const clinic of clinics || []) {
+      const key = avpMapCityKey(clinic.cidade, clinic.uf);
+      grouped.set(key, [...(grouped.get(key) || []), clinic]);
+    }
+    return grouped;
+  }, [clinics]);
   const allAggregates = useMemo(() => aggregates.filter((loc) => loc.geoKnown), [aggregates]);
   const unmapped = useMemo(() => aggregates.filter((loc) => !loc.geoKnown), [aggregates]);
   const downloadKml = () => {
     const url = URL.createObjectURL(
-      new Blob([buildAvpKml(asos)], { type: "application/vnd.google-earth.kml+xml" })
+      new Blob([buildAvpKml(asos, new Date(), clinics)], {
+        type: "application/vnd.google-earth.kml+xml",
+      })
     );
     const a = document.createElement("a");
     a.href = url;
@@ -184,7 +197,9 @@ export function GrupoAvpQueueMap({
     >();
 
     allAggregates.forEach((loc) => {
-      const clinicNames = new Set<string>();
+      const clinicNames = new Set<string>(
+        (clinicsByCity.get(loc.key) || []).map((clinic) => clinic.nome.toUpperCase())
+      );
       // 1. Clínicas citadas nos ASOs da comarca
       loc.asos.forEach((a) => {
         if (a.nomeClinica && a.nomeClinica.trim()) {
@@ -226,7 +241,7 @@ export function GrupoAvpQueueMap({
     });
 
     return map;
-  }, [allAggregates]);
+  }, [allAggregates, clinicsByCity]);
 
   // Se houver um filtro de cidade vindo de fora, ativa a localidade e dá zoom
   useEffect(() => {
@@ -313,7 +328,10 @@ export function GrupoAvpQueueMap({
             a.nomeClinica.toLowerCase().includes(term) ||
             a.numero.includes(term)
         );
-        if (!matchCity && !matchUf && !matchAsos) return false;
+        const matchClinics = clinicsByCity
+          .get(loc.key)
+          ?.some((clinic) => clinic.nome.toLowerCase().includes(term));
+        if (!matchCity && !matchUf && !matchAsos && !matchClinics) return false;
       }
 
       // Filtro de Status (se ativo)
@@ -326,7 +344,7 @@ export function GrupoAvpQueueMap({
 
       return true;
     });
-  }, [allAggregates, selectedState, selectedRegion, searchTerm, selectedStatus]);
+  }, [allAggregates, selectedState, selectedRegion, searchTerm, selectedStatus, clinicsByCity]);
 
   // Nível de Zoom Atual e Fator Óptico
   const zoomFactor = useMemo(() => (800 / viewport.w).toFixed(1), [viewport.w]);
@@ -751,9 +769,9 @@ export function GrupoAvpQueueMap({
           <div className="flex flex-wrap gap-4 pt-4 text-xs text-white">
             <span>🟢 Abaixo de R$40</span>
             <span>🟡 R$40 a menos de R$50</span>
-            <span>🔴 R$50 a R$60</span>
-            <span>🟣 Acima de R$60</span>
-            <span>Cor do polo: maior custo unitário informado</span>
+            <span>🔴 R$50 a R$70</span>
+            <span>🟣 Acima de R$70</span>
+            <span>Cor do polo: maior valor atual das clínicas; sem cadastro, histórico da fila</span>
             <span>⚪ Sem preço único confirmado</span>
             <span>🔷 Opções para credenciamento</span>
           </div>
@@ -1352,8 +1370,11 @@ export function GrupoAvpQueueMap({
                     }
 
                     const costs = avpCostSummary(loc.asos);
-                    if (mapMode === "COST")
-                      pinColor = AVP_COST_BANDS[avpCostBand(costs.maximumCostCents)].color;
+                    const currentClinics = clinicsByCity.get(loc.key);
+                    const mapCost = currentClinics
+                      ? avpMapClinicCost(currentClinics)
+                      : costs.maximumCostCents;
+                    if (mapMode === "COST") pinColor = AVP_COST_BANDS[avpCostBand(mapCost)].color;
                     // Raio proporcional adaptado dinamicamente ao zoom
                     const rawRadius =
                       loc.totalAsos >= 15
@@ -1693,8 +1714,29 @@ export function GrupoAvpQueueMap({
                   </div>
                 </div>
 
+                {clinicsByCity.has(activeLocality.key) && (
+                  <div className="space-y-3 rounded-xl border border-slate-700 p-3 text-sm">
+                    <strong>Clínicas e valores atuais</strong>
+                    {(clinicsByCity.get(activeLocality.key) || []).map((clinic) => (
+                      <div key={clinic.id} className="space-y-1 border-t border-slate-700 pt-2">
+                        <p className="font-semibold">{clinic.nome}</p>
+                        <p style={{ color: AVP_COST_BANDS[avpCostBand(clinic.cents)].color }}>
+                          {clinic.cents === null ? "Valor não apurado" : formatBrlCents(clinic.cents)}
+                        </p>
+                        <p>{clinic.status}</p>
+                        {clinic.telefone && <p>{clinic.telefone}</p>}
+                        {clinic.notes && <p className="text-xs text-slate-300">{clinic.notes}</p>}
+                        <p className="text-xs text-slate-400">Referência: {clinic.date}</p>
+                      </div>
+                    ))}
+                    <p className="text-xs text-slate-400">
+                      A cor indica o preço informado; consulte as condições e a situação da clínica.
+                    </p>
+                  </div>
+                )}
+
                 <div className="rounded-xl border border-slate-700 p-3 text-sm">
-                  <strong>Custos por ASO</strong>
+                  <strong>Custos históricos da fila por ASO</strong>
                   <p>
                     {avpCostSummary(activeLocality.asos).aboveTarget} acima de R$40 ·{" "}
                     {avpCostSummary(activeLocality.asos).missing} sem cotação única
@@ -1708,7 +1750,7 @@ export function GrupoAvpQueueMap({
                 </div>
                 {avpCostSummary(activeLocality.asos).aboveTarget > 0 && (
                   <AvpClinicAlternatives
-                    cidade={activeLocality.asos[0].cidade}
+                    cidade={activeLocality.cidade}
                     uf={activeLocality.uf}
                   />
                 )}

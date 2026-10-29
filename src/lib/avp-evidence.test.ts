@@ -30,7 +30,9 @@ describe("AVP evidence integrity", () => {
     [4999, "yellow"],
     [5000, "red"],
     [6000, "red"],
-    [6001, "purple"],
+    [6001, "red"],
+    [7000, "red"],
+    [7001, "purple"],
     [null, "unknown"],
     [-1, "unknown"],
   ] as const)("classifies %s as %s", (value, band) => expect(avpCostBand(value)).toBe(band));

@@ -7,8 +7,8 @@ export const AVP_COST_BANDS = {
     color: "#ca8a04",
     className: "bg-yellow-100 text-yellow-950",
   },
-  red: { label: "R$ 50 a R$ 60", color: "#dc2626", className: "bg-red-100 text-red-900" },
-  purple: { label: "Acima de R$ 60", color: "#9333ea", className: "bg-purple-100 text-purple-900" },
+  red: { label: "R$ 50 a R$ 70", color: "#dc2626", className: "bg-red-100 text-red-900" },
+  purple: { label: "Acima de R$ 70", color: "#9333ea", className: "bg-purple-100 text-purple-900" },
   unknown: {
     label: "Valor não apurado",
     color: "#64748b",
@@ -19,7 +19,7 @@ export function avpCostBand(cents: number | null | undefined): keyof typeof AVP_
   if (cents == null || !Number.isSafeInteger(cents) || cents < 0) return "unknown";
   if (cents < 4000) return "green";
   if (cents < 5000) return "yellow";
-  if (cents <= 6000) return "red";
+  if (cents <= 7000) return "red";
   return "purple";
 }
 const text = (max: number) => z.string().trim().max(max);
