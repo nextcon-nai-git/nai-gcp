@@ -204,7 +204,7 @@ describe("Custos, prazos e mapa", () => {
     const kml = buildAvpKml([aso]);
     const xml = new DOMParser().parseFromString(kml, "application/xml");
     expect(xml.querySelector("parsererror")).toBeNull();
-    expect(kml).toContain("#above");
+    expect(kml).toContain("#yellow");
     expect(kml).toContain("#alternatives");
     expect(kml).toContain("https://wa.me/");
     expect(kml).not.toContain("SEGREDO PESSOAL");
