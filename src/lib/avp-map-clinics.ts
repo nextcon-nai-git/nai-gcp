@@ -32,10 +32,7 @@ export const avpMapCityKey = (cidade: string, uf: string) =>
   `${normalizeAvpCity(cidade)}-${uf.trim().toUpperCase()}`;
 
 export function readAvpMapClinics(values: unknown[][]): AvpMapClinic[] {
-  if (
-    values.length > 1001 ||
-    AVP_MAP_CLINIC_HEADERS.some((header, i) => values[0]?.[i] !== header)
-  )
+  if (values.length > 1001 || AVP_MAP_CLINIC_HEADERS.some((header, i) => values[0]?.[i] !== header))
     throw new Error("Confira a fonte do mapa de custos AVP.");
   const ids = new Set<string>();
   return values

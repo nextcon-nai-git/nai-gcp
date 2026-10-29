@@ -21,8 +21,7 @@ export async function GET(req: NextRequest) {
     }
     return NextResponse.json(
       {
-        error:
-          "Não foi possível atualizar as clínicas do mapa. Tente novamente.",
+        error: "Não foi possível atualizar as clínicas do mapa. Tente novamente.",
       },
       { status: 503, headers: { "Cache-Control": "private, no-store" } }
     );

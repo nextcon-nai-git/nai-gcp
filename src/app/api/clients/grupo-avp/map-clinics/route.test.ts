@@ -6,8 +6,7 @@ const mocks = vi.hoisted(() => ({ auth: vi.fn(), read: vi.fn() }));
 vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: mocks.auth }));
 vi.mock("@/services/avp-map-clinics", () => ({ readAvpMapClinicSource: mocks.read }));
 import { GET } from "./route";
-const request = () =>
-  new NextRequest("https://example.test/api/clients/grupo-avp/map-clinics");
+const request = () => new NextRequest("https://example.test/api/clients/grupo-avp/map-clinics");
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.auth.mockResolvedValue({

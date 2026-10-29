@@ -16,11 +16,7 @@ const escape = (value: unknown) =>
     .replace(/'/g, "&#39;");
 const link = (url: string, label: string) => `<a href="${escape(url)}">${escape(label)}</a>`;
 /** Exportação sem nomes de colaboradores, documentos clínicos ou credenciais de acesso. */
-export function buildAvpKml(
-  asos: GrupoAvpAso[],
-  now = new Date(),
-  clinics: AvpMapClinic[] = []
-) {
+export function buildAvpKml(asos: GrupoAvpAso[], now = new Date(), clinics: AvpMapClinic[] = []) {
   const places = aggregateAvpLocalities(asos, clinics).filter((loc) => loc.geoKnown);
   const pins = places
     .map((loc) => {
@@ -67,7 +63,7 @@ export function buildAvpKml(
             `<li>${escape(clinic.nome)} · ${clinic.cents === null ? "Valor não apurado" : escape(formatBrlCents(clinic.cents))} · ${escape(clinic.status)} · ${escape(clinic.notes)} · ${escape(clinic.telefone)} · ${escape(clinic.date)}</li>`
         )
         .join("");
-      const html = `<h3>${escape(loc.cidade)}/${escape(loc.uf)}</h3><p>${loc.totalAsos} solicitações · ${costs.aboveTarget} acima de R$40 · ${costs.missing} sem cotação única.</p><p>Maior custo: ${costs.maximumCostCents === null ? "não informado" : escape(formatBrlCents(costs.maximumCostCents))}.</p><p>Posição de referência do município. Valores e contatos correspondem à exportação de ${escape(now.toISOString())}.</p><h4>Clínicas e valores atuais</h4><ul>${currentHtml || "<li>Sem atualização; consultar histórico da fila.</li>"}</ul><h4>Clínicas da fila</h4><ul>${clinicHtml || "<li>Contato ainda não informado</li>"}</ul>${costs.aboveTarget ? `<h4>Opções para credenciamento</h4><ul>${options || "<li>Consulte as opções atualizadas no NAI e no Maps.</li>"}</ul>` : ""}<p>${live}</p><p>${maps}</p>`;
+      const html = `<h3>${escape(loc.cidade)}/${escape(loc.uf)}</h3><p>${loc.totalAsos} solicitações · ${costs.aboveTarget} acima de R$40 · ${costs.missing} sem cotação única.</p><p>Maior custo histórico da fila: ${costs.maximumCostCents === null ? "não informado" : escape(formatBrlCents(costs.maximumCostCents))}.</p><p>Posição de referência do município. Valores e contatos correspondem à exportação de ${escape(now.toISOString())}.</p><h4>Clínicas e valores atuais</h4><ul>${currentHtml || "<li>Sem atualização; consultar histórico da fila.</li>"}</ul><h4>Clínicas da fila</h4><ul>${clinicHtml || "<li>Contato ainda não informado</li>"}</ul>${costs.aboveTarget ? `<h4>Opções para credenciamento</h4><ul>${options || "<li>Consulte as opções atualizadas no NAI e no Maps.</li>"}</ul>` : ""}<p>${live}</p><p>${maps}</p>`;
       const point = `<Point><coordinates>${loc.lng},${loc.lat},0</coordinates></Point>`;
       return (
         `<Placemark><name>${escape(loc.cidade)}/${escape(loc.uf)}</name><styleUrl>#${style}</styleUrl><description><![CDATA[${html}]]></description>${point}</Placemark>` +

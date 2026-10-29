@@ -771,7 +771,9 @@ export function GrupoAvpQueueMap({
             <span>🟡 R$40 a menos de R$50</span>
             <span>🔴 R$50 a R$70</span>
             <span>🟣 Acima de R$70</span>
-            <span>Cor do polo: maior valor atual das clínicas; sem cadastro, histórico da fila</span>
+            <span>
+              Cor do polo: maior valor atual das clínicas; sem cadastro, histórico da fila
+            </span>
             <span>⚪ Sem preço único confirmado</span>
             <span>🔷 Opções para credenciamento</span>
           </div>
@@ -1721,7 +1723,9 @@ export function GrupoAvpQueueMap({
                       <div key={clinic.id} className="space-y-1 border-t border-slate-700 pt-2">
                         <p className="font-semibold">{clinic.nome}</p>
                         <p style={{ color: AVP_COST_BANDS[avpCostBand(clinic.cents)].color }}>
-                          {clinic.cents === null ? "Valor não apurado" : formatBrlCents(clinic.cents)}
+                          {clinic.cents === null
+                            ? "Valor não apurado"
+                            : formatBrlCents(clinic.cents)}
                         </p>
                         <p>{clinic.status}</p>
                         {clinic.telefone && <p>{clinic.telefone}</p>}

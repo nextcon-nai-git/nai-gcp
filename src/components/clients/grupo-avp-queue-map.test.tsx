@@ -66,6 +66,8 @@ it("exibe clínica nova sem ASOs e aplica seu preço atual ao pin", async () => 
   await act(async () => root.render(<GrupoAvpQueueMap asos={[]} clinics={[clinic]} />));
   expect(host.textContent).toContain(clinic.nome);
   expect(host.textContent).toContain("Contraproposta");
-  expect(host.querySelector(`#locality-pins circle[fill="${AVP_COST_BANDS.red.color}"]`)).not.toBeNull();
+  expect(
+    host.querySelector(`#locality-pins circle[fill="${AVP_COST_BANDS.red.color}"]`)
+  ).not.toBeNull();
   expect(totals()).toBe("0 Agendados0 Não Iniciados0 Urgentes");
 });
