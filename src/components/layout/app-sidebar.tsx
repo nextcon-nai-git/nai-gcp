@@ -77,7 +77,6 @@ interface NavModule {
   label: string;
   icon: LucideIcon;
   items: NavItem[];
-  description?: string;
 }
 
 const NAV_CATALOG: NavModule[] = [
@@ -354,7 +353,6 @@ const NAV_MODULES: NavModule[] = [
   {
     label: "EXTRAS",
     icon: LayoutGrid,
-    description: "Ferramentas de apoio e módulos a revisar, fora da esteira principal.",
     items: catalogItems.filter((item) => !mainRoutes.has(item.href)),
   },
 ];
@@ -423,6 +421,11 @@ export function AppSidebar() {
     const query = normalizeNavigationSearch(filterText);
     return NAV_MODULES.map((module) => {
       const visibleItems = module.items.filter((item) => {
+        if (
+          isProvider &&
+          /^\/(financial|cassi-billing|contracts|production|comercial|crm)(\/|$)/.test(item.href)
+        )
+          return false;
         if (isEngineeringProvider)
           return item.providerAudience === "engineering" || item.providerAudience === "all";
         if (isHealthProvider)
@@ -479,9 +482,6 @@ export function AppSidebar() {
                 v4.2
               </span>
             </div>
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.3em] mt-1">
-              Intelligence SST
-            </span>
           </div>
         </Link>
         {isMobile && (
@@ -529,11 +529,6 @@ export function AppSidebar() {
                   <span className="whitespace-normal">{module.label}</span>
                   <span className="text-[8px] opacity-40 font-mono">({module.items.length})</span>
                 </SidebarGroupLabel>
-                {module.description && (
-                  <p className="px-3 pb-2 text-[11px] leading-4 text-slate-400">
-                    {module.description}
-                  </p>
-                )}
                 <SidebarMenu className="space-y-0.5">
                   {module.items.map((item) => {
                     const isActive = activeHref === item.href;

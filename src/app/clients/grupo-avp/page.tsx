@@ -38,6 +38,7 @@ export default function GrupoAvpClientHubPage() {
   const { toast } = useToast();
   const [copiedChannel, setCopiedChannel] = React.useState<string | null>(null);
 
+  const [activeTab, setActiveTab] = React.useState("asos");
   const [queueSummary, setQueueSummary] = React.useState({
     total: 0,
     urgentes: 0,
@@ -234,7 +235,7 @@ export default function GrupoAvpClientHubPage() {
       </div>
 
       {/* TABS DE NAVEGAÇÃO OPERACIONAL */}
-      <Tabs defaultValue="asos" className="w-full space-y-8">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-8">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-200 pb-4">
           <TabsList className="bg-slate-100 p-1.5 rounded-2xl h-auto flex flex-wrap gap-1">
             <TabsTrigger
@@ -303,7 +304,6 @@ export default function GrupoAvpClientHubPage() {
         {/* TAB 1: GESTÃO DE ASOS */}
         <TabsContent
           value="asos"
-          forceMount
           className="space-y-6 focus-visible:outline-none data-[state=inactive]:hidden"
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -329,7 +329,7 @@ export default function GrupoAvpClientHubPage() {
         {canSeeEvidence && (
           <>
             <TabsContent value="periodicos">
-              <AvpPeriodicControlPanel />
+              <AvpPeriodicControlPanel onOpenCosts={() => setActiveTab("asos")} />
             </TabsContent>
             <TabsContent value="workflow">
               <AvpWorkflowPanel />

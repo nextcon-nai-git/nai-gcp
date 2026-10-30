@@ -43,8 +43,17 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --prefer-offline --no-audit
-      - run: npm audit --audit-level=high
-        continue-on-error: true
+      - name: Verify dependency security fixes and attack regressions
+        run: npm run test:dependency-security
+      - name: Block unpatched high and critical vulnerabilities
+        run: node scripts/security/check-audit.mjs dependency-audit.json
+      - name: Preserve raw dependency audit
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dependency-audit
+          path: dependency-audit.json
+          if-no-files-found: ignore
 
   dependency-review:
     name: Dependency review

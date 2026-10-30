@@ -27,11 +27,16 @@ function fail(error: unknown) {
 async function identity(request: NextRequest) {
   const token = extractBearerToken(request);
   if (!token) throw new AuthError("Entre com sua conta.");
+  let actor;
   try {
-    return await adminAuth.verifyIdToken(token, true);
+    actor = await adminAuth.verifyIdToken(token, true);
   } catch {
     throw new AuthError("Sessão inválida.");
   }
+  const profile = (await adminDb.collection("users").doc(actor.uid).get()).data();
+  if (profile?.role === "SCOPED_PROVIDER")
+    throw forbidden("Este perfil possui somente consulta de CNPJs e cards.");
+  return actor;
 }
 export async function POST(request: NextRequest) {
   if (process.env.CLINIC_PORTAL_ENABLED !== "true")

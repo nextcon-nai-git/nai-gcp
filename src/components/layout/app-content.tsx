@@ -10,6 +10,8 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { NaiFloatingWidget } from "@/components/commercial/nai-floating-widget";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { EXPERT_ROLE } from "@/lib/expert-workspace";
+import Link from "next/link";
 
 /**
  * @fileOverview Gatekeeper de Autenticação da Plataforma NAI.
@@ -29,6 +31,18 @@ export function AppContent({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     setMounted(true);
   }, []);
+
+  React.useEffect(() => {
+    if (
+      mounted &&
+      !isUserLoading &&
+      role === EXPERT_ROLE &&
+      !isLoginPage &&
+      !isInfoPage &&
+      pathname !== "/expert"
+    )
+      router.replace("/expert");
+  }, [mounted, isUserLoading, role, isLoginPage, isInfoPage, pathname, router]);
 
   // Lógica de Redirecionamento Estrito
   React.useEffect(() => {
@@ -64,7 +78,7 @@ export function AppContent({ children }: { children: React.ReactNode }) {
             </span>
           </div>
           <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest">
-            Sincronizando protocolos de elite 2026...
+            Carregando...
           </p>
         </div>
       </div>
@@ -121,6 +135,40 @@ export function AppContent({ children }: { children: React.ReactNode }) {
   if (isLoginPage) {
     return <div className="min-h-screen w-full bg-white">{children}</div>;
   }
+
+  // No global navigation, search, tenant switcher, assistant or financial shell
+  // is mounted for this role, including on a direct forbidden URL.
+  if (role === EXPERT_ROLE)
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
+          <span className="font-bold">NAI · Portal de prestadores</span>
+          <span className="text-sm">{user?.email}</span>
+          <button className="rounded-lg border px-4 py-2" onClick={() => void signOut(auth)}>
+            Sair
+          </button>
+        </header>
+        <main className="mx-auto max-w-6xl p-5 md:p-8">
+          {pathname === "/expert" ? (
+            <ErrorBoundary key={user?.uid}>{children}</ErrorBoundary>
+          ) : (
+            <p role="status">Abrindo seus CNPJs e cards autorizados…</p>
+          )}
+        </main>
+      </div>
+    );
+
+  if (
+    role === "PROVIDER" &&
+    /^\/(financial|cassi-billing|contracts|production|comercial|crm)(\/|$)/.test(pathname)
+  )
+    return (
+      <main className="p-8">
+        <h1 className="text-xl font-bold">Acesso restrito</h1>
+        <p>Este módulo não está liberado para prestadores.</p>
+        <Link href="/">Voltar ao portal</Link>
+      </main>
+    );
 
   // 3. Renderiza a Shell da aplicação para usuários autenticados
   return (

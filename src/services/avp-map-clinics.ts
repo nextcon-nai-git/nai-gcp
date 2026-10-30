@@ -2,8 +2,11 @@ import "server-only";
 import { auth as googleAuth, sheets as googleSheets } from "googleapis/build/src/apis/sheets";
 import { AVP_SOURCE } from "@/lib/avp-source-config";
 import { AVP_MAP_CLINIC_TAB, readAvpMapClinics } from "@/lib/avp-map-clinics";
+import { readAvpPeriodicMapSource } from "./avp-periodic-sync";
 
 export async function readAvpMapClinicSource() {
+  const current = await readAvpPeriodicMapSource();
+  if (current) return current;
   const auth = new googleAuth.GoogleAuth({
     scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
   });

@@ -8,24 +8,24 @@ import { AVP_SOURCE } from "@/lib/avp-source-config";
 import { formatBrlCents } from "@/lib/avp-costs";
 import type { AvpPeriodicControl, AvpObservedPrice } from "@/lib/avp-periodic-control";
 import { ClinicContractDialog } from "./clinic-contract-dialog";
+import { AVP_COST_BANDS, avpCostBand } from "@/lib/avp-evidence";
+import {
+  AVP_PERIODIC_INTERVAL_MS,
+  AVP_PERIODIC_PROGRESS,
+  periodicProgress,
+} from "@/lib/avp-periodic-status";
+import { AvpPeriodicMap } from "./avp-periodic-map";
+import { AvpPeriodicSettings } from "./avp-periodic-settings";
 
 function Price({ price }: { price: AvpObservedPrice }) {
-  const color =
-    price.cents === null
-      ? "bg-slate-700 text-white"
-      : price.cents < 4000
-        ? "bg-green-100 text-green-900"
-        : price.cents < 5000
-          ? "bg-yellow-100 text-yellow-950"
-          : price.cents <= 6000
-            ? "bg-red-100 text-red-900"
-            : "bg-purple-100 text-purple-900";
+  const color = AVP_COST_BANDS[avpCostBand(price.cents)].className;
   return (
     <div className="space-y-1 border-b border-border py-2 last:border-0">
       <span className={`inline-block rounded px-2 py-1 text-xs font-bold ${color}`}>
         {price.cents === null ? "Sem preço unitário" : formatBrlCents(price.cents)}
       </span>
       <p className="text-xs">
+        {price.current ? "Atual · " : "Histórico · "}
         {price.service} · {price.evidence}
       </p>
       <p className="text-xs text-muted-foreground">
@@ -39,7 +39,7 @@ const selectClass =
   "rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground";
 const cellClass = "p-3 text-left align-top text-sm";
 
-export function AvpPeriodicControlPanel() {
+export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => void } = {}) {
   const { user } = useUser();
   const [snapshot, setSnapshot] = useState<{ owner: string; data: AvpPeriodicControl } | null>(
     null
@@ -55,14 +55,15 @@ export function AvpPeriodicControlPanel() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [city, setCity] = useState("");
-  const [view, setView] = useState("cities");
+  const [view, setView] = useState("map");
   const [coverage, setCoverage] = useState("all");
   const [priceFilter, setPriceFilter] = useState("all");
   const [peopleFilter, setPeopleFilter] = useState("all");
+  const [progressFilter, setProgressFilter] = useState("all");
   const [page, setPage] = useState(0);
   const [contract, setContract] = useState<{ owner: string; clinicId: string | null } | null>(null);
   const load = useCallback(
-    async (signal?: AbortSignal) => {
+    async (signal?: AbortSignal, force = false) => {
       if (!user || typeof user.getIdToken !== "function") return;
       const request = ++generation.current;
       const isCurrent = () =>
@@ -72,11 +73,14 @@ export function AvpPeriodicControlPanel() {
       try {
         const token = await user.getIdToken();
         if (!isCurrent()) return;
-        const response = await fetch("/api/clients/grupo-avp/periodic-control", {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: "no-store",
-          signal,
-        });
+        const response = await fetch(
+          `/api/clients/grupo-avp/periodic-control${force ? "?force=1" : ""}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: "no-store",
+            signal,
+          }
+        );
         const result = await response.json();
         if (!isCurrent()) return;
         if (response.status === 401 || response.status === 403) setSnapshot(null);
@@ -95,9 +99,18 @@ export function AvpPeriodicControlPanel() {
     setError("");
     const controller = new AbortController();
     void load(controller.signal);
-    return () => controller.abort();
+    const timer = setInterval(() => void load(controller.signal), AVP_PERIODIC_INTERVAL_MS);
+    const visible = () => {
+      if (document.visibilityState === "visible") void load(controller.signal);
+    };
+    document.addEventListener("visibilitychange", visible);
+    return () => {
+      controller.abort();
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", visible);
+    };
   }, [load]);
-  useEffect(() => setPage(0), [city, search, peopleFilter]);
+  useEffect(() => setPage(0), [city, search, peopleFilter, progressFilter]);
   const matches = (value: string) =>
     value
       .normalize("NFD")
@@ -128,7 +141,8 @@ export function AvpPeriodicControlPanel() {
     (p) =>
       (!city || p.cityKey === city) &&
       matches(`${p.name} ${p.city} ${p.unit}`) &&
-      (peopleFilter === "all" || p.classification === peopleFilter)
+      (peopleFilter === "all" || p.classification === peopleFilter) &&
+      (progressFilter === "all" || (p.progress || periodicProgress(p.status)) === progressFilter)
   );
   const selectedCity = useMemo(() => data?.cities.find((c) => c.key === city), [data, city]);
   const exportCities = () => {
@@ -186,20 +200,46 @@ export function AvpPeriodicControlPanel() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => void load()} disabled={loading}>
+          <Button variant="outline" onClick={() => void load(undefined, true)} disabled={loading}>
             {loading ? "Consultando..." : "Atualizar controle"}
           </Button>
-          <Button variant="outline" asChild>
-            <a
-              href={`https://docs.google.com/spreadsheets/d/${AVP_SOURCE.spreadsheetId}/edit`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Abrir fonte da operação
-            </a>
-          </Button>
+          {onOpenCosts && (
+            <Button variant="outline" onClick={onOpenCosts}>
+              Mapa de custos
+            </Button>
+          )}
+          {data?.sources ? (
+            <>
+              <Button variant="outline" asChild>
+                <a href={data.sources.campaignUrl} target="_blank" rel="noreferrer">
+                  Campanha
+                </a>
+              </Button>
+              <Button variant="outline" asChild>
+                <a href={data.sources.accreditationUrl} target="_blank" rel="noreferrer">
+                  Credenciamento
+                </a>
+              </Button>
+            </>
+          ) : (
+            <Button variant="outline" asChild>
+              <a
+                href={`https://docs.google.com/spreadsheets/d/${AVP_SOURCE.spreadsheetId}/edit`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Abrir fonte da operação
+              </a>
+            </Button>
+          )}
         </div>
       </div>
+      <AvpPeriodicSettings onSaved={() => void load()} />
+      {data?.sync?.error && (
+        <p role="alert" className="rounded border border-destructive p-3 text-sm">
+          {data.sync.error}
+        </p>
+      )}
       {error && (
         <div role="alert" className="rounded border border-destructive p-4">
           <p>{error}</p>
@@ -222,7 +262,9 @@ export function AvpPeriodicControlPanel() {
           <p className="text-xs text-muted-foreground">
             Consulta: {new Date(data.checkedAt).toLocaleString("pt-BR")} · {data.summary.sourceRows}{" "}
             linhas da campanha, {data.summary.duplicates} repetições de CPF + admissão preservadas
-            na fonte.
+            na fonte.{" "}
+            {data.sync &&
+              `Atualização horária · próxima verificação a partir de ${new Date(data.sync.nextCheckAt).toLocaleTimeString("pt-BR")}.`}
           </p>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {[
@@ -251,6 +293,7 @@ export function AvpPeriodicControlPanel() {
           </div>
           <div className="flex flex-wrap gap-2">
             {[
+              ["map", "Mapa de periódicos"],
               ["cities", "Cobertura por cidade"],
               ["clinics", "Clínicas e valores"],
               ["people", "Lista de periódicos"],
@@ -300,6 +343,32 @@ export function AvpPeriodicControlPanel() {
               {selectedCity.total} pessoas únicas · {selectedCity.cancelled} canceladas ·{" "}
               {selectedCity.review} para conferência · {selectedCity.action}.
             </p>
+          )}
+          {(view === "map" || view === "people") && (
+            <select
+              aria-label="Status do periódico"
+              className={selectClass}
+              value={progressFilter}
+              onChange={(e) => setProgressFilter(e.target.value)}
+            >
+              <option value="all">Todos os status</option>
+              {Object.entries(AVP_PERIODIC_PROGRESS).map(([value, item]) => (
+                <option key={value} value={value}>
+                  {item.label}
+                </option>
+              ))}
+              <option value="unknown">Status a conferir</option>
+            </select>
+          )}
+          {view === "map" && (
+            <AvpPeriodicMap
+              people={people}
+              onSelect={(key, progress) => {
+                setCity(key);
+                setProgressFilter(progress);
+                setView("people");
+              }}
+            />
           )}
           {view === "cities" && (
             <>
@@ -545,6 +614,11 @@ export function AvpPeriodicControlPanel() {
                         </td>
                         <td className={cellClass}>
                           {p.status}
+                          {p.asoReceivedAt && (
+                            <p className="text-xs">
+                              Recebimento de ASO na fonte: {p.asoReceivedAt}
+                            </p>
+                          )}
                           <p className="text-xs">{p.review || "Conferência não informada"}</p>
                           {p.duplicateRows > 0 && (
                             <p className="text-xs font-bold">

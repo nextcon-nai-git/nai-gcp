@@ -4,7 +4,7 @@ import { NextRequest } from "next/server";
 import { AuthError } from "@/lib/auth/errors";
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), read: vi.fn() }));
 vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: mocks.auth }));
-vi.mock("@/services/avp-periodic-control", () => ({ readAvpPeriodicControl: mocks.read }));
+vi.mock("@/services/avp-periodic-sync", () => ({ readAvpPeriodicSnapshot: mocks.read }));
 import { GET } from "./route";
 const request = () =>
   new NextRequest("https://example.test/api/clients/grupo-avp/periodic-control");
