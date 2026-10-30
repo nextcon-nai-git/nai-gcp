@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { usePgrCollection, usePgrCompanies } from "@/hooks/use-pgr-workspace";
-import { Plus, LayoutGrid, Brain, Activity, Building2, Zap } from "lucide-react";
+import { Plus, LayoutGrid, Activity, Building2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase";
@@ -244,10 +244,6 @@ function EnterpriseOpsContent() {
               Operações
             </h1>
           </div>
-          <p className="text-muted-foreground font-medium flex items-center gap-2">
-            <Brain className="size-4 text-accent" /> Atividades, pessoas e entregas conectadas ao
-            cliente.
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">

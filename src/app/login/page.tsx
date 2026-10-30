@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Globe, Mail, Zap } from "lucide-react";
+import { Loader2, Mail, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/firebase";
@@ -319,11 +319,6 @@ export default function LoginPage() {
             </Button>
           )}
         </form>
-        <div className="pt-6 border-t flex flex-col items-center gap-4">
-          <div className="flex items-center gap-2 text-[9px] font-black text-slate-300 uppercase tracking-widest">
-            <Globe className="size-3" /> NAI Cloud Infrastructure
-          </div>
-        </div>
       </div>
     </div>
   );

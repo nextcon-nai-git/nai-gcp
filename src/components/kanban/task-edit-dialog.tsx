@@ -923,9 +923,6 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
               Salvar alterações
             </Button>
           </div>
-          <p className="text-[8px] text-slate-300 font-black uppercase text-center tracking-[0.4em]">
-            SGI Secure Multi-Tenant • NAI Intelligence
-          </p>
         </SheetFooter>
       </SheetContent>
     </Sheet>

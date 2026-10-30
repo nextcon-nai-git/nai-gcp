@@ -64,7 +64,7 @@ export function AppContent({ children }: { children: React.ReactNode }) {
             </span>
           </div>
           <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest">
-            Sincronizando protocolos de elite 2026...
+            Carregando...
           </p>
         </div>
       </div>
