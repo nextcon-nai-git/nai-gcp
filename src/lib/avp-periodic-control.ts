@@ -1,4 +1,6 @@
 import { parseBrlCents } from "./avp-costs";
+import { periodicProgress, type PeriodicProgress } from "./avp-periodic-status";
+import type { AvpMapClinic } from "./avp-map-clinics";
 
 export const AVP_PERIODIC_TABS = {
   campaign: "Campanha Periódicos 2026",
@@ -95,6 +97,8 @@ export type PeriodicPerson = {
   cityKey: string;
   unit: string;
   status: string;
+  progress?: PeriodicProgress;
+  asoReceivedAt?: string;
   review: string;
   phone: string;
   email: string;
@@ -115,6 +119,7 @@ export type AvpObservedPrice = {
   cnpj: string;
   notes: string;
   clinical: boolean;
+  current?: boolean;
   match: "CNPJ" | "Nome e município" | "Histórico" | "Sem vínculo";
 };
 export type PeriodicClinic = {
@@ -154,6 +159,16 @@ export type PeriodicCity = {
 };
 export type AvpPeriodicControl = {
   checkedAt: string;
+  mapClinics?: AvpMapClinic[];
+  sources?: { campaignUrl: string; accreditationUrl: string };
+  sync?: {
+    status: string;
+    error: string | null;
+    lastScheduledAt: string | null;
+    nextCheckAt: string;
+    intervalSeconds: number;
+  };
+
   summary: {
     sourceRows: number;
     uniquePeople: number;
@@ -226,6 +241,11 @@ export function buildAvpPeriodicControl(
       cityKey: periodicCityKey(row[1], row[2]),
       unit: row[19],
       status: rows.length > 1 ? [...new Set(rows.map((r) => r[6]))].join(" / ") : row[6],
+      progress: (() => {
+        const statuses = new Set(rows.map((r) => periodicProgress(r[6], r[14])));
+        return statuses.size === 1 ? [...statuses][0] : "unknown";
+      })(),
+      asoReceivedAt: [...new Set(rows.map((r) => r[14]).filter(Boolean))].join(" / "),
       review: [...new Set(rows.map((r) => r[28]).filter(Boolean))].join(" / "),
       phone: row[5],
       email: row[24],
@@ -236,15 +256,20 @@ export function buildAvpPeriodicControl(
     };
   });
   const clinicMap = new Map<string, PeriodicClinic>();
+  const contractEvidence = new Map<string, Set<boolean>>();
   for (const row of providers) {
     if (!row[0]) throw new Error("Há prestador sem nome.");
     const cnpj = taxId(row[2]),
       key = `${cnpj.length === 14 ? cnpj : normalizeAvpText(row[0])}|${periodicCityKey(row[3], row[4])}`;
     const existing = clinicMap.get(key);
-    const reported = normalizeAvpText(row[10]) === "SIM";
+    const contract = normalizeAvpText(row[10]);
+    const evidence = contractEvidence.get(key) || new Set<boolean>();
+    if (contract === "SIM" || contract === "NAO") evidence.add(contract === "SIM");
+    contractEvidence.set(key, evidence);
+    const reported = evidence.has(true) && !evidence.has(false);
     if (existing) {
-      existing.contractConflict ||= existing.contractReported !== reported;
-      existing.contractReported &&= reported;
+      existing.contractConflict = evidence.size > 1;
+      existing.contractReported = reported;
       existing.sourceRows.push(Number(row[11]));
       existing.phones = [...new Set([...existing.phones, row[5], row[6]].filter(Boolean))];
       existing.emails = [...new Set([...existing.emails, row[7]].filter(Boolean))];
@@ -379,6 +404,7 @@ export function buildAvpPeriodicControl(
       cnpj: row[8],
       notes: [row[9], row[6] ? `Outros valores: ${row[6]}` : ""].filter(Boolean).join(" "),
       clinical,
+      current: row[4] === "Credenciamento atual",
       match: candidates.length === 1 ? match : "Sem vínculo",
     };
     if (candidates.length === 1) candidates[0].prices.push(price);
@@ -415,7 +441,12 @@ export function buildAvpPeriodicControl(
     city.clinicIds = local.map((c) => c.id);
     city.contracted = local.filter((c) => c.contractReported && !c.contractConflict).length;
     city.historical = local.filter((c) => c.origin === "price-history").length;
-    const clinical = local.flatMap((c) => c.prices).filter((p) => p.clinical && p.cents !== null);
+    const clinical = local
+      .flatMap((c) => {
+        const current = c.prices.filter((p) => p.current);
+        return current.length ? current : c.prices;
+      })
+      .filter((p) => p.clinical && p.cents !== null);
     city.minClinicalCents = clinical.length ? Math.min(...clinical.map((p) => p.cents!)) : null;
     city.above40 = local.filter((c) =>
       c.prices.some((p) => p.cents !== null && p.cents > 4000)

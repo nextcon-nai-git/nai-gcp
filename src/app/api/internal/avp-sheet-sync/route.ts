@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth as googleAuth } from "googleapis/build/src/apis/oauth2";
 import { syncAvpSource } from "@/services/avp-sheet-sync";
+import { syncAvpPeriodicControl } from "@/services/avp-periodic-sync";
 
 export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
@@ -22,8 +23,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Agendador não autorizado." }, { status: 401 });
   }
   try {
-    const result = await syncAvpSource(true, email);
-    return NextResponse.json(result, { status: "error" in result ? 503 : 200 });
+    const [queue, periodic] = await Promise.allSettled([
+      syncAvpSource(true, email),
+      syncAvpPeriodicControl({ scheduled: true }),
+    ]);
+    const result =
+      queue.status === "fulfilled" ? queue.value : { error: "Falha na atualização da fila." };
+    const periodicResult =
+      periodic.status === "fulfilled"
+        ? periodic.value
+        : { error: "Falha na atualização dos periódicos." };
+    return NextResponse.json(
+      { ...result, periodic: periodicResult },
+      {
+        status: "error" in result || "error" in periodicResult ? 503 : 200,
+      }
+    );
   } catch {
     return NextResponse.json(
       { error: "Não foi possível executar a sincronização. A fila anterior foi preservada." },

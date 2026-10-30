@@ -1,34 +1,36 @@
-# Controle dos periódicos e da rede AVP
+# Periódicos AVP: fontes atuais, mapa e atualização horária
 
-O painel interno de Grupo AVP cruza a campanha de 20/10 a 20/11/2026, a lista de prestadores fornecida, o histórico de valores AVP e o cadastro mestre NAI. A fila de agendamentos existente continua independente; esta consulta não cria agendamentos nem envia convocações.
+A operação interna lê a aba **Controle** da campanha e **NAI Credenciamento** da base de credenciamento. Os links são configurados em **Periódicos e rede AVP → Fontes e atualização** por administrador interno. IDs, registros pessoais e credenciais não são publicados no repositório. O formulário mostra o e-mail real da identidade de leitura obtida pelo Google Auth; conceder somente leitura às duas fontes, sem torná-las públicas.
 
-## Fontes privadas
+## Leitura e publicação
 
-As três abas ficam na mesma planilha privada configurada em `AVP_SOURCE`. Os arquivos e dados pessoais não fazem parte do repositório.
+- A campanha usa o cabeçalho da linha 4 e conserva a linha original, mesmo com colunas extras ou reordenadas. CPF + admissão deduplicam os registros; CPF não é devolvido pela API nem gravado na versão publicada.
+- O credenciamento usa o cabeçalho da linha 2. O valor negociado preenchido tem prioridade sobre o atual. Valor ambíguo permanece sem preço; a autorização para agendamento não comprova contrato assinado.
+- Prestadores e preços históricos continuam nas abas privadas anteriores, identificados por origem. A campanha atual não depende da antiga cópia da convocação.
+- As duas fontes devem passar pela validação antes de trocar a configuração. Escritas em partes completam uma versão imutável antes da troca do ponteiro. Falhas preservam a última leitura íntegra, com data e erro visíveis.
+- Configuração e versões ficam em `clinic_portal_private/avp_periodic_control`, namespace existente sem acesso direto pelo SDK cliente. As APIs aplicam a autorização interna AVP antes de ler os dados. A configuração exige administrador interno e revisão atual.
 
-| Aba                        | ID fixo    | Registros importados |
-| -------------------------- | ---------- | -------------------: |
-| Campanha Periódicos 2026   | 2026102001 |                1.979 |
-| Prestadores NXC 2026       | 2026102002 |                  236 |
-| Custos Observados AVP 2026 | 2026102003 |                  300 |
+## Atualização horária
 
-Os cabeçalhos são validados integralmente. A leitura usa as dimensões reais das abas e um limite de 10.000 registros por fonte. Cada registro mantém a linha original para conferência. As 1.979 linhas de campanha representam 1.972 pessoas por CPF + admissão; as sete repetições são preservadas na fonte. Cancelamentos e ressalvas permanecem visíveis e exigem revisão humana antes da convocação.
+O endpoint OIDC existente `/api/internal/avp-sheet-sync` continua atualizando a fila de ASOs a cada chamada e também consulta os periódicos quando muda a hora UTC. O job existente de dez minutos faz essa verificação; não é criado outro job nem alterado seu intervalo. O controle usa lease e limita novas tentativas a 30 segundos. Uma falha da fila não impede a tentativa dos periódicos e vice-versa.
 
-## Critérios de cruzamento
+A tela consulta o snapshot a cada hora e ao retornar à aba. Uma leitura vencida também pode ser renovada ao abrir o painel. Isso não substitui o job de servidor: o campo **Última chamada do agendador** deve ser conferido na configuração após a implantação. `lastScheduledAt` registra uma leitura efetivamente concluída pelo agendador; `schedulerSeenAt` registra cada chamada recebida, inclusive quando ainda não venceu o intervalo. Não afirmar execução com a tela fechada sem essa evidência.
 
-- CNPJ + município/UF identificam unidades; nomes só vinculam preços quando a correspondência é exata e única no município. Ambiguidades permanecem sem vínculo.
-- Os rótulos de unidades Fortaleza ASCEC, ASSOBES e CEUDESP são agregados como município Fortaleza; a unidade do colaborador permanece disponível.
-- Contrato ativo é uma informação da lista enviada. Encontrar cadastro NAI ou preço anterior não confirma contrato ativo nem disponibilidade para esta campanha.
-- Preços mantêm serviço, data, evidência e ressalva. Pacotes não são divididos sem evidência de valor unitário. O menor ASO clínico exclui enquadramento PCD e pacotes.
-- O filtro de negociação considera valores estritamente maiores que R$ 40; R$ 40 não dispara esse filtro. Valores históricos precisam de confirmação para o exame periódico.
-- A lista enviada contém 219 identidades CNPJ/município. Unidades adicionais encontradas no histórico e no NAI são identificadas por origem.
+## Mapas
 
-## Acesso e operação
+O mapa dos periódicos apresenta um marcador por município e status, preservando situações mistas:
 
-A API exige autenticação e o mesmo acesso interno de evidências AVP. Não retorna CPF, dados bancários nem credenciais. Respostas são privadas e sem cache. A troca de identidade descarta resultados anteriores; uma revogação 401/403 limpa a consulta. Falha temporária mantém a última consulta com erro e data explícitos.
+| Cor      | Status                                          |
+| -------- | ----------------------------------------------- |
+| Vermelho | Não iniciados; em contato até haver agendamento |
+| Verde    | Agendados; realizados aguardando ASO            |
+| Azul     | ASO recebido ou data de recebimento registrada  |
+| Amarelo  | Cancelados, faltas ou não comparecimento        |
 
-A atualização é manual pelo botão do painel. A exportação CSV contém apenas o resumo de cobertura por município, com proteção contra fórmulas. Não altera prestadores, contratos, preços, fila existente ou permissões da planilha.
+Status desconhecido, divergência entre linhas duplicadas ou recebimento em registro cancelado ficam para conferência, sem cor inventada. Cidades sem coordenada permanecem na lista. As posições são referências municipais, não endereços de colaboradores ou clínicas.
+
+O botão **Mapa de custos** abre o mapa único já existente da operação. Ele usa o mesmo snapshot do credenciamento: verde abaixo de R$40; amarelo de R$40 a menos de R$50; vermelho de R$50 a R$70, inclusive; roxo acima de R$70. Ausência de preço permanece explícita. O pin municipal usa o maior preço atual das clínicas do município, e o detalhe mostra cada valor. O histórico da fila permanece disponível. A aba de ASOs é desmontada quando fica inativa para não manter outro mapa e consultas em segundo plano.
 
 ## Validação
 
-Testes cobrem deduplicação, filiais ambíguas, cidades/UF, preço de R$ 40, pacotes, contratos divergentes, acesso restrito, revogação e respostas antigas após troca de conta. O upload inicial foi conferido célula a célula contra a origem, sem divergências.
+Testar leitura por cabeçalhos, preços atuais e históricos, limites de cor, status mistos, versões completas, falhas de fonte/escrita, concorrência, intervalo de uma hora, token OIDC e autorização. Após a publicação, conferir as contagens contra as duas planilhas, as quatro cores em testes e os estados realmente presentes em produção. Confirmar o heartbeat e a leitura programada separadamente de uma atualização manual.

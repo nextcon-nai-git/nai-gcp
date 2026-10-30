@@ -198,7 +198,9 @@ export function GrupoAvpQueueMap({
 
     allAggregates.forEach((loc) => {
       const clinicNames = new Set<string>(
-        (clinicsByCity.get(loc.key) || []).map((clinic) => clinic.nome.toUpperCase())
+        (clinicsByCity.get(loc.key) || [])
+          .filter((clinic) => clinic.identified !== false)
+          .map((clinic) => clinic.nome.toUpperCase())
       );
       // 1. Clínicas citadas nos ASOs da comarca
       loc.asos.forEach((a) => {

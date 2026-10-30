@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { requireAvpAccess, canAccessAvpEvidence } from "@/lib/auth/avp-access";
 import { AuthError, handleAuthError } from "@/lib/auth/errors";
-import { readAvpPeriodicControl } from "@/services/avp-periodic-control";
+import { readAvpPeriodicSnapshot } from "@/services/avp-periodic-sync";
 export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
@@ -10,9 +10,12 @@ export async function GET(req: NextRequest) {
     requireAvpAccess(user);
     if (!canAccessAvpEvidence(user))
       throw new AuthError("Controle disponível à equipe interna da operação AVP.", 403);
-    return NextResponse.json(await readAvpPeriodicControl(), {
-      headers: { "Cache-Control": "private, no-store" },
-    });
+    return NextResponse.json(
+      await readAvpPeriodicSnapshot(req.nextUrl.searchParams.get("force") === "1"),
+      {
+        headers: { "Cache-Control": "private, no-store" },
+      }
+    );
   } catch (error) {
     if (error instanceof AuthError) {
       const response = handleAuthError(error);
