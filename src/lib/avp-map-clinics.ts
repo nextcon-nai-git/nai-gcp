@@ -20,6 +20,7 @@ export type AvpMapClinic = {
   cidade: string;
   uf: string;
   nome: string;
+  identified?: boolean;
   telefone: string;
   cents: number | null;
   status: string;

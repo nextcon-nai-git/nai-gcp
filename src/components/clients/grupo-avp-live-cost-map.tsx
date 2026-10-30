@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ComponentProps } from "react";
 import { useUser } from "@/firebase";
-import { AVP_SOURCE } from "@/lib/avp-source-config";
+import { AVP_PERIODIC_INTERVAL_MS } from "@/lib/avp-periodic-status";
 import type { AvpMapClinic } from "@/lib/avp-map-clinics";
 import { GrupoAvpQueueMap } from "./grupo-avp-queue-map";
 
@@ -34,7 +34,7 @@ export function GrupoAvpLiveCostMap(props: ComponentProps<typeof GrupoAvpQueueMa
           throw new Error("Não foi possível atualizar as clínicas e os custos.");
         }
         setResult({ owner: user.uid, clinics: data.clinics, checkedAt: data.checkedAt });
-        setError("");
+        setError(data.sync?.error || "");
       } catch {
         if (active) {
           setResult(null);
@@ -43,7 +43,7 @@ export function GrupoAvpLiveCostMap(props: ComponentProps<typeof GrupoAvpQueueMa
       }
     };
     void refresh();
-    const timer = setInterval(() => void refresh(), AVP_SOURCE.intervalSeconds * 1000);
+    const timer = setInterval(() => void refresh(), AVP_PERIODIC_INTERVAL_MS);
     return () => {
       active = false;
       controller.abort();
@@ -54,10 +54,10 @@ export function GrupoAvpLiveCostMap(props: ComponentProps<typeof GrupoAvpQueueMa
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground" role="status">
-        {error ||
-          (current
-            ? `Clínicas e custos consultados em ${new Date(current.checkedAt).toLocaleString("pt-BR")}`
-            : "Consultando clínicas e custos atuais…")}
+        {error && `${error} `}
+        {current
+          ? `Clínicas e custos consultados em ${new Date(current.checkedAt).toLocaleString("pt-BR")}`
+          : !error && "Consultando clínicas e custos atuais…"}
       </p>
       <GrupoAvpQueueMap {...props} clinics={current?.clinics} />
     </div>

@@ -3,8 +3,21 @@ import { auth as googleAuth, sheets as googleSheets } from "googleapis/build/src
 import { adminDb } from "@/lib/firebase-admin";
 import { AVP_SOURCE } from "@/lib/avp-source-config";
 import { AVP_PERIODIC_TABS, buildAvpPeriodicControl } from "@/lib/avp-periodic-control";
+import {
+  adaptLiveCampaign,
+  adaptLiveAccreditation,
+  type PeriodicSources,
+} from "@/lib/avp-periodic-live";
 
-export async function readAvpPeriodicControl() {
+export async function getAvpReaderEmail() {
+  const auth = new googleAuth.GoogleAuth({
+    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+  });
+  const credentials = await auth.getCredentials();
+  return credentials.client_email || null;
+}
+
+export async function readAvpPeriodicControl(sources?: PeriodicSources) {
   const auth = new googleAuth.GoogleAuth({
     scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
   });
@@ -16,11 +29,11 @@ export async function readAvpPeriodicControl() {
     ),
     adminDb.collection("providers").limit(5001).get(),
   ]);
-  const specs = [
-    [AVP_PERIODIC_TABS.campaign, 2026102001, "AE", 31],
+  const specs: Array<readonly [string, number, string, number]> = [
+    ...(sources ? [] : [[AVP_PERIODIC_TABS.campaign, 2026102001, "AE", 31] as const]),
     [AVP_PERIODIC_TABS.providers, 2026102002, "L", 12],
     [AVP_PERIODIC_TABS.prices, 2026102003, "K", 11],
-  ] as const;
+  ];
   const ranges = specs.map(([title, id, last, width]) => {
     const sheet = metadata.data.sheets?.find((s) => s.properties?.sheetId === id)?.properties;
     const grid = sheet?.gridProperties;
@@ -39,11 +52,39 @@ export async function readAvpPeriodicControl() {
   );
   if (providers.size > 5000) throw new Error("Cadastro de prestadores excede o limite de leitura.");
   const values = result.data.valueRanges;
-  if (values?.length !== 3) throw new Error("Fontes AVP incompletas.");
-  return buildAvpPeriodicControl(
-    values[0].values || [],
-    values[1].values || [],
-    values[2].values || [],
+  if (values?.length !== specs.length) throw new Error("Fontes AVP incompletas.");
+  async function readLiveTab(spreadsheetId: string, title: string, last: string, width: number) {
+    const metadata = await sheets.spreadsheets.get(
+      { spreadsheetId, fields: "sheets.properties" },
+      { timeout: 20000 }
+    );
+    const sheet = metadata.data.sheets?.find((s) => s.properties?.title === title)?.properties;
+    const grid = sheet?.gridProperties;
+    if (!grid?.rowCount || grid.rowCount > 10000 || (grid.columnCount || 0) < width)
+      throw new Error("Aba da campanha ou do credenciamento não encontrada ou fora dos limites.");
+    const result = await sheets.spreadsheets.values.get(
+      {
+        spreadsheetId,
+        range: `'${title}'!A1:${last}${grid.rowCount}`,
+        valueRenderOption: "FORMATTED_VALUE",
+      },
+      { timeout: 25000 }
+    );
+    return result.data.values || [];
+  }
+  const checkedAt = new Date().toISOString();
+  const live = sources
+    ? await Promise.all([
+        readLiveTab(sources.campaignSpreadsheetId, "Controle", "AF", 32),
+        readLiveTab(sources.accreditationSpreadsheetId, "NAI Credenciamento", "X", 24),
+      ])
+    : null;
+  const accreditation = live ? adaptLiveAccreditation(live[1], checkedAt) : null;
+  const offset = sources ? 0 : 1;
+  const control = buildAvpPeriodicControl(
+    live ? adaptLiveCampaign(live[0]) : values[0].values || [],
+    [...(values[offset].values || []), ...(accreditation?.providers.slice(1) || [])],
+    [...(values[offset + 1].values || []), ...(accreditation?.prices.slice(1) || [])],
     providers.docs.map((d) => {
       const p = d.data();
       return {
@@ -57,6 +98,17 @@ export async function readAvpPeriodicControl() {
         state: typeof p.state === "string" ? p.state : "",
         active: p.active === true && p.isDeleted !== true,
       };
-    })
+    }),
+    checkedAt
   );
+  return sources && accreditation
+    ? {
+        ...control,
+        mapClinics: accreditation.clinics,
+        sources: {
+          campaignUrl: `https://docs.google.com/spreadsheets/d/${sources.campaignSpreadsheetId}/edit`,
+          accreditationUrl: `https://docs.google.com/spreadsheets/d/${sources.accreditationSpreadsheetId}/edit`,
+        },
+      }
+    : control;
 }

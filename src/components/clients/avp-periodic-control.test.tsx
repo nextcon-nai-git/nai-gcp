@@ -132,3 +132,29 @@ describe("painel de periódicos AVP", () => {
     expect(host.textContent).not.toContain("Pessoa anterior privada");
   });
 });
+
+it("atualiza a consulta a cada hora enquanto aberta e interrompe após sair da conta", async () => {
+  vi.useFakeTimers();
+  try {
+    vi.mocked(fetch).mockImplementation(async () => response(fixture()));
+    await render();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(59 * 60 * 1000);
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60 * 1000);
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    session.user = null;
+    await render();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(host.textContent).not.toContain("Pessoa autorizada");
+  } finally {
+    vi.useRealTimers();
+  }
+});

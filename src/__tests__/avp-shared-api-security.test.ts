@@ -4,6 +4,7 @@ import { AuthError } from "@/lib/auth/errors";
 const mock = vi.hoisted(() => ({
   auth: vi.fn(),
   sync: vi.fn(),
+  periodic: vi.fn(),
   snapshot: vi.fn(),
   patch: vi.fn(),
   oidc: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock("@/services/avp-sheet-sync", () => ({
   getAvpSnapshot: mock.snapshot,
   patchAvpQueue: mock.patch,
 }));
+vi.mock("@/services/avp-periodic-sync", () => ({ syncAvpPeriodicControl: mock.periodic }));
 vi.mock("googleapis/build/src/apis/oauth2", () => ({
   auth: {
     OAuth2: class {
@@ -47,6 +49,7 @@ beforeEach(() => {
     servedCompanies: [],
   });
   mock.sync.mockResolvedValue({ started: true, rowCount: 1 });
+  mock.periodic.mockResolvedValue({ started: false });
   mock.snapshot.mockResolvedValue({ items: [], revision: "synthetic" });
   mock.patch.mockResolvedValue("new-revision");
   mock.audit.mockResolvedValue(undefined);
@@ -70,6 +73,7 @@ describe("Fila compartilhada por empresa", () => {
     });
     expect((await GET(request("GET", "/api/clients/grupo-avp/queue"))).status).toBe(403);
     expect(mock.sync).not.toHaveBeenCalled();
+    expect(mock.periodic).not.toHaveBeenCalled();
     expect(mock.snapshot).not.toHaveBeenCalled();
   });
   it("encaminha leitura autorizada sem cache público", async () => {
