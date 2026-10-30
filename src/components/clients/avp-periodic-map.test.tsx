@@ -17,7 +17,11 @@ it("mantém quatro status na mesma cidade, com rótulos e seleção acessíveis"
       status: "Fonte",
     })
   ) as PeriodicPerson[];
+  people.push({ ...people[0], id: "recife", city: "Recife", uf: "PE", cityKey: "RECIFE|PE" });
   await v.render(<AvpPeriodicMap people={people} onSelect={onSelect} />);
+  expect(v.container.querySelectorAll('svg [role="button"]')).toHaveLength(5);
+  await v.input('select[aria-label="UF do mapa de periódicos"]', "PR");
+  expect(v.container.querySelector("svg")?.getAttribute("viewBox")).not.toBe("0 0 800 800");
   const pins = v.container.querySelectorAll('svg [role="button"]');
   expect(pins).toHaveLength(4);
   expect([...pins].map((p) => p.querySelector("path")?.getAttribute("fill"))).toEqual([

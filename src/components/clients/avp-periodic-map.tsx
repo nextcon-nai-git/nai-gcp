@@ -1,5 +1,5 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { aggregateAvpLocalities } from "@/lib/avp-geo-data";
 import { BRAZIL_STATES_PATHS } from "@/lib/brazil-states-paths";
 import { periodicCityKey, type PeriodicPerson } from "@/lib/avp-periodic-control";
@@ -16,6 +16,7 @@ export function AvpPeriodicMap({
   people: PeriodicPerson[];
   onSelect: (cityKey: string, progress: PeriodicProgress) => void;
 }) {
+  const [uf, setUf] = useState("");
   const groups = useMemo(() => {
     const cities = new Map<string, { city: string; uf: string; counts: Record<string, number> }>();
     for (const person of people) {
@@ -37,11 +38,46 @@ export function AvpPeriodicMap({
     (p) => (p.progress || periodicProgress(p.status)) === "unknown"
   ).length;
   const missing = groups.filter((g) => !g.geoKnown);
+  const activeUf = groups.some((g) => g.uf === uf) ? uf : "";
+  const visible = groups.filter((g) => g.geoKnown && (!activeUf || g.uf === activeUf));
+  const focus = visible.length > 0 && (!!activeUf || groups.length === 1);
+  const size = focus
+    ? Math.max(
+        160,
+        Math.max(
+          Math.max(...visible.map((c) => c.x)) - Math.min(...visible.map((c) => c.x)),
+          Math.max(...visible.map((c) => c.y)) - Math.min(...visible.map((c) => c.y))
+        ) + 100
+      )
+    : 800;
+  const centerX = focus
+    ? (Math.min(...visible.map((c) => c.x)) + Math.max(...visible.map((c) => c.x))) / 2
+    : 400;
+  const centerY = focus
+    ? (Math.min(...visible.map((c) => c.y)) + Math.max(...visible.map((c) => c.y))) / 2
+    : 400;
+  const scale = size / 800;
   return (
     <section
       className="rounded-xl border bg-card p-4 space-y-3"
       aria-label="Mapa de periódicos AVP"
     >
+      <label className="flex items-center gap-2 text-sm">
+        UF
+        <select
+          aria-label="UF do mapa de periódicos"
+          value={activeUf}
+          onChange={(e) => setUf(e.target.value)}
+          className="rounded border bg-background px-3 py-2"
+        >
+          <option value="">Brasil</option>
+          {[...new Set(groups.map((g) => g.uf))].sort().map((value) => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
+        </select>
+      </label>
       <div className="flex flex-wrap gap-3 text-sm" aria-label="Legenda dos periódicos">
         {Object.entries(AVP_PERIODIC_PROGRESS).map(([key, value]) => (
           <span key={key} className="inline-flex items-center gap-2">
@@ -55,7 +91,7 @@ export function AvpPeriodicMap({
         ))}
       </div>
       <svg
-        viewBox="0 0 800 800"
+        viewBox={`${centerX - size / 2} ${centerY - size / 2} ${size} ${size}`}
         className="mx-auto w-full max-w-[650px]"
         role="group"
         aria-label="Municípios e situações dos periódicos"
@@ -68,51 +104,49 @@ export function AvpPeriodicMap({
             strokeWidth="1"
           />
         ))}
-        {groups
-          .filter((g) => g.geoKnown)
-          .flatMap((city) =>
-            Object.entries(AVP_PERIODIC_PROGRESS).map(([key, value], index) => {
-              const count = city.counts[key] || 0;
-              if (!count) return null;
-              const label = `${city.cidade}/${city.uf}: ${count} ${value.label.toLowerCase()}`;
-              const select = () => onSelect(city.cityKey, key as PeriodicProgress);
-              return (
-                <g
-                  key={`${city.key}-${key}`}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={label}
-                  className="cursor-pointer outline-none focus:stroke-foreground"
-                  onClick={select}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      select();
-                    }
-                  }}
-                  transform={`translate(${city.x + (index % 2 ? 11 : -11)},${city.y + (index < 2 ? -11 : 11)})`}
+        {visible.flatMap((city) =>
+          Object.entries(AVP_PERIODIC_PROGRESS).map(([key, value], index) => {
+            const count = city.counts[key] || 0;
+            if (!count) return null;
+            const label = `${city.cidade}/${city.uf}: ${count} ${value.label.toLowerCase()}`;
+            const select = () => onSelect(city.cityKey, key as PeriodicProgress);
+            return (
+              <g
+                key={`${city.key}-${key}`}
+                role="button"
+                tabIndex={0}
+                aria-label={label}
+                className="cursor-pointer outline-none focus:stroke-foreground"
+                onClick={select}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    select();
+                  }
+                }}
+                transform={`translate(${city.x + (index % 2 ? 11 : -11) * scale},${city.y + (index < 2 ? -11 : 11) * scale}) scale(${scale})`}
+              >
+                <title>{label}</title>
+                <path
+                  d="M0 13 C-3 7 -10 3 -10 -3 A10 10 0 1 1 10 -3 C10 3 3 7 0 13Z"
+                  fill={value.color}
+                  stroke="white"
+                  strokeWidth="1.5"
+                />
+                <text
+                  textAnchor="middle"
+                  y="0"
+                  fontSize="8"
+                  fontWeight="bold"
+                  fill={key === "cancelled" ? "#1f2937" : "white"}
+                  pointerEvents="none"
                 >
-                  <title>{label}</title>
-                  <path
-                    d="M0 13 C-3 7 -10 3 -10 -3 A10 10 0 1 1 10 -3 C10 3 3 7 0 13Z"
-                    fill={value.color}
-                    stroke="white"
-                    strokeWidth="1.5"
-                  />
-                  <text
-                    textAnchor="middle"
-                    y="0"
-                    fontSize="8"
-                    fontWeight="bold"
-                    fill={key === "cancelled" ? "#1f2937" : "white"}
-                    pointerEvents="none"
-                  >
-                    {count}
-                  </text>
-                </g>
-              );
-            })
-          )}
+                  {count}
+                </text>
+              </g>
+            );
+          })
+        )}
       </svg>
       <p className="text-xs text-muted-foreground">
         Referências municipais aproximadas. Selecione um marcador para abrir os registros. Em
