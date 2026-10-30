@@ -11,7 +11,6 @@ import {
   Building2,
   CalendarClock,
   Check,
-  ChevronRight,
   CircleAlert,
   Clock3,
   Database,
@@ -235,17 +234,9 @@ export function ExecutiveDashboardView() {
     >
       <header className="flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
         <div>
-          <div className="mb-3 flex items-center gap-2 text-[11px] font-medium text-slate-400">
-            <span>Workspace Nextcon</span>
-            <ChevronRight className="size-3" />
-            <span className="text-teal-700">Visão executiva</span>
-          </div>
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
             NAI Painel Estratégico
           </h1>
-          <p className="mt-2 text-sm text-slate-500">
-            Clientes, prazos e decisões. Uma visão da sua operação registrada.
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
