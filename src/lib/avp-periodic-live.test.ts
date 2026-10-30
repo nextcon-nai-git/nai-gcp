@@ -21,6 +21,11 @@ describe("fontes vivas dos periódicos", () => {
     expect(() => adaptLiveCampaign([[], [], [], [...CAMPAIGN_HEADERS, "Nome"], ["1"]])).toThrow();
     expect(() => adaptLiveCampaign([[], [], [], ["ID"], ["1"]])).toThrow();
   });
+  it("não publica IDs duplicados que fariam registros diferentes compartilharem o mesmo card", () => {
+    expect(() =>
+      adaptLiveCampaign([[], [], [], CAMPAIGN_HEADERS.slice(0, -1), ["1"], ["1"]])
+    ).toThrow("ID único");
+  });
   const headers = [
     "#",
     "Cidade",

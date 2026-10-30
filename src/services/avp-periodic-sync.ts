@@ -125,7 +125,8 @@ export async function configureAvpPeriodicSources(
     revision,
     sourceRows: data.summary.sourceRows,
     uniquePeople: data.summary.uniquePeople,
-    clinics: data.mapClinics?.length || 0,
+    clinics: data.mapClinics?.filter((c) => c.identified !== false).length || 0,
+    municipalities: new Set((data.mapClinics || []).map((c) => `${c.cidade}|${c.uf}`)).size,
   };
 }
 

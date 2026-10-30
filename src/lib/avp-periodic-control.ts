@@ -98,6 +98,7 @@ export type PeriodicPerson = {
   unit: string;
   status: string;
   progress?: PeriodicProgress;
+  asoReceivedAt?: string;
   review: string;
   phone: string;
   email: string;
@@ -244,6 +245,7 @@ export function buildAvpPeriodicControl(
         const statuses = new Set(rows.map((r) => periodicProgress(r[6], r[14])));
         return statuses.size === 1 ? [...statuses][0] : "unknown";
       })(),
+      asoReceivedAt: [...new Set(rows.map((r) => r[14]).filter(Boolean))].join(" / "),
       review: [...new Set(rows.map((r) => r[28]).filter(Boolean))].join(" / "),
       phone: row[5],
       email: row[24],

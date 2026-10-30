@@ -47,8 +47,12 @@ export function adaptLiveCampaign(values: unknown[][]) {
   if (values.length < 5 || values.length > 10004)
     throw new Error("Campanha vazia ou acima do limite.");
   const indexes = columns(values[3] || [], CAMPAIGN_HEADERS.slice(0, -1));
+  const ids = new Set<string>();
   const rows = values.slice(4).flatMap((row, i) => {
     if (!row.some((v) => cell(v))) return [];
+    const id = cell(row[indexes[0]]);
+    if (!id || ids.has(id)) throw new Error("Participante sem ID único na campanha.");
+    ids.add(id);
     return [[...indexes.map((index) => cell(row[index])), String(i + 5)]];
   });
   if (!rows.length) throw new Error("Campanha sem participantes.");

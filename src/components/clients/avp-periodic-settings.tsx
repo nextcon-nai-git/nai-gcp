@@ -36,6 +36,7 @@ export function AvpPeriodicSettings({ onSaved }: { onSaved: () => void }) {
     let active = true;
     const controller = new AbortController();
     setBusy(true);
+    setMessage("");
     void (async () => {
       try {
         const token = await user.getIdToken();
@@ -83,7 +84,7 @@ export function AvpPeriodicSettings({ onSaved }: { onSaved: () => void }) {
       if (!response.ok) throw new Error(data.error || "Não foi possível salvar as fontes.");
       setRevision(data.revision);
       setMessage(
-        `Fontes validadas: ${data.sourceRows} linhas de campanha e ${data.clinics} municípios no credenciamento.`
+        `Fontes validadas: ${data.sourceRows} linhas de campanha, ${data.municipalities} municípios e ${data.clinics} clínicas informadas no credenciamento.`
       );
       onSaved();
     } catch (error) {

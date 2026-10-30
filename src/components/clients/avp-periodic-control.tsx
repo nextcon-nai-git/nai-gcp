@@ -614,6 +614,11 @@ export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => v
                         </td>
                         <td className={cellClass}>
                           {p.status}
+                          {p.asoReceivedAt && (
+                            <p className="text-xs">
+                              Recebimento de ASO na fonte: {p.asoReceivedAt}
+                            </p>
+                          )}
                           <p className="text-xs">{p.review || "Conferência não informada"}</p>
                           {p.duplicateRows > 0 && (
                             <p className="text-xs font-bold">
