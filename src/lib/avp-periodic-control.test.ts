@@ -58,6 +58,20 @@ const build = (people = [person()], providers = [provider()], prices: unknown[][
     [PRICE_HEADERS, ...prices]
   );
 describe("controle da campanha periódica e rede AVP", () => {
+  it.each([
+    ["Sim", ""],
+    ["", "Sim"],
+    ["Sim", "", "Não"],
+  ])("distingue ausência de evidência de contrato de uma negativa explícita: %j", (...states) => {
+    const result = build(
+      [person()],
+      states.map((state) => provider(undefined, undefined, undefined, state))
+    );
+    const conflict = states.includes("Não");
+    expect(result.clinics[0].contractReported).toBe(!conflict);
+    expect(result.clinics[0].contractConflict).toBe(conflict);
+    expect(result.cities[0].contracted).toBe(conflict ? 0 : 1);
+  });
   it("deduplica CPF + admissão sem perder linhas e sem retornar CPF ou diagnóstico", () => {
     const duplicate = person("2");
     duplicate[1] = "Fortaleza - ASSOBES Jóquei";

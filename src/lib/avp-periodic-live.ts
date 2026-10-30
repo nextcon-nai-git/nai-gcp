@@ -34,9 +34,10 @@ export function spreadsheetIdFromUrl(value: string) {
 }
 const cell = (value: unknown) => String(value ?? "").trim();
 function columns(row: unknown[], required: readonly string[]) {
-  const normalized = row.map((v) => normalizeAvpText(cell(v)));
+  const headerKey = (v: unknown) => (cell(v) === "#" ? "#" : normalizeAvpText(cell(v)));
+  const normalized = row.map(headerKey);
   return required.map((header) => {
-    const key = normalizeAvpText(header);
+    const key = headerKey(header);
     const index = normalized.indexOf(key);
     if (index < 0 || normalized.lastIndexOf(key) !== index)
       throw new Error("Cabeçalho ausente ou duplicado na fonte AVP.");
@@ -128,7 +129,7 @@ export function adaptLiveAccreditation(values: unknown[][], checkedAt: string) {
     });
     if (!name) return;
     // An authorization to schedule is not proof of an active signed contract.
-    providers.push([name, "", cnpj, city, uf, phone, "", "", "", "", "Não", String(index + 3)]);
+    providers.push([name, "", cnpj, city, uf, phone, "", "", "", "", "", String(index + 3)]);
     prices.push([
       name,
       `${city}/${uf}`,

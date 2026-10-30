@@ -1,10 +1,32 @@
 import React, { act } from "react";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ui } from "../../../tests/ui/harness";
 import { AvpPeriodicMap } from "./avp-periodic-map";
 import type { PeriodicPerson } from "@/lib/avp-periodic-control";
-const v = ui();
+let v: ReturnType<typeof ui>;
+beforeEach(() => {
+  v = ui();
+});
 afterEach(() => v.cleanup());
+it("preserva contagem e filtro quando a coordenada usa um nome municipal canônico", async () => {
+  const onSelect = vi.fn();
+  const people = [
+    {
+      id: "alias",
+      city: "Cachoeiro do Itapemirim",
+      uf: "ES",
+      cityKey: "CACHOEIRO DO ITAPEMIRIM|ES",
+      progress: "scheduled",
+      status: "Agendado",
+    },
+  ] as PeriodicPerson[];
+  await v.render(<AvpPeriodicMap people={people} onSelect={onSelect} />);
+  const pins = v.container.querySelectorAll('svg [role="button"]');
+  expect(pins).toHaveLength(1);
+  expect(pins[0].getAttribute("aria-label")).toContain("1 agendados");
+  await act(async () => pins[0].dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  expect(onSelect).toHaveBeenCalledWith("CACHOEIRO DO ITAPEMIRIM|ES", "scheduled");
+});
 it("mantém quatro status na mesma cidade, com rótulos e seleção acessíveis", async () => {
   const onSelect = vi.fn();
   const people = ["pending", "scheduled", "received", "cancelled", "unknown"].map(

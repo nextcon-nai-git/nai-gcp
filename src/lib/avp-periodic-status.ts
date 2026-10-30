@@ -14,6 +14,11 @@ export function periodicProgress(status: string, receivedDate = ""): PeriodicPro
     .replace(/[^A-Z0-9]+/g, " ")
     .trim();
   const cancelled = /CANCELAD|FALTOU|\bFALTAS?\b|NAO COMPARECEU/.test(value);
+  // A negative statement must never become evidence of completed progress.
+  if (/\b(?:NAO|SEM|NUNCA)\b/.test(value) && !cancelled) {
+    if (/^NAO (?:INICIAD[OA]|AGENDAD[OA])$/.test(value) && !receivedDate.trim()) return "pending";
+    return "unknown";
+  }
   const received =
     /ASOS? RECEBID|RECEBID[OA]S? ASOS?/.test(value) ||
     /^\d{1,4}[-/]\d{1,2}[-/]\d{1,4}$/.test(receivedDate.trim());

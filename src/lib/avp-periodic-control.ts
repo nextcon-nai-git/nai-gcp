@@ -256,15 +256,20 @@ export function buildAvpPeriodicControl(
     };
   });
   const clinicMap = new Map<string, PeriodicClinic>();
+  const contractEvidence = new Map<string, Set<boolean>>();
   for (const row of providers) {
     if (!row[0]) throw new Error("Há prestador sem nome.");
     const cnpj = taxId(row[2]),
       key = `${cnpj.length === 14 ? cnpj : normalizeAvpText(row[0])}|${periodicCityKey(row[3], row[4])}`;
     const existing = clinicMap.get(key);
-    const reported = normalizeAvpText(row[10]) === "SIM";
+    const contract = normalizeAvpText(row[10]);
+    const evidence = contractEvidence.get(key) || new Set<boolean>();
+    if (contract === "SIM" || contract === "NAO") evidence.add(contract === "SIM");
+    contractEvidence.set(key, evidence);
+    const reported = evidence.has(true) && !evidence.has(false);
     if (existing) {
-      existing.contractConflict ||= existing.contractReported !== reported;
-      existing.contractReported &&= reported;
+      existing.contractConflict = evidence.size > 1;
+      existing.contractReported = reported;
       existing.sourceRows.push(Number(row[11]));
       existing.phones = [...new Set([...existing.phones, row[5], row[6]].filter(Boolean))];
       existing.emails = [...new Set([...existing.emails, row[7]].filter(Boolean))];

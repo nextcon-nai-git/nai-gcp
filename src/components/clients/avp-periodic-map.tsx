@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { aggregateAvpLocalities } from "@/lib/avp-geo-data";
 import { BRAZIL_STATES_PATHS } from "@/lib/brazil-states-paths";
-import { periodicCityKey, type PeriodicPerson } from "@/lib/avp-periodic-control";
+import { type PeriodicPerson } from "@/lib/avp-periodic-control";
 import {
   AVP_PERIODIC_PROGRESS,
   periodicProgress,
@@ -25,14 +25,14 @@ export function AvpPeriodicMap({
       city.counts[progress] = (city.counts[progress] || 0) + 1;
       cities.set(person.cityKey, city);
     }
-    return aggregateAvpLocalities(
-      [],
-      [...cities.values()].map((c) => ({ cidade: c.city, uf: c.uf }))
-    ).map((c) => ({
-      ...c,
-      cityKey: periodicCityKey(c.cidade, c.uf),
-      counts: cities.get(periodicCityKey(c.cidade, c.uf))?.counts || {},
-    }));
+    return [...cities.entries()].flatMap(([cityKey, city]) =>
+      aggregateAvpLocalities([], [{ cidade: city.city, uf: city.uf }]).map((locality) => ({
+        ...locality,
+        key: cityKey,
+        cityKey,
+        counts: city.counts,
+      }))
+    );
   }, [people]);
   const unknown = people.filter(
     (p) => (p.progress || periodicProgress(p.status)) === "unknown"

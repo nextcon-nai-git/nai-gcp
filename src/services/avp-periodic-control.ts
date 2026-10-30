@@ -53,15 +53,19 @@ export async function readAvpPeriodicControl(sources?: PeriodicSources) {
   if (providers.size > 5000) throw new Error("Cadastro de prestadores excede o limite de leitura.");
   const values = result.data.valueRanges;
   if (values?.length !== specs.length) throw new Error("Fontes AVP incompletas.");
-  async function readLiveTab(spreadsheetId: string, title: string, last: string, width: number) {
+  async function readLiveTab(spreadsheetId: string, title: string, width: number) {
     const metadata = await sheets.spreadsheets.get(
       { spreadsheetId, fields: "sheets.properties" },
       { timeout: 20000 }
     );
     const sheet = metadata.data.sheets?.find((s) => s.properties?.title === title)?.properties;
     const grid = sheet?.gridProperties;
-    if (!grid?.rowCount || grid.rowCount > 10000 || (grid.columnCount || 0) < width)
+    const columnCount = grid?.columnCount || 0;
+    if (!grid?.rowCount || grid.rowCount > 10000 || columnCount < width || columnCount > 256)
       throw new Error("Aba da campanha ou do credenciamento não encontrada ou fora dos limites.");
+    let last = "";
+    for (let n = columnCount; n > 0; n = Math.floor((n - 1) / 26))
+      last = String.fromCharCode(65 + ((n - 1) % 26)) + last;
     const result = await sheets.spreadsheets.values.get(
       {
         spreadsheetId,
@@ -75,8 +79,8 @@ export async function readAvpPeriodicControl(sources?: PeriodicSources) {
   const checkedAt = new Date().toISOString();
   const live = sources
     ? await Promise.all([
-        readLiveTab(sources.campaignSpreadsheetId, "Controle", "AF", 32),
-        readLiveTab(sources.accreditationSpreadsheetId, "NAI Credenciamento", "X", 24),
+        readLiveTab(sources.campaignSpreadsheetId, "Controle", 32),
+        readLiveTab(sources.accreditationSpreadsheetId, "NAI Credenciamento", 24),
       ])
     : null;
   const accreditation = live ? adaptLiveAccreditation(live[1], checkedAt) : null;

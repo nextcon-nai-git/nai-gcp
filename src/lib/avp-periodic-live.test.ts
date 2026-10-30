@@ -65,7 +65,7 @@ describe("fontes vivas dos periódicos", () => {
     expect(r.clinics[0].cents).toBe(7000);
     expect(r.clinics[0].notes).toContain("Valor atual: 80");
     expect(r.clinics[0].source).toContain("linha 3");
-    expect(r.providers[1][10]).toBe("Não");
+    expect(r.providers[1][10]).toBe("");
     expect(r.prices[1][4]).toBe("Credenciamento atual");
   });
   it("não substitui preço negociado ambíguo por outro preço nem atribui preço à clínica indefinida", () => {
@@ -106,6 +106,11 @@ describe("fontes vivas dos periódicos", () => {
 describe("quatro cores dos periódicos", () => {
   it.each([
     ["Não iniciado", "pending"],
+    ["Não agendado", "pending"],
+    ["Não realizado", "unknown"],
+    ["Não recebido ASO", "unknown"],
+    ["ASO não recebido", "unknown"],
+    ["Sem ASO recebido", "unknown"],
     ["Em contato", "pending"],
     ["Agendado", "scheduled"],
     ["ASO recebido", "received"],
