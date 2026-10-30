@@ -2,6 +2,7 @@
 import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
+import { UserAccessSettings } from "@/components/access/user-access-settings";
 import Link from "next/link";
 import {
   MapPin,
@@ -993,6 +994,14 @@ function ProvidersManagementSession() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20 text-left">
+      {role === "SUPER_ADMIN" && (
+        <Link
+          href="/providers/access"
+          className="inline-block rounded-xl border p-3 text-sm font-semibold"
+        >
+          Revisar e criar acessos restritos de prestadores
+        </Link>
+      )}
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/40 p-6 rounded-2xl border border-slate-800">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -1239,6 +1248,19 @@ function ProvidersManagementSession() {
                           >
                             {provider.name}
                           </button>
+                          <UserAccessSettings
+                            kind="provider"
+                            id={provider.id}
+                            name={provider.name}
+                          />
+                          {role === "SUPER_ADMIN" && (
+                            <Link
+                              href={`/providers/access?provider=${encodeURIComponent(provider.id)}`}
+                              className="mt-2 block text-xs underline"
+                            >
+                              Acesso restrito de prestador · somente CNPJs e cards
+                            </Link>
+                          )}
                           <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">
                             Vínculo: {provider.id}
                           </p>

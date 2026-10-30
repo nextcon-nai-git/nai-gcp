@@ -39,6 +39,9 @@ jobs:
       - name: Tests with coverage
         run: npm run test:coverage
 
+      - name: Dependency security regressions
+        run: npm run test:dependency-security
+
       - name: Build
         env:
           NODE_OPTIONS: --max-old-space-size=6144

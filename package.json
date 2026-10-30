@@ -24,7 +24,10 @@
     "infra:indexes": "firebase deploy --only firestore:indexes",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:rules": "npx --yes firebase-tools@15.33.0 emulators:exec --project demo-nai-security --only firestore,storage --config firebase.test.json \"vitest run --config vitest.rules.config.ts\""
+    "test:rules": "npx --yes firebase-tools@15.33.0 emulators:exec --project demo-nai-security --only firestore,storage --config firebase.test.json \"vitest run --config vitest.rules.config.ts\"",
+    "postinstall": "node scripts/security/apply-dependency-patches.mjs",
+    "test:dependency-security": "node scripts/security/apply-dependency-patches.mjs --check && node --test tests/security/dependency-patches.test.mjs",
+    "prebuild": "node scripts/security/apply-dependency-patches.mjs --check"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
@@ -81,7 +84,8 @@
     "recharts": "^2.15.1",
     "tailwind-merge": "^3.0.1",
     "tailwindcss-animate": "^1.0.7",
-    "zod": "^3.24.2"
+    "zod": "3.25.76",
+    "zod-security-v4": "npm:zod@4.6.7"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^4.0.1",
@@ -108,6 +112,7 @@
     "picomatch@<2.3.2": "^2.3.2",
     "@grpc/grpc-js": ">=1.14.0",
     "adm-zip": ">=0.5.12",
-    "@opentelemetry/propagator-jaeger": "2.9.0"
+    "@opentelemetry/propagator-jaeger": "2.9.0",
+    "zod@>=4.0.0 <4.6.6": "4.6.7"
   }
 }

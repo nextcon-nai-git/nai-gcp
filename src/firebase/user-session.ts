@@ -77,6 +77,14 @@ export function subscribeToUserSession(
           (snapshot) => {
             if (!isCurrent()) return;
             const profile = snapshot.exists() ? snapshot.data() : null;
+            if (profile?.accessEnabled === false) {
+              publish({
+                ...signedOut,
+                user,
+                userError: new Error("Acesso suspenso pelo administrador."),
+              });
+              return;
+            }
             // The server-managed profile is the UI source of truth. Cached claims may
             // still describe a permission that an administrator has just revoked.
             publish({

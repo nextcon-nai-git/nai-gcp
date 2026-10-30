@@ -421,6 +421,11 @@ export function AppSidebar() {
     const query = normalizeNavigationSearch(filterText);
     return NAV_MODULES.map((module) => {
       const visibleItems = module.items.filter((item) => {
+        if (
+          isProvider &&
+          /^\/(financial|cassi-billing|contracts|production|comercial|crm)(\/|$)/.test(item.href)
+        )
+          return false;
         if (isEngineeringProvider)
           return item.providerAudience === "engineering" || item.providerAudience === "all";
         if (isHealthProvider)
