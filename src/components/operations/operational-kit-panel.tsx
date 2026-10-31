@@ -4,6 +4,24 @@ import Link from "next/link";
 import { useUser } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import {
+  Building2,
+  CheckCheck,
+  ChevronDown,
+  CircleHelp,
+  Download,
+  Eye,
+  FileCheck2,
+  FolderOpen,
+  History,
+  Loader2,
+  MapPin,
+  Plus,
+  Search,
+  ShieldCheck,
+  Stethoscope,
+  Users,
+} from "lucide-react";
+import {
   KitSelection,
   type KitSelectionData,
   type KitPreview,
@@ -144,217 +162,329 @@ export function OperationalKitPanel({
       if (active.current) setBusy(false);
     }
   };
-  const fieldClass = "mt-1 w-full rounded border bg-background p-2 text-foreground";
+  const fieldClass = "mt-1 w-full rounded-md border bg-background p-2 text-foreground";
+  const summaryClass =
+    "flex cursor-pointer list-none items-center gap-2 rounded-lg p-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 [&::-webkit-details-marker]:hidden";
   const valid = KitSelection.safeParse(selection).success;
   return (
     <section className="space-y-4 rounded-xl border p-4" aria-label="Emissão de kits no NAI">
-      <h2 className="text-lg font-semibold">Preparar e emitir kits</h2>
-      <p className="text-sm">
-        Selecione até 10 colaboradores do mesmo cargo e setor. Preencha o protocolo conferido no PGR
-        e PCMSO. Você pode preparar pelo botão ou pedir na conversa: “Prepare os kits selecionados”.
-      </p>
-      <p className="text-sm text-muted-foreground">
-        O PDF contém pedido de exames, fichas em branco e minuta de ASO. Horário, envio à clínica e
-        pedido no SOC são etapas separadas.
-      </p>
-      <div className="flex flex-wrap gap-4 text-sm underline">
-        <Link href="/providers">Credenciar ou vincular clínica</Link>
-        <Link href={`/clients/${encodeURIComponent(companyId)}`}>
-          Cadastrar documentos do cliente
-        </Link>
-        <Link href="/health-control?tab=agendamento">Acompanhar solicitações e kits</Link>
-        {companyId === "GRUPO_AVP" && <Link href="/clients/grupo-avp">Conferir campanha AVP</Link>}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-lg font-semibold">
+          <FileCheck2 aria-hidden="true" className="h-5 w-5 text-primary" /> Novo kit
+        </h2>
+        <span className="rounded-full bg-muted px-3 py-1 text-xs">
+          {selection.employeeIds.length}/10 selecionados
+        </span>
       </div>
+      <details className="text-sm text-muted-foreground">
+        <summary className="inline-flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 focus-visible:outline focus-visible:outline-2">
+          <CircleHelp aria-hidden="true" className="h-4 w-4" /> Como funciona
+        </summary>
+        <div className="mt-2 space-y-2 rounded-lg bg-muted/40 p-3">
+          <p>
+            Selecione até 10 colaboradores do mesmo cargo e setor. Confira exames e riscos no PGR e
+            PCMSO. Para usar a conversa, peça: “Prepare os kits selecionados”.
+          </p>
+          <p>
+            O PDF contém pedido de exames, fichas em branco e minuta de ASO. Agendamento, envio à
+            clínica e pedido SOC são etapas separadas.
+          </p>
+          <p>
+            Use a competência real da campanha. Não altere o período para repetir uma emissão.
+            Ausência de riscos só pode ser informada quando documentada.
+          </p>
+        </div>
+      </details>
       {catalog?.campaign && (
-        <p className="text-sm">
-          Campanha AVP: {catalog.campaign.people} participantes, {catalog.campaign.review} em
-          revisão, {catalog.campaign.cities} municípios. Consulta: {catalog.campaign.checkedAt} ·{" "}
-          {catalog.campaign.status}. Confira na campanha os participantes e a clínica; nomes da
-          planilha não são vinculados automaticamente ao cadastro.
-        </p>
+        <details className="rounded-lg bg-muted/40 text-sm">
+          <summary className={`${summaryClass} flex-wrap`}>
+            <MapPin aria-hidden="true" className="h-4 w-4 text-primary" /> AVP
+            <span className="rounded-full border px-2 py-0.5 text-xs font-normal">
+              {catalog.campaign.people} participantes
+            </span>
+            <span className="rounded-full border px-2 py-0.5 text-xs font-normal">
+              {catalog.campaign.review} em revisão
+            </span>
+            <ChevronDown aria-hidden="true" className="ml-auto h-4 w-4" />
+          </summary>
+          <div className="space-y-2 px-3 pb-3 text-muted-foreground">
+            <p>
+              {catalog.campaign.cities} municípios · Consulta: {catalog.campaign.checkedAt} ·{" "}
+              {catalog.campaign.status}
+            </p>
+            <p>Nomes da planilha não são vinculados automaticamente ao cadastro.</p>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/clients/grupo-avp">
+                <MapPin aria-hidden="true" /> Abrir campanha
+              </Link>
+            </Button>
+          </div>
+        </details>
       )}
       {catalog?.campaignWarning && <p role="status">{catalog.campaignWarning}</p>}
-      {!catalog && !error && <p role="status">Carregando cadastros…</p>}
+      {!catalog && !error && (
+        <p role="status" className="flex items-center gap-2 text-sm">
+          <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> Carregando cadastros…
+        </p>
+      )}
       {catalog && (
-        <fieldset disabled={busy || disabled} className="space-y-4">
-          <label className="block text-sm">
-            Buscar colaborador por nome, cargo ou setor
-            <input
-              className={fieldClass}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </label>
-          <div className="max-h-52 overflow-auto rounded border p-3 space-y-2">
-            {catalog.employees
-              .filter((e) =>
-                `${e.name} ${e.role} ${e.department}`
-                  .toLocaleLowerCase("pt-BR")
-                  .includes(search.toLocaleLowerCase("pt-BR"))
-              )
-              .map((e) => (
-                <label key={e.id} className="flex gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={selection.employeeIds.includes(e.id)}
-                    disabled={
-                      !selection.employeeIds.includes(e.id) && selection.employeeIds.length >= 10
-                    }
-                    onChange={(event) =>
-                      update({
-                        employeeIds: event.target.checked
-                          ? [...selection.employeeIds, e.id]
-                          : selection.employeeIds.filter((id) => id !== e.id),
-                      })
-                    }
-                  />
-                  {e.name} · {e.role || "Cargo pendente"} · {e.department || "Setor pendente"}
-                </label>
-              ))}
-            {!catalog.employees.length && (
-              <p>Nenhum colaborador ativo cadastrado para este cliente.</p>
-            )}
-          </div>
-          <p className="text-sm">{selection.employeeIds.length} colaboradores selecionados</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm">
-              Clínica ativa vinculada
-              <select
-                className={fieldClass}
-                value={selection.clinicId}
-                onChange={(e) => update({ clinicId: e.target.value })}
-              >
-                <option value="">Selecione</option>
-                {catalog.clinics.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} · {c.city}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm">
-              Competência da campanha (não alterar para repetir emissão)
-              <input
-                className={fieldClass}
-                type="month"
-                value={selection.cycle}
-                onChange={(e) => update({ cycle: e.target.value })}
-              />
-            </label>
-            <label className="text-sm">
-              Tipo de exame
-              <select
-                className={fieldClass}
-                value={selection.examType}
-                onChange={(e) =>
-                  update({ examType: e.target.value as KitSelectionData["examType"] })
-                }
-              >
-                {Object.entries({
-                  periodico: "Periódico",
-                  admissional: "Admissional",
-                  demissional: "Demissional",
-                  retorno_trabalho: "Retorno ao trabalho",
-                  mudanca_funcao: "Mudança de riscos",
-                }).map(([id, name]) => (
-                  <option key={id} value={id}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {(
-              [
-                ["pcmsoDocumentId", "PCMSO"],
-                ["pgrDocumentId", "PGR"],
-              ] as const
-            ).map(([key, label]) => (
-              <label key={key} className="text-sm">
-                PDF {label} conferido
-                <select
+        <fieldset disabled={busy || disabled} className="space-y-3">
+          <details open className="rounded-lg border">
+            <summary className={summaryClass}>
+              <Users aria-hidden="true" className="h-4 w-4 text-primary" /> 1. Colaboradores
+              <span className="ml-auto text-xs font-normal text-muted-foreground">
+                {selection.employeeIds.length}/10
+              </span>
+              <ChevronDown aria-hidden="true" className="h-4 w-4" />
+            </summary>
+            <div className="space-y-3 border-t p-3">
+              <label className="block text-sm">
+                <span className="flex items-center gap-2">
+                  <Search aria-hidden="true" className="h-4 w-4" /> Buscar colaborador
+                </span>
+                <input
                   className={fieldClass}
-                  value={selection[key]}
-                  onChange={(e) => update({ [key]: e.target.value })}
-                >
-                  <option value="">Selecione</option>
-                  {catalog.documents.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Nome, cargo ou setor"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
               </label>
-            ))}
-            <label className="text-sm">
-              Médico responsável pelo PCMSO
-              <input
-                className={fieldClass}
-                maxLength={200}
-                value={selection.pcmsoDoctor}
-                onChange={(e) => update({ pcmsoDoctor: e.target.value })}
-              />
-            </label>
-            <label className="text-sm">
-              CRM/UF (ex.: 12345/SP)
-              <input
-                className={fieldClass}
-                maxLength={20}
-                value={selection.pcmsoCrm}
-                onChange={(e) => update({ pcmsoCrm: e.target.value })}
-              />
-            </label>
-          </div>
-          <label className="block text-sm">
-            Exames conferidos no PCMSO — um por linha
-            <textarea
-              className={fieldClass}
-              maxLength={6000}
-              rows={3}
-              value={exams}
-              onChange={(e) => {
-                setExams(e.target.value);
-                update({
-                  exams: e.target.value
-                    .split("\n")
-                    .map((v) => v.trim())
-                    .filter(Boolean),
-                });
-              }}
-            />
-          </label>
-          <label className="block text-sm">
-            Riscos conforme PGR/PCMSO — um por linha, incluindo ausência quando expressamente
-            documentada
-            <textarea
-              className={fieldClass}
-              maxLength={6000}
-              rows={3}
-              value={risks}
-              onChange={(e) => {
-                setRisks(e.target.value);
-                update({
-                  risks: e.target.value
-                    .split("\n")
-                    .map((v) => v.trim())
-                    .filter(Boolean),
-                });
-              }}
-            />
-          </label>
+              <div className="max-h-52 overflow-auto rounded border p-3 space-y-2">
+                {catalog.employees
+                  .filter((e) =>
+                    `${e.name} ${e.role} ${e.department}`
+                      .toLocaleLowerCase("pt-BR")
+                      .includes(search.toLocaleLowerCase("pt-BR"))
+                  )
+                  .map((e) => (
+                    <label key={e.id} className="flex gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selection.employeeIds.includes(e.id)}
+                        disabled={
+                          !selection.employeeIds.includes(e.id) &&
+                          selection.employeeIds.length >= 10
+                        }
+                        onChange={(event) =>
+                          update({
+                            employeeIds: event.target.checked
+                              ? [...selection.employeeIds, e.id]
+                              : selection.employeeIds.filter((id) => id !== e.id),
+                          })
+                        }
+                      />
+                      {e.name} · {e.role || "Cargo pendente"} · {e.department || "Setor pendente"}
+                    </label>
+                  ))}
+                {!catalog.employees.length && (
+                  <p className="text-sm text-muted-foreground">Nenhum colaborador ativo.</p>
+                )}
+                {!!catalog.employees.length &&
+                  !catalog.employees.some((e) =>
+                    `${e.name} ${e.role} ${e.department}`
+                      .toLocaleLowerCase("pt-BR")
+                      .includes(search.toLocaleLowerCase("pt-BR"))
+                  ) && (
+                    <p className="text-sm text-muted-foreground">
+                      Nenhum resultado para esta busca.
+                    </p>
+                  )}
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs text-muted-foreground">
+                  Mesmo cargo e setor · até 10 por lote
+                </span>
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/employees">
+                    <Plus aria-hidden="true" /> Colaboradores
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </details>
+          <details className="rounded-lg border">
+            <summary className={summaryClass}>
+              <Building2 aria-hidden="true" className="h-4 w-4 text-primary" /> 2. Clínica e período
+              {selection.clinicId && selection.cycle && (
+                <CheckCheck aria-label="Preenchido" className="ml-auto h-4 w-4 text-primary" />
+              )}
+              <ChevronDown aria-hidden="true" className="ml-auto h-4 w-4" />
+            </summary>
+            <div className="space-y-3 border-t p-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-sm">
+                  Clínica ativa vinculada
+                  <select
+                    className={fieldClass}
+                    value={selection.clinicId}
+                    onChange={(e) => update({ clinicId: e.target.value })}
+                  >
+                    <option value="">Selecione</option>
+                    {catalog.clinics.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} · {c.city}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm">
+                  Competência da campanha
+                  <input
+                    className={fieldClass}
+                    type="month"
+                    value={selection.cycle}
+                    onChange={(e) => update({ cycle: e.target.value })}
+                  />
+                </label>
+              </div>
+              {!catalog.clinics.length && (
+                <p className="text-xs text-muted-foreground">Nenhuma clínica ativa vinculada.</p>
+              )}
+              <Button asChild variant="outline" size="sm">
+                <Link href="/providers">
+                  <Plus aria-hidden="true" /> Vincular clínica
+                </Link>
+              </Button>
+            </div>
+          </details>
+          <details className="rounded-lg border">
+            <summary className={summaryClass}>
+              <Stethoscope aria-hidden="true" className="h-4 w-4 text-primary" /> 3. Documentos e
+              protocolo
+              <ChevronDown aria-hidden="true" className="ml-auto h-4 w-4" />
+            </summary>
+            <div className="space-y-3 border-t p-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-sm">
+                  Tipo de exame
+                  <select
+                    className={fieldClass}
+                    value={selection.examType}
+                    onChange={(e) =>
+                      update({ examType: e.target.value as KitSelectionData["examType"] })
+                    }
+                  >
+                    {Object.entries({
+                      periodico: "Periódico",
+                      admissional: "Admissional",
+                      demissional: "Demissional",
+                      retorno_trabalho: "Retorno ao trabalho",
+                      mudanca_funcao: "Mudança de riscos",
+                    }).map(([id, name]) => (
+                      <option key={id} value={id}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {(
+                  [
+                    ["pcmsoDocumentId", "PCMSO"],
+                    ["pgrDocumentId", "PGR"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label key={key} className="text-sm">
+                    {label}
+                    <select
+                      className={fieldClass}
+                      value={selection[key]}
+                      onChange={(e) => update({ [key]: e.target.value })}
+                    >
+                      <option value="">Selecione</option>
+                      {catalog.documents.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
+                <label className="text-sm">
+                  Médico do PCMSO
+                  <input
+                    className={fieldClass}
+                    maxLength={200}
+                    value={selection.pcmsoDoctor}
+                    onChange={(e) => update({ pcmsoDoctor: e.target.value })}
+                  />
+                </label>
+                <label className="text-sm">
+                  CRM/UF
+                  <input
+                    className={fieldClass}
+                    maxLength={20}
+                    placeholder="12345/SP"
+                    value={selection.pcmsoCrm}
+                    onChange={(e) => update({ pcmsoCrm: e.target.value })}
+                  />
+                </label>
+              </div>
+              <label className="block text-sm">
+                Exames do PCMSO
+                <textarea
+                  className={fieldClass}
+                  maxLength={6000}
+                  rows={3}
+                  placeholder="Um exame por linha"
+                  value={exams}
+                  onChange={(e) => {
+                    setExams(e.target.value);
+                    update({
+                      exams: e.target.value
+                        .split("\n")
+                        .map((v) => v.trim())
+                        .filter(Boolean),
+                    });
+                  }}
+                />
+              </label>
+              <label className="block text-sm">
+                Riscos do PGR/PCMSO
+                <textarea
+                  className={fieldClass}
+                  maxLength={6000}
+                  rows={3}
+                  placeholder="Um risco por linha, conforme os documentos"
+                  value={risks}
+                  onChange={(e) => {
+                    setRisks(e.target.value);
+                    update({
+                      risks: e.target.value
+                        .split("\n")
+                        .map((v) => v.trim())
+                        .filter(Boolean),
+                    });
+                  }}
+                />
+              </label>
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/clients/${encodeURIComponent(companyId)}`}>
+                  <FolderOpen aria-hidden="true" /> Documentos do cliente
+                </Link>
+              </Button>
+            </div>
+          </details>
           <Button disabled={!valid || busy} onClick={() => void execute("prepare")}>
+            {busy ? (
+              <Loader2 aria-hidden="true" className="animate-spin" />
+            ) : (
+              <Eye aria-hidden="true" />
+            )}
             Preparar prévia
           </Button>
           {!valid && (
             <p className="text-sm text-muted-foreground">
-              Complete os campos e selecione colaboradores, clínica e os dois documentos para
-              preparar.
+              Preencha os três blocos para preparar a prévia.
             </p>
           )}
         </fieldset>
       )}
       {preview && (
         <div className="space-y-3 rounded border p-4">
-          <h3 className="font-semibold">Conferir antes de gerar</h3>
+          <h3 className="flex items-center gap-2 font-semibold">
+            <ShieldCheck aria-hidden="true" className="h-5 w-5 text-primary" /> Conferir antes de
+            gerar
+          </h3>
           <p>
             {preview.company} · {preview.examType} · {preview.cycle}
           </p>
@@ -375,8 +505,10 @@ export function OperationalKitPanel({
             Médico do PCMSO: {preview.pcmsoDoctor} · {preview.pcmsoCrm}
           </p>
           <p className="text-sm">
-            Prévia válida por 30 minutos. As referências dos documentos foram conferidas no
-            cadastro; conteúdo, vigência e adequação ao trabalhador precisam da sua revisão.
+            Válida por 30 min. Confira conteúdo, vigência e adequação dos documentos ao trabalhador.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Gera PDF e minuta de ASO. Não agenda, envia ou cria pedido SOC.
           </p>
           <label className="flex gap-2 text-sm">
             <input
@@ -389,6 +521,11 @@ export function OperationalKitPanel({
             riscos para todos os colaboradores selecionados.
           </label>
           <Button disabled={busy || disabled || !reviewed} onClick={() => void execute("confirm")}>
+            {busy ? (
+              <Loader2 aria-hidden="true" className="animate-spin" />
+            ) : (
+              <FileCheck2 aria-hidden="true" />
+            )}
             Confirmar e gerar {preview.employees.length} kits no NAI
           </Button>
         </div>
@@ -399,6 +536,7 @@ export function OperationalKitPanel({
           {results.map((r) => (
             <div key={r.id}>
               <Button disabled={busy || disabled} onClick={() => void download(r)}>
+                <Download aria-hidden="true" />
                 Baixar · {r.employeeName}
               </Button>
               <span className="ml-2 text-sm">
@@ -410,10 +548,15 @@ export function OperationalKitPanel({
       )}
       {!!catalog?.history.length && (
         <details>
-          <summary>Últimos 50 kits arquivados deste cliente</summary>
+          <summary className={summaryClass}>
+            <History aria-hidden="true" className="h-4 w-4" /> Histórico de kits{" "}
+            <span className="text-xs text-muted-foreground">Últimos 50</span>
+            <ChevronDown aria-hidden="true" className="ml-auto h-4 w-4" />
+          </summary>
           <div className="space-y-2 mt-3">
             {catalog.history.map((r) => (
               <Button key={r.id} disabled={busy || disabled} onClick={() => void download(r)}>
+                <Download aria-hidden="true" />
                 {r.filename}
               </Button>
             ))}

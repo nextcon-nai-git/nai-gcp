@@ -9,6 +9,20 @@ import type { WorkActionData } from "@/lib/work-assistant";
 import { OperationsShortcuts } from "@/components/operations/operations-shortcuts";
 import { OperationalKitPanel } from "@/components/operations/operational-kit-panel";
 import type { KitPreview, KitSelectionData } from "@/lib/operational-kits";
+import {
+  Bot,
+  CalendarDays,
+  ChevronDown,
+  CircleHelp,
+  FileCheck2,
+  FolderOpen,
+  Loader2,
+  Send,
+  ShieldCheck,
+  Sparkles,
+  Unplug,
+  Wifi,
+} from "lucide-react";
 
 type Message = { role: "user" | "assistant"; content: string };
 export default function WorkAssistantPage() {
@@ -136,21 +150,26 @@ function AssistantSession({ companyId }: { companyId: string }) {
     }
   }
   return (
-    <main className="mx-auto max-w-4xl space-y-5">
-      <h1 className="text-2xl font-bold">Assistente de trabalho</h1>
-      <p className="text-sm text-muted-foreground">
-        Consulte os cards e documentos cadastrados do cliente selecionado e prepare novas ações.
-      </p>
-      {configured !== null && (
-        <section className="space-y-3 rounded-xl border p-4">
-          <h2 className="text-lg font-semibold">Clínicas e kits no NAI</h2>
-          <OperationsShortcuts includeAssistant={false} />
-          <p className="text-sm text-muted-foreground">
-            Cadastre a clínica e confira a campanha nos módulos acima. Prepare os kits nesta tela e
-            confirme a emissão após revisar os dados.
-          </p>
-        </section>
-      )}
+    <main id="main-content" className="mx-auto max-w-4xl space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="flex items-center gap-2 text-2xl font-bold">
+          <FileCheck2 aria-hidden="true" className="h-6 w-6 text-primary" /> Clínicas e kits
+        </h1>
+        {configured !== null && (
+          <span
+            role="status"
+            className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs text-muted-foreground"
+          >
+            {configured ? (
+              <Bot aria-hidden="true" className="h-4 w-4" />
+            ) : (
+              <Unplug aria-hidden="true" className="h-4 w-4" />
+            )}
+            {configured ? "IA · configuração presente" : "IA · configuração pendente"}
+          </span>
+        )}
+      </div>
+      {configured !== null && <OperationsShortcuts includeAssistant={false} compact />}
       {configured !== null && !["all", "unauthorized"].includes(companyId) && (
         <OperationalKitPanel
           companyId={companyId}
@@ -162,94 +181,128 @@ function AssistantSession({ companyId }: { companyId: string }) {
         />
       )}
       {companyId === "all" ? (
-        <p role="status">Selecione um cliente no cabeçalho para começar.</p>
+        <p
+          role="status"
+          className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground"
+        >
+          Selecione um cliente no cabeçalho para começar.
+        </p>
       ) : (
-        <div className="flex gap-4">
-          <Link href={`/clients/${encodeURIComponent(companyId)}`}>Documentos do cliente</Link>
-          <Link href={`/action-plans?company=${encodeURIComponent(companyId)}`}>
-            Cards e calendário
-          </Link>
-        </div>
-      )}
-      {configured === false && (
-        <p role="status">A integração OpenAI aguarda configuração pela administração.</p>
-      )}
-      {configured === true && (
-        <div className="space-y-2">
-          <p className="text-sm">
-            Configuração OpenAI presente no servidor. Isso, isoladamente, não comprova conexão.
-          </p>
-          <Button disabled={busy || kitBusy || companyId === "all"} onClick={() => void probe()}>
-            Testar conexão OpenAI
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/clients/${encodeURIComponent(companyId)}`}>
+              <FolderOpen aria-hidden="true" /> Documentos
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/action-plans?company=${encodeURIComponent(companyId)}`}>
+              <CalendarDays aria-hidden="true" /> Cards e calendário
+            </Link>
           </Button>
         </div>
       )}
-      <details className="text-sm text-muted-foreground">
-        <summary>O que o assistente pode acessar</summary>
-        <p>
-          São enviados à OpenAI sua mensagem, os nomes dos documentos e até 200 cards do cliente.
-          PDFs, prontuários, e-mail e Drive não são lidos por esta integração. A conversa fica nesta
-          tela; ao trocar de cliente, ela é encerrada. Novos cards exigem sua confirmação abaixo.
-          Para kits, a OpenAI recebe somente a quantidade selecionada; cadastros e protocolo do
-          formulário são validados no NAI. Não inclua dados clínicos na mensagem.
-        </p>
-      </details>
-      <div role="log" aria-label="Conversa com o assistente" className="space-y-4">
-        {messages.map((m, i) => (
-          <div key={i} className="rounded-xl border p-4">
-            <p className="mb-2 text-xs font-bold">{m.role === "user" ? "Você" : "NAI"}</p>
-            <p className="whitespace-pre-wrap">{m.content}</p>
-          </div>
-        ))}
-      </div>
       {error && (
         <p role="alert" className="text-red-600">
           {error}
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
-      {proposal && (
-        <section className="space-y-3 rounded-xl border p-4">
-          <h2 className="font-bold">Conferir ações propostas</h2>
-          {proposal.actions.map((a, i) => (
-            <div key={i} className="border-b pb-3">
-              <h3 className="font-medium">{a.title}</h3>
-              <p className="whitespace-pre-wrap text-sm">{a.instructions}</p>
-              <p className="text-sm">
-                Responsável: {a.responsibleName || "A definir"} · Prazo:{" "}
-                {a.dueDate || "Depende de evento ou confirmação"} ·{" "}
-                {a.deadlineBasis === "plan"
-                  ? "Meta do plano"
-                  : a.deadlineBasis === "legal_event"
-                    ? "Obrigação por evento"
-                    : "A confirmar"}
-              </p>
-              <p className="text-sm">Fonte: {a.source || "Não informada"}</p>
-            </div>
-          ))}
-          <Button disabled={busy} onClick={() => void apply()}>
-            Confirmar e criar {proposal.actions.length} cards
+      <details className="group rounded-xl border">
+        <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl p-4 font-semibold focus-visible:outline focus-visible:outline-2 [&::-webkit-details-marker]:hidden">
+          <Sparkles aria-hidden="true" className="h-5 w-5 text-primary" /> Conversar com o NAI
+          <ChevronDown
+            aria-hidden="true"
+            className="ml-auto h-4 w-4 transition-transform group-open:rotate-180"
+          />
+        </summary>
+        <div className="space-y-4 border-t p-4">
+          {configured === false && (
+            <p role="status" className="text-sm text-muted-foreground">
+              IA ainda não configurada. Você já pode preparar kits pelo formulário.
+            </p>
+          )}
+          {configured === true && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy || kitBusy || companyId === "all"}
+              onClick={() => void probe()}
+            >
+              <Wifi aria-hidden="true" /> Testar conexão OpenAI
+            </Button>
+          )}
+          <details className="text-sm text-muted-foreground">
+            <summary className="inline-flex cursor-pointer items-center gap-2">
+              <CircleHelp aria-hidden="true" className="h-4 w-4" /> Privacidade e ajuda
+            </summary>
+            <p>
+              São enviados à OpenAI sua mensagem, os nomes dos documentos e até 200 cards do
+              cliente. PDFs, prontuários, e-mail e Drive não são lidos por esta integração. A
+              conversa fica nesta tela; ao trocar de cliente, ela é encerrada. Novos cards exigem
+              sua confirmação abaixo. Para kits, a OpenAI recebe somente a quantidade selecionada;
+              cadastros e protocolo do formulário são validados no NAI. Não inclua dados clínicos na
+              mensagem.
+            </p>
+          </details>
+          <div role="log" aria-label="Conversa com o assistente" className="space-y-4">
+            {messages.map((m, i) => (
+              <div key={i} className="rounded-xl border p-4">
+                <p className="mb-2 text-xs font-bold">{m.role === "user" ? "Você" : "NAI"}</p>
+                <p className="whitespace-pre-wrap">{m.content}</p>
+              </div>
+            ))}
+          </div>
+          {proposal && (
+            <section className="space-y-3 rounded-xl border p-4">
+              <h2 className="font-bold">Conferir ações propostas</h2>
+              {proposal.actions.map((a, i) => (
+                <div key={i} className="border-b pb-3">
+                  <h3 className="font-medium">{a.title}</h3>
+                  <p className="whitespace-pre-wrap text-sm">{a.instructions}</p>
+                  <p className="text-sm">
+                    Responsável: {a.responsibleName || "A definir"} · Prazo:{" "}
+                    {a.dueDate || "Depende de evento ou confirmação"} ·{" "}
+                    {a.deadlineBasis === "plan"
+                      ? "Meta do plano"
+                      : a.deadlineBasis === "legal_event"
+                        ? "Obrigação por evento"
+                        : "A confirmar"}
+                  </p>
+                  <p className="text-sm">Fonte: {a.source || "Não informada"}</p>
+                </div>
+              ))}
+              <Button disabled={busy} onClick={() => void apply()}>
+                <ShieldCheck aria-hidden="true" />
+                Confirmar e criar {proposal.actions.length} cards
+              </Button>
+            </section>
+          )}
+          <label htmlFor="work-message" className="block font-medium">
+            Sua solicitação
+          </label>
+          <Textarea
+            id="work-message"
+            maxLength={12000}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            disabled={busy || kitBusy || !configured || companyId === "all"}
+            placeholder="Ex.: Prepare os kits selecionados"
+            rows={2}
+          />
+          <p className="text-xs text-muted-foreground">Não inclua dados clínicos na mensagem.</p>
+          <Button
+            onClick={() => void send()}
+            disabled={busy || kitBusy || !configured || companyId === "all" || !input.trim()}
+          >
+            {busy ? (
+              <Loader2 aria-hidden="true" className="animate-spin" />
+            ) : (
+              <Send aria-hidden="true" />
+            )}
+            {busy ? "Processando…" : "Enviar"}
           </Button>
-        </section>
-      )}
-      <label htmlFor="work-message" className="block font-medium">
-        Sua solicitação
-      </label>
-      <Textarea
-        id="work-message"
-        maxLength={12000}
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        disabled={busy || kitBusy || !configured || companyId === "all"}
-        placeholder="Organize as próximas ações deste cliente e indique os prazos já registrados."
-        rows={4}
-      />
-      <Button
-        onClick={() => void send()}
-        disabled={busy || kitBusy || !configured || companyId === "all" || !input.trim()}
-      >
-        {busy ? "Processando…" : "Enviar"}
-      </Button>
+        </div>
+      </details>
     </main>
   );
 }
