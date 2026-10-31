@@ -5,6 +5,8 @@ import { useUser } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import {
   Building2,
+  ArrowLeft,
+  ArrowRight,
   CheckCheck,
   ChevronDown,
   CircleHelp,
@@ -16,10 +18,12 @@ import {
   Loader2,
   MapPin,
   Plus,
+  RefreshCw,
   Search,
   ShieldCheck,
   Stethoscope,
   Users,
+  X,
 } from "lucide-react";
 import {
   KitSelection,
@@ -61,6 +65,10 @@ export function OperationalKitPanel({
   const [exams, setExams] = React.useState(""),
     [risks, setRisks] = React.useState("");
   const [search, setSearch] = React.useState("");
+  const [onlySelected, setOnlySelected] = React.useState(false);
+  const peopleStep = React.useRef<HTMLDetailsElement>(null);
+  const clinicStep = React.useRef<HTMLDetailsElement>(null);
+  const protocolStep = React.useRef<HTMLDetailsElement>(null);
   const [reviewed, setReviewed] = React.useState(false);
   const [busy, setBusy] = React.useState(false),
     [error, setError] = React.useState("");
@@ -109,6 +117,46 @@ export function OperationalKitPanel({
     setResults([]);
     const valid = KitSelection.safeParse(next);
     onSelection(valid.success ? valid.data : undefined);
+  };
+  const showStep = (ref: React.RefObject<HTMLDetailsElement | null>) => {
+    if (busy || disabled || !ref.current) return;
+    ref.current.open = true;
+    const summary = ref.current.querySelector("summary");
+    summary?.focus();
+    summary?.scrollIntoView?.({ block: "nearest" });
+  };
+  const refresh = async () => {
+    if (disabled || locked.current) return;
+    locked.current = true;
+    setBusy(true);
+    onBusy(true);
+    setError("");
+    setCatalog(null);
+    onPreview(null);
+    onSelection(undefined);
+    setReviewed(false);
+    try {
+      const data: KitCatalog = await (await request()).json();
+      if (!active.current) return;
+      setCatalog(data);
+      const parsed = KitSelection.safeParse(selection);
+      const referencesPresent =
+        selection.employeeIds.every((id) => data.employees.some((e) => e.id === id)) &&
+        data.clinics.some((c) => c.id === selection.clinicId) &&
+        [selection.pgrDocumentId, selection.pcmsoDocumentId].every((id) =>
+          data.documents.some((d) => d.id === id)
+        );
+      onSelection(parsed.success && referencesPresent ? parsed.data : undefined);
+    } catch (e) {
+      if (active.current)
+        setError(e instanceof Error ? e.message : "Falha ao atualizar cadastros.");
+    } finally {
+      locked.current = false;
+      if (active.current) {
+        setBusy(false);
+        onBusy(false);
+      }
+    }
   };
   const execute = async (action: "prepare" | "confirm") => {
     if (disabled || locked.current || (action === "confirm" && (!preview || !reviewed))) return;
@@ -166,15 +214,32 @@ export function OperationalKitPanel({
   const summaryClass =
     "flex cursor-pointer list-none items-center gap-2 rounded-lg p-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 [&::-webkit-details-marker]:hidden";
   const valid = KitSelection.safeParse(selection).success;
+  const missingCatalog =
+    !!catalog &&
+    (!catalog.employees.length || !catalog.clinics.length || catalog.documents.length < 2);
+  const visibleEmployees =
+    catalog?.employees.filter(
+      (e) =>
+        (!onlySelected || selection.employeeIds.includes(e.id)) &&
+        `${e.name} ${e.role} ${e.department}`
+          .toLocaleLowerCase("pt-BR")
+          .includes(search.toLocaleLowerCase("pt-BR"))
+    ) || [];
   return (
     <section className="space-y-4 rounded-xl border p-4" aria-label="Emissão de kits no NAI">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-lg font-semibold">
           <FileCheck2 aria-hidden="true" className="h-5 w-5 text-primary" /> Novo kit
         </h2>
-        <span className="rounded-full bg-muted px-3 py-1 text-xs">
-          {selection.employeeIds.length}/10 selecionados
-        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={busy || disabled || (!catalog && !error)}
+          onClick={() => void refresh()}
+        >
+          <RefreshCw aria-hidden="true" className={busy ? "animate-spin" : ""} /> Atualizar
+          cadastros
+        </Button>
       </div>
       <details className="text-sm text-muted-foreground">
         <summary className="inline-flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 focus-visible:outline focus-visible:outline-2">
@@ -227,9 +292,56 @@ export function OperationalKitPanel({
           <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> Carregando cadastros…
         </p>
       )}
-      {catalog && (
+      {catalog && missingCatalog && (
+        <div className="space-y-3">
+          <p className="text-sm font-medium">Antes de preparar</p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {[
+              {
+                label: "Colaboradores",
+                count: `${catalog.employees.length} ativos`,
+                missing: !catalog.employees.length,
+                icon: Users,
+                href: "/employees",
+                action: "Cadastrar",
+              },
+              {
+                label: "Clínicas",
+                count: `${catalog.clinics.length} vinculadas`,
+                missing: !catalog.clinics.length,
+                icon: Building2,
+                href: "/providers",
+                action: "Vincular",
+              },
+              {
+                label: "PGR e PCMSO",
+                count: `${catalog.documents.length} documentos no acervo`,
+                missing: catalog.documents.length < 2,
+                icon: FolderOpen,
+                href: `/clients/${encodeURIComponent(companyId)}`,
+                action: "Adicionar",
+              },
+            ].map(({ icon: Icon, ...item }) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                className={`flex min-w-0 flex-col gap-2 rounded-xl border p-4 focus-visible:outline focus-visible:outline-2 hover:bg-muted ${item.missing ? "border-amber-500/40 bg-amber-500/5" : "bg-muted/30"}`}
+              >
+                <Icon aria-hidden="true" className="h-5 w-5 text-primary" />
+                <span className="font-medium">{item.label}</span>
+                <span className="text-xs text-muted-foreground">{item.count}</span>
+                <span className="mt-auto flex items-center gap-2 text-sm font-medium">
+                  {item.missing ? item.action : "Conferir"}
+                  <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+      {catalog && !missingCatalog && (
         <fieldset disabled={busy || disabled} className="space-y-3">
-          <details open className="rounded-lg border">
+          <details open ref={peopleStep} className="rounded-lg border">
             <summary className={summaryClass}>
               <Users aria-hidden="true" className="h-4 w-4 text-primary" /> 1. Colaboradores
               <span className="ml-auto text-xs font-normal text-muted-foreground">
@@ -249,46 +361,55 @@ export function OperationalKitPanel({
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </label>
-              <div className="max-h-52 overflow-auto rounded border p-3 space-y-2">
-                {catalog.employees
-                  .filter((e) =>
-                    `${e.name} ${e.role} ${e.department}`
-                      .toLocaleLowerCase("pt-BR")
-                      .includes(search.toLocaleLowerCase("pt-BR"))
-                  )
-                  .map((e) => (
-                    <label key={e.id} className="flex gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selection.employeeIds.includes(e.id)}
-                        disabled={
-                          !selection.employeeIds.includes(e.id) &&
-                          selection.employeeIds.length >= 10
-                        }
-                        onChange={(event) =>
-                          update({
-                            employeeIds: event.target.checked
-                              ? [...selection.employeeIds, e.id]
-                              : selection.employeeIds.filter((id) => id !== e.id),
-                          })
-                        }
-                      />
-                      {e.name} · {e.role || "Cargo pendente"} · {e.department || "Setor pendente"}
-                    </label>
-                  ))}
-                {!catalog.employees.length && (
-                  <p className="text-sm text-muted-foreground">Nenhum colaborador ativo.</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant={onlySelected ? "secondary" : "outline"}
+                  size="sm"
+                  aria-pressed={onlySelected}
+                  onClick={() => setOnlySelected(!onlySelected)}
+                >
+                  <CheckCheck aria-hidden="true" /> Selecionados ({selection.employeeIds.length})
+                </Button>
+                {!!selection.employeeIds.length && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      update({ employeeIds: [] });
+                      setOnlySelected(false);
+                    }}
+                  >
+                    <X aria-hidden="true" /> Limpar seleção
+                  </Button>
                 )}
-                {!!catalog.employees.length &&
-                  !catalog.employees.some((e) =>
-                    `${e.name} ${e.role} ${e.department}`
-                      .toLocaleLowerCase("pt-BR")
-                      .includes(search.toLocaleLowerCase("pt-BR"))
-                  ) && (
-                    <p className="text-sm text-muted-foreground">
-                      Nenhum resultado para esta busca.
-                    </p>
-                  )}
+              </div>
+              <div className="max-h-52 overflow-auto rounded border p-3 space-y-2">
+                {visibleEmployees.map((e) => (
+                  <label key={e.id} className="flex gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selection.employeeIds.includes(e.id)}
+                      disabled={
+                        !selection.employeeIds.includes(e.id) && selection.employeeIds.length >= 10
+                      }
+                      onChange={(event) =>
+                        update({
+                          employeeIds: event.target.checked
+                            ? [...selection.employeeIds, e.id]
+                            : selection.employeeIds.filter((id) => id !== e.id),
+                        })
+                      }
+                    />
+                    {e.name} · {e.role || "Cargo pendente"} · {e.department || "Setor pendente"}
+                  </label>
+                ))}
+                {!visibleEmployees.length && (
+                  <p className="text-sm text-muted-foreground">
+                    {onlySelected
+                      ? "Nenhum selecionado nesta busca."
+                      : "Nenhum resultado para esta busca."}
+                  </p>
+                )}
               </div>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs text-muted-foreground">
@@ -300,9 +421,12 @@ export function OperationalKitPanel({
                   </Link>
                 </Button>
               </div>
+              <Button disabled={!selection.employeeIds.length} onClick={() => showStep(clinicStep)}>
+                Continuar para clínica <ArrowRight aria-hidden="true" />
+              </Button>
             </div>
           </details>
-          <details className="rounded-lg border">
+          <details ref={clinicStep} className="rounded-lg border">
             <summary className={summaryClass}>
               <Building2 aria-hidden="true" className="h-4 w-4 text-primary" /> 2. Clínica e período
               {selection.clinicId && selection.cycle && (
@@ -345,9 +469,22 @@ export function OperationalKitPanel({
                   <Plus aria-hidden="true" /> Vincular clínica
                 </Link>
               </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="ghost" onClick={() => showStep(peopleStep)}>
+                  <ArrowLeft aria-hidden="true" /> Colaboradores
+                </Button>
+                <Button
+                  disabled={
+                    !selection.clinicId || !/^20\d{2}-(0[1-9]|1[0-2])$/.test(selection.cycle)
+                  }
+                  onClick={() => showStep(protocolStep)}
+                >
+                  Continuar para protocolo <ArrowRight aria-hidden="true" />
+                </Button>
+              </div>
             </div>
           </details>
-          <details className="rounded-lg border">
+          <details ref={protocolStep} className="rounded-lg border">
             <summary className={summaryClass}>
               <Stethoscope aria-hidden="true" className="h-4 w-4 text-primary" /> 3. Documentos e
               protocolo
@@ -461,6 +598,9 @@ export function OperationalKitPanel({
                 <Link href={`/clients/${encodeURIComponent(companyId)}`}>
                   <FolderOpen aria-hidden="true" /> Documentos do cliente
                 </Link>
+              </Button>
+              <Button variant="ghost" className="ml-2" onClick={() => showStep(clinicStep)}>
+                <ArrowLeft aria-hidden="true" /> Clínica e período
               </Button>
             </div>
           </details>

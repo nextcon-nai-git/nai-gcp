@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { WorkActionData } from "@/lib/work-assistant";
 import { OperationsShortcuts } from "@/components/operations/operations-shortcuts";
 import { OperationalKitPanel } from "@/components/operations/operational-kit-panel";
+import { KitCompanySelector } from "@/components/operations/kit-company-selector";
 import type { KitPreview, KitSelectionData } from "@/lib/operational-kits";
 import {
   Bot,
@@ -169,7 +170,13 @@ function AssistantSession({ companyId }: { companyId: string }) {
           </span>
         )}
       </div>
+      {configured === null && !error && (
+        <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> Verificando acesso…
+        </p>
+      )}
       {configured !== null && <OperationsShortcuts includeAssistant={false} compact />}
+      {configured !== null && <KitCompanySelector disabled={busy || kitBusy} />}
       {configured !== null && !["all", "unauthorized"].includes(companyId) && (
         <OperationalKitPanel
           companyId={companyId}
@@ -180,14 +187,14 @@ function AssistantSession({ companyId }: { companyId: string }) {
           onBusy={setKitBusy}
         />
       )}
-      {companyId === "all" ? (
+      {configured !== null && companyId === "all" ? (
         <p
           role="status"
           className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground"
         >
-          Selecione um cliente no cabeçalho para começar.
+          Escolha o cliente acima para preparar um kit.
         </p>
-      ) : (
+      ) : configured !== null && companyId !== "unauthorized" ? (
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
             <Link href={`/clients/${encodeURIComponent(companyId)}`}>
@@ -200,7 +207,7 @@ function AssistantSession({ companyId }: { companyId: string }) {
             </Link>
           </Button>
         </div>
-      )}
+      ) : null}
       {error && (
         <p role="alert" className="text-red-600">
           {error}

@@ -61,6 +61,60 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 describe("operational kit review UI", () => {
+  it("replaces unusable fields with registration actions when the catalog is incomplete", async () => {
+    m.fetch.mockResolvedValue(response({ employees: [], clinics: [], documents: [], history: [] }));
+    await view.render(element());
+    expect(view.container.textContent).toContain("Antes de preparar");
+    expect(view.container.querySelector('input[type="month"]')).toBeNull();
+    expect(view.container.querySelector('a[href="/employees"]')).not.toBeNull();
+    expect(view.container.querySelector('a[href="/providers"]')).not.toBeNull();
+    expect(view.container.querySelector('a[href="/clients/ONE"]')).not.toBeNull();
+  });
+  it("guides the operator through the selected employees and clinic before the protocol", async () => {
+    await view.render(element());
+    expect(view.button("Continuar para clínica").disabled).toBe(true);
+    await act(async () =>
+      view.container.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click()
+    );
+    await view.click("Continuar para clínica");
+    expect(view.container.querySelector('input[type="month"]')?.closest("details")?.open).toBe(
+      true
+    );
+    expect(view.button("Continuar para protocolo").disabled).toBe(true);
+    await view.input("select", "c1");
+    await view.input('input[type="month"]', "2026-11");
+    await view.click("Continuar para protocolo");
+    expect(view.container.querySelector("textarea")?.closest("details")?.open).toBe(true);
+    expect(view.button("Preparar prévia").disabled).toBe(true);
+  });
+  it("invalidates reviewed previews while refreshing and requires a new review afterwards", async () => {
+    await view.render(element(preview));
+    await act(async () =>
+      view.container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[1].click()
+    );
+    const pending = deferred<ReturnType<typeof response>>();
+    m.fetch.mockReturnValue(pending.promise);
+    await view.click("Atualizar cadastros");
+    expect(m.preview).toHaveBeenLastCalledWith(null);
+    expect(m.selection).toHaveBeenLastCalledWith(undefined);
+    expect(view.button("Confirmar e gerar").disabled).toBe(true);
+    await act(async () => pending.resolve(response(catalog)));
+    expect(view.button("Confirmar e gerar").disabled).toBe(true);
+    expect(m.busy).toHaveBeenLastCalledWith(false);
+    expect(m.fetch.mock.calls.every((call) => call[1].method === "GET")).toBe(true);
+  });
+  it("clears selected employees and invalidates the preview", async () => {
+    await view.render(element(preview));
+    await act(async () =>
+      view.container.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click()
+    );
+    await view.click("Selecionados (1)");
+    expect(view.button("Selecionados (1)").getAttribute("aria-pressed")).toBe("true");
+    await view.click("Limpar seleção");
+    expect(view.button("Selecionados (0)").getAttribute("aria-pressed")).toBe("false");
+    expect(m.selection).toHaveBeenLastCalledWith(undefined);
+    expect(m.preview).toHaveBeenLastCalledWith(null);
+  });
   it("requires review, sends only the saved proposal and does not claim SOC delivery", async () => {
     await view.render(element(preview));
     expect(view.button("Confirmar e gerar").disabled).toBe(true);
