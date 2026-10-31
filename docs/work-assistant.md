@@ -2,6 +2,12 @@
 
 A rota `/assistente` adiciona uma integração própria com a Responses API da OpenAI. Não incorpora a sessão do ChatGPT Work nem herda seus conectores, arquivos, assinatura ou permissões.
 
+O menu **Assistente NAI · Clínicas e kits** e a área de integrações levam a essa rota.
+Após a autorização da API, os botões permitem abrir credenciamento de clínicas,
+agendamento/geração de kits e a campanha AVP usando a sessão do NAI. Esses botões
+funcionam mesmo quando a OpenAI ainda não está configurada e não exigem login SOC.
+São acessos aos módulos existentes: a conversa ainda não executa essas operações.
+
 O piloto é limitado aos administradores internos já autorizados a importar documentos. Consulta nomes de documentos e até 200 cards de um único cliente, prepara respostas e propostas, e cria cards somente após confirmação explícita. As propostas ficam vinculadas ao usuário e cliente, expiram após uma hora e são aplicadas em transação idempotente. Não envia e-mails, não acessa Drive, não lê PDFs nem assina programas. Dados clínicos individuais não devem ser incluídos nas mensagens ou cards gerais.
 
 ## Ativação

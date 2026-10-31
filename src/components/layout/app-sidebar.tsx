@@ -139,6 +139,7 @@ const NAV_CATALOG: NavModule[] = [
         providerAudience: "all",
       },
       { title: "NAI importa", icon: FileSearch, href: "/nai-importa", badge: "IA" },
+      { title: "Assistente NAI · Clínicas e kits", icon: Bot, href: "/assistente", badge: "IA" },
       { title: "Grupo AVP · Mapa e fila", icon: MapPin, href: "/clients/grupo-avp" },
       { title: "Agentes SST", icon: Bot, href: "/agentes-ia" },
       {
@@ -299,6 +300,7 @@ const catalogItems = NAV_CATALOG.flatMap((module) => module.items);
 const operationalRoutes = new Set([
   "/suppliers/qualification",
   "/nai-importa",
+  "/assistente",
   "/clients/grupo-avp",
   "/agentes-ia",
   "/health-control",
