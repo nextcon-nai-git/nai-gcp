@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { KitSelection } from "@/lib/operational-kits";
 
 export const WorkAction = z.object({
   title: z.string().trim().min(3).max(180),
@@ -21,9 +22,11 @@ export const WorkAnswer = z.object({
   actions: z.array(WorkAction).max(10),
 });
 export const WorkRequest = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("probe"), companyId: z.string().min(1).max(128) }).strict(),
   z.object({
     action: z.literal("chat"),
     companyId: z.string().min(1).max(128),
+    kitSelection: KitSelection.optional(),
     messages: z
       .array(
         z.object({

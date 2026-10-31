@@ -22,6 +22,19 @@ afterAll(async () => {
   await env?.cleanup();
 });
 describe("server-only assistant records", () => {
+  it("denies archived kit, ledger and audit access through browser SDKs", async () => {
+    const db = env.authenticatedContext("assistant-admin").firestore();
+    for (const path of [
+      "workAssistantProposals/kit_test",
+      "workAssistantProposals/kit_test/audit/event",
+      "workAssistantProposals/kit-ledger_test/issued/kit_test",
+    ]) {
+      await assertFails(getDoc(doc(db, path)));
+      await assertFails(
+        setDoc(doc(db, path), { pdfBase64: "forged", confirmedBy: "assistant-admin" })
+      );
+    }
+  });
   it.each(["workAssistantProposals", "workAssistantUsage"])(
     "denies browser reads and forged writes even for admin: %s",
     async (name) => {
