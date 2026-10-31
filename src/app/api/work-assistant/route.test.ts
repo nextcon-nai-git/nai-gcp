@@ -12,6 +12,7 @@ const m = vi.hoisted(() => ({
   transaction: vi.fn(),
   ask: vi.fn(),
   configured: vi.fn(),
+  set: vi.fn(),
 }));
 vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: m.auth }));
 vi.mock("@/lib/firebase-admin", () => ({
@@ -50,13 +51,23 @@ beforeEach(() => {
     doc: (docId: string) =>
       name === "companies"
         ? { get: m.company, collection: () => ({ doc: () => ({ id: "task" }) }) }
-        : { id: docId },
+        : { id: docId, set: m.set },
   }));
   m.transaction.mockImplementation((fn) =>
-    fn({ get: m.proposal, create: m.create, update: m.update })
+    fn({ get: m.proposal, create: m.create, update: m.update, set: m.set })
   );
 });
 describe("work assistant authorization and confirmation", () => {
+  it("probes the server configuration without sending company records or secrets", async () => {
+    m.ask.mockResolvedValue({ answer: "Conexão verificada", actions: [] });
+    const r = await POST(request({ action: "probe", companyId: "ONE" }));
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ verified: true });
+    expect(m.ask).toHaveBeenCalledWith(expect.any(Array), { diagnostic: true });
+    expect(JSON.stringify(m.ask.mock.calls)).not.toContain("Cliente");
+    expect(m.create).not.toHaveBeenCalled();
+    expect(m.set).toHaveBeenLastCalledWith({ lastVerifiedAt: expect.any(String) }, { merge: true });
+  });
   it("requires authentication before data access", async () => {
     m.auth.mockRejectedValue(new AuthError("Login", 401));
     expect((await GET(new NextRequest("https://nai.test"))).status).toBe(401);

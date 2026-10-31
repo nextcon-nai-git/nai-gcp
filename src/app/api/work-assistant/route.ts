@@ -7,6 +7,7 @@ import { AuthError, badRequest, forbidden } from "@/lib/auth/errors";
 import { limitedJson, privateFailure, privateHeaders } from "@/lib/http/private-api";
 import { WorkAnswer, WorkRequest } from "@/lib/work-assistant";
 import { askWorkAssistant, workAssistantConfigured } from "@/services/work-assistant-openai";
+import { prepareKitBatch } from "@/services/operational-kits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -89,7 +90,8 @@ export async function POST(request: NextRequest) {
     }
     if (!workAssistantConfigured())
       throw new AuthError("O assistente aguarda configuração da OpenAI pela administração.", 503);
-    if (data.messages.at(-1)?.role !== "user") throw badRequest("Envie uma nova mensagem.");
+    if (data.action === "chat" && data.messages.at(-1)?.role !== "user")
+      throw badRequest("Envie uma nova mensagem.");
     // Durable per-user quota, independent of the number of runtime instances.
     const quotaRef = adminDb
       .collection("workAssistantUsage")
@@ -103,6 +105,21 @@ export async function POST(request: NextRequest) {
         throw new AuthError("Aguarde um minuto antes de enviar outra mensagem.", 429);
       tx.set(quotaRef, { startedAt: current.startedAt, count: current.count + 1 });
     });
+    if (data.action === "probe") {
+      await askWorkAssistant(
+        [
+          {
+            role: "user",
+            content:
+              "Teste de conexão. Responda Conexão verificada e actions vazio. Não há dados de clientes nesta chamada.",
+          },
+        ],
+        { diagnostic: true }
+      );
+      const checkedAt = new Date().toISOString();
+      await quotaRef.set({ lastVerifiedAt: checkedAt }, { merge: true });
+      return NextResponse.json({ verified: true, checkedAt }, { headers: privateHeaders });
+    }
     const [documents, tasks] = await Promise.all([
       companyRef.collection("sourceDocuments").orderBy("createdAt", "desc").limit(51).get(),
       companyRef.collection("tasks").orderBy("dueDate", "asc").limit(201).get(),
@@ -126,7 +143,16 @@ export async function POST(request: NextRequest) {
         };
       }),
     };
-    const answer = await askWorkAssistant(data.messages, context);
+    const answer = await askWorkAssistant(
+      data.messages,
+      {
+        ...context,
+        selectedKitBatch: data.kitSelection
+          ? { count: data.kitSelection.employeeIds.length, available: true }
+          : null,
+      },
+      data.kitSelection ? () => prepareKitBatch(user, data.companyId, data.kitSelection) : undefined
+    );
     const proposalId = answer.actions.length ? randomUUID() : null;
     if (proposalId)
       await adminDb

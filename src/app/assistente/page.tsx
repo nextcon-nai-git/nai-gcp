@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { WorkActionData } from "@/lib/work-assistant";
 import { OperationsShortcuts } from "@/components/operations/operations-shortcuts";
+import { OperationalKitPanel } from "@/components/operations/operational-kit-panel";
+import type { KitPreview, KitSelectionData } from "@/lib/operational-kits";
 
 type Message = { role: "user" | "assistant"; content: string };
 export default function WorkAssistantPage() {
@@ -27,6 +29,9 @@ function AssistantSession({ companyId }: { companyId: string }) {
   const [error, setError] = React.useState("");
   const [notice, setNotice] = React.useState("");
   const [configured, setConfigured] = React.useState<boolean | null>(null);
+  const [kitBusy, setKitBusy] = React.useState(false);
+  const [kitSelection, setKitSelection] = React.useState<KitSelectionData>();
+  const [kitProposal, setKitProposal] = React.useState<KitPreview | null>(null);
   const [proposal, setProposal] = React.useState<{ id: string; actions: WorkActionData[] } | null>(
     null
   );
@@ -66,7 +71,7 @@ function AssistantSession({ companyId }: { companyId: string }) {
         });
   }, [user, request]);
   async function send() {
-    if (lock.current || !input.trim() || !configured || companyId === "all") return;
+    if (lock.current || kitBusy || !input.trim() || !configured || companyId === "all") return;
     lock.current = true;
     setBusy(true);
     setError("");
@@ -74,11 +79,17 @@ function AssistantSession({ companyId }: { companyId: string }) {
     setProposal(null);
     const next: Message[] = [...messages, { role: "user", content: input.trim() }];
     try {
-      const r = await request({ action: "chat", companyId, messages: next.slice(-12) });
+      const r = await request({
+        action: "chat",
+        companyId,
+        messages: next.slice(-12),
+        kitSelection,
+      });
       if (!active.current) return;
       setMessages([...next, { role: "assistant", content: r.answer }]);
       setInput("");
       if (r.proposalId) setProposal({ id: r.proposalId, actions: r.actions });
+      if (r.kitProposal) setKitProposal(r.kitProposal);
     } catch (e) {
       if (active.current) setError(e instanceof Error ? e.message : "Falha ao consultar.");
     } finally {
@@ -105,6 +116,25 @@ function AssistantSession({ companyId }: { companyId: string }) {
       if (active.current) setBusy(false);
     }
   }
+  async function probe() {
+    if (lock.current || kitBusy || !configured || companyId === "all") return;
+    lock.current = true;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await request({ action: "probe", companyId });
+      if (active.current)
+        setNotice(
+          `Conexão OpenAI e resposta estruturada verificadas em ${result.checkedAt}. A emissão e as ações SOC devem ser verificadas separadamente.`
+        );
+    } catch (e) {
+      if (active.current) setError(e instanceof Error ? e.message : "Conexão não comprovada.");
+    } finally {
+      lock.current = false;
+      if (active.current) setBusy(false);
+    }
+  }
   return (
     <main className="mx-auto max-w-4xl space-y-5">
       <h1 className="text-2xl font-bold">Assistente de trabalho</h1>
@@ -116,10 +146,20 @@ function AssistantSession({ companyId }: { companyId: string }) {
           <h2 className="text-lg font-semibold">Clínicas e kits no NAI</h2>
           <OperationsShortcuts includeAssistant={false} />
           <p className="text-sm text-muted-foreground">
-            Use os módulos acima para credenciamento e PDFs. O assistente desta conversa propõe
-            cards; a emissão de kits permanece no módulo de agendamento.
+            Cadastre a clínica e confira a campanha nos módulos acima. Prepare os kits nesta tela e
+            confirme a emissão após revisar os dados.
           </p>
         </section>
+      )}
+      {configured !== null && !["all", "unauthorized"].includes(companyId) && (
+        <OperationalKitPanel
+          companyId={companyId}
+          preview={kitProposal}
+          onPreview={setKitProposal}
+          onSelection={setKitSelection}
+          disabled={busy}
+          onBusy={setKitBusy}
+        />
       )}
       {companyId === "all" ? (
         <p role="status">Selecione um cliente no cabeçalho para começar.</p>
@@ -134,12 +174,24 @@ function AssistantSession({ companyId }: { companyId: string }) {
       {configured === false && (
         <p role="status">A integração OpenAI aguarda configuração pela administração.</p>
       )}
+      {configured === true && (
+        <div className="space-y-2">
+          <p className="text-sm">
+            Configuração OpenAI presente no servidor. Isso, isoladamente, não comprova conexão.
+          </p>
+          <Button disabled={busy || kitBusy || companyId === "all"} onClick={() => void probe()}>
+            Testar conexão OpenAI
+          </Button>
+        </div>
+      )}
       <details className="text-sm text-muted-foreground">
         <summary>O que o assistente pode acessar</summary>
         <p>
           São enviados à OpenAI sua mensagem, os nomes dos documentos e até 200 cards do cliente.
           PDFs, prontuários, e-mail e Drive não são lidos por esta integração. A conversa fica nesta
           tela; ao trocar de cliente, ela é encerrada. Novos cards exigem sua confirmação abaixo.
+          Para kits, a OpenAI recebe somente a quantidade selecionada; cadastros e protocolo do
+          formulário são validados no NAI. Não inclua dados clínicos na mensagem.
         </p>
       </details>
       <div role="log" aria-label="Conversa com o assistente" className="space-y-4">
@@ -188,13 +240,13 @@ function AssistantSession({ companyId }: { companyId: string }) {
         maxLength={12000}
         value={input}
         onChange={(e) => setInput(e.target.value)}
-        disabled={busy || !configured || companyId === "all"}
+        disabled={busy || kitBusy || !configured || companyId === "all"}
         placeholder="Organize as próximas ações deste cliente e indique os prazos já registrados."
         rows={4}
       />
       <Button
         onClick={() => void send()}
-        disabled={busy || !configured || companyId === "all" || !input.trim()}
+        disabled={busy || kitBusy || !configured || companyId === "all" || !input.trim()}
       >
         {busy ? "Processando…" : "Enviar"}
       </Button>
