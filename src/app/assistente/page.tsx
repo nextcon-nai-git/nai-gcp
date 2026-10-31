@@ -6,6 +6,7 @@ import { useSgi } from "@/contexts/sgi-context";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { WorkActionData } from "@/lib/work-assistant";
+import { OperationsShortcuts } from "@/components/operations/operations-shortcuts";
 
 type Message = { role: "user" | "assistant"; content: string };
 export default function WorkAssistantPage() {
@@ -110,6 +111,16 @@ function AssistantSession({ companyId }: { companyId: string }) {
       <p className="text-sm text-muted-foreground">
         Consulte os cards e documentos cadastrados do cliente selecionado e prepare novas ações.
       </p>
+      {configured !== null && (
+        <section className="space-y-3 rounded-xl border p-4">
+          <h2 className="text-lg font-semibold">Clínicas e kits no NAI</h2>
+          <OperationsShortcuts includeAssistant={false} />
+          <p className="text-sm text-muted-foreground">
+            Use os módulos acima para credenciamento e PDFs. O assistente desta conversa propõe
+            cards; a emissão de kits permanece no módulo de agendamento.
+          </p>
+        </section>
+      )}
       {companyId === "all" ? (
         <p role="status">Selecione um cliente no cabeçalho para começar.</p>
       ) : (

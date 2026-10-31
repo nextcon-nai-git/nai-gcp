@@ -7,12 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { SocDashboard } from "./soc-dashboard";
+import { SocOperations } from "./soc-operations";
+import type { SocWebAccess } from "@/lib/integrations/soc-access";
 
 type Resource = "companies" | "employees" | "asos" | "runs";
 type Row = Record<string, string | number | null>;
 type Configuration = {
   companyIds: string[];
   resources: Record<string, { configured: boolean; format: string }>;
+  webAccess?: SocWebAccess;
 };
 const labels: Record<Resource, string> = {
   companies: "Empresas",
@@ -190,17 +193,12 @@ function Session() {
         <Link href="/integrations" className="text-sm underline">
           Integrações
         </Link>
-        <h1 className="text-3xl font-semibold text-primary">Painel SOC</h1>
+        <h1 className="text-3xl font-semibold text-primary">Central SOC</h1>
         <p className="text-muted-foreground">
           Acompanhe clientes ativos, relatórios e pendências verificadas da operação.
         </p>
       </header>
-      <Link
-        href="/integrations/soc/convocations"
-        className="inline-block rounded-lg border px-4 py-3 font-medium underline"
-      >
-        Convocações SOC · importar e consultar base AVP
-      </Link>
+      {config && <SocOperations access={config.webAccess} />}
       <SocDashboard />
       <details className="space-y-6 rounded-lg border p-4">
         <summary className="cursor-pointer text-lg font-semibold">
