@@ -306,7 +306,7 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
     }
   }, [api, initialCompany, company]);
 
-  async function perform(action: () => Promise<void>) {
+  const perform = useCallback(async (action: () => Promise<void>) => {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
@@ -324,10 +324,11 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
         setBatchProgress("");
       }
     }
-  }
+  }, []);
   useEffect(() => {
     if (!user) return;
     busyRef.current = true;
+    setBusy(true);
     void (async () => {
       await Promise.resolve();
       if (!active.current) return;
@@ -562,6 +563,7 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
   ].sort((a, b) => a[1].localeCompare(b[1]));
   const mapPeople = useMemo(() => asoFlowMapPeople(visible), [visible]);
   const openCard = (card: AsoFlowCard) => {
+    if (busyRef.current) return;
     setSelectedId(card.id);
     setOperation(nextAction(card).operation);
     setError("");
@@ -783,6 +785,7 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
                       </div>
                       <button
                         className="text-left text-sm font-semibold hover:underline"
+                        disabled={busy}
                         onClick={() => openCard(card)}
                       >
                         {card.employeeName}
@@ -812,7 +815,9 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={card.status === "reviewed" && !capabilities.clientEmailSend}
+                          disabled={
+                            busy || (card.status === "reviewed" && !capabilities.clientEmailSend)
+                          }
                           title={
                             card.status === "reviewed" && !capabilities.clientEmailSend
                               ? "Envio ao cliente desativado"
@@ -971,7 +976,7 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
       <Sheet
         open={!!selected}
         onOpenChange={(open) => {
-          if (!open && !busy) setSelectedId(null);
+          if (!open && !busyRef.current) setSelectedId(null);
         }}
       >
         <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
@@ -1082,7 +1087,9 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
                         variant={operation === key ? "default" : "outline"}
                         className="justify-start"
                         disabled={busy || !!selected.mailLock}
-                        onClick={() => setOperation(key)}
+                        onClick={() => {
+                          if (!busyRef.current) setOperation(key);
+                        }}
                       >
                         <Icon className="mr-2 size-4 shrink-0" />
                         {label}
@@ -1095,6 +1102,9 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
                         key={`${selected.id}:${selected.version}`}
                         card={selected}
                         api={api}
+                        busy={busy}
+                        perform={perform}
+                        onMessage={setMessage}
                         onCard={(card) =>
                           setCards((old) => old.map((item) => (item.id === card.id ? card : item)))
                         }
@@ -1366,7 +1376,8 @@ function CardOperation({
           {reference}
           {check("Conferi o CNPJ do cliente e o CPF do colaborador no documento.")}
           <p className="text-xs text-muted-foreground">
-            O ASO será arquivado na pasta do cliente e seguirá para conferência antes da entrega.
+            O ASO ficará vinculado a este atendimento. Após a conferência, será arquivado na pasta
+            do cliente.
           </p>
         </>
       )}
@@ -1526,23 +1537,26 @@ type EmailInbox = {
 function EmailReturns({
   card,
   api,
+  busy,
+  perform,
+  onMessage,
   onCard,
 }: {
   card: AsoFlowCard;
   api: (path?: string, init?: RequestInit) => Promise<Response>;
+  busy: boolean;
+  perform: (action: () => Promise<void>) => Promise<void>;
+  onMessage: (message: string) => void;
   onCard: (card: AsoFlowCard) => void;
 }) {
-  const active = useRef(true),
-    running = useRef(false);
+  const active = useRef(true);
   const requestVersion = useRef(0);
   const [inbox, setInbox] = useState<EmailInbox | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
   const [selected, setSelected] = useState("");
   const [identity, setIdentity] = useState(false);
   const [documentChecked, setDocumentChecked] = useState(false);
   const [examDate, setExamDate] = useState("");
+  const selectedCandidate = inbox?.candidates.find((candidate) => candidate.id === selected);
   useEffect(() => {
     active.current = true;
     return () => {
@@ -1551,6 +1565,14 @@ function EmailReturns({
   }, []);
   const load = useCallback(
     async (start: string | null = null, append = false) => {
+      if (!active.current) return;
+      if (!append) {
+        setInbox(null);
+        setSelected("");
+        setIdentity(false);
+        setDocumentChecked(false);
+        setExamDate("");
+      }
       const run = ++requestVersion.current;
       const candidates: EmailCandidate[] = [];
       const seen = new Set<string>();
@@ -1589,28 +1611,14 @@ function EmailReturns({
     },
     [api, card.id]
   );
+  const initializedLoad = useRef<typeof load | null>(null);
   useEffect(() => {
-    load().catch((error: unknown) => {
-      if (active.current)
-        setError(error instanceof Error ? error.message : "Falha ao consultar retornos.");
+    if (busy || initializedLoad.current === load) return;
+    void perform(async () => {
+      initializedLoad.current = load;
+      await load();
     });
-  }, [load]);
-  async function perform(action: () => Promise<void>) {
-    if (running.current) return;
-    running.current = true;
-    setBusy(true);
-    setError("");
-    setMessage("");
-    try {
-      await action();
-    } catch (error) {
-      if (active.current)
-        setError(error instanceof Error ? error.message : "Falha na consulta de e-mail.");
-    } finally {
-      running.current = false;
-      if (active.current) setBusy(false);
-    }
-  }
+  }, [busy, load, perform]);
   async function sync() {
     await perform(async () => {
       const data: {
@@ -1624,13 +1632,14 @@ function EmailReturns({
       ).json();
       await load();
       if (active.current)
-        setMessage(
+        onMessage(
           `${data.result.saved} anexos novos, ${data.result.examined} mensagens consultadas.${data.result.hasMore ? " Há mais resultados; repita a consulta." : ""}`
         );
     });
   }
   async function receive(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!selectedCandidate || !identity || !documentChecked || !examDate || card.mailLock) return;
     await perform(async () => {
       const result: { card: AsoFlowCard } = await (
         await api("/email", {
@@ -1640,7 +1649,7 @@ function EmailReturns({
             action: "receive",
             id: card.id,
             version: card.version,
-            candidateId: selected,
+            candidateId: selectedCandidate.id,
             examDate,
             identityConfirmed: identity,
             documentChecked,
@@ -1677,9 +1686,9 @@ function EmailReturns({
           Buscar novos anexos
         </Button>
       </div>
-      {(error || message) && (
-        <p role={error ? "alert" : "status"} className={cn("text-sm", error && "text-destructive")}>
-          {error || message}
+      {busy && !inbox && (
+        <p role="status" className="text-sm text-muted-foreground">
+          Consultando anexos deste card…
         </p>
       )}
       {inbox?.candidates.map((candidate) => (
@@ -1689,11 +1698,13 @@ function EmailReturns({
               type="radio"
               name="aso-candidate"
               value={candidate.id}
+              disabled={busy}
               checked={selected === candidate.id}
               onChange={() => {
                 setSelected(candidate.id);
                 setIdentity(false);
                 setDocumentChecked(false);
+                setExamDate("");
               }}
             />
             <span>
@@ -1742,12 +1753,13 @@ function EmailReturns({
           Há mais registros de e-mail para consultar. Continue para conferir todos os retornos.
         </p>
       )}
-      {selected && (
+      {selectedCandidate && (
         <form className="space-y-3 border-t pt-4" onSubmit={(event) => void receive(event)}>
           <Field label="Data do exame no ASO">
             <Input
               type="date"
               required
+              disabled={busy}
               value={examDate}
               onChange={(e) => setExamDate(e.target.value)}
             />
@@ -1756,6 +1768,7 @@ function EmailReturns({
             <input
               type="checkbox"
               className="mt-1"
+              disabled={busy}
               checked={identity}
               onChange={(e) => setIdentity(e.target.checked)}
             />
@@ -1765,6 +1778,7 @@ function EmailReturns({
             <input
               type="checkbox"
               className="mt-1"
+              disabled={busy}
               checked={documentChecked}
               onChange={(e) => setDocumentChecked(e.target.checked)}
             />
@@ -1776,7 +1790,7 @@ function EmailReturns({
             disabled={busy || !identity || !documentChecked || !examDate || !!card.mailLock}
           >
             <FolderOpen className="mr-2 size-4" />
-            Receber ASO e arquivar
+            Receber ASO para conferência
           </Button>
         </form>
       )}
