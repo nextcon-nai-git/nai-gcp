@@ -294,15 +294,12 @@ describe("Omie financial boundary", () => {
         conta_receber_cadastro: [financialTitle, financialTitle],
       },
     ],
-  ])(
-    "rejects %s before querying names or returning financial results",
-    async (_label, change) => {
-      storage.data = JSON.stringify(saved);
-      fetchMock.mockResolvedValueOnce(response({ ...financialPage, ...(change as object) }));
-      await expect(listOmie(admin, {})).rejects.toMatchObject({ code: "OMIE_RESPONSE", status: 502 });
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-    }
-  );
+  ])("rejects %s before querying names or returning financial results", async (_label, change) => {
+    storage.data = JSON.stringify(saved);
+    fetchMock.mockResolvedValueOnce(response({ ...financialPage, ...(change as object) }));
+    await expect(listOmie(admin, {})).rejects.toMatchObject({ code: "OMIE_RESPONSE", status: 502 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it.each([0, 1])("accepts a truly empty first page with %s total pages", async (pages) => {
     storage.data = JSON.stringify(saved);
     fetchMock.mockResolvedValueOnce(
@@ -391,7 +388,10 @@ describe("Omie financial boundary", () => {
         headers: { "Content-Length": String(17 * 1024 * 1024) },
       })
     );
-    await expect(listOmie(admin, {})).rejects.toMatchObject({ code: "OMIE_RATE_LIMIT", status: 429 });
+    await expect(listOmie(admin, {})).rejects.toMatchObject({
+      code: "OMIE_RATE_LIMIT",
+      status: 429,
+    });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
   it("disconnects locally without changing any data at Omie", async () => {
