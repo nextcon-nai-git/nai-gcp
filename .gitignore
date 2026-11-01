@@ -67,8 +67,10 @@ ts_errors_ascii.txt
 *service-account*.json
 *service_account*.json
 *-firebase-adminsdk-*.json
+gha-creds-*.json
 /credentials.json
 /token.json
 /.venv/
 __pycache__/
 *.pyc
+

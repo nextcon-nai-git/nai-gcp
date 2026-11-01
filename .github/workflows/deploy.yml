@@ -13,7 +13,7 @@ on:
         type: boolean
         default: false
       provision_esocial:
-        description: Provision empty A1 vault, private event indexes and query-only scheduler
+        description: Verify empty A1 vault and configure query-only scheduler after operator bootstrap
         required: false
         type: boolean
         default: false
@@ -23,7 +23,7 @@ permissions:
 
 concurrency:
   group: firebase-validation-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate:
@@ -57,6 +57,9 @@ jobs:
 
       - name: Run tests
         run: npm run test:run
+
+      - name: Test eSocial infrastructure safety
+        run: node --test scripts/setup-esocial-infrastructure.test.mjs
 
       - name: Verify dependency security backports
         run: npm run test:dependency-security
@@ -147,15 +150,36 @@ jobs:
         run: rm -f "$RUNNER_TEMP/nai-firebase-service-account.json"
 
   provision-esocial:
-    name: Provision eSocial vault and query worker
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.provision_esocial))
+    name: Verify empty eSocial vault and configure query worker
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.provision_esocial
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: nai-production-esocial-infrastructure
+      cancel-in-progress: false
     steps:
       - name: Checkout tested code
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Check keyless deployment configuration
+        env:
+          NAI_WIF_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          NAI_DEPLOY_ACCOUNT: ${{ vars.GCP_ESOCIAL_DEPLOY_SERVICE_ACCOUNT }}
+        run: |
+          node <<'NODE'
+          const provider = process.env.NAI_WIF_PROVIDER || '';
+          const account = process.env.NAI_DEPLOY_ACCOUNT || '';
+          if (!/^projects\/\d+\/locations\/global\/workloadIdentityPools\/[^/]+\/providers\/[^/]+$/.test(provider) ||
+              account !== 'nai-esocial-deploy@studio-8439299034-125c7.iam.gserviceaccount.com') {
+            throw new Error('Configure GCP_WORKLOAD_IDENTITY_PROVIDER e GCP_ESOCIAL_DEPLOY_SERVICE_ACCOUNT no ambiente production; siga docs/ESOCIAL_INFRASTRUCTURE.md. Nenhuma chave JSON é usada.');
+          }
+          NODE
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
@@ -163,26 +187,18 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit
-      - name: Prepare scoped release credentials
-        env:
-          NAI_FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-        run: |
-          node <<'NODE'
-          const fs = require('node:fs');
-          const path = require('node:path');
-          const value = process.env.NAI_FIREBASE_SERVICE_ACCOUNT_JSON;
-          try {
-            const account = JSON.parse(value || 'null');
-            if (!account?.client_email || !account?.private_key) throw new Error();
-            const target = path.join(process.env.RUNNER_TEMP, 'nai-esocial-service-account.json');
-            fs.writeFileSync(target, value, { mode: 0o600 });
-            fs.appendFileSync(process.env.GITHUB_ENV, `GOOGLE_APPLICATION_CREDENTIALS=${target}\n`);
-          } catch { throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON ausente ou inválido.'); }
-          NODE
-      - name: Publish private event indexes
-        run: npx --yes firebase-tools@15.33.0 deploy --only firestore:indexes --project studio-8439299034-125c7 --non-interactive
-      - name: Provision empty vault and authenticated query scheduler
-        run: node scripts/setup-esocial-infrastructure.mjs --apply
-      - name: Remove temporary release credentials
-        if: always()
-        run: rm -f "$RUNNER_TEMP/nai-esocial-service-account.json"
+      - name: Authenticate with short-lived Google credentials
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: studio-8439299034-125c7
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_ESOCIAL_DEPLOY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+      # IAM/bootstrap is an operator action, never a recurring pipeline permission.
+      # Indexes use their own workflow and service account.
+      - name: Configure authenticated query scheduler with an empty vault
+        run: node scripts/setup-esocial-infrastructure.mjs --apply --require-empty
+      - name: Verify provisioned metadata without reading certificate material
+        run: node scripts/setup-esocial-infrastructure.mjs --verify --require-empty
+

@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import type { EsocialMessageEvent } from "@/lib/esocial-messaging";
 import { currentEventFixture } from "../../../tests/fixtures/esocial/current-events";
@@ -132,12 +132,14 @@ beforeAll(async () => {
   material = await inspectPkcs12(makeSyntheticA1().pfx, SYNTHETIC_PASSWORD);
 });
 afterAll(() => vi.useRealTimers());
+afterEach(() => vi.unstubAllEnvs());
 beforeEach(() => {
   vi.clearAllMocks();
   db = new Map();
   files = new Map();
   queue = Promise.resolve();
   vi.stubEnv("ESOCIAL_SYNC_ENABLED", "true");
+  vi.stubEnv("ESOCIAL_TRANSMISSION_ENABLED", "true");
   m.collection.mockImplementation(query);
   m.getAll.mockImplementation(async (...refs) => refs.map((r) => snap(r.path)));
   m.file.mockImplementation((p: string) => ({
@@ -280,6 +282,46 @@ const submit = async () => operation(await approve(await prepare()), "transmit")
 const accepted = async () => operation(await submit(), "query");
 
 describe("mensageria: revisão, isolamento e idempotência", () => {
+  it.each([undefined, "false", "TRUE"])(
+    "bloqueia envio antes de ler A1, assinar ou reservar quando a configuração é %s",
+    async (value) => {
+      vi.stubEnv("ESOCIAL_TRANSMISSION_ENABLED", value);
+      const event = await approve(await prepare());
+      const savedEvent = structuredClone(db.get(path(event.id)));
+      const savedFiles = new Map(files);
+      m.transaction.mockClear();
+      m.certificate.mockClear();
+      await expect(operation(event, "transmit")).rejects.toMatchObject({ status: 503 });
+      expect(m.certificate).not.toHaveBeenCalled();
+      expect(m.transaction).not.toHaveBeenCalled();
+      expect(m.send).not.toHaveBeenCalled();
+      expect(db.get(path(event.id))).toEqual(savedEvent);
+      expect(files).toEqual(savedFiles);
+    }
+  );
+  it("bloqueia recuperação de envio incerto sem alterar a tentativa anterior", async () => {
+    m.send.mockRejectedValueOnce(new Error("synthetic timeout"));
+    const event = await submit();
+    expect(event.status).toBe("uncertain");
+    const savedEvent = structuredClone(db.get(path(event.id)));
+    vi.stubEnv("ESOCIAL_TRANSMISSION_ENABLED", "false");
+    m.certificate.mockClear();
+    m.transaction.mockClear();
+    await expect(operation(event, "recover")).rejects.toMatchObject({ status: 503 });
+    expect(m.send).toHaveBeenCalledTimes(1);
+    expect(m.certificate).not.toHaveBeenCalled();
+    expect(m.transaction).not.toHaveBeenCalled();
+    expect(db.get(path(event.id))).toEqual(savedEvent);
+  });
+  it("consulta lotes existentes pelo agendador com novas transmissões desligadas", async () => {
+    const event = await submit();
+    db.get(path(event.id))!.nextPollAt = "2026-11-01T11:59:00Z";
+    vi.stubEnv("ESOCIAL_TRANSMISSION_ENABLED", "false");
+    await syncEsocialMessages();
+    expect(m.query).toHaveBeenCalledTimes(1);
+    expect(m.send).toHaveBeenCalledTimes(1);
+    expect(db.get(path(event.id))!.status).toBe("accepted");
+  });
   it("prepara e aprova sem A1; nenhuma transmissão ocorre até a ação explícita", async () => {
     m.certificate.mockRejectedValue(new Error("A1 ausente"));
     const event = await approve(await prepare());
@@ -626,3 +668,4 @@ describe("recibos, recuperação e retificações", () => {
     await expect(operation(await submit(), "cancel")).rejects.toThrow("Cancelar rascunho");
   });
 });
+

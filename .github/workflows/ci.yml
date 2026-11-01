@@ -28,7 +28,14 @@ jobs:
         run: npm ci --prefer-offline --no-audit
 
       - name: Prettier (check)
+        id: formatting
         run: npm run format:check
+
+      - name: Show formatting patch on failure
+        if: failure() && steps.formatting.outcome == 'failure'
+        run: |
+          npm run format > /dev/null
+          git diff --no-color
 
       - name: ESLint
         run: npm run lint
@@ -41,6 +48,9 @@ jobs:
 
       - name: Dependency security regressions
         run: npm run test:dependency-security
+
+      - name: Infrastructure safety regressions
+        run: node --test scripts/setup-esocial-infrastructure.test.mjs
 
       - name: Build
         env:

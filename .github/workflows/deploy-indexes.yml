@@ -16,11 +16,30 @@ concurrency:
 jobs:
   deploy-indexes:
     name: Validate and publish indexes only
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Check keyless index deployment configuration
+        env:
+          NAI_WIF_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          NAI_DEPLOY_ACCOUNT: ${{ vars.GCP_INDEXES_DEPLOY_SERVICE_ACCOUNT }}
+        run: |
+          node <<'NODE'
+          const provider = process.env.NAI_WIF_PROVIDER || '';
+          const account = process.env.NAI_DEPLOY_ACCOUNT || '';
+          if (!/^projects\/\d+\/locations\/global\/workloadIdentityPools\/[^/]+\/providers\/[^/]+$/.test(provider) ||
+              account !== 'nai-indexes-deploy@studio-8439299034-125c7.iam.gserviceaccount.com') {
+            throw new Error('Configure GCP_WORKLOAD_IDENTITY_PROVIDER e GCP_INDEXES_DEPLOY_SERVICE_ACCOUNT no ambiente production; siga docs/ESOCIAL_INFRASTRUCTURE.md. Nenhuma chave JSON é usada.');
+          }
+          NODE
       - uses: actions/setup-node@v7
         with:
           node-version: "24"
@@ -32,26 +51,32 @@ jobs:
           java-version: "21"
       - name: Test existing access rules
         run: npm run test:rules
-      - name: Prepare existing release credential
-        env:
-          NAI_RELEASE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+      - name: Prepare an index-only Firebase configuration
         run: |
           node <<'NODE'
           const fs = require('node:fs');
           const path = require('node:path');
-          const value = process.env.NAI_RELEASE_ACCOUNT;
-          try {
-            const account = JSON.parse(value || 'null');
-            if (!account?.client_email || !account?.private_key) throw new Error();
-          } catch {
-            throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON ausente ou inválido; nenhum índice publicado.');
-          }
-          const target = path.join(process.env.RUNNER_TEMP, 'nai-index-release.json');
-          fs.writeFileSync(target, value, { mode: 0o600 });
-          fs.appendFileSync(process.env.GITHUB_ENV, `GOOGLE_APPLICATION_CREDENTIALS=${target}\n`);
+          const source = JSON.parse(fs.readFileSync('firebase.json', 'utf8'));
+          const entries = Array.isArray(source.firestore) ? source.firestore : [source.firestore];
+          const firestore = entries.map((entry) => {
+            if (!entry || typeof entry.indexes !== 'string') {
+              throw new Error('Configuração de índices Firestore ausente.');
+            }
+            const { rules, ...indexesOnly } = entry;
+            return { ...indexesOnly, indexes: path.resolve(entry.indexes) };
+          });
+          const target = path.join(process.env.RUNNER_TEMP, 'nai-firestore-indexes.json');
+          const output = { firestore: Array.isArray(source.firestore) ? firestore : firestore[0] };
+          fs.writeFileSync(target, JSON.stringify(output), { mode: 0o600 });
           NODE
+      - name: Authenticate with short-lived Google credentials
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: studio-8439299034-125c7
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_INDEXES_DEPLOY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
       - name: Publish indexes without changing rules
-        run: npx --yes firebase-tools@15.33.0 deploy --only firestore:indexes --project studio-8439299034-125c7 --non-interactive
-      - name: Remove temporary credential
-        if: always()
-        run: rm -f "$RUNNER_TEMP/nai-index-release.json"
+        run: npx --yes firebase-tools@15.33.0 deploy --only firestore:indexes --config "$RUNNER_TEMP/nai-firestore-indexes.json" --project studio-8439299034-125c7 --non-interactive
+
