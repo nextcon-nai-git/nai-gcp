@@ -10,6 +10,7 @@ const m = vi.hoisted(() => ({
   file: vi.fn(),
   certificate: vi.fn(),
   certificateStatus: vi.fn(),
+  sign: vi.fn(),
   send: vi.fn(),
   query: vi.fn(),
 }));
@@ -23,6 +24,16 @@ vi.mock("./vault", () => ({
   esocialCertificateStatus: m.certificateStatus,
   loadEsocialCertificate: m.certificate,
 }));
+vi.mock("./certificate", async (original) => {
+  const actual = await original<typeof import("./certificate")>();
+  return {
+    ...actual,
+    signEsocialXml: (...args: Parameters<typeof actual.signEsocialXml>) => {
+      m.sign();
+      return actual.signEsocialXml(...args);
+    },
+  };
+});
 vi.mock("./transport", async (original) => ({
   ...(await original<typeof import("./transport")>()),
   sendEsocialBatch: m.send,
@@ -412,6 +423,32 @@ describe("mensageria: revisão, isolamento e idempotência", () => {
     expect(m.send.mock.calls[0][0].signedXml).toContain("<Signature");
     expect(m.send.mock.calls[0][0].signedXml).toContain("<X509Certificate>");
   });
+  it("revalida antes de assinar se o operador perde acesso durante a preparação do XML", async () => {
+    const event = await approve(await prepare());
+    const stored = structuredClone(db.get(path(event.id)));
+    const originalFiles = new Map(files);
+    const unsignedPath = stored!.artifacts.unsigned.path;
+    const fileFactory = m.file.getMockImplementation()!;
+    m.file.mockImplementation((objectPath: string) => {
+      const file = fileFactory(objectPath);
+      return {
+        ...file,
+        download: async (...args: unknown[]) => {
+          const bytes = await file.download(...args);
+          if (objectPath === unsignedPath) db.get("users/operator")!.accessEnabled = false;
+          return bytes;
+        },
+      };
+    });
+    m.transaction.mockClear();
+    await expect(operation(event, "transmit")).rejects.toMatchObject({ status: 403 });
+    expect(m.certificate).toHaveBeenCalledTimes(1);
+    expect(m.sign).not.toHaveBeenCalled();
+    expect(m.send).not.toHaveBeenCalled();
+    expect(m.transaction).not.toHaveBeenCalled();
+    expect(db.get(path(event.id))).toEqual(stored);
+    expect(files).toEqual(originalFiles);
+  });
   it("não libera produção só porque existe A1 e procuração", async () => {
     const payload = currentEventFixture("S2220");
     payload.ideEvento.tpAmb = 1;
@@ -451,6 +488,100 @@ describe("mensageria: revisão, isolamento e idempotência", () => {
 });
 
 describe("recibos, recuperação e retificações", () => {
+  it("recusa consulta por operador revogado antes de abrir o A1", async () => {
+    const event = await submit();
+    const stored = structuredClone(db.get(path(event.id)));
+    db.get("users/operator")!.accessEnabled = false;
+    m.certificate.mockClear();
+    m.transaction.mockClear();
+    await expect(operation(event, "query")).rejects.toMatchObject({ status: 403 });
+    expect(m.certificate).not.toHaveBeenCalled();
+    expect(m.transaction).not.toHaveBeenCalled();
+    expect(m.query).not.toHaveBeenCalled();
+    expect(m.send).toHaveBeenCalledTimes(1);
+    expect(db.get(path(event.id))).toEqual(stored);
+  });
+  it.each(["query", "recover"])(
+    "recusa resposta armazenada na ação %s se o perfil foi revogado",
+    async (action) => {
+      const event = await submit();
+      const stored = db.get(path(event.id))!;
+      stored.status = "uncertain";
+      delete stored.protocol;
+      db.get(`${path(event.id)}/attempts/${stored.submission.id}`)!.response = {
+        status: "rejected", code: "400", description: "Resposta sintética", issues: [],
+      };
+      const before = structuredClone(stored);
+      db.get("users/operator")!.accessEnabled = false;
+      m.certificate.mockClear();
+      m.transaction.mockClear();
+      await expect(operation(event, action)).rejects.toMatchObject({ status: 403 });
+      expect(m.certificate).not.toHaveBeenCalled();
+      expect(m.transaction).not.toHaveBeenCalled();
+      expect(m.query).not.toHaveBeenCalled();
+      expect(m.send).toHaveBeenCalledTimes(1);
+      expect(db.get(path(event.id))).toEqual(before);
+    }
+  );
+  it.each(["query", "recover"])(
+    "revalida o operador dentro do commit manual de resposta armazenada em %s",
+    async (action) => {
+      const event = await submit();
+      const stored = db.get(path(event.id))!;
+      stored.status = "uncertain";
+      delete stored.protocol;
+      db.get(`${path(event.id)}/attempts/${stored.submission.id}`)!.response = {
+        status: "rejected", code: "400", description: "Resposta sintética", issues: [],
+      };
+      const before = structuredClone(stored);
+      const transaction = m.transaction.getMockImplementation()!;
+      m.certificate.mockClear();
+      m.transaction.mockImplementationOnce((run) => {
+        db.get("users/operator")!.accessEnabled = false;
+        return transaction(run);
+      });
+      await expect(operation(event, action)).rejects.toMatchObject({ status: 403 });
+      expect(m.certificate).not.toHaveBeenCalled();
+      expect(m.query).not.toHaveBeenCalled();
+      expect(m.send).toHaveBeenCalledTimes(1);
+      expect(db.get(path(event.id))).toEqual(before);
+    }
+  );
+  it("preserva protocolo recebido de POST legítimo mesmo se o operador for revogado durante a rede", async () => {
+    const send = m.send.getMockImplementation()!;
+    m.send.mockImplementationOnce(async (input) => {
+      const response = await send(input);
+      db.get("users/operator")!.accessEnabled = false;
+      return response;
+    });
+    const result = await submit();
+    expect(result.status).toBe("processing");
+    expect(result.protocol).toBe(SYNTHETIC_PROTOCOL);
+    const stored = db.get(path(result.id))!;
+    expect(db.get(`${path(result.id)}/attempts/${stored.submission.id}`)?.response.protocol).toBe(
+      SYNTHETIC_PROTOCOL
+    );
+    expect(m.send).toHaveBeenCalledTimes(1);
+    m.certificate.mockClear();
+    await expect(operation(result, "query")).rejects.toMatchObject({ status: 403 });
+    expect(m.certificate).not.toHaveBeenCalled();
+    expect(m.query).not.toHaveBeenCalled();
+  });
+  it("preserva recibo de consulta iniciada legitimamente após revogação durante a rede", async () => {
+    const event = await submit();
+    const query = m.query.getMockImplementation()!;
+    m.query.mockImplementationOnce(async (input) => {
+      const response = await query(input);
+      db.get("users/operator")!.accessEnabled = false;
+      return response;
+    });
+    const result = await operation(event, "query");
+    expect(result.status).toBe("accepted");
+    expect(result.receipt).toBe(receipt);
+    expect(db.get(path(event.id))?.receipt).toBe(receipt);
+    expect(m.send).toHaveBeenCalledTimes(1);
+    expect(m.query).toHaveBeenCalledTimes(1);
+  });
   it("só aceita após recibo correlacionado ao Id; protocolo não encerra o evento", async () => {
     const event = await submit();
     expect(event.status).toBe("processing");

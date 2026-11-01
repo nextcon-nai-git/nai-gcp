@@ -1,4 +1,5 @@
 import "server-only";
+import type { Transaction } from "firebase-admin/firestore";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import { parseClaims } from "@/lib/auth/claims";
 import { badRequest, forbidden } from "@/lib/auth/errors";
@@ -45,9 +46,11 @@ export function esocialDocumentId(input: string, label = "Registro") {
 /** Re-read before a signature or external request; cached claims cannot grant transmission. */
 export async function currentEsocialUser(
   user: AuthContext,
-  companyId?: string
+  companyId?: string,
+  transaction?: Pick<Transaction, "get">
 ): Promise<AuthContext> {
-  const snapshot = await adminDb.collection("users").doc(user.uid).get();
+  const reference = adminDb.collection("users").doc(user.uid);
+  const snapshot = transaction ? await transaction.get(reference) : await reference.get();
   const profile = snapshot.data();
   if (!snapshot.exists || !profile || profile.accessEnabled === false)
     throw forbidden("O acesso do operador foi suspenso ou removido.");
