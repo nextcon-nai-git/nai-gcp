@@ -44,6 +44,36 @@ falha de rede ou relatório inválido bloqueia o job. O JSON bruto é preservado
 artefato, com os nove avisos por versão ainda visíveis. Avisos moderados e baixos
 não são declarados corrigidos por este trabalho.
 
+### Validação do relatório do npm
+
+O gate valida a estrutura relevante do relatório v2 antes de aplicar qualquer exceção:
+mapas e objetos, nomes e severidades conhecidas, listas de caminhos e origens, referências
+transitivas existentes e contadores inteiros não negativos. Os contadores `high` e `critical`
+são obrigatórios; os demais contadores e o total são conferidos quando presentes. O resumo
+conta **pacotes afetados**, inclusive avisos propagados, e não a quantidade de advisories.
+Campos adicionais do npm, como detalhes de correção e CVSS, continuam permitidos.
+
+Uma advisory direta não pode ser mais grave do que o pacote que a contém. Uma referência
+transitiva por nome, porém, aponta para um pacote que pode agregar outras advisories;
+por isso, o gate não exige que pai e dependência tenham a mesma severidade.
+
+Relatório inválido significa que o gate não pôde confiar na entrada e bloqueou a avaliação.
+Vulnerabilidade sem correção significa que um relatório válido contém um aviso bloqueante
+fora das três exceções específicas. Ambos impedem o job, com diagnósticos distintos.
+A correção de 01/11/2026 foi motivada por casos sintéticos aceitos pelo parser anterior;
+não é evidência de exploração nem de relatório inválido retornado pelo npm em produção.
+
+As regressões puras podem ser executadas sem instalar dependências ou consultar o registry:
+
+```sh
+node --test tests/security/audit-gate.test.mjs
+```
+
+O comando `npm run test:dependency-security` inclui essas regressões e mantém a conferência
+de hashes/versões e os testes de ataque aos patches. Formato conferido na serialização oficial
+do [relatório npm v2](https://github.com/npm/cli/blob/v11.9.0/workspaces/arborist/lib/audit-report.js)
+e das [origens de vulnerabilidade](https://github.com/npm/cli/blob/v11.9.0/workspaces/arborist/lib/vuln.js).
+
 Quando houver versões oficiais compatíveis, remover os patches correspondentes,
 o alias v4 e as exceções específicas, atualizar o lockfile e repetir todas as
 regressões. Não ampliar a lista de exceções para contornar uma falha de CI.
