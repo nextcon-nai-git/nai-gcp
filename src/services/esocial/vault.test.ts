@@ -199,6 +199,76 @@ describe("A1 vault custody — mocked Secret Manager, no real credentials or tra
       "Não foi possível abrir um A1 válido"
     );
   });
+  it("normalizes the API's canonical project number and loads only the configured parent", async () => {
+    mocks.addVersion.mockImplementationOnce(
+      async (args: { parent: string; requestBody: { payload: { data: string } } }) => {
+        secrets.set(`${args.parent}/versions/7`, args.requestBody.payload.data);
+        return {
+          data: { name: "projects/123456789012/secrets/nai-esocial-a1-test/versions/7" },
+        };
+      }
+    );
+    const status = await uploadEsocialCertificate(
+      admin,
+      makeSyntheticA1().pfx,
+      SYNTHETIC_PASSWORD,
+      SYNTHETIC_CNPJ
+    );
+    expect(mocks.addVersion.mock.calls[0][0].parent).toBe(secret);
+    expect(certificateRecords()[0].secretVersion).toBe(`${secret}/versions/7`);
+    expect((await loadEsocialCertificate(status.id)).material.metadata.fingerprint256).toBe(
+      status.fingerprint
+    );
+    expect(mocks.access).toHaveBeenCalledWith(
+      { name: `${secret}/versions/7` },
+      { timeout: 15000, retry: false }
+    );
+
+    // Same holder and a valid synthetic A1, but a different certificate fingerprint.
+    secrets.set(
+      `${secret}/versions/7`,
+      Buffer.from(
+        JSON.stringify({
+          format: 1,
+          pfx: makeSyntheticA1({ policy: "2.16.76.1.2.1.998" }).pfx.toString("base64"),
+          password: SYNTHETIC_PASSWORD,
+        })
+      ).toString("base64")
+    );
+    await expect(loadEsocialCertificate(status.id)).rejects.toThrow(
+      "Não foi possível abrir um A1 válido"
+    );
+    expect(mocks.access.mock.calls.every(([args]) => args.name === `${secret}/versions/7`)).toBe(
+      true
+    );
+  });
+  it("preserves an explicitly configured project number", async () => {
+    const numberedSecret = "projects/123456789012/secrets/nai-esocial-a1-test";
+    vi.stubEnv("ESOCIAL_A1_SECRET_NAME", numberedSecret);
+    const status = await uploadEsocialCertificate(
+      admin,
+      makeSyntheticA1().pfx,
+      SYNTHETIC_PASSWORD,
+      SYNTHETIC_CNPJ
+    );
+    expect(certificateRecords()[0].secretVersion).toBe(`${numberedSecret}/versions/1`);
+    await loadEsocialCertificate(status.id);
+    expect(mocks.access).toHaveBeenCalledWith(
+      { name: `${numberedSecret}/versions/1` },
+      { timeout: 15000, retry: false }
+    );
+  });
+  it("rejects a different project number when the configured parent is already numeric", async () => {
+    vi.stubEnv("ESOCIAL_A1_SECRET_NAME", "projects/123456789012/secrets/nai-esocial-a1-test");
+    mocks.addVersion.mockResolvedValueOnce({
+      data: { name: "projects/999999999999/secrets/nai-esocial-a1-test/versions/1" },
+    });
+    await expect(
+      uploadEsocialCertificate(admin, makeSyntheticA1().pfx, SYNTHETIC_PASSWORD, SYNTHETIC_CNPJ)
+    ).rejects.toThrow("cofre não confirmou");
+    expect(writes).toHaveLength(0);
+    expect(mocks.access).not.toHaveBeenCalled();
+  });
   it("does not upload files beyond the limit, wrong passwords or an unconfirmed holder", async () => {
     await expect(
       uploadEsocialCertificate(admin, Buffer.alloc(40 * 1024 + 1), "", SYNTHETIC_CNPJ)
@@ -235,6 +305,19 @@ describe("A1 vault custody — mocked Secret Manager, no real credentials or tra
       uploadEsocialCertificate(admin, makeSyntheticA1().pfx, SYNTHETIC_PASSWORD, SYNTHETIC_CNPJ)
     ).rejects.toThrow("cofre não confirmou");
     expect(writes).toHaveLength(0);
+  });
+  it.each([
+    ["different secret", "projects/123456789012/secrets/nai-esocial-a1-other/versions/1"],
+    ["different textual project", "projects/other-project/secrets/nai-esocial-a1-test/versions/1"],
+    ["zero version", `${secret}/versions/0`],
+    ["noncanonical version", `${secret}/versions/01`],
+  ])("rejects an addVersion confirmation for %s", async (_case, returnedName) => {
+    mocks.addVersion.mockResolvedValueOnce({ data: { name: returnedName } });
+    await expect(
+      uploadEsocialCertificate(admin, makeSyntheticA1().pfx, SYNTHETIC_PASSWORD, SYNTHETIC_CNPJ)
+    ).rejects.toThrow("cofre não confirmou");
+    expect(writes).toHaveLength(0);
+    expect(mocks.access).not.toHaveBeenCalled();
   });
   it("rotates atomically, retains old references for receipt queries, and never auto-transmits", async () => {
     const first = await uploadEsocialCertificate(
@@ -285,8 +368,11 @@ describe("A1 vault custody — mocked Secret Manager, no real credentials or tra
     const record = db.get(path)!;
     for (const secretVersion of [
       "projects/other/secrets/nai-esocial-a1-test/versions/1",
+      "projects/123456789012/secrets/nai-esocial-a1-test/versions/1",
+      "projects/synthetic-project/secrets/nai-esocial-a1-other/versions/1",
       `${secret}/versions/latest`,
       `${secret}/versions/../2`,
+      `${secret}/versions/0`,
     ]) {
       db.set(path, { ...record, secretVersion });
       await expect(loadEsocialCertificate(status.id)).rejects.toThrow("fora do cofre autorizado");

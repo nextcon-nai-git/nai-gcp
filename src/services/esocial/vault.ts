@@ -43,8 +43,23 @@ function isPinnedSecretVersion(value: unknown, name: string): value is string {
   return (
     typeof value === "string" &&
     value.startsWith(`${name}/versions/`) &&
-    /^\d+$/.test(value.slice(`${name}/versions/`.length))
+    /^[1-9]\d*$/.test(value.slice(`${name}/versions/`.length))
   );
+}
+/** Only accepts the direct addVersion response for the configured parent. */
+function normalizeAddedSecretVersion(value: unknown, name: string): string | null {
+  const configured = /^projects\/([a-zA-Z0-9-]+)\/secrets\/([a-zA-Z0-9-]+)$/.exec(name);
+  const added =
+    typeof value === "string"
+      ? /^projects\/([a-zA-Z0-9-]+)\/secrets\/([a-zA-Z0-9-]+)\/versions\/([1-9]\d*)$/.exec(value)
+      : null;
+  if (!configured || !added || added[2] !== configured[2]) return null;
+  // The authenticated API may canonicalize a textual project ID to its number.
+  // Never follow the returned project: retain the requested parent and version only.
+  // A configured project number is already canonical, so a different one is rejected.
+  if (added[1] !== configured[1] && (/^\d+$/.test(configured[1]) || !/^[1-9]\d*$/.test(added[1])))
+    return null;
+  return `${name}/versions/${added[3]}`;
 }
 async function manager() {
   const secretManagerAuth = new auth.GoogleAuth({
@@ -154,8 +169,9 @@ export async function uploadEsocialCertificate(
       { parent: name, requestBody: { payload: { data: Buffer.from(value).toString("base64") } } },
       { timeout: 15000, retry: false }
     );
-    if (!isPinnedSecretVersion(response.data.name, name)) throw new Error("Missing version");
-    secretVersion = response.data.name;
+    const normalized = normalizeAddedSecretVersion(response.data.name, name);
+    if (!normalized) throw new Error("Invalid version confirmation");
+    secretVersion = normalized;
   } catch {
     throw new AuthError(
       "O cofre não confirmou o armazenamento do certificado. Nenhuma transmissão foi liberada.",

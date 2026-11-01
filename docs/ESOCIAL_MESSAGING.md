@@ -101,6 +101,8 @@ O perfil de assinatura segue RSA-SHA256, digest SHA-256, transformações Envelo
 
 O PFX e a senha ficam somente em uma versão do Google Secret Manager. Firestore recebe metadados públicos do certificado e a referência à versão numérica, nunca o arquivo, a senha ou a chave privada. Não se usa o alias mutável `latest`.
 
+A confirmação de [`addVersion`](https://docs.cloud.google.com/secret-manager/docs/reference/rest/v1/projects.secrets/addVersion) é validada contra o cofre solicitado. Se a resposta da API identificar o projeto por seu número canônico, a referência persistida é normalizada para o nome configurado em `ESOCIAL_A1_SECRET_NAME`, mantendo apenas a versão numérica positiva confirmada. Outro identificador de segredo ou outro ID textual de projeto é recusado; se a configuração já usar número de projeto, um número diferente também é recusado. Essa normalização ocorre somente na resposta direta da gravação. Na leitura, a referência armazenada precisa pertencer exatamente ao projeto e ao cofre configurados, e o A1 aberto continua sujeito à conferência de fingerprint e titular. Não há consulta adicional de metadados nem ampliação de permissões IAM para essa compatibilidade.
+
 Ao carregar o A1 para uso, o backend abre novamente a versão fixada e confere fingerprint e titular. Uma renovação cria nova versão e aposenta o registro ativo anterior por transação. Isso não libera produção para o novo certificado: as provas e autorizações operacionais permanecem vinculadas ao certificado correspondente.
 
 Aposentar um certificado no NAI impede novos usos pelo fluxo ativo e registra a ação. Essa operação não revoga o certificado na autoridade certificadora e não destrói as versões históricas do cofre.
