@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { requireFinancialAccess } from "@/lib/auth/financial-access";
-import { AuthError, badRequest } from "@/lib/auth/errors";
+import { AuthError } from "@/lib/auth/errors";
+import { limitedJson } from "@/lib/http/private-api";
 import { connectOmie, disconnectOmie, listOmie, omieStatus } from "@/services/omie-financial";
 import { OmieUpstreamError } from "@/lib/financial/omie-errors";
 export const runtime = "nodejs";
@@ -45,14 +46,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth(request);
     requireFinancialAccess(user);
-    const body = await request.text();
-    if (body.length > 2048) throw badRequest("Solicitação muito grande.");
-    let data: unknown;
-    try {
-      data = JSON.parse(body);
-    } catch {
-      throw badRequest("Dados inválidos.");
-    }
+    const data = await limitedJson(request, 2048);
     return NextResponse.json(await connectOmie(user, data), { headers });
   } catch (e) {
     return failure(e);
