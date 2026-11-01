@@ -74,12 +74,18 @@ const assertPrivate = (response: Response) => {
   expect(response.headers.get("vary")).toBe("Authorization");
   expect(response.headers.get("x-content-type-options")).toBe("nosniff");
 };
-const diagnostics = () => vi.mocked(console.warn).mock.calls.map(([line]) => JSON.parse(String(line)));
+const diagnostics = () =>
+  vi.mocked(console.warn).mock.calls.map(([line]) => JSON.parse(String(line)));
 beforeEach(() => {
   vi.resetAllMocks();
   vi.stubEnv("AVP_CLINIC_SEARCH_ENABLED", "true");
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
-  m.auth.mockResolvedValue({ uid: "operator-test", role: "SUPER_ADMIN", servedCompanies: [], tenantId: null });
+  m.auth.mockResolvedValue({
+    uid: "operator-test",
+    role: "SUPER_ADMIN",
+    servedCompanies: [],
+    tenantId: null,
+  });
   m.snapshot.mockResolvedValue({
     revision: "source-1:0",
     items: [{ cidade: "Fortaleza", uf: "CE", valorAso: "R$ 80,00" }],
@@ -99,27 +105,35 @@ afterEach(() => {
 });
 
 describe("busca de clínicas AVP com evidência de falha segura", () => {
-  it.each([401, 403])("interrompe autorização HTTP %s antes de ler ou cobrar uma busca", async (status) => {
-    m.auth.mockRejectedValue(new AuthError(secret, status));
-    const response = await GET(request());
-    expect(response.status).toBe(status);
-    assertPrivate(response);
-    expect(await response.text()).not.toContain(secret);
-    expect(m.snapshot).not.toHaveBeenCalled();
-    expect(m.transaction).not.toHaveBeenCalled();
-    expect(m.googleAuth).not.toHaveBeenCalled();
-    expect(diagnostics()).toEqual([
-      {
-        event: "avp_clinic_search",
-        stage: "authorization",
-        reason: status === 401 ? "unauthorized" : "forbidden",
-        status,
-        upstreamStatus: status,
-      },
-    ]);
-  });
+  it.each([401, 403])(
+    "interrompe autorização HTTP %s antes de ler ou cobrar uma busca",
+    async (status) => {
+      m.auth.mockRejectedValue(new AuthError(secret, status));
+      const response = await GET(request());
+      expect(response.status).toBe(status);
+      assertPrivate(response);
+      expect(await response.text()).not.toContain(secret);
+      expect(m.snapshot).not.toHaveBeenCalled();
+      expect(m.transaction).not.toHaveBeenCalled();
+      expect(m.googleAuth).not.toHaveBeenCalled();
+      expect(diagnostics()).toEqual([
+        {
+          event: "avp_clinic_search",
+          stage: "authorization",
+          reason: status === 401 ? "unauthorized" : "forbidden",
+          status,
+          upstreamStatus: status,
+        },
+      ]);
+    }
+  );
   it("aplica o escopo AVP antes de ler a fila", async () => {
-    m.auth.mockResolvedValue({ uid: "other", role: "OPERATIONS", tenantId: null, servedCompanies: ["OUTRO"] });
+    m.auth.mockResolvedValue({
+      uid: "other",
+      role: "OPERATIONS",
+      tenantId: null,
+      servedCompanies: ["OUTRO"],
+    });
     const response = await GET(request());
     expect(response.status).toBe(403);
     assertPrivate(response);
@@ -138,13 +152,22 @@ describe("busca de clínicas AVP com evidência de falha segura", () => {
     expect(m.transaction).not.toHaveBeenCalled();
   });
   it("distingue falha do snapshot de configuração do Places sem expor o SDK", async () => {
-    m.snapshot.mockRejectedValue({ message: secret, response: { status: 403, data: secret, headers: { authorization: secret } } });
+    m.snapshot.mockRejectedValue({
+      message: secret,
+      response: { status: 403, data: secret, headers: { authorization: secret } },
+    });
     const response = await GET(request());
     expect(response.status).toBe(503);
     assertPrivate(response);
     expect(await response.json()).toMatchObject({ code: "SNAPSHOT_UNAVAILABLE", clinics: [] });
     expect(diagnostics()).toEqual([
-      { event: "avp_clinic_search", stage: "snapshot", reason: "unavailable", status: 503, upstreamStatus: 403 },
+      {
+        event: "avp_clinic_search",
+        stage: "snapshot",
+        reason: "unavailable",
+        status: 503,
+        upstreamStatus: 403,
+      },
     ]);
     expect(JSON.stringify(vi.mocked(console.warn).mock.calls)).not.toContain(secret);
     expect(m.transaction).not.toHaveBeenCalled();
@@ -187,7 +210,10 @@ describe("busca de clínicas AVP com evidência de falha segura", () => {
       const response = await GET(request());
       expect(response.status).toBe(503);
       assertPrivate(response);
-      expect(await response.json()).toMatchObject({ clinics: [verified], code: "BUDGET_UNAVAILABLE" });
+      expect(await response.json()).toMatchObject({
+        clinics: [verified],
+        code: "BUDGET_UNAVAILABLE",
+      });
       expect(m.set).not.toHaveBeenCalled();
       expect(m.googleAuth).not.toHaveBeenCalled();
       expect(diagnostics()[0]).toMatchObject({ stage: "budget", reason: "invalid_counter" });
@@ -205,16 +231,25 @@ describe("busca de clínicas AVP com evidência de falha segura", () => {
     expect(response.status).toBe(200);
     assertPrivate(response);
     expect(m.set).toHaveBeenCalledWith(budgetRef, { count: 1 }, { merge: true });
-    expect(m.request).toHaveBeenCalledWith(expect.objectContaining({
-      method: "POST",
-      retry: false,
-      timeout: 15000,
-      data: expect.objectContaining({ pageSize: 3 }),
-      headers: expect.objectContaining({ "X-Goog-FieldMask": expect.stringContaining("places.addressComponents") }),
-    }));
+    expect(m.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "POST",
+        retry: false,
+        timeout: 15000,
+        data: expect.objectContaining({ pageSize: 3 }),
+        headers: expect.objectContaining({
+          "X-Goog-FieldMask": expect.stringContaining("places.addressComponents"),
+        }),
+      })
+    );
     const body = await response.json();
     expect(body.provider).toBe("GOOGLE_MAPS");
-    expect(body.clinics[0]).toMatchObject({ nome: place().displayName.text, whatsapp: "", email: "", verifiedAt: "" });
+    expect(body.clinics[0]).toMatchObject({
+      nome: place().displayName.text,
+      whatsapp: "",
+      email: "",
+      verifiedAt: "",
+    });
   });
   it("nega a tentativa 101 e preserva contatos oficiais", async () => {
     m.get.mockResolvedValue({ exists: true, data: () => ({ count: 100 }) });
@@ -230,8 +265,15 @@ describe("busca de clínicas AVP com evidência de falha segura", () => {
     m.transaction.mockRejectedValue({ code: 403, message: secret });
     const response = await GET(request());
     expect(response.status).toBe(503);
-    expect(await response.json()).toMatchObject({ clinics: [verified], code: "BUDGET_UNAVAILABLE" });
-    expect(diagnostics()[0]).toMatchObject({ stage: "budget", reason: "unavailable", upstreamStatus: 403 });
+    expect(await response.json()).toMatchObject({
+      clinics: [verified],
+      code: "BUDGET_UNAVAILABLE",
+    });
+    expect(diagnostics()[0]).toMatchObject({
+      stage: "budget",
+      reason: "unavailable",
+      upstreamStatus: 403,
+    });
     expect(m.googleAuth).not.toHaveBeenCalled();
     expect(JSON.stringify(vi.mocked(console.warn).mock.calls)).not.toContain(secret);
   });
@@ -241,25 +283,41 @@ describe("busca de clínicas AVP com evidência de falha segura", () => {
     { upstream: 429, status: 429, reason: "quota" },
     { upstream: 500, status: 503, reason: "unavailable" },
     { upstream: undefined, status: 503, reason: "unavailable" },
-  ])("preserva fallback e registra somente categorias em falha do provedor: $upstream", async ({ upstream, status, reason }) => {
-    m.request.mockRejectedValue({ message: secret, response: { status: upstream, data: secret, headers: { authorization: secret } }, config: { headers: { authorization: secret } } });
-    const response = await GET(request());
-    expect(response.status).toBe(status);
-    assertPrivate(response);
-    const body = await response.json();
-    expect(body).toMatchObject({ clinics: [verified], provider: "SITES_OFICIAIS" });
-    expect(JSON.stringify(body)).not.toContain(secret);
-    expect(diagnostics()).toEqual([
-      { event: "avp_clinic_search", stage: "provider", reason, status, upstreamStatus: upstream ?? null },
-    ]);
-    expect(JSON.stringify(vi.mocked(console.warn).mock.calls)).not.toContain(secret);
-    expect(m.request).toHaveBeenCalledOnce();
-  });
+  ])(
+    "preserva fallback e registra somente categorias em falha do provedor: $upstream",
+    async ({ upstream, status, reason }) => {
+      m.request.mockRejectedValue({
+        message: secret,
+        response: { status: upstream, data: secret, headers: { authorization: secret } },
+        config: { headers: { authorization: secret } },
+      });
+      const response = await GET(request());
+      expect(response.status).toBe(status);
+      assertPrivate(response);
+      const body = await response.json();
+      expect(body).toMatchObject({ clinics: [verified], provider: "SITES_OFICIAIS" });
+      expect(JSON.stringify(body)).not.toContain(secret);
+      expect(diagnostics()).toEqual([
+        {
+          event: "avp_clinic_search",
+          stage: "provider",
+          reason,
+          status,
+          upstreamStatus: upstream ?? null,
+        },
+      ]);
+      expect(JSON.stringify(vi.mocked(console.warn).mock.calls)).not.toContain(secret);
+      expect(m.request).toHaveBeenCalledOnce();
+    }
+  );
   it("classifica falha da identidade do provedor sem tentar a busca", async () => {
     m.getClient.mockRejectedValue({ code: 403, message: secret });
     const response = await GET(request());
     expect(response.status).toBe(503);
-    expect(await response.json()).toMatchObject({ clinics: [verified], code: "PROVIDER_CONFIGURATION" });
+    expect(await response.json()).toMatchObject({
+      clinics: [verified],
+      code: "PROVIDER_CONFIGURATION",
+    });
     expect(m.request).not.toHaveBeenCalled();
     expect(diagnostics()[0]).toMatchObject({ stage: "provider", reason: "configuration" });
   });
@@ -279,22 +337,40 @@ describe("busca de clínicas AVP com evidência de falha segura", () => {
     const response = await GET(request());
     expect(response.status).toBe(502);
     assertPrivate(response);
-    expect(await response.json()).toMatchObject({ clinics: [verified], provider: "SITES_OFICIAIS" });
+    expect(await response.json()).toMatchObject({
+      clinics: [verified],
+      provider: "SITES_OFICIAIS",
+    });
     expect(diagnostics()[0]).toMatchObject({ stage: "provider", reason: "invalid_response" });
     expect(JSON.stringify(vi.mocked(console.warn).mock.calls)).not.toContain(secret);
   });
-  it.each([{}, { places: [] }, { searchUri: "https://maps.google.com/" }, { places: [{ businessStatus: "CLOSED_PERMANENTLY" }] }])(
-    "aceita resposta vazia legítima sem descartar contatos oficiais: %s",
-    async (data) => {
-      m.request.mockResolvedValue({ data });
-      const response = await GET(request());
-      expect(response.status).toBe(200);
-      expect(await response.json()).toMatchObject({ clinics: [verified], provider: "SITES_OFICIAIS" });
-      expect(console.warn).not.toHaveBeenCalled();
-    }
-  );
+  it.each([
+    {},
+    { places: [] },
+    { searchUri: "https://maps.google.com/" },
+    { places: [{ businessStatus: "CLOSED_PERMANENTLY" }] },
+  ])("aceita resposta vazia legítima sem descartar contatos oficiais: %s", async (data) => {
+    m.request.mockResolvedValue({ data });
+    const response = await GET(request());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      clinics: [verified],
+      provider: "SITES_OFICIAIS",
+    });
+    expect(console.warn).not.toHaveBeenCalled();
+  });
   it("não promove links inseguros do provedor a links clicáveis", async () => {
-    m.request.mockResolvedValue({ data: { places: [{ ...place(), websiteUri: "javascript:alert(1)", googleMapsUri: "https://name:password@example.invalid/" }] } });
+    m.request.mockResolvedValue({
+      data: {
+        places: [
+          {
+            ...place(),
+            websiteUri: "javascript:alert(1)",
+            googleMapsUri: "https://name:password@example.invalid/",
+          },
+        ],
+      },
+    });
     const response = await GET(request());
     expect(response.status).toBe(200);
     expect((await response.json()).clinics[0]).toMatchObject({ sourceUrl: "", mapsUrl: "" });
@@ -307,25 +383,48 @@ describe("busca de clínicas AVP com evidência de falha segura", () => {
     address().filter((component) => !component.types.includes("country")),
     [...address(), { longText: "Maracanaú", shortText: "Maracanaú", types: ["locality"] }],
     [...address(), { longText: "PE", shortText: "PE", types: ["administrative_area_level_1"] }],
-  ])("omite localidade ausente, divergente ou ambígua sem inferir pelo endereço livre: %s", async (addressComponents) => {
-    m.request.mockResolvedValue({ data: { places: [{ ...place(), formattedAddress: "Rua em Fortaleza - CE, Brasil", addressComponents }] } });
-    const response = await GET(request());
-    expect(response.status).toBe(200);
-    assertPrivate(response);
-    expect(await response.json()).toMatchObject({ clinics: [verified], provider: "SITES_OFICIAIS", code: "LOCATION_UNCONFIRMED" });
-    expect(diagnostics()[0]).toMatchObject({ stage: "provider", reason: "location_unconfirmed" });
-  });
+  ])(
+    "omite localidade ausente, divergente ou ambígua sem inferir pelo endereço livre: %s",
+    async (addressComponents) => {
+      m.request.mockResolvedValue({
+        data: {
+          places: [
+            { ...place(), formattedAddress: "Rua em Fortaleza - CE, Brasil", addressComponents },
+          ],
+        },
+      });
+      const response = await GET(request());
+      expect(response.status).toBe(200);
+      assertPrivate(response);
+      expect(await response.json()).toMatchObject({
+        clinics: [verified],
+        provider: "SITES_OFICIAIS",
+        code: "LOCATION_UNCONFIRMED",
+      });
+      expect(diagnostics()[0]).toMatchObject({ stage: "provider", reason: "location_unconfirmed" });
+    }
+  );
   it("não confunde municípios homônimos de UFs diferentes", async () => {
-    m.snapshot.mockResolvedValue({ revision: "source:0", items: [{ cidade: "Bom Jesus", uf: "RS", valorAso: "80,00" }] });
+    m.snapshot.mockResolvedValue({
+      revision: "source:0",
+      items: [{ cidade: "Bom Jesus", uf: "RS", valorAso: "80,00" }],
+    });
     m.verified.mockReturnValue([]);
-    m.request.mockResolvedValue({ data: { places: [{ ...place(), addressComponents: address("Bom Jesus", "PI") }] } });
+    m.request.mockResolvedValue({
+      data: { places: [{ ...place(), addressComponents: address("Bom Jesus", "PI") }] },
+    });
     const response = await GET(request("city=Bom%20Jesus&uf=RS"));
     expect(await response.json()).toMatchObject({ clinics: [], code: "LOCATION_UNCONFIRMED" });
   });
   it("compara acentos sem substituir o município efetivamente informado pelo provedor", async () => {
-    m.snapshot.mockResolvedValue({ revision: "source:0", items: [{ cidade: "São Luís", uf: "MA", valorAso: "80,00" }] });
+    m.snapshot.mockResolvedValue({
+      revision: "source:0",
+      items: [{ cidade: "São Luís", uf: "MA", valorAso: "80,00" }],
+    });
     m.verified.mockReturnValue([]);
-    m.request.mockResolvedValue({ data: { places: [{ ...place(), addressComponents: address("São Luís", "MA") }] } });
+    m.request.mockResolvedValue({
+      data: { places: [{ ...place(), addressComponents: address("São Luís", "MA") }] },
+    });
     const response = await GET(request("city=Sao%20Luis&uf=MA"));
     expect(response.status).toBe(200);
     const body = await response.json();
@@ -334,7 +433,14 @@ describe("busca de clínicas AVP com evidência de falha segura", () => {
     expect(body.code).toBeUndefined();
   });
   it("mantém somente o resultado com localidade confirmada e informa a omissão", async () => {
-    m.request.mockResolvedValue({ data: { places: [place("matching"), { ...place("other-city"), addressComponents: address("Recife", "PE") }] } });
+    m.request.mockResolvedValue({
+      data: {
+        places: [
+          place("matching"),
+          { ...place("other-city"), addressComponents: address("Recife", "PE") },
+        ],
+      },
+    });
     const response = await GET(request());
     const body = await response.json();
     expect(body.clinics).toHaveLength(1);

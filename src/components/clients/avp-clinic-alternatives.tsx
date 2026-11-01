@@ -30,9 +30,11 @@ function clinicResult(value: unknown, cidade: string, uf: string) {
     !Array.isArray(value.clinics) ||
     value.clinics.length > 3 ||
     (value.code !== undefined &&
-      (typeof value.code !== "string" || !["SEARCH_DISABLED", "LOCATION_UNCONFIRMED"].includes(value.code))) ||
+      (typeof value.code !== "string" ||
+        !["SEARCH_DISABLED", "LOCATION_UNCONFIRMED"].includes(value.code))) ||
     (value.error !== undefined &&
-      (typeof value.error !== "string" || (value.code !== "SEARCH_DISABLED" && value.code !== "LOCATION_UNCONFIRMED"))) ||
+      (typeof value.error !== "string" ||
+        (value.code !== "SEARCH_DISABLED" && value.code !== "LOCATION_UNCONFIRMED"))) ||
     (value.code === "SEARCH_DISABLED" && value.provider !== "SITES_OFICIAIS")
   )
     return null;
@@ -62,8 +64,7 @@ function clinicResult(value: unknown, cidade: string, uf: string) {
       (clinic.mapsUrl !== undefined && !safeLink(clinic.mapsUrl)) ||
       !text("verifiedAt", 10) ||
       (google && (clinic.whatsapp !== "" || clinic.email !== "" || clinic.verifiedAt !== "")) ||
-      (!google &&
-        (!clinic.sourceUrl || !/^\d{4}-\d{2}-\d{2}$/.test(clinic.verifiedAt as string)))
+      (!google && (!clinic.sourceUrl || !/^\d{4}-\d{2}-\d{2}$/.test(clinic.verifiedAt as string)))
     )
       return null;
     ids.add(clinic.id as string);
@@ -106,7 +107,13 @@ export function AvpClinicAlternatives({ cidade, uf }: { cidade: string; uf: stri
   const current =
     state.context === context
       ? state
-      : { context, clinics: initial, loading: !!user && initial.length < 3, error: "", google: false };
+      : {
+          context,
+          clinics: initial,
+          loading: !!user && initial.length < 3,
+          error: "",
+          google: false,
+        };
   useEffect(() => {
     const controller = new AbortController();
     const initial = verifiedAvpClinicsForCity(cidade, uf);
@@ -130,8 +137,13 @@ export function AvpClinicAlternatives({ cidade, uf }: { cidade: string; uf: stri
         const options = response.ok ? clinicResult(result, cidade, uf) : null;
         const localIds = new Set(initial.map((clinic) => clinic.id));
         const clinics = options?.google
-          ? [...initial, ...options.clinics.filter((clinic) => !localIds.has(clinic.id))].slice(0, 3)
-          : options?.clinics.length ? options.clinics : initial;
+          ? [...initial, ...options.clinics.filter((clinic) => !localIds.has(clinic.id))].slice(
+              0,
+              3
+            )
+          : options?.clinics.length
+            ? options.clinics
+            : initial;
         setState({
           context,
           clinics,
@@ -177,7 +189,11 @@ export function AvpClinicAlternatives({ cidade, uf }: { cidade: string; uf: stri
         Custo atual acima de R$40. Confirme valores e cadastro com cada clínica.
       </p>
       {current.loading && <p>Buscando até 3 clínicas…</p>}
-      {current.error && <p role="alert" className="text-xs text-amber-600">{current.error}</p>}
+      {current.error && (
+        <p role="alert" className="text-xs text-amber-600">
+          {current.error}
+        </p>
+      )}
       {!current.loading && !current.error && !current.clinics.length && (
         <p className="text-xs opacity-70">Não há contatos verificados disponíveis nesta lista.</p>
       )}

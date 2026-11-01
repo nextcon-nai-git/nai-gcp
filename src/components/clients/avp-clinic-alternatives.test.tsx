@@ -55,7 +55,10 @@ beforeEach(() => {
   m.verified.mockImplementation((cidade, uf) =>
     m.contacts.filter((entry) => entry.cidade === cidade && entry.uf === uf)
   );
-  vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => json(result())));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockImplementation(async () => json(result()))
+  );
   view = ui();
 });
 afterEach(async () => {
@@ -70,7 +73,9 @@ describe("opções de clínicas sem sucesso ou evidência inventados", () => {
     expect(view.container.querySelector('[translate="no"]')?.textContent).toBe("Google Maps");
     expect(view.container.textContent).toContain("não confirmam WhatsApp ou vínculo");
     expect(view.container.textContent).toContain(contact.nome);
-    const googleCard = [...view.container.querySelectorAll("strong")].find((node) => node.textContent === "Opção de teste Fortaleza")!.parentElement!;
+    const googleCard = [...view.container.querySelectorAll("strong")].find(
+      (node) => node.textContent === "Opção de teste Fortaleza"
+    )!.parentElement!;
     expect(googleCard.textContent).not.toContain("Contato publicado no site · conferido");
     expect(view.container.querySelector('[role="alert"]')).toBeNull();
     expect(vi.mocked(fetch).mock.calls[0][1]).toMatchObject({
@@ -106,11 +111,15 @@ describe("opções de clínicas sem sucesso ou evidência inventados", () => {
     expect(view.container.querySelector('a[href^="javascript:"]')).toBeNull();
   });
   it("mostra uma falha segura quando o corpo não contém JSON", async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response("<html>PRIVATE-UPSTREAM</html>", { status: 503 }));
+    vi.mocked(fetch).mockResolvedValue(
+      new Response("<html>PRIVATE-UPSTREAM</html>", { status: 503 })
+    );
     await render();
     expect(view.container.textContent).toContain(contact.nome);
     expect(view.container.textContent).not.toContain("PRIVATE-UPSTREAM");
-    expect(view.container.querySelector('[role="alert"]')?.textContent).toContain("Não foi possível");
+    expect(view.container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Não foi possível"
+    );
   });
   it("limpa o erro ao atualizar e não faz retry nem aceita cliques paralelos", async () => {
     const next = deferred<Response>();
@@ -140,7 +149,9 @@ describe("opções de clínicas sem sucesso ou evidência inventados", () => {
     await render();
     await render("Recife", "PE");
     expect(view.container.textContent).toContain("Opção de teste Recife");
-    await act(async () => old.resolve(json({ ...result(), error: status === 503 ? "OLD-ERROR" : undefined }, status)));
+    await act(async () =>
+      old.resolve(json({ ...result(), error: status === 503 ? "OLD-ERROR" : undefined }, status))
+    );
     expect(view.container.textContent).toContain("Opção de teste Recife");
     expect(view.container.textContent).not.toContain("Fortaleza");
     expect(view.container.textContent).not.toContain("OLD-ERROR");
@@ -154,7 +165,9 @@ describe("opções de clínicas sem sucesso ou evidência inventados", () => {
     m.user = { uid: "operator-new", getIdToken: async () => "token-new" };
     await render();
     expect(fetch).toHaveBeenCalledOnce();
-    expect(vi.mocked(fetch).mock.calls[0][1]).toMatchObject({ headers: { Authorization: "Bearer token-new" } });
+    expect(vi.mocked(fetch).mock.calls[0][1]).toMatchObject({
+      headers: { Authorization: "Bearer token-new" },
+    });
     await act(async () => old.resolve("token-old"));
     expect(fetch).toHaveBeenCalledOnce();
     expect(view.container.textContent).toContain("Opção de teste Fortaleza");
@@ -179,7 +192,14 @@ describe("opções de clínicas sem sucesso ou evidência inventados", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
   it("mantém o estado desligado explícito sem exibir a mensagem bruta do servidor", async () => {
-    vi.mocked(fetch).mockResolvedValue(json({ clinics: [contact], provider: "SITES_OFICIAIS", code: "SEARCH_DISABLED", error: "PRIVATE-SDK-CONTENT" }));
+    vi.mocked(fetch).mockResolvedValue(
+      json({
+        clinics: [contact],
+        provider: "SITES_OFICIAIS",
+        code: "SEARCH_DISABLED",
+        error: "PRIVATE-SDK-CONTENT",
+      })
+    );
     await render();
     expect(view.container.textContent).toContain(contact.nome);
     expect(view.container.querySelector('[role="alert"]')?.textContent).toContain("desativada");
@@ -201,11 +221,15 @@ describe("opções de clínicas sem sucesso ou evidência inventados", () => {
     expect(view.container.querySelector('[translate="no"]')).toBeNull();
   });
   it("explica a localidade não confirmada sem apagar contatos oficiais nem expor texto bruto", async () => {
-    vi.mocked(fetch).mockResolvedValue(json({ ...result(), code: "LOCATION_UNCONFIRMED", error: "PRIVATE-PROVIDER-MESSAGE" }));
+    vi.mocked(fetch).mockResolvedValue(
+      json({ ...result(), code: "LOCATION_UNCONFIRMED", error: "PRIVATE-PROVIDER-MESSAGE" })
+    );
     await render();
     expect(view.container.textContent).toContain(contact.nome);
     expect(view.container.textContent).toContain("Opção de teste Fortaleza");
-    expect(view.container.querySelector('[role="alert"]')?.textContent).toContain("localidade não pôde ser confirmada");
+    expect(view.container.querySelector('[role="alert"]')?.textContent).toContain(
+      "localidade não pôde ser confirmada"
+    );
     expect(view.container.textContent).not.toContain("PRIVATE-PROVIDER-MESSAGE");
   });
 });

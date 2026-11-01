@@ -71,7 +71,10 @@ function placeLocation(value: unknown, city: string, uf: string) {
       component.types.some((type) => typeof type !== "string")
     )
       return null;
-    if (component.types.includes("locality") || component.types.includes("administrative_area_level_2")) {
+    if (
+      component.types.includes("locality") ||
+      component.types.includes("administrative_area_level_2")
+    ) {
       const name = component.longText ?? component.shortText;
       if (typeof name !== "string" || !name.trim() || name.length > 100) return null;
       cities.set(normalizeAvpCity(name), name.trim());
@@ -104,7 +107,8 @@ function placesClinics(data: unknown, city: string, uf: string) {
     "error" in data ||
     (data.places === undefined &&
       Object.keys(data).some(
-        (key) => !["nextPageToken", "searchUri", "routingSummaries", "contextualContents"].includes(key)
+        (key) =>
+          !["nextPageToken", "searchUri", "routingSummaries", "contextualContents"].includes(key)
       )) ||
     (data.places !== undefined && (!Array.isArray(data.places) || data.places.length > 3))
   )
@@ -116,8 +120,7 @@ function placesClinics(data: unknown, city: string, uf: string) {
     if (!record(place)) throw new SearchFailure("invalid_response");
     if (
       place.businessStatus !== undefined &&
-      (typeof place.businessStatus !== "string" ||
-        place.businessStatus.length > 100)
+      (typeof place.businessStatus !== "string" || place.businessStatus.length > 100)
     )
       throw new SearchFailure("invalid_response");
     if (place.businessStatus !== "OPERATIONAL") continue;
@@ -308,7 +311,8 @@ export async function GET(req: NextRequest) {
       ...(locationUnconfirmed
         ? {
             code: "LOCATION_UNCONFIRMED",
-            error: "Alguns resultados foram omitidos porque município, UF ou país não puderam ser confirmados.",
+            error:
+              "Alguns resultados foram omitidos porque município, UF ou país não puderam ser confirmados.",
           }
         : {}),
       notice:
@@ -316,7 +320,11 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     const status = httpStatus(error);
-    if (stage === "authorization" && error instanceof AuthError && [401, 403].includes(error.status))
+    if (
+      stage === "authorization" &&
+      error instanceof AuthError &&
+      [401, 403].includes(error.status)
+    )
       return unavailable(
         stage,
         error.status === 401 ? "unauthorized" : "forbidden",
