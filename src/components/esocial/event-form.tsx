@@ -16,22 +16,31 @@ import type { PayrollEmployee, PayrollDirectory } from "./payroll-link-settings"
 type Payload = Record<string, unknown>;
 const inputClass = "min-h-10 w-full rounded-md border bg-white px-3 py-2 text-sm";
 
+function fieldPathParts(path: string): string[] {
+  const parts = path.split(".");
+  for (const part of parts)
+    if (!part || part === "__proto__" || part === "constructor" || part === "prototype")
+      throw new Error("Caminho de campo inválido.");
+  return parts;
+}
+
 export function valueAt(payload: unknown, path: string): unknown {
-  return path
-    .split(".")
-    .reduce<unknown>(
-      (value, part) => (value && typeof value === "object" ? (value as Payload)[part] : undefined),
-      payload
-    );
+  return fieldPathParts(path).reduce<unknown>(
+    (value, part) =>
+      value && typeof value === "object" && Object.hasOwn(value, part)
+        ? (value as Payload)[part]
+        : undefined,
+    payload
+  );
 }
 
 export function updateAt(payload: Payload, path: string, value: unknown): Payload {
+  const parts = fieldPathParts(path);
   const copy = structuredClone(payload);
-  const parts = path.split(".");
   let cursor: Payload = copy;
   for (let index = 0; index < parts.length - 1; index++) {
     const part = parts[index];
-    if (!cursor[part] || typeof cursor[part] !== "object")
+    if (!Object.hasOwn(cursor, part) || !cursor[part] || typeof cursor[part] !== "object")
       cursor[part] = /^\d+$/.test(parts[index + 1]) ? [] : {};
     cursor = cursor[part] as Payload;
   }
