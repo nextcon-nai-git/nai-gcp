@@ -328,11 +328,167 @@ describe("mensageria: revisão, isolamento e idempotência", () => {
     const event = await submit();
     db.get(path(event.id))!.nextPollAt = "2026-11-01T11:59:00Z";
     vi.stubEnv("ESOCIAL_TRANSMISSION_ENABLED", "false");
-    await syncEsocialMessages();
+    expect(await syncEsocialMessages()).toEqual({ checked: 1, waiting: 0, unavailable: 0 });
     expect(m.query).toHaveBeenCalledTimes(1);
     expect(m.send).toHaveBeenCalledTimes(1);
     expect(db.get(path(event.id))!.status).toBe("accepted");
+    expect(db.get(path(event.id))!.receipt).toBe(receipt);
   });
+  it.each([
+    ["timeout", "processing"],
+    ["RESPONSE_DIGEST_MISMATCH", "uncertain"],
+  ])("registra indisponibilidade tratada na consulta automática: %s", async (code, status) => {
+    const event = await submit();
+    const stored = db.get(path(event.id))!;
+    stored.nextPollAt = "2026-11-01T11:59:00Z";
+    const signed = stored.artifacts.signed;
+    vi.stubEnv("ESOCIAL_TRANSMISSION_ENABLED", "false");
+    m.sign.mockClear();
+    m.query.mockRejectedValueOnce(
+      code === "timeout"
+        ? new Error("synthetic timeout")
+        : new EsocialTransportError(code, "Synthetic mismatch")
+    );
+    expect(await syncEsocialMessages()).toEqual({ checked: 1, waiting: 0, unavailable: 1 });
+    expect(db.get(path(event.id))).toMatchObject({
+      status,
+      protocol: event.protocol,
+      artifacts: { signed },
+    });
+    expect(db.get(`${base}/settings/queryMonitor`)).toMatchObject({
+      checked: 1,
+      waiting: 0,
+      unavailable: 1,
+    });
+    expect(m.query).toHaveBeenCalledOnce();
+    expect(m.sign).not.toHaveBeenCalled();
+    expect(m.send).toHaveBeenCalledTimes(1);
+  });
+  it("conta processamento normal como pendente sem herdar erro da tentativa anterior", async () => {
+    const event = await submit();
+    const stored = db.get(path(event.id))!;
+    stored.nextPollAt = "2026-11-01T11:59:00Z";
+    stored.queryFailures = 2;
+    stored.issues = [{ code: "QUERY_UNAVAILABLE", description: "Falha anterior sintética" }];
+    m.query.mockResolvedValueOnce({
+      status: "processing",
+      protocol: event.protocol,
+      code: "101",
+      description: "Em processamento",
+      issues: [],
+      events: [],
+      rawResponse: "<synthetic-pending/>",
+    });
+    expect(await syncEsocialMessages()).toEqual({ checked: 1, waiting: 1, unavailable: 0 });
+    expect(db.get(path(event.id))).toMatchObject({ status: "processing", queryFailures: 0 });
+    expect(db.get(path(event.id))!.receipt).toBeUndefined();
+    expect(m.send).toHaveBeenCalledTimes(1);
+  });
+  it.each(["query", "batch"])("distingue rejeição da consulta e do lote: %s", async (scope) => {
+    const event = await submit();
+    db.get(path(event.id))!.nextPollAt = "2026-11-01T11:59:00Z";
+    m.query.mockResolvedValueOnce({
+      status: "rejected",
+      rejectionScope: scope,
+      protocol: event.protocol,
+      code: scope === "query" ? "501" : "401",
+      description: "Rejeição sintética",
+      issues: [],
+      events: [],
+      rawResponse: "<synthetic-rejection/>",
+    });
+    expect(await syncEsocialMessages()).toEqual({
+      checked: 1,
+      waiting: 0,
+      unavailable: scope === "query" ? 1 : 0,
+    });
+    expect(db.get(path(event.id))!.status).toBe(scope === "query" ? "processing" : "rejected");
+    expect(db.get(path(event.id))!.receipt).toBeUndefined();
+  });
+  it("não confirma consulta concluída sem o recibo exigido", async () => {
+    const event = await submit();
+    db.get(path(event.id))!.nextPollAt = "2026-11-01T11:59:00Z";
+    m.query.mockResolvedValueOnce({
+      status: "completed",
+      protocol: event.protocol,
+      code: "201",
+      description: "Resposta sintética incompleta",
+      issues: [],
+      events: [
+        {
+          eventId: event.eventId,
+          status: "accepted",
+          code: "201",
+          description: "Sem recibo",
+          issues: [],
+        },
+      ],
+      rawResponse: "<synthetic-incomplete/>",
+    });
+    expect(await syncEsocialMessages()).toEqual({ checked: 1, waiting: 0, unavailable: 1 });
+    expect(db.get(path(event.id))!.status).toBe("processing");
+    expect(db.get(path(event.id))!.receipt).toBeUndefined();
+  });
+  it("preserva recibo concorrente e registra resultado não confirmado para a própria tentativa", async () => {
+    const event = await submit();
+    db.get(path(event.id))!.nextPollAt = "2026-11-01T11:59:00Z";
+    const actualQuery = m.query.getMockImplementation()!;
+    m.query.mockImplementationOnce(async (input) => {
+      const current = db.get(path(event.id))!;
+      current.status = "accepted";
+      current.receipt = receipt;
+      current.version++;
+      delete current.queryLease;
+      delete current.nextPollAt;
+      return actualQuery(input);
+    });
+    expect(await syncEsocialMessages()).toEqual({ checked: 1, waiting: 0, unavailable: 1 });
+    expect(db.get(path(event.id))).toMatchObject({ status: "accepted", receipt });
+    expect(m.query).toHaveBeenCalledOnce();
+    expect(m.send).toHaveBeenCalledTimes(1);
+  });
+  it("envio interrompido sem resposta exige conferência e não vira consulta bem-sucedida", async () => {
+    const event = await submit();
+    const stored = db.get(path(event.id))!;
+    stored.status = "submitting";
+    stored.nextPollAt = "2026-11-01T11:59:00Z";
+    delete stored.protocol;
+    delete db.get(`${path(event.id)}/attempts/${stored.submission.id}`)!.response;
+    vi.stubEnv("ESOCIAL_TRANSMISSION_ENABLED", "false");
+    expect(await syncEsocialMessages()).toEqual({ checked: 0, waiting: 0, unavailable: 1 });
+    expect(db.get(path(event.id))!.status).toBe("uncertain");
+    expect(db.get(path(event.id))!.nextPollAt).toBeUndefined();
+    expect(m.query).not.toHaveBeenCalled();
+    expect(m.send).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    ["accepted", "processing", 1, 0],
+    ["rejected", "rejected", 0, 0],
+    ["uncertain", "uncertain", 0, 1],
+  ])(
+    "classifica recuperação da resposta preservada de envio: %s",
+    async (status, expected, waiting, unavailable) => {
+      const event = await submit();
+      const stored = db.get(path(event.id))!;
+      stored.status = "submitting";
+      stored.nextPollAt = "2026-11-01T11:59:00Z";
+      delete stored.protocol;
+      const attempt = db.get(`${path(event.id)}/attempts/${stored.submission.id}`)!;
+      attempt.response = {
+        status,
+        code: "SYNTHETIC",
+        description: "Resposta preservada sintética",
+        issues: [],
+        ...(status === "accepted" ? { protocol: SYNTHETIC_PROTOCOL } : {}),
+      };
+      vi.stubEnv("ESOCIAL_TRANSMISSION_ENABLED", "false");
+      expect(await syncEsocialMessages()).toEqual({ checked: 0, waiting, unavailable });
+      expect(db.get(path(event.id))!.status).toBe(expected);
+      expect(db.get(path(event.id))!.history.at(-1).action).toBe("submission_result");
+      expect(m.query).not.toHaveBeenCalled();
+      expect(m.send).toHaveBeenCalledTimes(1);
+    }
+  );
   it("prepara e aprova sem A1; nenhuma transmissão ocorre até a ação explícita", async () => {
     m.certificate.mockRejectedValue(new Error("A1 ausente"));
     const event = await approve(await prepare());

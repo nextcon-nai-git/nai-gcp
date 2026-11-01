@@ -27,6 +27,8 @@ describe("minimal operation evidence", () => {
   it.each([
     ["esocial-query", { checked: 2, waiting: 0, unavailable: 0 }, "completed"],
     ["esocial-query", { checked: 1, waiting: 0, unavailable: 1 }, "partial"],
+    ["esocial-query", { checked: 1, waiting: 1, unavailable: 0 }, "partial"],
+    ["esocial-query", { checked: 0, waiting: 0, unavailable: 1 }, "partial"],
     ["aso-mail", { saved: 1, skipped: 0, examined: 1, hasMore: false }, "completed"],
     ["aso-mail", { saved: 1, skipped: 0, examined: 1, hasMore: true }, "partial"],
     ["webhook-deliveries", { examined: 0 }, "completed"],
@@ -108,6 +110,7 @@ describe("minimal operation evidence", () => {
   });
   it.each([
     ["esocial-query", { checked: 1, waiting: 0, unavailable: 1 }],
+    ["esocial-query", { checked: 1, waiting: 1, unavailable: 0 }],
     ["aso-mail", { saved: 1, skipped: 0, examined: 1, hasMore: 1 }],
     ["avp-sheets", { queueUpdated: 1, periodicUpdated: 0 }],
     ["avp-sheets", { queueUpdated: 0, periodicUpdated: 1 }],

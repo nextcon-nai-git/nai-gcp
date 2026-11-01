@@ -19,9 +19,9 @@ const labels: Record<OperationEvidence["state"], string> = {
   unverified: "Resultado não confirmado",
 };
 const counterLabels: Record<string, string> = {
-  checked: "Consultados",
-  waiting: "Aguardando",
-  unavailable: "Indisponíveis",
+  checked: "Tentativas de consulta",
+  waiting: "Ainda pendentes",
+  unavailable: "Indisponíveis ou incertos",
   saved: "Arquivos recebidos",
   skipped: "Ignorados",
   examined: "Itens examinados",
@@ -160,12 +160,22 @@ export function OperationalStatusPanel() {
                           </div>
                         ))}
                       </dl>
+                      {id === "esocial-query" && (
+                        <p className="text-xs text-muted-foreground">
+                          Uma tentativa pode permanecer pendente ou indisponível. Os contadores não
+                          devem ser somados e não representam a fila inteira nem o aceite dos
+                          eventos.
+                        </p>
+                      )}
                     </>
                   )}
                   {evidence.state === "stale" && (
-                    <p className="text-muted-foreground">
-                      Sem registro recente nos últimos {staleAfterMinutes} minutos.
-                    </p>
+                    <div className="space-y-1 text-muted-foreground">
+                      <p>Sem registro recente nos últimos {staleAfterMinutes} minutos.</p>
+                      {evidence.latest && (
+                        <p>Último resultado: {labels[evidence.latest.outcome]}.</p>
+                      )}
+                    </div>
                   )}
                   {evidence.lastFailure &&
                     evidence.lastFailure.runId !== evidence.latest?.runId && (

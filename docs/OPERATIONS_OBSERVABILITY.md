@@ -42,6 +42,33 @@ atualização realizada. Zero pode corresponder a intervalo, reserva de execuç�
 fonte não configurada. Em ASO, `hasMore` indica que resta outro lote. Consultas
 eSocial não significam transmissão de um novo evento.
 
+### Alcance dos contadores eSocial
+
+Os contadores descrevem somente a execução observada:
+
+- `checked` (Tentativas de consulta) conta as consultas que devolveram um resultado
+  interno nesta chamada, inclusive processamento ainda pendente ou erro de transporte
+  tratado. Não é contagem de recibos aceitos nem de requisições SOAP comprovadas.
+- `waiting` conta respostas de processamento em andamento e recuperações de uma
+  resposta de envio que confirmaram o protocolo, mas ainda exigem consulta do lote.
+- `unavailable` conta consultas sem resultado utilizável, resposta inconsistente,
+  acesso indisponível, disputa de execução ou envio interrompido/incerto que exige
+  conferência. Um evento preservado após timeout não se torna consulta bem-sucedida.
+
+`waiting` e `unavailable` podem estar incluídos em `checked`; uma recuperação de
+`submitting` também pode incrementá-los sem fazer SOAP. Portanto, os três números
+não devem ser somados como total de itens. Qualquer `waiting` ou `unavailable`
+positivo produz **Pendências registradas**. Uma rejeição final do evento pode
+encerrar a consulta, mas não comprova aceite pelo eSocial; o resultado de negócio
+permanece na mensageria e no recibo correspondente.
+
+O worker seleciona no máximo dez eventos vencidos e deixa de iniciar novos itens
+após 120 segundos. O resumo não mede o restante da fila, eventos ainda sem prazo
+de consulta ou eventos incertos fora da seleção automática. Mesmo contadores
+zerados não comprovam fila vazia. Registros anteriores a este refinamento não
+discriminavam todos os erros tratados pela consulta; a ausência de indisponibilidade
+nesses registros não prova ausência de falha e não é reclassificada retroativamente.
+
 ## Registros e privacidade
 
 O servidor mantém quatro documentos fixos sob
