@@ -5,6 +5,10 @@ import type { Element as XmlElement } from "@xmldom/xmldom";
 import { isValidCnpj } from "@/lib/cnpj";
 import { isValidCpf } from "@/lib/cpf";
 import {
+  ESOCIAL_TRANSMISSION_DISABLED_MESSAGE,
+  isEsocialTransmissionEnabled,
+} from "@/lib/esocial-transmission-policy";
+import {
   assertCertificateMaterialCurrent,
   parseEsocialXmlSafely,
   verifyEsocialXmlSignature,
@@ -647,6 +651,12 @@ async function soapPost(
 }
 
 export async function sendEsocialBatch(input: SendEsocialBatchInput): Promise<BatchSubmission> {
+  if (!isEsocialTransmissionEnabled())
+    throw new EsocialTransportError(
+      "TRANSMISSION_DISABLED",
+      ESOCIAL_TRANSMISSION_DISABLED_MESSAGE,
+      false
+    );
   // Fail locally before starting any request. Authorization and durable outbox live in the caller.
   const body = buildEsocialBatchEnvelope(input);
   let response: { statusCode: number; body: string } | undefined;

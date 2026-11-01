@@ -7,6 +7,11 @@ runConfig:
   maxInstances: 1
 
 env:
+  # A1 upload and infrastructure validation never enable real transmissions.
+  - variable: ESOCIAL_TRANSMISSION_ENABLED
+    value: "false"
+    availability:
+      - RUNTIME
   # Private A1 custody. The user uploads a PFX only after this secret is provisioned.
   - variable: ESOCIAL_A1_SECRET_NAME
     value: projects/studio-8439299034-125c7/secrets/nai-esocial-a1

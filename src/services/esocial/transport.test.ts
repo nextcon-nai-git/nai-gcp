@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import type { RequestOptions } from "node:https";
 import type { IncomingMessage } from "node:http";
 import { PassThrough } from "node:stream";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   XmlBufferInputProvider,
   XmlDocument,
@@ -80,9 +80,11 @@ beforeAll(async () => {
   );
 });
 afterAll(() => xmlCleanupInputProvider());
+afterEach(() => vi.unstubAllEnvs());
 beforeEach(() => {
   https.request.mockReset();
   vi.useRealTimers();
+  vi.stubEnv("ESOCIAL_TRANSMISSION_ENABLED", "true");
 });
 
 function validateSchema(xml: string, schemaPath: string, namespace: string) {
@@ -398,6 +400,23 @@ describe("batch protocol is separate from event acceptance", () => {
 });
 
 describe("bounded HTTPS mTLS with no real network or automatic retries", () => {
+  it.each([undefined, "false", "TRUE"])(
+    "blocks submission at the network boundary when configuration is %s",
+    async (value) => {
+      vi.stubEnv("ESOCIAL_TRANSMISSION_ENABLED", value);
+      await expect(sendEsocialBatch(sendInput)).rejects.toMatchObject({
+        code: "TRANSMISSION_DISABLED",
+        submissionUncertain: false,
+      });
+      expect(https.request).not.toHaveBeenCalled();
+    }
+  );
+  it("allows a protocol query while new transmissions are disabled", async () => {
+    vi.stubEnv("ESOCIAL_TRANSMISSION_ENABLED", "false");
+    mockNetwork(processing);
+    expect((await queryEsocialBatch(queryInput)).status).toBe("processing");
+    expect(https.request).toHaveBeenCalledTimes(1);
+  });
   it("uses the fixed restricted endpoint, required SOAPAction and peer-verified mTLS", async () => {
     const request = mockNetwork(submission);
     expect((await sendEsocialBatch(sendInput)).status).toBe("accepted");

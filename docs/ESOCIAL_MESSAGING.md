@@ -6,7 +6,7 @@ O módulo em `/esocial/messaging` prepara eventos, valida o XML, exige conferên
 
 A existência do código, das variáveis em `apphosting.yaml` e do script de infraestrutura **não comprova implantação, provisionamento, autorização por procuração nem homologação**. A configuração operacional precisa ser conferida no ambiente em que o NAI estiver publicado. Os testes deste módulo usam certificados sintéticos e respostas de rede simuladas; não equivalem a uma transmissão aceita pelo governo.
 
-O upload do A1 não aprova eventos, não transmite automaticamente e não habilita produção. A rotina agendada somente consulta lotes previamente transmitidos por uma ação expressa do operador.
+O upload do A1 não aprova eventos, não transmite automaticamente e não habilita produção. Durante a validação, `ESOCIAL_TRANSMISSION_ENABLED=false` bloqueia envios e recuperações antes de acesso ao A1, assinatura, reserva e chamada SOAP. Somente o valor literal `true`, liberado posteriormente por um operador, permite iniciar uma transmissão; os demais requisitos de homologação continuam exigidos. A rotina agendada somente consulta lotes previamente transmitidos por uma ação expressa do operador.
 
 **Não há envio de email ao cliente neste fluxo.** A configuração `ASO_CLIENT_EMAIL_SEND_ENABLED=false` também mantém bloqueado o envio de ASOs por email ao cliente na esteira de ASOs. Essa opção não deve ser alterada durante a configuração da mensageria.
 
@@ -119,11 +119,17 @@ O script de infraestrutura usa o projeto, região, contas de serviço e endereç
 # Exibe o plano; não provisiona nem carrega certificado.
 node scripts/setup-esocial-infrastructure.mjs
 
-# Provisiona o cofre vazio, suas permissões e o agendador de consultas.
-node scripts/setup-esocial-infrastructure.mjs --apply
+# Configuração inicial pelo operador autorizado, nunca pela identidade cotidiana do CI.
+node scripts/setup-esocial-infrastructure.mjs --bootstrap --apply --require-empty
+
+# Pipeline: confere pré-requisitos e mantém apenas o agendador.
+node scripts/setup-esocial-infrastructure.mjs --apply --require-empty
+
+# Confere metadados e configuração sem mutações ou leitura de payload.
+node scripts/setup-esocial-infrastructure.mjs --verify --require-empty
 ```
 
-O modo `--apply` exige permissões de Service Usage, Secret Manager, Cloud Scheduler, consulta/criação de contas de serviço e `iam.serviceAccounts.actAs` sobre a conta utilizada. O script não recebe A1, senha ou dados de evento; não transmite ao eSocial. O resultado precisa confirmar o provisionamento. Uma falha de acesso não deve ser tratada como configuração concluída.
+O roteiro completo de WIF/OIDC, contas separadas, papéis mínimos e evidências está em [ESOCIAL_INFRASTRUCTURE.md](ESOCIAL_INFRASTRUCTURE.md). `--bootstrap --apply` prepara APIs, conta, cofre, bindings restritos e job com a identidade do operador. O modo cotidiano `--apply` exige esses pré-requisitos e só cria/atualiza o Scheduler; não recebe permissão para conceder IAM, ler o A1 ou criar contas/chaves. `--verify` apenas lê metadados. `--require-empty` exige zero versões antes de alterar IAM/job e novamente ao final, sem apagar conteúdo existente. O script não recebe A1, senha ou dados de evento e não transmite ao eSocial. A saída distingue configuração confirmada de execução operacional ainda não verificada; falha de acesso não é configuração concluída.
 
 A identidade do agendador é a conta dedicada `nai-esocial-query@{project}.iam.gserviceaccount.com`, usada para invocar a rota interna com OIDC. O script não concede a ela acesso ao Secret Manager, Firestore ou assinatura. As permissões de adicionar e acessar versões do A1 são concedidas, no cofre específico, à conta de execução do App Hosting, `firebase-app-hosting-compute@{project}.iam.gserviceaccount.com`.
 

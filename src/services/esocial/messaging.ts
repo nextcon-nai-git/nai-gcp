@@ -9,6 +9,10 @@ import { AuthError, badRequest, forbidden } from "@/lib/auth/errors";
 import { isPgrGlobalAdmin } from "@/lib/auth/require-pgr-access";
 import type { AsoFlowCard } from "@/lib/aso-flow";
 import { EsocialReceiptSchema, normalizeEsocialRegistration } from "@/lib/esocial-events";
+import {
+  ESOCIAL_TRANSMISSION_DISABLED_MESSAGE,
+  isEsocialTransmissionEnabled,
+} from "@/lib/esocial-transmission-policy";
 import type {
   EsocialEventType,
   EsocialGrant,
@@ -375,6 +379,7 @@ async function capabilities(
     canManageCertificates: canManageEsocialConnection(user),
     canManageGrants: canManageEsocialConnection(user),
     productionEnabled: Boolean(
+      isEsocialTransmissionEnabled() &&
       certificate.localValid &&
       certificate.id &&
       settings?.data()?.productionEnabled === true &&
@@ -759,6 +764,9 @@ async function connectionChecks(
 }
 
 async function transmit(user: AuthContext, id: string, expected: number, recovery = false) {
+  // This guard also covers recovery, before certificate access, signing or any reservation.
+  if (!isEsocialTransmissionEnabled())
+    throw new AuthError(ESOCIAL_TRANSMISSION_DISABLED_MESSAGE, 503);
   const original = await load(user, id);
   version(original, expected);
   const required = recovery ? "uncertain" : "approved";
