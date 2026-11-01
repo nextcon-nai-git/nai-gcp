@@ -61,7 +61,14 @@ async function recordRun(run: OperationRun) {
   try {
     // A timed-out transaction can still finish later; false means not confirmed here.
     console.info(
-      JSON.stringify({ event: "nai_worker_run", ...run, evidencePersistenceConfirmed: recorded })
+      JSON.stringify({
+        event: "nai_worker_run",
+        message: "nai_worker_run",
+        severity:
+          run.outcome === "failed" ? "ERROR" : run.outcome === "completed" ? "INFO" : "WARNING",
+        ...run,
+        evidencePersistenceConfirmed: recorded,
+      })
     );
   } catch {
     // Logging must not change the outcome of an operation that already executed.
