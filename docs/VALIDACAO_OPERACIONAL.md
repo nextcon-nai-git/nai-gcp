@@ -46,20 +46,27 @@ Verificar acesso negado com credencial ausente, perfil suspenso, vínculo removi
 Uma sessão que já estava aberta também precisa perder a capacidade de realizar novas etapas após
 a revogação observada. Preservar os registros técnicos de operações já concluídas legitimamente.
 
+Há uma decisão de escopo pendente no portal clínico: o acesso histórico ao ASO pelo proprietário
+usa `ownerUid` e papel permitido, sem conferir a empresa atual. Uma troca de empresa mantendo o
+mesmo UID ativo não revoga automaticamente esse acesso. Definir se a propriedade histórica deve
+continuar válida; se a regra exigir escopo da empresa atual, persistir e validar um vínculo
+confiável, incluindo o tratamento dos registros antigos. Não declarar aprovado o teste de revogação
+por empresa nesse caminho enquanto essa política não for decidida e verificada.
+
 ## 3. Conferir a esteira de ASOs
 
-| Cenário | Resultado esperado | Evidência mínima |
-| --- | --- | --- |
-| Importar um pedido e o PDF sintético correspondente | Um único registro com identidade e origem conferíveis | Identificadores sintéticos, estado e hash do arquivo |
-| Repetir a mesma importação após perda de confirmação | Nenhuma tarefa duplicada e nenhum progresso apagado | Mesmo identificador e histórico preservado |
-| Repetir tentativa antiga com identidade, SOC ou PDF divergente | Recusa explícita, sem substituir o documento conferido | Resposta de conflito e estado anterior preservado |
-| Substituir deliberadamente um PDF em card mutável, com autorização e versão atual | Histórico preservado e nova conferência exigida | Nova versão, autoria e revisão reaberta |
-| Receber o retorno de uma clínica | Documento recebido para conferência, sem afirmar validação de assinatura | Arquivo disponível e etapa de revisão pendente |
-| Trocar o anexo escolhido no quadro | Confirmações do anexo anterior são limpas | Nova seleção exige conferência própria |
-| Clicar duas vezes ou tentar fechar o card durante a recepção | Uma operação de gravação e resultado coerente | Contagem de requisições e estado final |
-| Revisar o documento | Só dados efetivamente conferidos avançam | Autor, instante e transição de estado |
-| Tentar envio a cliente com o bloqueio ativo | Envio recusado e nenhum e-mail externo | Bloqueio e ausência de chamada ao adaptador |
-| Consultar documento de outra empresa | Acesso negado sem bytes ou metadados sensíveis | Resposta e isolamento verificados |
+| Cenário                                                                           | Resultado esperado                                                       | Evidência mínima                                     |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------- |
+| Importar um pedido e o PDF sintético correspondente                               | Um único registro com identidade e origem conferíveis                    | Identificadores sintéticos, estado e hash do arquivo |
+| Repetir a mesma importação após perda de confirmação                              | Nenhuma tarefa duplicada e nenhum progresso apagado                      | Mesmo identificador e histórico preservado           |
+| Repetir tentativa antiga com identidade, SOC ou PDF divergente                    | Recusa explícita, sem substituir o documento conferido                   | Resposta de conflito e estado anterior preservado    |
+| Substituir deliberadamente um PDF em card mutável, com autorização e versão atual | Histórico preservado e nova conferência exigida                          | Nova versão, autoria e revisão reaberta              |
+| Receber o retorno de uma clínica                                                  | Documento recebido para conferência, sem afirmar validação de assinatura | Arquivo disponível e etapa de revisão pendente       |
+| Trocar o anexo escolhido no quadro                                                | Confirmações do anexo anterior são limpas                                | Nova seleção exige conferência própria               |
+| Clicar duas vezes ou tentar fechar o card durante a recepção                      | Uma operação de gravação e resultado coerente                            | Contagem de requisições e estado final               |
+| Revisar o documento                                                               | Só dados efetivamente conferidos avançam                                 | Autor, instante e transição de estado                |
+| Tentar envio a cliente com o bloqueio ativo                                       | Envio recusado e nenhum e-mail externo                                   | Bloqueio e ausência de chamada ao adaptador          |
+| Consultar documento da esteira de ASOs de outra empresa                           | Acesso negado sem bytes ou metadados sensíveis                           | Resposta e isolamento verificados                    |
 
 A aprovação de um arquivo no sistema não comprova sua autenticidade profissional, sua adequação
 clínica ou o cumprimento de uma obrigação legal. Essas conclusões pertencem à revisão técnica
@@ -105,14 +112,14 @@ atualizações da fila. Antes de um ensaio que pretenda ser inerte sobre os dado
 fila elegível vazia ou usar ambiente isolado. Se isso não puder ser comprovado, registrar o ensaio
 como bloqueado; não apagar, cancelar ou alterar eventos reais para preparar o teste.
 
-| Camada | Critério de aceite | Limite da evidência |
-| --- | --- | --- |
-| Código | Testes, tipos, lint e build aprovados no commit registrado | Não prova configuração ou serviço externo |
-| Publicação | Rollout concluído para o commit candidato | Não prova provisionamento |
-| Cofre | Metadados acessíveis, zero versões e políticas conferidas | Não comprova assinatura nem transmissão |
-| Agendador | Alvo, método, conta, audience, frequência e estado conferidos | Não comprova execução |
-| Execução OIDC | Tentativa correlacionada com o handler correto e resultado inerte | Não homologa o eSocial |
-| Homologação futura | Cenários restritos, A1 autorizado e recibos reais correlacionados | Não autoriza automaticamente produção |
+| Camada             | Critério de aceite                                                | Limite da evidência                       |
+| ------------------ | ----------------------------------------------------------------- | ----------------------------------------- |
+| Código             | Testes, tipos, lint e build aprovados no commit registrado        | Não prova configuração ou serviço externo |
+| Publicação         | Rollout concluído para o commit candidato                         | Não prova provisionamento                 |
+| Cofre              | Metadados acessíveis, zero versões e políticas conferidas         | Não comprova assinatura nem transmissão   |
+| Agendador          | Alvo, método, conta, audience, frequência e estado conferidos     | Não comprova execução                     |
+| Execução OIDC      | Tentativa correlacionada com o handler correto e resultado inerte | Não homologa o eSocial                    |
+| Homologação futura | Cenários restritos, A1 autorizado e recibos reais correlacionados | Não autoriza automaticamente produção     |
 
 O painel em `/admin/operations` é de consulta para administrador global. Distingue configuração
 presente, ausência de evidência, atraso, execução parcial e falha. Um contador zero, um HTTP 200 ou
