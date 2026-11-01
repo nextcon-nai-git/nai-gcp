@@ -5,13 +5,7 @@ import fsMutable, * as fs from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
 import os from "node:os";
 import path from "node:path";
-import {
-  createKit,
-  verifyKit,
-  drillKit,
-  parseArguments,
-  main,
-} from "./recovery-kit.mjs";
+import { createKit, verifyKit, drillKit, parseArguments, main } from "./recovery-kit.mjs";
 
 const sourceMetadata = {
   kind: "synthetic-test",
@@ -73,11 +67,15 @@ async function withFilesystemHooks(hooks, execute) {
 
 test("create and verify preserve binary bytes, nested files and empty directories", async (t) => {
   const binary = Buffer.from([0, 1, 127, 128, 255, 10, 0]);
-  const input = await kit(t, {
-    "documents/Pessoa Simulada.pdf": binary,
-    "firestore/ALL_NAMESPACES_KIND_clients.export_metadata": "synthetic-metadata",
-    "firestore/output-0": "synthetic-shard",
-  }, ["empty"]);
+  const input = await kit(
+    t,
+    {
+      "documents/Pessoa Simulada.pdf": binary,
+      "firestore/ALL_NAMESPACES_KIND_clients.export_metadata": "synthetic-metadata",
+      "firestore/output-0": "synthetic-shard",
+    },
+    ["empty"]
+  );
   const result = await verifyKit(input);
   assert.equal(result.fileCount, 3);
   assert.equal(result.directoryCount, 3);
@@ -86,8 +84,13 @@ test("create and verify preserve binary bytes, nested files and empty directorie
   assert.equal(result.databaseRestoreVerified, false);
   assert.equal(result.cloudCallsPerformed, false);
   assert.equal(result.sourceSnapshotConsistencyVerified, false);
-  assert.deepEqual(await fs.readFile(path.join(input.kitDirectory, "payload/documents/Pessoa Simulada.pdf")), binary);
-  const manifest = JSON.parse(await fs.readFile(path.join(input.kitDirectory, "recovery-manifest.json"), "utf8"));
+  assert.deepEqual(
+    await fs.readFile(path.join(input.kitDirectory, "payload/documents/Pessoa Simulada.pdf")),
+    binary
+  );
+  const manifest = JSON.parse(
+    await fs.readFile(path.join(input.kitDirectory, "recovery-manifest.json"), "utf8")
+  );
   assert.equal(manifest.source.exportedAt, sourceMetadata.exportedAt);
   assert.equal(manifest.source.kind, "synthetic-test");
   assert.equal(manifest.totals.files, 3);
@@ -111,7 +114,10 @@ test("the isolated drill verifies copied bytes and explicitly retains its privat
   assert.match(result.workspaceId, /^nai-recovery-drill-[a-zA-Z0-9]+$/u);
   const workspace = path.join(input.root, result.workspaceId);
   assert.equal((await fs.stat(workspace)).mode & 0o077, 0);
-  assert.equal(await fs.readFile(path.join(workspace, "synthetic-person.json"), "utf8"), '{"notReal":true}');
+  assert.equal(
+    await fs.readFile(path.join(workspace, "synthetic-person.json"), "utf8"),
+    '{"notReal":true}'
+  );
   assert.equal(result.databaseRestoreVerified, false);
   assert.equal(result.offsiteBackupVerified, false);
   assert.doesNotMatch(JSON.stringify(result), /synthetic-person|notReal|\/tmp\//u);
@@ -142,7 +148,14 @@ test("empty exports are never reported as a successful backup", async (t) => {
 });
 
 test("known credential paths and hidden files are refused before a package is created", async (t) => {
-  for (const name of [".env", "credentials.json", "service-account.json", "certificate.pfx", "certificate.p12", "secrets/material.json"]) {
+  for (const name of [
+    ".env",
+    "credentials.json",
+    "service-account.json",
+    "certificate.pfx",
+    "certificate.p12",
+    "secrets/material.json",
+  ]) {
     const input = await fixture(t, { [name]: "synthetic-do-not-process" });
     await assert.rejects(createKit(input), hasCode("CREDENTIAL_PATH_BLOCKED", "UNSAFE_PATH"));
     await assert.rejects(fs.stat(input.outputDirectory), hasCode("ENOENT"));
@@ -166,12 +179,18 @@ test("symlinked source directories and destination parents are refused", async (
   await assert.rejects(createKit({ ...input, sourceDirectory: alias }), hasCode("SYMLINK_BLOCKED"));
   const outputAlias = path.join(input.root, "output-alias");
   await fs.symlink(input.root, outputAlias, "dir");
-  await assert.rejects(createKit({ ...input, outputDirectory: path.join(outputAlias, "new") }), hasCode("SYMLINK_BLOCKED"));
+  await assert.rejects(
+    createKit({ ...input, outputDirectory: path.join(outputAlias, "new") }),
+    hasCode("SYMLINK_BLOCKED")
+  );
 });
 
 test("hardlinked source files are refused", async (t) => {
   const input = await fixture(t);
-  await fs.link(path.join(input.sourceDirectory, "record.json"), path.join(input.root, "outside-hardlink"));
+  await fs.link(
+    path.join(input.sourceDirectory, "record.json"),
+    path.join(input.root, "outside-hardlink")
+  );
   await assert.rejects(createKit(input), hasCode("HARDLINK_BLOCKED"));
 });
 
@@ -188,17 +207,31 @@ test("non-canonical Unicode and unsafe path components are refused", async (t) =
 });
 
 test("file count, total bytes, per-file bytes and directory depth are bounded", async (t) => {
-  const input = await fixture(t, { "first": "12", "second": "34" });
+  const input = await fixture(t, { first: "12", second: "34" });
   await assert.rejects(createKit({ ...input, limits: { maxFiles: 1 } }), hasCode("LIMIT_EXCEEDED"));
-  await assert.rejects(createKit({ ...input, limits: { maxTotalBytes: 3 } }), hasCode("LIMIT_EXCEEDED"));
-  await assert.rejects(createKit({ ...input, limits: { maxFileBytes: 1 } }), hasCode("LIMIT_EXCEEDED"));
+  await assert.rejects(
+    createKit({ ...input, limits: { maxTotalBytes: 3 } }),
+    hasCode("LIMIT_EXCEEDED")
+  );
+  await assert.rejects(
+    createKit({ ...input, limits: { maxFileBytes: 1 } }),
+    hasCode("LIMIT_EXCEEDED")
+  );
   const nested = await fixture(t, { "one/two": "x" });
-  await assert.rejects(createKit({ ...nested, limits: { maxDepth: 1 } }), hasCode("LIMIT_EXCEEDED"));
+  await assert.rejects(
+    createKit({ ...nested, limits: { maxDepth: 1 } }),
+    hasCode("LIMIT_EXCEEDED")
+  );
 });
 
 test("limits cannot be expanded or disabled by API options", async (t) => {
   const input = await fixture(t);
-  for (const limits of [{ maxFiles: 10001 }, { maxFiles: 0 }, { maxFiles: Infinity }, { unknown: 1 }])
+  for (const limits of [
+    { maxFiles: 10001 },
+    { maxFiles: 0 },
+    { maxFiles: Infinity },
+    { unknown: 1 },
+  ])
     await assert.rejects(createKit({ ...input, limits }), hasCode("INVALID_LIMITS"));
 });
 
@@ -211,7 +244,10 @@ test("failed package creation retains its partial directory and requests manual 
     return true;
   });
   assert.equal((await fs.stat(input.outputDirectory)).isDirectory(), true);
-  assert.deepEqual(await fs.readFile(path.join(input.outputDirectory, "payload/record.json")), before);
+  assert.deepEqual(
+    await fs.readFile(path.join(input.outputDirectory, "payload/record.json")),
+    before
+  );
   assert.deepEqual(await fs.readFile(path.join(input.sourceDirectory, "record.json")), before);
 });
 
@@ -223,29 +259,38 @@ test("a directory substituted after mkdir is never automatically deleted", async
   await fs.writeFile(path.join(unrelated, "keep.txt"), "SYNTHETIC KEEP");
   const originalLstat = fs.lstat;
   let substituted = false;
-  await withFilesystemHooks({
-    lstat: async (filename, ...args) => {
-      if (filename === input.outputDirectory && !substituted) {
-        let exists = false;
-        try { exists = (await originalLstat(filename)).isDirectory(); }
-        catch (error) { if (error.code !== "ENOENT") throw error; }
-        if (exists) {
-          await fs.rename(input.outputDirectory, parked);
-          await fs.rename(unrelated, input.outputDirectory);
-          substituted = true;
+  await withFilesystemHooks(
+    {
+      lstat: async (filename, ...args) => {
+        if (filename === input.outputDirectory && !substituted) {
+          let exists = false;
+          try {
+            exists = (await originalLstat(filename)).isDirectory();
+          } catch (error) {
+            if (error.code !== "ENOENT") throw error;
+          }
+          if (exists) {
+            await fs.rename(input.outputDirectory, parked);
+            await fs.rename(unrelated, input.outputDirectory);
+            substituted = true;
+          }
         }
-      }
-      return originalLstat(filename, ...args);
+        return originalLstat(filename, ...args);
+      },
     },
-  }, async () => {
-    await assert.rejects(createKit(input), (error) => {
-      assert.equal(error.code, "UNEXPECTED_ENTRY");
-      assert.equal(error.manualCleanupRequired, true);
-      return true;
-    });
-  });
+    async () => {
+      await assert.rejects(createKit(input), (error) => {
+        assert.equal(error.code, "UNEXPECTED_ENTRY");
+        assert.equal(error.manualCleanupRequired, true);
+        return true;
+      });
+    }
+  );
   assert.equal(substituted, true);
-  assert.equal(await fs.readFile(path.join(input.outputDirectory, "keep.txt"), "utf8"), "SYNTHETIC KEEP");
+  assert.equal(
+    await fs.readFile(path.join(input.outputDirectory, "keep.txt"), "utf8"),
+    "SYNTHETIC KEEP"
+  );
   assert.equal((await fs.stat(parked)).isDirectory(), true);
 });
 
@@ -257,19 +302,22 @@ test("the drill cannot delete a substituted operator directory at a cleanup boun
   await fs.writeFile(path.join(unrelated, "keep.txt"), "SYNTHETIC KEEP");
   const originalRm = fs.rm;
   let removalCalls = 0;
-  await withFilesystemHooks({
-    rm: async (directory, ...args) => {
-      removalCalls++;
-      // Reproduce the old lstat -> rm race if recursive cleanup is ever reintroduced.
-      await fs.rename(directory, path.join(input.root, "parked-workspace"));
-      await fs.rename(unrelated, directory);
-      return originalRm(directory, ...args);
+  await withFilesystemHooks(
+    {
+      rm: async (directory, ...args) => {
+        removalCalls++;
+        // Reproduce the old lstat -> rm race if recursive cleanup is ever reintroduced.
+        await fs.rename(directory, path.join(input.root, "parked-workspace"));
+        await fs.rename(unrelated, directory);
+        return originalRm(directory, ...args);
+      },
     },
-  }, async () => {
-    const result = await drillKit(input);
-    assert.equal(result.manualCleanupRequired, true);
-    assert.equal(result.temporaryFilesRemoved, false);
-  });
+    async () => {
+      const result = await drillKit(input);
+      assert.equal(result.manualCleanupRequired, true);
+      assert.equal(result.temporaryFilesRemoved, false);
+    }
+  );
   assert.equal(removalCalls, 0);
   assert.equal(await fs.readFile(path.join(unrelated, "keep.txt"), "utf8"), "SYNTHETIC KEEP");
 });
@@ -279,7 +327,10 @@ test("shared writable parents without sticky protection are refused", async (t) 
   const shared = path.join(input.root, "shared");
   await fs.mkdir(shared);
   await fs.chmod(shared, 0o777);
-  await assert.rejects(createKit({ ...input, outputDirectory: path.join(shared, "kit") }), hasCode("UNTRUSTED_DIRECTORY"));
+  await assert.rejects(
+    createKit({ ...input, outputDirectory: path.join(shared, "kit") }),
+    hasCode("UNTRUSTED_DIRECTORY")
+  );
   assert.deepEqual(await fs.readdir(shared), []);
   await fs.chmod(shared, 0o1777);
   const result = await createKit({ ...input, outputDirectory: path.join(shared, "kit") });
@@ -292,20 +343,31 @@ test("untrusted ancestors are rejected even when the immediate parent is private
   const privateParent = path.join(shared, "private");
   await fs.mkdir(privateParent, { recursive: true, mode: 0o700 });
   await fs.chmod(shared, 0o777);
-  await assert.rejects(createKit({ ...input, outputDirectory: path.join(privateParent, "kit") }), hasCode("UNTRUSTED_DIRECTORY"));
+  await assert.rejects(
+    createKit({ ...input, outputDirectory: path.join(privateParent, "kit") }),
+    hasCode("UNTRUSTED_DIRECTORY")
+  );
   assert.deepEqual(await fs.readdir(privateParent), []);
 });
 
 test("verification requires an externally recorded hash", async (t) => {
   const input = await kit(t);
   for (const expectedManifestSha256 of [undefined, "", "not-a-hash", "a".repeat(63)])
-    await assert.rejects(verifyKit({ ...input, expectedManifestSha256 }), hasCode("TRUST_ANCHOR_REQUIRED"));
-  await assert.rejects(verifyKit({ ...input, expectedManifestSha256: "0".repeat(64) }), hasCode("MANIFEST_HASH_MISMATCH"));
+    await assert.rejects(
+      verifyKit({ ...input, expectedManifestSha256 }),
+      hasCode("TRUST_ANCHOR_REQUIRED")
+    );
+  await assert.rejects(
+    verifyKit({ ...input, expectedManifestSha256: "0".repeat(64) }),
+    hasCode("MANIFEST_HASH_MISMATCH")
+  );
 });
 
 test("modified manifest is rejected using the original reference", async (t) => {
   const input = await kit(t);
-  await rewriteManifest(input, (manifest) => { manifest.source.scope = "changed"; });
+  await rewriteManifest(input, (manifest) => {
+    manifest.source.scope = "changed";
+  });
   await assert.rejects(verifyKit(input), hasCode("MANIFEST_HASH_MISMATCH"));
 });
 
@@ -348,10 +410,23 @@ test("symlinks and hardlinks in stored kits are rejected", async (t) => {
 });
 
 test("malicious paths fail even when a caller supplies a matching malicious manifest hash", async (t) => {
-  for (const unsafe of ["../escape", "/absolute", "dir/../escape", "dir\\escape", "C:/escape", "dir//entry", ".env"]) {
+  for (const unsafe of [
+    "../escape",
+    "/absolute",
+    "dir/../escape",
+    "dir\\escape",
+    "C:/escape",
+    "dir//entry",
+    ".env",
+  ]) {
     const input = await kit(t);
-    const hash = await rewriteManifest(input, (manifest) => { manifest.files[0].path = unsafe; });
-    await assert.rejects(drillKit({ ...input, expectedManifestSha256: hash }), hasCode("UNSAFE_PATH"));
+    const hash = await rewriteManifest(input, (manifest) => {
+      manifest.files[0].path = unsafe;
+    });
+    await assert.rejects(
+      drillKit({ ...input, expectedManifestSha256: hash }),
+      hasCode("UNSAFE_PATH")
+    );
   }
 });
 
@@ -362,28 +437,50 @@ test("duplicate paths and missing directory parents fail manifest validation", a
     manifest.totals.files = 2;
     manifest.totals.bytes *= 2;
   });
-  await assert.rejects(verifyKit({ ...duplicate, expectedManifestSha256: duplicateHash }), hasCode("PATH_COLLISION"));
+  await assert.rejects(
+    verifyKit({ ...duplicate, expectedManifestSha256: duplicateHash }),
+    hasCode("PATH_COLLISION")
+  );
   const missingParent = await kit(t);
-  const missingHash = await rewriteManifest(missingParent, (manifest) => { manifest.files[0].path = "absent/record.json"; });
-  await assert.rejects(verifyKit({ ...missingParent, expectedManifestSha256: missingHash }), hasCode("INVALID_MANIFEST"));
+  const missingHash = await rewriteManifest(missingParent, (manifest) => {
+    manifest.files[0].path = "absent/record.json";
+  });
+  await assert.rejects(
+    verifyKit({ ...missingParent, expectedManifestSha256: missingHash }),
+    hasCode("INVALID_MANIFEST")
+  );
 });
 
 test("schema version, unknown fields and inconsistent totals fail closed", async (t) => {
   for (const mutate of [
-    (manifest) => { manifest.formatVersion = 2; },
-    (manifest) => { manifest.unexpected = true; },
-    (manifest) => { manifest.totals.bytes += 1; },
-    (manifest) => { manifest.files[0].size = -1; },
+    (manifest) => {
+      manifest.formatVersion = 2;
+    },
+    (manifest) => {
+      manifest.unexpected = true;
+    },
+    (manifest) => {
+      manifest.totals.bytes += 1;
+    },
+    (manifest) => {
+      manifest.files[0].size = -1;
+    },
   ]) {
     const input = await kit(t);
     const hash = await rewriteManifest(input, mutate);
-    await assert.rejects(verifyKit({ ...input, expectedManifestSha256: hash }), hasCode("INVALID_MANIFEST"));
+    await assert.rejects(
+      verifyKit({ ...input, expectedManifestSha256: hash }),
+      hasCode("INVALID_MANIFEST")
+    );
   }
 });
 
 test("oversized manifests are rejected before JSON parsing", async (t) => {
   const input = await kit(t);
-  await assert.rejects(verifyKit({ ...input, limits: { maxManifestBytes: 1 } }), hasCode("LIMIT_EXCEEDED"));
+  await assert.rejects(
+    verifyKit({ ...input, limits: { maxManifestBytes: 1 } }),
+    hasCode("LIMIT_EXCEEDED")
+  );
 });
 
 test("source metadata rejects invalid dates, future dates and missing scope", async (t) => {
@@ -411,21 +508,53 @@ test("CLI summaries and errors omit paths, filenames and file content", async (t
   const input = await fixture(t, { "PRIVATE_SYNTHETIC_PERSON.txt": "SYNTHETIC_CLINICAL_CONTENT" });
   let stdout = "";
   let stderr = "";
-  const out = { write: (value) => { stdout += value; } };
-  const err = { write: (value) => { stderr += value; } };
-  const exitCode = await main([
-    "create", "--source", input.sourceDirectory, "--out", input.outputDirectory,
-    "--kind", "synthetic-test", "--exported-at", sourceMetadata.exportedAt,
-    "--scope", "PRIVATE_SCOPE",
-  ], out, err);
+  const out = {
+    write: (value) => {
+      stdout += value;
+    },
+  };
+  const err = {
+    write: (value) => {
+      stderr += value;
+    },
+  };
+  const exitCode = await main(
+    [
+      "create",
+      "--source",
+      input.sourceDirectory,
+      "--out",
+      input.outputDirectory,
+      "--kind",
+      "synthetic-test",
+      "--exported-at",
+      sourceMetadata.exportedAt,
+      "--scope",
+      "PRIVATE_SCOPE",
+    ],
+    out,
+    err
+  );
   assert.equal(exitCode, 0);
   assert.equal(stderr, "");
-  assert.doesNotMatch(stdout, /PRIVATE_SYNTHETIC_PERSON|SYNTHETIC_CLINICAL_CONTENT|PRIVATE_SCOPE|\/tmp\//u);
+  assert.doesNotMatch(
+    stdout,
+    /PRIVATE_SYNTHETIC_PERSON|SYNTHETIC_CLINICAL_CONTENT|PRIVATE_SCOPE|\/tmp\//u
+  );
   stdout = "";
-  const failure = await main(["verify", "--kit", path.join(input.root, "MISSING_PRIVATE_PATH"), "--expected-manifest-sha256", "0".repeat(64)], out, err);
+  const failure = await main(
+    [
+      "verify",
+      "--kit",
+      path.join(input.root, "MISSING_PRIVATE_PATH"),
+      "--expected-manifest-sha256",
+      "0".repeat(64),
+    ],
+    out,
+    err
+  );
   assert.equal(failure, 1);
   assert.equal(stdout, "");
   assert.doesNotMatch(stderr, /MISSING_PRIVATE_PATH|\/tmp\//u);
   assert.equal(JSON.parse(stderr).cloudCallsPerformed, false);
 });
-

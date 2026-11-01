@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Activity } from "lucide-react";
 export default function SettingsPage() {
-  const { user, role, companyId, tenantId } = useUser();
+  const { user, role, companyId } = useUser();
   const auth = useAuth();
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -29,9 +29,12 @@ export default function SettingsPage() {
       <p>{user?.email}</p>
       <p>Perfil: {role || "Aguardando liberação"}</p>
       <p>Empresa: {companyId || "Definida pelo administrador"}</p>
-      {role === "SUPER_ADMIN" && !companyId && !tenantId && (
+      {role === "SUPER_ADMIN" && (
         <Button asChild variant="outline">
-          <Link href="/admin/operations"><Activity className="mr-2 h-4 w-4" />Acompanhar operações</Link>
+          <Link href="/admin/operations">
+            <Activity className="mr-2 h-4 w-4" />
+            Acompanhar operações
+          </Link>
         </Button>
       )}
       <Button onClick={reset} disabled={!user?.email || sending}>
@@ -46,4 +49,3 @@ export default function SettingsPage() {
     </section>
   );
 }
-

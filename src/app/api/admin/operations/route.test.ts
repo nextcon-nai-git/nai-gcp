@@ -10,7 +10,10 @@ import { GET } from "./route";
 
 const actor = { uid: "synthetic-admin", role: "SUPER_ADMIN", tenantId: null };
 const request = () => new NextRequest("https://nai.example.test/api/admin/operations");
-beforeEach(() => { vi.resetAllMocks(); m.auth.mockResolvedValue(actor); });
+beforeEach(() => {
+  vi.resetAllMocks();
+  m.auth.mockResolvedValue(actor);
+});
 
 describe("read-only operational evidence endpoint", () => {
   it("requires a current authenticated profile before consulting evidence", async () => {
@@ -27,7 +30,11 @@ describe("read-only operational evidence endpoint", () => {
     expect(m.status).toHaveBeenCalledWith(actor);
   });
   it("returns recorded evidence with private, non-cacheable headers", async () => {
-    const status = { generatedAt: "2026-11-01T16:00:00.000Z", controls: { esocialTransmissionBlocked: true, clientEmailBlocked: true }, operations: [] };
+    const status = {
+      generatedAt: "2026-11-01T16:00:00.000Z",
+      controls: { esocialTransmissionBlocked: true, clientEmailBlocked: true },
+      operations: [],
+    };
     m.status.mockResolvedValue(status);
     const response = await GET(request());
     expect(response.status).toBe(200);

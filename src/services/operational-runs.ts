@@ -16,7 +16,11 @@ import {
 // Existing rules deny ALL direct client access to this namespace, including administrators.
 // Four singleton documents keep telemetry bounded; provider payloads are never persisted here.
 const runRef = (operation: OperationId) =>
-  adminDb.collection("clinic_portal_private").doc("operations").collection("worker_status").doc(operation);
+  adminDb
+    .collection("clinic_portal_private")
+    .doc("operations")
+    .collection("worker_status")
+    .doc(operation);
 
 async function persistRun(run: OperationRun) {
   const ref = runRef(run.operation);
@@ -27,14 +31,12 @@ async function persistRun(run: OperationRun) {
     const update: Record<string, OperationRun> = {};
     // Start time orders runs; UUID breaks same-millisecond ties deterministically.
     // This is a display order, not a global execution sequence across replicas.
-    const isNewer = (previous: OperationRun | null) => !previous ||
+    const isNewer = (previous: OperationRun | null) =>
+      !previous ||
       run.startedAt > previous.startedAt ||
       (run.startedAt === previous.startedAt && run.runId > previous.runId);
     if (isNewer(latest)) update.latest = run;
-    if (
-      ["partial", "failed"].includes(run.outcome) &&
-      isNewer(lastFailure)
-    )
+    if (["partial", "failed"].includes(run.outcome) && isNewer(lastFailure))
       update.lastFailure = run;
     if (Object.keys(update).length) tx.set(ref, update, { mergeFields: Object.keys(update) });
     return Object.keys(update).length > 0;
@@ -47,7 +49,9 @@ async function recordRun(run: OperationRun) {
   try {
     recorded = await Promise.race([
       persistRun(run),
-      new Promise<false>((resolve) => { timer = setTimeout(() => resolve(false), 2500); }),
+      new Promise<false>((resolve) => {
+        timer = setTimeout(() => resolve(false), 2500);
+      }),
     ]);
   } catch {
     // Telemetry must not retry a business operation or replace its result/error.
@@ -56,7 +60,9 @@ async function recordRun(run: OperationRun) {
   }
   try {
     // A timed-out transaction can still finish later; false means not confirmed here.
-    console.info(JSON.stringify({ event: "nai_worker_run", ...run, evidencePersistenceConfirmed: recorded }));
+    console.info(
+      JSON.stringify({ event: "nai_worker_run", ...run, evidencePersistenceConfirmed: recorded })
+    );
   } catch {
     // Logging must not change the outcome of an operation that already executed.
   }
@@ -72,7 +78,9 @@ async function observe(operation: OperationId, started: number, result: unknown,
       startedAt: new Date(started).toISOString(),
       finishedAt: new Date(finished).toISOString(),
       durationMs: finished - started,
-      ...(failed ? { outcome: "failed" as const, counters: {} } : summarizeOperation(operation, result)),
+      ...(failed
+        ? { outcome: "failed" as const, counters: {} }
+        : summarizeOperation(operation, result)),
     });
   } catch {
     // Summarization, identifiers and persistence are all best-effort telemetry.
@@ -80,7 +88,10 @@ async function observe(operation: OperationId, started: number, result: unknown,
 }
 
 /** Call only after OIDC and current operator authorization have both succeeded. */
-export async function monitorOperation<T>(operation: OperationId, execute: () => Promise<T>): Promise<T> {
+export async function monitorOperation<T>(
+  operation: OperationId,
+  execute: () => Promise<T>
+): Promise<T> {
   const started = Date.now();
   let result: T;
   try {
@@ -94,7 +105,9 @@ export async function monitorOperation<T>(operation: OperationId, execute: () =>
 }
 
 export async function getOperationalStatus(actor: AuthContext) {
-  if (actor.role !== "SUPER_ADMIN" || actor.tenantId)
+  // SUPER_ADMIN is global in the existing authorization policy, including legacy
+  // internal profiles whose companyId is parsed as the "nextcon" tenant.
+  if (actor.role !== "SUPER_ADMIN")
     throw forbidden("Acompanhamento disponível para a administração global.");
   const snapshots = await adminDb.getAll(...OPERATIONS.map(({ id }) => runRef(id)));
   const now = Date.now();

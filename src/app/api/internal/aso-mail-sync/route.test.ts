@@ -39,7 +39,9 @@ function privateResponse(response: Response, status: number) {
 }
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.monitor.mockImplementation((_operation: string, execute: () => Promise<unknown>) => execute());
+  mocks.monitor.mockImplementation((_operation: string, execute: () => Promise<unknown>) =>
+    execute()
+  );
   vi.stubEnv("ASO_MAIL_SYNC_INVOKER_EMAIL", invoker);
   vi.stubEnv("ASO_MAIL_SYNC_AUDIENCE", audience);
   vi.stubEnv("ASO_MAIL_OPERATOR_UID", operator);
@@ -166,7 +168,6 @@ describe("monitor interno de ASOs por e-mail", () => {
     expect(await response.text()).not.toContain("synthetic-secret");
   });
 });
-
 
 it("records only an authenticated worker invocation", async () => {
   await POST(request());

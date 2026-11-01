@@ -32,4 +32,3 @@ export async function POST(request: NextRequest) {
     return privateFailure(error);
   }
 }
-

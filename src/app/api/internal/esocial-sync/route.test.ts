@@ -98,7 +98,6 @@ describe("consulta interna eSocial por OIDC", () => {
   });
 });
 
-
 it("records only an authenticated worker invocation", async () => {
   await POST(request());
   expect(m.monitor).toHaveBeenCalledWith("esocial-query", expect.any(Function));

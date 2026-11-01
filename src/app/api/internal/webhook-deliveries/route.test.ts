@@ -25,7 +25,9 @@ const request = (token = "Bearer token") =>
   });
 beforeEach(() => {
   vi.clearAllMocks();
-  state.monitor.mockImplementation((_operation: string, execute: () => Promise<unknown>) => execute());
+  state.monitor.mockImplementation((_operation: string, execute: () => Promise<unknown>) =>
+    execute()
+  );
   vi.stubEnv("WEBHOOK_INVOKER_EMAIL", "worker@example.test");
   vi.stubEnv("WEBHOOK_WORKER_AUDIENCE", "https://example.test/api/internal/webhook-deliveries");
   state.verify.mockResolvedValue({
@@ -88,7 +90,7 @@ it("fails closed when audience is absent", async () => {
   vi.stubEnv("WEBHOOK_WORKER_AUDIENCE", "");
   expect((await POST(request())).status).toBe(503);
   expect(state.verify).not.toHaveBeenCalled();
-      expect(state.monitor).not.toHaveBeenCalled();
+  expect(state.monitor).not.toHaveBeenCalled();
   expect(state.process).not.toHaveBeenCalled();
 });
 it("rejects missing identity claims", async () => {
@@ -96,7 +98,6 @@ it("rejects missing identity claims", async () => {
   expect((await POST(request())).status).toBe(403);
   expect(state.process).not.toHaveBeenCalled();
 });
-
 
 it("records only an authenticated worker invocation", async () => {
   await POST(request());

@@ -61,8 +61,11 @@ export function summarizeOperation(operation: OperationId, value: unknown) {
     if (typeof result.started === "boolean" && typeof periodic.started === "boolean") {
       counters.queueUpdated = Number(result.started && !("error" in result));
       counters.periodicUpdated = Number(periodic.started && !("error" in periodic));
-      if ((!result.started || count(result.rowCount)) &&
-          (!periodic.started || count(periodic.sourceRows))) outcome = "completed";
+      if (
+        (!result.started || count(result.rowCount)) &&
+        (!periodic.started || count(periodic.sourceRows))
+      )
+        outcome = "completed";
     }
     if (count(result.rowCount)) counters.rowCount = result.rowCount;
     if (count(periodic.sourceRows)) counters.sourceRows = periodic.sourceRows;
@@ -112,19 +115,24 @@ export function parseOperationRun(
   const rawCounters = object(data.counters);
   const counters: OperationCounters = {};
   for (const name of counterNames[operation])
-    if (count(rawCounters[name]) &&
-        (!["hasMore", "queueUpdated", "periodicUpdated"].includes(name) || Number(rawCounters[name]) <= 1))
+    if (
+      count(rawCounters[name]) &&
+      (!["hasMore", "queueUpdated", "periodicUpdated"].includes(name) ||
+        Number(rawCounters[name]) <= 1)
+    )
       counters[name] = rawCounters[name] as number;
-  const required = operation === "avp-sheets" ? ["queueUpdated", "periodicUpdated"] : counterNames[operation];
+  const required =
+    operation === "avp-sheets" ? ["queueUpdated", "periodicUpdated"] : counterNames[operation];
   if (data.outcome === "completed" && !required.every((name) => name in counters)) return null;
-  if (data.outcome === "completed" && (
-    (operation === "esocial-query" && counters.unavailable !== 0) ||
-    (operation === "aso-mail" && counters.hasMore !== 0) ||
-    (operation === "avp-sheets" && (
-      (counters.queueUpdated === 1 && !("rowCount" in counters)) ||
-      (counters.periodicUpdated === 1 && !("sourceRows" in counters))
-    ))
-  )) return null;
+  if (
+    data.outcome === "completed" &&
+    ((operation === "esocial-query" && counters.unavailable !== 0) ||
+      (operation === "aso-mail" && counters.hasMore !== 0) ||
+      (operation === "avp-sheets" &&
+        ((counters.queueUpdated === 1 && !("rowCount" in counters)) ||
+          (counters.periodicUpdated === 1 && !("sourceRows" in counters)))))
+  )
+    return null;
   return {
     schemaVersion: 1,
     operation,
@@ -148,11 +156,12 @@ export function operationEvidence(
   const threshold = OPERATIONS.find((item) => item.id === operation)!.staleAfterMinutes;
   return {
     latest,
-    lastFailure: lastFailure?.outcome === "failed" || lastFailure?.outcome === "partial"
-      ? lastFailure
-      : null,
+    lastFailure:
+      lastFailure?.outcome === "failed" || lastFailure?.outcome === "partial" ? lastFailure : null,
     state: !latest
-      ? data.latest === undefined ? "unobserved" : "invalid"
+      ? data.latest === undefined
+        ? "unobserved"
+        : "invalid"
       : now - Date.parse(latest.finishedAt) > threshold * 60_000
         ? "stale"
         : latest.outcome,
@@ -187,7 +196,9 @@ export function operationConfiguration(
       ["WEBHOOK_WORKER_AUDIENCE", "Destino autenticado"],
     ],
   };
-  const missing = required[operation].filter(([key]) => !env[key]?.trim()).map(([, label]) => label);
+  const missing = required[operation]
+    .filter(([key]) => !env[key]?.trim())
+    .map(([, label]) => label);
   if (operation === "esocial-query" && env.ESOCIAL_SYNC_ENABLED !== "true")
     missing.push("Consulta automática habilitada");
   if (operation === "aso-mail" && env.ASO_GMAIL_ENABLED !== "true")

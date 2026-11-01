@@ -1,7 +1,12 @@
 // @vitest-environment node
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-const m = vi.hoisted(() => ({ verify: vi.fn(), queue: vi.fn(), periodic: vi.fn(), monitor: vi.fn() }));
+const m = vi.hoisted(() => ({
+  verify: vi.fn(),
+  queue: vi.fn(),
+  periodic: vi.fn(),
+  monitor: vi.fn(),
+}));
 vi.mock("@/services/operational-runs", () => ({ monitorOperation: m.monitor }));
 vi.mock("googleapis/build/src/apis/oauth2", () => ({
   auth: {
@@ -55,7 +60,6 @@ it("falhas das fontes são independentes e retornam erro para repetição do age
   expect(m.periodic).toHaveBeenCalledOnce();
   expect(JSON.stringify(await response.json())).not.toContain("private queue");
 });
-
 
 it("records only an authenticated worker invocation", async () => {
   await POST(request());

@@ -9,7 +9,10 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   const token = req.headers.get("authorization")?.match(/^Bearer (\S+)$/)?.[1];
   if (!token)
-    return NextResponse.json({ error: "Agendador não autorizado." }, { status: 401, headers: privateHeaders });
+    return NextResponse.json(
+      { error: "Agendador não autorizado." },
+      { status: 401, headers: privateHeaders }
+    );
   const email = process.env.AVP_SYNC_INVOKER_EMAIL;
   const audience = process.env.AVP_SYNC_AUDIENCE;
   if (!email || !audience)
@@ -21,9 +24,15 @@ export async function POST(req: NextRequest) {
     const ticket = await new googleAuth.OAuth2().verifyIdToken({ idToken: token, audience });
     const claims = ticket.getPayload();
     if (claims?.email !== email || claims.email_verified !== true)
-      return NextResponse.json({ error: "Agendador não autorizado." }, { status: 403, headers: privateHeaders });
+      return NextResponse.json(
+        { error: "Agendador não autorizado." },
+        { status: 403, headers: privateHeaders }
+      );
   } catch {
-    return NextResponse.json({ error: "Agendador não autorizado." }, { status: 401, headers: privateHeaders });
+    return NextResponse.json(
+      { error: "Agendador não autorizado." },
+      { status: 401, headers: privateHeaders }
+    );
   }
   try {
     const result = await monitorOperation("avp-sheets", async () => {
@@ -39,13 +48,10 @@ export async function POST(req: NextRequest) {
           : { error: "Falha na atualização dos periódicos." };
       return { ...queueResult, periodic: periodicResult };
     });
-    return NextResponse.json(
-      result,
-      {
-        status: "error" in result || "error" in result.periodic ? 503 : 200,
-        headers: privateHeaders,
-      }
-    );
+    return NextResponse.json(result, {
+      status: "error" in result || "error" in result.periodic ? 503 : 200,
+      headers: privateHeaders,
+    });
   } catch {
     return NextResponse.json(
       { error: "Não foi possível executar a sincronização. A fila anterior foi preservada." },
@@ -53,4 +59,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

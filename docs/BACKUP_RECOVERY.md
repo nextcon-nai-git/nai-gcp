@@ -79,17 +79,17 @@ e-mails.
 
 As saídas de sucesso distinguem as evidências:
 
-| Campo | Significado |
-| --- | --- |
-| `integrityVerified: true` | O conjunto de arquivos e os hashes conferem com o manifesto e sua referência externa. |
-| `localFileRecoveryVerified: true` | Somente no `drill`: a cópia isolada foi relida e conferida. |
-| `temporaryFilesRemoved: false` | No `drill`: a cópia temporária foi mantida. |
-| `manualCleanupRequired: true` | Existe uma área de trabalho ou kit parcial que requer conferência e limpeza manual. |
-| `workspaceId` | Nome aleatório da pasta do exercício, sem caminho absoluto nem dados pessoais. |
-| `sourceSnapshotConsistencyVerified: false` | A consistência da exportação na origem não foi comprovada. |
-| `offsiteBackupVerified: false` | Nenhuma retenção em destino externo foi verificada. |
-| `databaseRestoreVerified: false` | Nenhuma restauração de banco foi executada. |
-| `cloudCallsPerformed: false` | O utilitário não chamou APIs de nuvem. |
+| Campo                                      | Significado                                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `integrityVerified: true`                  | O conjunto de arquivos e os hashes conferem com o manifesto e sua referência externa. |
+| `localFileRecoveryVerified: true`          | Somente no `drill`: a cópia isolada foi relida e conferida.                           |
+| `temporaryFilesRemoved: false`             | No `drill`: a cópia temporária foi mantida.                                           |
+| `manualCleanupRequired: true`              | Existe uma área de trabalho ou kit parcial que requer conferência e limpeza manual.   |
+| `workspaceId`                              | Nome aleatório da pasta do exercício, sem caminho absoluto nem dados pessoais.        |
+| `sourceSnapshotConsistencyVerified: false` | A consistência da exportação na origem não foi comprovada.                            |
+| `offsiteBackupVerified: false`             | Nenhuma retenção em destino externo foi verificada.                                   |
+| `databaseRestoreVerified: false`           | Nenhuma restauração de banco foi executada.                                           |
+| `cloudCallsPerformed: false`               | O utilitário não chamou APIs de nuvem.                                                |
 
 Os relatórios padrão não incluem nomes de arquivos, nomes de pessoas, caminhos locais,
 conteúdo nem o rótulo de escopo. Falhas retornam código e mensagem genérica. O manifesto
@@ -154,14 +154,14 @@ exportação do Firestore sem confirmar os requisitos do formato original.
 O exercício local é uma etapa preparatória. A recuperação operacional deve reunir
 evidências separadas para cada componente:
 
-| Componente | Evidência ainda necessária |
-| --- | --- |
-| Firestore | Backup/exportação concluído, escopo, retenção e restauração em banco novo isolado; contagens e consistência dos dados restaurados. |
-| Documentos privados | Cópia externa confirmada, versões, hashes e preservação das referências entre os arquivos e os registros do banco. |
-| Firebase Authentication | Plano e teste próprios para recuperar identidades e validar autorização/isolamento entre empresas. |
-| Código e configuração | Revisão recuperável do código, regras, índices e configuração necessária para subir um ambiente separado. |
-| Certificado A1 | Plano separado de instalação/recuperação, com acesso controlado; o certificado e suas senhas não entram neste kit. |
-| Operação | Registro da execução, responsável, duração, falhas e aprovação dos testes funcionais no ambiente isolado. |
+| Componente              | Evidência ainda necessária                                                                                                         |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Firestore               | Backup/exportação concluído, escopo, retenção e restauração em banco novo isolado; contagens e consistência dos dados restaurados. |
+| Documentos privados     | Cópia externa confirmada, versões, hashes e preservação das referências entre os arquivos e os registros do banco.                 |
+| Firebase Authentication | Plano e teste próprios para recuperar identidades e validar autorização/isolamento entre empresas.                                 |
+| Código e configuração   | Revisão recuperável do código, regras, índices e configuração necessária para subir um ambiente separado.                          |
+| Certificado A1          | Plano separado de instalação/recuperação, com acesso controlado; o certificado e suas senhas não entram neste kit.                 |
+| Operação                | Registro da execução, responsável, duração, falhas e aprovação dos testes funcionais no ambiente isolado.                          |
 
 Backups gerenciados do Firestore permitem restaurar em um banco novo. Uma exportação
 gerenciada precisa estar concluída para ser importada. O pacote deste utilitário

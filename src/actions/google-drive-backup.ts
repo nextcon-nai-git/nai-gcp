@@ -57,4 +57,3 @@ export async function syncDocumentToGoogleDrive(
       "Backup Google Drive pendente: configure o destino e a autenticação e confirme o envio do arquivo.",
   };
 }
-

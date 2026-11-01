@@ -7,6 +7,10 @@ produzidos pelos workers após autenticação. O acesso pela interface e pela AP
 um SUPER_ADMIN global. A API relê o perfil atual por `requireAuth` e não usa cache.
 O atalho fica em Configurações para esse mesmo perfil.
 
+`SUPER_ADMIN` já é um papel global na política do NAI. O painel preserva essa
+convenção inclusive para perfis internos legados com empresa `nextcon`; não altera
+cadastros nem concede o acesso a `ADMIN`, `OPERATIONS` ou perfis de clientes.
+
 O painel é de consulta. Abrir a página ou atualizar os registros não executa jobs,
 não altera permissões e não habilita envios. A tela apresenta os bloqueios globais
 de transmissão eSocial e de e-mail ao cliente conforme a configuração do servidor.
@@ -14,23 +18,23 @@ Qualquer valor diferente de `true` mantém esses dois envios bloqueados.
 
 ## Como interpretar
 
-| Indicação | Significado | Limite da evidência |
-| --- | --- | --- |
-| Configuração de invocação presente | As variáveis esperadas pelo worker estão preenchidas | Não prova a existência do agendador, o valor correto das variáveis, acesso ao provedor ou certificado |
-| Sem execução registrada | Nenhum registro válido foi encontrado desde a adoção deste monitor | Pode haver agendamento ausente, ausência de chamadas ou falha na persistência da telemetria |
-| Execução registrada | Uma chamada autorizada devolveu um resumo reconhecido | Pode ter processado zero itens; não comprova entrega externa |
-| Pendências registradas | O resumo aponta indisponibilidade ou processamento parcial | Exige conferência da fila correspondente |
-| Falha registrada | A chamada falhou ou as duas atualizações AVP falharam | Mensagens do provedor não são armazenadas neste painel |
-| Resultado não confirmado | O retorno não tem os contadores esperados | Não é tratado como execução bem-sucedida |
-| Registro desatualizado | O registro mais recente excedeu o limite da tabela abaixo | O limite é uma política de observação, não um SLA |
-| Registro requer conferência | O documento persistido não atende ao formato esperado | Não é usado como prova de funcionamento |
+| Indicação                          | Significado                                                        | Limite da evidência                                                                                   |
+| ---------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| Configuração de invocação presente | As variáveis esperadas pelo worker estão preenchidas               | Não prova a existência do agendador, o valor correto das variáveis, acesso ao provedor ou certificado |
+| Sem execução registrada            | Nenhum registro válido foi encontrado desde a adoção deste monitor | Pode haver agendamento ausente, ausência de chamadas ou falha na persistência da telemetria           |
+| Execução registrada                | Uma chamada autorizada devolveu um resumo reconhecido              | Pode ter processado zero itens; não comprova entrega externa                                          |
+| Pendências registradas             | O resumo aponta indisponibilidade ou processamento parcial         | Exige conferência da fila correspondente                                                              |
+| Falha registrada                   | A chamada falhou ou as duas atualizações AVP falharam              | Mensagens do provedor não são armazenadas neste painel                                                |
+| Resultado não confirmado           | O retorno não tem os contadores esperados                          | Não é tratado como execução bem-sucedida                                                              |
+| Registro desatualizado             | O registro mais recente excedeu o limite da tabela abaixo          | O limite é uma política de observação, não um SLA                                                     |
+| Registro requer conferência        | O documento persistido não atende ao formato esperado              | Não é usado como prova de funcionamento                                                               |
 
-| Operação | Rota autenticada | Limite de atualização |
-| --- | --- | --- |
-| Consultas eSocial | `/api/internal/esocial-sync` | 20 minutos |
-| Retornos de ASO | `/api/internal/aso-mail-sync` | 60 minutos |
-| Planilhas AVP | `/api/internal/avp-sheet-sync` | 120 minutos |
-| Entregas de integrações | `/api/internal/webhook-deliveries` | 15 minutos |
+| Operação                | Rota autenticada                   | Limite de atualização |
+| ----------------------- | ---------------------------------- | --------------------- |
+| Consultas eSocial       | `/api/internal/esocial-sync`       | 20 minutos            |
+| Retornos de ASO         | `/api/internal/aso-mail-sync`      | 60 minutos            |
+| Planilhas AVP           | `/api/internal/avp-sheet-sync`     | 120 minutos           |
+| Entregas de integrações | `/api/internal/webhook-deliveries` | 15 minutos            |
 
 Nos webhooks, `examined` é o número de itens examinados pelo worker; não é uma
 contagem de entregas confirmadas. No AVP, `queueUpdated` e `periodicUpdated` indicam

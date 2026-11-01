@@ -15,7 +15,8 @@ const MANIFEST = "recovery-manifest.json";
 const PAYLOAD = "payload";
 const PROJECT = "studio-8439299034-125c7";
 const READ_FLAGS = constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK;
-const WRITE_FLAGS = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW;
+const WRITE_FLAGS =
+  constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW;
 const SOURCE_KINDS = new Set([
   "firestore-export",
   "document-export",
@@ -72,7 +73,10 @@ function hasExactKeys(value, expected) {
 }
 
 function normalizeDate(value) {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value))
+  if (
+    typeof value !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value)
+  )
     fail("INVALID_METADATA", "Informe data UTC válida da exportação concluída.");
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) fail("INVALID_METADATA", "Data da exportação inválida.");
@@ -127,7 +131,10 @@ function validateRelativePath(value, limits) {
       /service[-_]?account|firebase-adminsdk|nai-esocial-a1/iu.test(part) ||
       /\.(?:pfx|p12|pem|key|jks|keystore)$/iu.test(part)
     )
-      fail("CREDENTIAL_PATH_BLOCKED", "Arquivos de credenciais não são aceitos no kit de recuperação.");
+      fail(
+        "CREDENTIAL_PATH_BLOCKED",
+        "Arquivos de credenciais não são aceitos no kit de recuperação."
+      );
   }
   return parts;
 }
@@ -189,13 +196,17 @@ function stableFile(a, b) {
 
 function sizeOf(stat) {
   const size = Number(stat.size);
-  if (!Number.isSafeInteger(size) || size < 0) fail("LIMIT_EXCEEDED", "Tamanho de arquivo inválido.");
+  if (!Number.isSafeInteger(size) || size < 0)
+    fail("LIMIT_EXCEEDED", "Tamanho de arquivo inválido.");
   return size;
 }
 
 function within(parent, child) {
   const relative = path.relative(parent, child);
-  return relative === "" || (!relative.startsWith(".." + path.sep) && relative !== ".." && !path.isAbsolute(relative));
+  return (
+    relative === "" ||
+    (!relative.startsWith(".." + path.sep) && relative !== ".." && !path.isAbsolute(relative))
+  );
 }
 
 async function scanDirectory(root, limits) {
@@ -218,10 +229,15 @@ async function scanDirectory(root, limits) {
           fail("LIMIT_EXCEEDED", "Limite de diretórios excedido.");
         await walk(itemPath);
       } else if (stat.isFile()) {
-        if (stat.nlink !== 1n) fail("HARDLINK_BLOCKED", "Arquivos com links físicos não são aceitos.");
+        if (stat.nlink !== 1n)
+          fail("HARDLINK_BLOCKED", "Arquivos com links físicos não são aceitos.");
         const size = sizeOf(stat);
         bytes += size;
-        if (files.length >= limits.maxFiles || size > limits.maxFileBytes || bytes > limits.maxTotalBytes)
+        if (
+          files.length >= limits.maxFiles ||
+          size > limits.maxFileBytes ||
+          bytes > limits.maxTotalBytes
+        )
           fail("LIMIT_EXCEEDED", "Limite de arquivos ou bytes excedido.");
         files.push({ path: itemPath, size, stat });
       } else {
@@ -255,10 +271,12 @@ function assertUnchangedInventory(before, after) {
     before.files.length !== after.files.length ||
     before.bytes !== after.bytes ||
     before.directories.join("\n") !== after.directories.join("\n") ||
-    before.files.some((item, index) =>
-      item.path !== after.files[index].path || !stableFile(item.stat, after.files[index].stat)
+    before.files.some(
+      (item, index) =>
+        item.path !== after.files[index].path || !stableFile(item.stat, after.files[index].stat)
     )
-  ) fail("SOURCE_CHANGED", "A exportação ou o pacote mudou durante a operação.");
+  )
+    fail("SOURCE_CHANGED", "A exportação ou o pacote mudou durante a operação.");
 }
 
 async function readFileChecked(filename, expected, maxBytes, destination) {
@@ -325,7 +343,16 @@ function evidence(operation, manifestSha256, manifest) {
 
 function validateManifest(value, limits) {
   if (
-    !hasExactKeys(value, ["format", "formatVersion", "kitId", "createdAt", "source", "directories", "files", "totals"]) ||
+    !hasExactKeys(value, [
+      "format",
+      "formatVersion",
+      "kitId",
+      "createdAt",
+      "source",
+      "directories",
+      "files",
+      "totals",
+    ]) ||
     value.format !== FORMAT ||
     value.formatVersion !== 1 ||
     typeof value.kitId !== "string" ||
@@ -372,7 +399,8 @@ function validateManifest(value, limits) {
     value.totals.directories !== value.directories.length ||
     value.totals.bytes !== bytes ||
     [...value.directories].sort().join("\n") !== value.directories.join("\n") ||
-    [...value.files.map((file) => file.path)].sort().join("\n") !== value.files.map((file) => file.path).join("\n")
+    [...value.files.map((file) => file.path)].sort().join("\n") !==
+      value.files.map((file) => file.path).join("\n")
   )
     fail("INVALID_MANIFEST", "Totais ou ordenação do manifesto inconsistentes.");
   return value;
@@ -402,7 +430,10 @@ async function readManifest(root, expectedHash, limits) {
       if (!result.bytesRead) fail("SOURCE_CHANGED", "O manifesto mudou durante a leitura.");
       offset += result.bytesRead;
     }
-    if (!stableFile(stat, await handle.stat({ bigint: true })) || !stableFile(stat, await fs.lstat(filename, { bigint: true })))
+    if (
+      !stableFile(stat, await handle.stat({ bigint: true })) ||
+      !stableFile(stat, await fs.lstat(filename, { bigint: true }))
+    )
       fail("SOURCE_CHANGED", "O manifesto mudou durante a leitura.");
   } finally {
     await handle.close();
@@ -448,14 +479,20 @@ async function inspectKit(kitPath, expectedManifestSha256, limits) {
 }
 
 async function makeDirectories(root, directories) {
-  for (const directory of [...directories].sort((a, b) => a.split("/").length - b.split("/").length || (a < b ? -1 : a > b ? 1 : 0)))
+  for (const directory of [...directories].sort(
+    (a, b) => a.split("/").length - b.split("/").length || (a < b ? -1 : a > b ? 1 : 0)
+  ))
     await fs.mkdir(path.join(root, ...directory.split("/")), { mode: 0o700 });
 }
 
 function retainedArtifacts(error, workspaceId) {
-  const safe = error instanceof RecoveryError
-    ? error
-    : new RecoveryError("LOCAL_IO_FAILED", "Falha de leitura ou gravação local; confira o acesso às pastas.");
+  const safe =
+    error instanceof RecoveryError
+      ? error
+      : new RecoveryError(
+          "LOCAL_IO_FAILED",
+          "Falha de leitura ou gravação local; confira o acesso às pastas."
+        );
   safe.manualCleanupRequired = true;
   if (workspaceId) safe.workspaceId = workspaceId;
   return safe;
@@ -466,7 +503,8 @@ export async function createKit({ sourceDirectory, outputDirectory, source, limi
   const createdAt = new Date().toISOString();
   const sourceMetadata = validateSourceMetadata(source, createdAt);
   const { absolute: input } = await plainDirectory(sourceDirectory);
-  if (input === path.parse(input).root) fail("INVALID_DIRECTORY", "Não use a raiz do sistema como origem.");
+  if (input === path.parse(input).root)
+    fail("INVALID_DIRECTORY", "Não use a raiz do sistema como origem.");
   if (typeof outputDirectory !== "string" || !outputDirectory || outputDirectory.includes("\0"))
     fail("INVALID_ARGUMENT", "Informe um destino novo para o kit.");
   const output = path.resolve(outputDirectory);
@@ -505,7 +543,11 @@ export async function createKit({ sourceDirectory, outputDirectory, source, limi
       source: sourceMetadata,
       directories: inventory.directories,
       files,
-      totals: { files: files.length, directories: inventory.directories.length, bytes: inventory.bytes },
+      totals: {
+        files: files.length,
+        directories: inventory.directories.length,
+        bytes: inventory.bytes,
+      },
     };
     validateManifest(manifest, limits);
     const serialized = Buffer.from(JSON.stringify(manifest, null, 2) + "\n");
@@ -563,7 +605,11 @@ export async function drillKit({ kitDirectory, expectedManifestSha256, limits: o
         item.stat,
         limits.maxFileBytes
       );
-      if (item.path !== expected.path || result.size !== expected.size || result.sha256 !== expected.sha256)
+      if (
+        item.path !== expected.path ||
+        result.size !== expected.size ||
+        result.sha256 !== expected.sha256
+      )
         fail("RECOVERY_HASH_MISMATCH", "A cópia recuperada não confere com o manifesto.");
     }
   } catch (error) {
@@ -581,9 +627,10 @@ export async function drillKit({ kitDirectory, expectedManifestSha256, limits: o
 export function parseArguments(args) {
   if (!args.length || (args.length === 1 && args[0] === "--help")) return { operation: "help" };
   const [operation, ...remaining] = args;
-  const allowed = operation === "create"
-    ? new Set(["--source", "--out", "--kind", "--project", "--exported-at", "--scope"])
-    : new Set(["--kit", "--expected-manifest-sha256"]);
+  const allowed =
+    operation === "create"
+      ? new Set(["--source", "--out", "--kind", "--project", "--exported-at", "--scope"])
+      : new Set(["--kit", "--expected-manifest-sha256"]);
   if (!["create", "verify", "drill"].includes(operation) || remaining.length % 2)
     fail("INVALID_ARGUMENT", "Comando inválido; consulte --help.");
   const flags = {};
@@ -594,10 +641,12 @@ export function parseArguments(args) {
       fail("INVALID_ARGUMENT", "Argumentos inválidos ou repetidos; consulte --help.");
     flags[key] = value;
   }
-  const required = operation === "create"
-    ? ["--source", "--out", "--kind", "--exported-at", "--scope"]
-    : ["--kit", "--expected-manifest-sha256"];
-  if (required.some((key) => !flags[key])) fail("INVALID_ARGUMENT", "Argumentos obrigatórios ausentes.");
+  const required =
+    operation === "create"
+      ? ["--source", "--out", "--kind", "--exported-at", "--scope"]
+      : ["--kit", "--expected-manifest-sha256"];
+  if (required.some((key) => !flags[key]))
+    fail("INVALID_ARGUMENT", "Argumentos obrigatórios ausentes.");
   return { operation, flags };
 }
 
@@ -625,32 +674,37 @@ export async function main(args, output = process.stdout, errors = process.stder
       return 0;
     }
     const flags = parsed.flags;
-    const result = parsed.operation === "create"
-      ? await createKit({
-          sourceDirectory: flags["--source"],
-          outputDirectory: flags["--out"],
-          source: {
-            kind: flags["--kind"],
-            projectId: flags["--project"] || PROJECT,
-            exportedAt: flags["--exported-at"],
-            scope: flags["--scope"],
-          },
-        })
-      : await (parsed.operation === "verify" ? verifyKit : drillKit)({
-          kitDirectory: flags["--kit"],
-          expectedManifestSha256: flags["--expected-manifest-sha256"],
-        });
+    const result =
+      parsed.operation === "create"
+        ? await createKit({
+            sourceDirectory: flags["--source"],
+            outputDirectory: flags["--out"],
+            source: {
+              kind: flags["--kind"],
+              projectId: flags["--project"] || PROJECT,
+              exportedAt: flags["--exported-at"],
+              scope: flags["--scope"],
+            },
+          })
+        : await (parsed.operation === "verify" ? verifyKit : drillKit)({
+            kitDirectory: flags["--kit"],
+            expectedManifestSha256: flags["--expected-manifest-sha256"],
+          });
     output.write(JSON.stringify(result, null, 2) + "\n");
     return 0;
   } catch (error) {
-    const safe = error instanceof RecoveryError
-      ? {
-          code: error.code,
-          message: error.message,
-          ...(error.manualCleanupRequired ? { manualCleanupRequired: true } : {}),
-          ...(error.workspaceId ? { workspaceId: error.workspaceId } : {}),
-        }
-      : { code: "LOCAL_IO_FAILED", message: "Falha de leitura ou gravação local; confira o acesso às pastas." };
+    const safe =
+      error instanceof RecoveryError
+        ? {
+            code: error.code,
+            message: error.message,
+            ...(error.manualCleanupRequired ? { manualCleanupRequired: true } : {}),
+            ...(error.workspaceId ? { workspaceId: error.workspaceId } : {}),
+          }
+        : {
+            code: "LOCAL_IO_FAILED",
+            message: "Falha de leitura ou gravação local; confira o acesso às pastas.",
+          };
     errors.write(JSON.stringify({ status: "failed", ...safe, cloudCallsPerformed: false }) + "\n");
     return 1;
   }
@@ -658,4 +712,3 @@ export async function main(args, output = process.stdout, errors = process.stder
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href)
   process.exitCode = await main(process.argv.slice(2));
-
