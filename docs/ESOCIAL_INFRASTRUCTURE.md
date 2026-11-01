@@ -362,7 +362,7 @@ Registrar:
 - cofre existente e **zero versões**, medidos pela API;
 - conta runtime e dois papéis exclusivamente no cofre;
 - ausência de acesso ao cofre para o invocador e para a conta de índices;
-- serviço, método POST, corpo vazio, audience e conta OIDC exatos;
+- serviço, método POST, corpo JSON `{}` (base64 `e30=` no recurso Scheduler), audience e conta OIDC exatos;
 - frequência, fuso, prazo, retentativas e estado do job;
 - estado real dos índices e preservação dos demais índices;
 - configuração efetiva de `ASO_CLIENT_EMAIL_SEND_ENABLED=false` e
