@@ -94,13 +94,29 @@ investigação e não demonstra, sozinha, que a operação não ocorreu.
 
 ## Consulta de logs
 
-Cada chamada monitorada tenta emitir um objeto JSON com `event: nai_worker_run`.
-Se o coletor receber a entrada como log estruturado, o filtro do Logs Explorer é:
+Cada chamada monitorada tenta emitir um objeto JSON com `event: nai_worker_run` e
+`message: nai_worker_run`. A mensagem é constante: não incorpora erro do provedor,
+identidade, token ou conteúdo do resultado. O campo `severity` usa `INFO` para
+`completed`, `WARNING` para `partial` ou `unverified` e `ERROR` para `failed`.
+Essa severidade descreve o resultado resumido da chamada, não o aceite dos eventos
+de negócio nem a confirmação da persistência da telemetria.
+
+O [formato estruturado do Cloud Run](https://docs.cloud.google.com/run/docs/logging#special_json_fields_in_messages)
+utiliza `message` como texto de exibição e promove `severity` para o campo de
+severidade da entrada. Esses campos facilitam a visualização; não garantem que o
+coletor recebeu a entrada ou que um filtro do console a encontrará. Se o coletor
+receber a entrada como log estruturado, o filtro do Logs Explorer permanece:
 
 ```text
 jsonPayload.event="nai_worker_run"
 jsonPayload.operation="esocial-query"
 ```
+
+A ausência em um filtro de mensagem não comprova ausência de execução. Conferir
+o projeto, serviço, revisão, período UTC e filtros, além do documento técnico do
+monitor e do log HTTP correspondente. Um HTTP 200 não substitui a leitura do resumo.
+Confirmar a exibição dos novos campos após a publicação; esta mudança não identifica,
+por si só, a causa de entradas que não apareceram anteriormente.
 
 O campo `evidencePersistenceConfirmed` informa se a gravação do documento foi
 confirmada antes do limite de espera. `false` não prova que a transação nunca

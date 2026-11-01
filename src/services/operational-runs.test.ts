@@ -60,6 +60,62 @@ afterEach(() => {
 });
 
 describe("authenticated worker observability", () => {
+  it.each([
+    {
+      outcome: "completed",
+      counters: { checked: 1, waiting: 0, unavailable: 0 },
+      severity: "INFO",
+    },
+    {
+      outcome: "partial",
+      counters: { checked: 1, waiting: 0, unavailable: 1 },
+      severity: "WARNING",
+    },
+    {
+      outcome: "unverified",
+      counters: { checked: "1", waiting: 0, unavailable: 0 },
+      severity: "WARNING",
+    },
+  ])(
+    "emits a fixed display message and severity for $outcome without widening the log payload",
+    async ({ outcome, counters, severity }) => {
+      const result = {
+        ...counters,
+        message: "private patient name",
+        severity: "EMERGENCY",
+        error: "token=private credential",
+      };
+      const work = vi.fn().mockResolvedValue(result);
+      expect(await monitorOperation("esocial-query", work)).toBe(result);
+      expect(work).toHaveBeenCalledOnce();
+      expect(console.info).toHaveBeenCalledOnce();
+      const line = vi.mocked(console.info).mock.calls[0][0] as string;
+      const log = JSON.parse(line);
+      expect(log).toMatchObject({
+        event: "nai_worker_run",
+        message: "nai_worker_run",
+        severity,
+        outcome,
+        evidencePersistenceConfirmed: true,
+      });
+      expect(Object.keys(log).sort()).toEqual([
+        "counters",
+        "durationMs",
+        "event",
+        "evidencePersistenceConfirmed",
+        "finishedAt",
+        "message",
+        "operation",
+        "outcome",
+        "runId",
+        "schemaVersion",
+        "severity",
+        "startedAt",
+      ]);
+      expect(line).not.toMatch(/private|patient|credential|EMERGENCY|token=/);
+      expect(JSON.stringify([...m.records])).not.toMatch(/message|severity|private/);
+    }
+  );
   it("records a bounded safe summary and returns the original result once", async () => {
     const result = { examined: 3, privatePayload: "never-log-me" };
     const work = vi.fn().mockResolvedValue(result);
@@ -83,6 +139,11 @@ describe("authenticated worker observability", () => {
     });
     expect(JSON.stringify([...m.records])).not.toContain("clinical-person");
     expect(JSON.stringify(vi.mocked(console.info).mock.calls)).not.toContain("credential");
+    expect(JSON.parse(vi.mocked(console.info).mock.calls[0][0])).toMatchObject({
+      message: "nai_worker_run",
+      severity: "ERROR",
+      outcome: "failed",
+    });
   });
   it("telemetry storage failure never converts a completed business operation into a retry", async () => {
     m.transaction.mockRejectedValue(new Error("private database error"));
@@ -90,6 +151,9 @@ describe("authenticated worker observability", () => {
     await expect(monitorOperation("webhook-deliveries", work)).resolves.toEqual({ examined: 1 });
     expect(work).toHaveBeenCalledOnce();
     expect(JSON.parse(vi.mocked(console.info).mock.calls[0][0])).toMatchObject({
+      message: "nai_worker_run",
+      severity: "INFO",
+      outcome: "completed",
       evidencePersistenceConfirmed: false,
     });
   });
