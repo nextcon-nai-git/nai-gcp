@@ -151,6 +151,9 @@ test("audit gate permits only reviewed backports and rejects new or nested vulne
   assert.throws(() => assessAudit(nested), /Unpatched nested/);
   assert.throws(() => assessAudit({ error: { code: "ENETUNREACH" } }), /Invalid/);
   const critical = structuredClone(report);
+  critical.metadata.vulnerabilities.high = 0;
   critical.metadata.vulnerabilities.critical = 1;
+  critical.vulnerabilities.zod.severity = "critical";
+  critical.vulnerabilities.zod.via[0].severity = "critical";
   assert.throws(() => assessAudit(critical), /Critical/);
 });

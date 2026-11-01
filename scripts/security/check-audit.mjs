@@ -10,21 +10,78 @@ const reviewed = new Map([
   ["https://github.com/advisories/GHSA-7pqw-9j4j-h8q3", "extract-zip"],
 ]);
 
-export function assessAudit(report) {
+const severities = ["info", "low", "moderate", "high", "critical"];
+const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+const isText = (value) => typeof value === "string" && value.trim().length > 0;
+const isCount = (value) => Number.isSafeInteger(value) && value >= 0;
+const invalidReport = (reason) => new Error(`Invalid or unavailable npm audit report: ${reason}`);
+
+function validateReport(report) {
   if (
+    !isRecord(report) ||
     report.error ||
     report.auditReportVersion !== 2 ||
-    !report.metadata?.vulnerabilities ||
-    !report.vulnerabilities
+    !isRecord(report.metadata) ||
+    !isRecord(report.metadata.vulnerabilities) ||
+    !isRecord(report.vulnerabilities)
   )
-    throw new Error("Invalid or unavailable npm audit report");
+    throw invalidReport("unexpected report structure");
+  const entries = Object.entries(report.vulnerabilities);
+  const counts = Object.fromEntries(severities.map((severity) => [severity, 0]));
+  for (const [name, vulnerability] of entries) {
+    if (
+      !isText(name) ||
+      !isRecord(vulnerability) ||
+      vulnerability.name !== name ||
+      !severities.includes(vulnerability.severity) ||
+      !Array.isArray(vulnerability.nodes) ||
+      !vulnerability.nodes.length ||
+      !vulnerability.nodes.every(isText) ||
+      !Array.isArray(vulnerability.via) ||
+      !vulnerability.via.length
+    )
+      throw invalidReport("invalid vulnerability entry");
+    counts[vulnerability.severity]++;
+    for (const via of vulnerability.via) {
+      if (typeof via === "string") {
+        if (!isText(via) || !Object.hasOwn(report.vulnerabilities, via))
+          throw invalidReport("unknown audit dependency");
+        // A named dependency aggregates its own advisories. Its maximum severity may
+        // exceed the subset affecting this dependent; do not equate the two severities.
+        continue;
+      }
+      if (
+        !isRecord(via) ||
+        !isText(via.name) ||
+        !isText(via.url) ||
+        !severities.includes(via.severity)
+      )
+        throw invalidReport("invalid advisory entry");
+      if (severities.indexOf(via.severity) > severities.indexOf(vulnerability.severity))
+        throw invalidReport("advisory severity exceeds package severity");
+    }
+  }
+  // npm v2 counts affected packages, including propagated findings, not advisories.
+  // high/critical are mandatory for the gate. Validate other counters when provided.
+  const summary = report.metadata.vulnerabilities;
+  for (const severity of severities) {
+    if (!["high", "critical"].includes(severity) && !Object.hasOwn(summary, severity)) continue;
+    if (!isCount(summary[severity]) || summary[severity] !== counts[severity])
+      throw invalidReport("inconsistent vulnerability counters");
+  }
+  if (
+    Object.hasOwn(summary, "total") &&
+    (!isCount(summary.total) || summary.total !== entries.length)
+  )
+    throw invalidReport("inconsistent vulnerability total");
+  return entries.map(([, vulnerability]) => vulnerability);
+}
+
+export function assessAudit(report) {
+  const vulnerabilities = validateReport(report);
   if (report.metadata.vulnerabilities.critical)
     throw new Error("Critical dependency vulnerability");
-  const high = Object.values(report.vulnerabilities).filter((v) =>
-    ["high", "critical"].includes(v.severity)
-  );
-  if (high.length !== report.metadata.vulnerabilities.high)
-    throw new Error("Inconsistent audit summary");
+  const high = vulnerabilities.filter((v) => ["high", "critical"].includes(v.severity));
   function origins(v, seen = new Set()) {
     if (seen.has(v.name)) return [];
     const next = new Set([...seen, v.name]);

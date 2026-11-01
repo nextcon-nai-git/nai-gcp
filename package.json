@@ -26,7 +26,7 @@
     "test:run": "vitest run",
     "test:rules": "npx --yes firebase-tools@15.33.0 emulators:exec --project demo-nai-security --only firestore,storage --config firebase.test.json \"vitest run --config vitest.rules.config.ts\"",
     "postinstall": "node scripts/security/apply-dependency-patches.mjs",
-    "test:dependency-security": "node scripts/security/apply-dependency-patches.mjs --check && node --test tests/security/dependency-patches.test.mjs",
+    "test:dependency-security": "node scripts/security/apply-dependency-patches.mjs --check && node --test tests/security/audit-gate.test.mjs tests/security/dependency-patches.test.mjs",
     "prebuild": "node scripts/security/apply-dependency-patches.mjs --check"
   },
   "dependencies": {
