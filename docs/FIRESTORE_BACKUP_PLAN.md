@@ -11,15 +11,15 @@ quantidade de documentos e tamanho de arquivos no Hosting não substituem esse v
 
 ## Proposta para revisão
 
-| Item | Configuração |
-| --- | --- |
-| Projeto | `studio-8439299034-125c7` |
-| Banco | `(default)` |
-| Recorrência | Diária |
-| Retenção | 7 dias (`604800s`) |
-| Semanal e PITR | Permanecem desligados nesta proposta |
-| IAM da aplicação/eSocial | Nenhuma ampliação |
-| A1 e envios externos | Nenhuma alteração |
+| Item                     | Configuração                         |
+| ------------------------ | ------------------------------------ |
+| Projeto                  | `studio-8439299034-125c7`            |
+| Banco                    | `(default)`                          |
+| Recorrência              | Diária                               |
+| Retenção                 | 7 dias (`604800s`)                   |
+| Semanal e PITR           | Permanecem desligados nesta proposta |
+| IAM da aplicação/eSocial | Nenhuma ampliação                    |
+| A1 e envios externos     | Nenhuma alteração                    |
 
 Sete dias é uma proposta inicial, não um mínimo universal. O valor de 98 dias exibido ao editar
 no console é o máximo de 14 semanas. Confirmar a retenção com a operação antes da ativação.
