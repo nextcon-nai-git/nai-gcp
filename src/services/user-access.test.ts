@@ -7,7 +7,10 @@ const m = vi.hoisted(() => ({
   get: vi.fn(),
   byEmail: vi.fn(),
   reset: vi.fn(),
-  failEnable: false,
+  failCompletionCommit: false,
+  loseCompletionAck: false,
+  loseAcquisitionAck: false,
+  revokeAfterCompletion: false,
   seq: 0,
 }));
 vi.mock("@/lib/firebase-admin", () => {
@@ -44,11 +47,14 @@ vi.mock("@/lib/firebase-admin", () => {
       }),
       runTransaction: async (fn: (tx: unknown) => Promise<unknown>) => {
         const writes: Array<() => unknown> = [];
+        let completion = false;
+        let acquisition = false;
         const result = await fn({
           get: (r: ReturnType<typeof ref>) => r.get(),
           set: (r: ReturnType<typeof ref>, d: Record<string, unknown>) =>
             writes.push(() => apply(r, d)),
-          update: (r: ReturnType<typeof ref>, d: Record<string, unknown>) =>
+          update: (r: ReturnType<typeof ref>, d: Record<string, unknown>) => {
+            if (typeof d.accessOperationId === "string") acquisition = true;
             writes.push(() => {
               if ("accessOperationId" in d && typeof d.accessOperationId !== "string") {
                 const copy = { ...d };
@@ -57,11 +63,19 @@ vi.mock("@/lib/firebase-admin", () => {
                 return apply(r, copy);
               }
               return apply(r, d);
-            }),
-          create: (r: ReturnType<typeof ref>, d: Record<string, unknown>) =>
-            writes.push(() => apply(r, d)),
+            });
+          },
+          create: (r: ReturnType<typeof ref>, d: Record<string, unknown>) => {
+            if (d.phase === "COMPLETED") completion = true;
+            writes.push(() => apply(r, d));
+          },
         });
+        if (completion && m.failCompletionCommit) throw new Error("completion commit failed");
         writes.forEach((fn) => fn());
+        if (completion && m.revokeAfterCompletion) m.rows.get("users/admin")!.accessEnabled = false;
+        if (completion && m.loseCompletionAck) throw new Error("completion acknowledgement lost");
+        if (acquisition && m.loseAcquisitionAck)
+          throw new Error("acquisition acknowledgement lost");
         return result;
       },
     },
@@ -69,6 +83,10 @@ vi.mock("@/lib/firebase-admin", () => {
 });
 import { manageUserAccess, previewUserAccess } from "./user-access";
 import type { AuthContext } from "@/lib/auth/auth-context";
+import { parseClaims } from "@/lib/auth/claims";
+import { dashboardScope } from "@/lib/auth/dashboard-access";
+import { requireFinancialAccess } from "@/lib/auth/financial-access";
+import { requirePgrCompany } from "@/lib/auth/require-pgr-access";
 const admin: AuthContext = {
   uid: "admin",
   email: "admin@example.test",
@@ -81,6 +99,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   m.rows.clear();
   m.seq = 0;
+  m.failCompletionCommit = false;
+  m.loseCompletionAck = false;
+  m.loseAcquisitionAck = false;
+  m.revokeAfterCompletion = false;
+  m.rows.set("users/admin", { role: "SUPER_ADMIN", accessEnabled: true });
   m.rows.set("providers/p", {
     name: "Prestador teste",
     email: "provider@example.test",
@@ -251,3 +274,164 @@ it("updating grants preserves suspended status", async () => {
   expect(m.rows.get("users/new")?.accessEnabled).toBe(false);
   expect(m.update).not.toHaveBeenCalledWith("new", { disabled: false });
 });
+it.each(["suspended", "demoted", "removed"])(
+  "rejects a stale administrator context after the actor is %s",
+  async (change) => {
+    const body = await input();
+    if (change === "suspended") m.rows.get("users/admin")!.accessEnabled = false;
+    if (change === "demoted") m.rows.get("users/admin")!.role = "OPERATIONS";
+    if (change === "removed") m.rows.delete("users/admin");
+    await expect(previewUserAccess(admin, "provider", "p")).rejects.toMatchObject({ status: 403 });
+    await expect(manageUserAccess(admin, body)).rejects.toMatchObject({ status: 403 });
+    expect(m.create).not.toHaveBeenCalled();
+    expect(m.update).not.toHaveBeenCalled();
+    expect(m.rows.get("providers/p")?.accessOperationId).toBeUndefined();
+  }
+);
+it("rechecks the administrator before creating an Auth identity", async () => {
+  const body = await input();
+  m.byEmail.mockImplementation(async () => {
+    m.rows.get("users/admin")!.accessEnabled = false;
+    throw Object.assign(new Error("User not found"), { code: "auth/user-not-found" });
+  });
+  await expect(manageUserAccess(admin, body)).rejects.toMatchObject({ status: 403 });
+  expect(m.create).not.toHaveBeenCalled();
+  expect(m.rows.get("providers/p")?.accessOperationId).toBeUndefined();
+});
+it("does not generate a reset credential after administrator revocation", async () => {
+  existing();
+  const body = await input("provider", "p", "reset-password");
+  m.revoke.mockImplementation(async () => {
+    m.rows.get("users/admin")!.role = "ADMIN";
+  });
+  await expect(manageUserAccess(admin, body)).rejects.toMatchObject({ status: 403 });
+  expect(m.reset).not.toHaveBeenCalled();
+  expect(m.rows.get("users/new")?.accessEnabled).toBe(false);
+  expect(m.update).not.toHaveBeenCalledWith("new", { disabled: false });
+});
+it("keeps the NAI profile suspended after admin revocation during Auth enable", async () => {
+  m.update.mockImplementation(async (_uid, changes) => {
+    if (changes.disabled === false) m.rows.get("users/admin")!.accessEnabled = false;
+  });
+  await expect(manageUserAccess(admin, await input())).rejects.toMatchObject({ status: 403 });
+  expect(m.rows.get("users/new")?.accessEnabled).toBe(false);
+  expect([...m.rows.values()].some((d) => d.phase === "COMPLETED")).toBe(false);
+  expect(m.rows.get("providers/p")?.accessOperationId).toBeUndefined();
+});
+it("withholds a reset link if its generation overlaps administrator revocation", async () => {
+  existing(false);
+  const body = await input("provider", "p", "reset-password");
+  m.reset.mockImplementation(async () => {
+    m.rows.get("users/admin")!.accessEnabled = false;
+    return "https://auth.example.test/private-reset-link";
+  });
+  await expect(manageUserAccess(admin, body)).rejects.toMatchObject({ status: 403 });
+  expect(m.rows.get("users/new")?.accessEnabled).toBe(false);
+  expect(JSON.stringify([...m.rows])).not.toContain("private-reset-link");
+});
+it("releases its own reservation after a lost acquisition acknowledgement", async () => {
+  const body = await input();
+  m.loseAcquisitionAck = true;
+  await expect(manageUserAccess(admin, body)).rejects.toThrow("acquisition acknowledgement lost");
+  expect(m.rows.get("providers/p")?.accessOperationId).toBeUndefined();
+  expect(m.create).not.toHaveBeenCalled();
+  expect(m.rows.has("users/new")).toBe(false);
+  m.loseAcquisitionAck = false;
+  expect((await manageUserAccess(admin, body)).success).toBe(true);
+  expect(m.create).toHaveBeenCalledOnce();
+});
+it("withholds a reset link after receipt recovery if the administrator was revoked", async () => {
+  existing(false);
+  const body = await input("provider", "p", "reset-password");
+  m.loseCompletionAck = true;
+  m.revokeAfterCompletion = true;
+  await expect(manageUserAccess(admin, body)).rejects.toMatchObject({ status: 403 });
+  expect(m.rows.get("providers/p")?.accessOperationId).toBeUndefined();
+  expect(m.rows.get("users/new")?.accessEnabled).toBe(false);
+  expect([...m.rows.values()].some((d) => d.phase === "COMPLETED")).toBe(true);
+  expect(JSON.stringify([...m.rows])).not.toContain("private-reset-link");
+});
+it("refuses to rewrite a profile linked to another record during token revocation", async () => {
+  existing();
+  const body = await input("provider", "p", "update");
+  m.revoke.mockImplementation(async () => {
+    m.rows.get("users/new")!.providerId = "another-provider";
+  });
+  await expect(manageUserAccess(admin, body)).rejects.toMatchObject({ status: 409 });
+  expect(m.rows.get("users/new")?.providerId).toBe("another-provider");
+  expect(m.rows.get("users/new")?.accessEnabled).toBe(false);
+  expect(m.update).not.toHaveBeenCalledWith("new", { disabled: false });
+});
+it("does not publish an enabled profile without its completion audit", async () => {
+  m.failCompletionCommit = true;
+  await expect(manageUserAccess(admin, await input())).rejects.toThrow("completion commit failed");
+  expect(m.rows.get("users/new")?.accessEnabled).toBe(false);
+  expect([...m.rows.values()].some((d) => d.phase === "COMPLETED")).toBe(false);
+  expect(m.rows.get("providers/p")?.accessOperationId).toBeUndefined();
+});
+it.each(["enable", "disable", "reset-password"])(
+  "recovers a committed %s operation when only its acknowledgement is lost",
+  async (action) => {
+    existing();
+    m.loseCompletionAck = true;
+    const result = await manageUserAccess(admin, await input("provider", "p", action));
+    expect(result.success).toBe(true);
+    expect(m.rows.get("users/new")?.accessEnabled).toBe(action !== "disable");
+    expect(m.rows.get("providers/p")?.accessOperationId).toBeUndefined();
+    const audits = [...m.rows.values()].filter((d) => d.phase === "COMPLETED");
+    expect(audits).toHaveLength(1);
+    expect(audits[0]).toMatchObject({ action, actorUid: "admin", targetUid: "new" });
+    expect(m.create).not.toHaveBeenCalled();
+    expect(m.reset).toHaveBeenCalledTimes(action === "reset-password" ? 1 : 0);
+    expect(JSON.stringify([...m.rows])).not.toContain("private-reset-link");
+  }
+);
+it.each(["create", "update"])(
+  "writes a coherent internal scope for an explicit OPERATIONS %s",
+  async (action) => {
+    if (action === "update") {
+      m.rows.get("nxc_employees/e")!.accessUid = "new";
+      m.rows.set("users/new", {
+        role: "OPERATIONS",
+        employeeId: "e",
+        companyId: "nextcon",
+        tenantId: null,
+        accessEnabled: true,
+      });
+      m.get.mockResolvedValue({
+        uid: "new",
+        email: "employee@example.test",
+        disabled: false,
+        metadata: {},
+      });
+    }
+    await manageUserAccess(admin, {
+      ...(await input("employee", "e", action)),
+      role: "OPERATIONS",
+      companyIds: [],
+    });
+    const profile = m.rows.get("users/new")!;
+    expect(profile).toMatchObject({
+      role: "OPERATIONS",
+      employeeId: "e",
+      companyId: null,
+      tenantId: null,
+      servedCompanies: [],
+      permissions: [],
+    });
+    const claims = parseClaims(profile);
+    const operator: AuthContext = {
+      ...admin,
+      uid: "new",
+      role: claims.role,
+      tenantId: claims.tenantId || null,
+      servedCompanies: claims.servedCompanies || [],
+      permissions: claims.permissions || [],
+    };
+    expect(dashboardScope(operator, "all")).toBeNull();
+    expect(dashboardScope(operator, "a")).toBe("a");
+    expect(() => requireFinancialAccess(operator)).toThrow();
+    expect(() => requirePgrCompany(operator, "a")).toThrow();
+    await expect(manageUserAccess(operator, {})).rejects.toMatchObject({ status: 403 });
+  }
+);
