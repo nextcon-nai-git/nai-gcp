@@ -72,8 +72,7 @@ vi.mock("@/lib/firebase-admin", () => {
         });
         if (completion && m.failCompletionCommit) throw new Error("completion commit failed");
         writes.forEach((fn) => fn());
-        if (completion && m.revokeAfterCompletion)
-          m.rows.get("users/admin")!.accessEnabled = false;
+        if (completion && m.revokeAfterCompletion) m.rows.get("users/admin")!.accessEnabled = false;
         if (completion && m.loseCompletionAck) throw new Error("completion acknowledgement lost");
         if (acquisition && m.loseAcquisitionAck)
           throw new Error("acquisition acknowledgement lost");

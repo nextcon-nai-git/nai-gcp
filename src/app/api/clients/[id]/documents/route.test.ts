@@ -87,9 +87,7 @@ describe("private client documents and action import", () => {
     expect(
       (
         await GET(
-          new NextRequest(
-            "https://test/api/clients/BRITANIA_JOINVILLE/documents?pdf=" + pdfHash
-          ),
+          new NextRequest("https://test/api/clients/BRITANIA_JOINVILLE/documents?pdf=" + pdfHash),
           { params: Promise.resolve({ id: "BRITANIA_JOINVILLE" }) }
         )
       ).status
