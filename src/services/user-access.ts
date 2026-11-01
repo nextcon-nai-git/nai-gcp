@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, type Transaction } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import { AuthError, badRequest, forbidden } from "@/lib/auth/errors";
@@ -11,6 +11,14 @@ const conflict = (message: string) => new AuthError(message, 409);
 const stamp = () => FieldValue.serverTimestamp();
 function requireAdmin(actor: AuthContext) {
   if (actor.role !== "SUPER_ADMIN") throw forbidden();
+}
+async function requireCurrentAdmin(actor: AuthContext, tx?: Transaction) {
+  requireAdmin(actor);
+  const ref = adminDb.collection("users").doc(actor.uid);
+  const snapshot = tx ? await tx.get(ref) : await ref.get();
+  const profile = snapshot.data();
+  if (!profile || profile.role !== "SUPER_ADMIN" || profile.accessEnabled === false)
+    throw forbidden("O acesso administrativo foi suspenso ou alterado. Entre novamente.");
 }
 function identity(kind: unknown, id: unknown) {
   if (
@@ -70,7 +78,7 @@ function linked(profile: Record<string, unknown> | undefined, kind: AccessSubjec
   );
 }
 export async function previewUserAccess(actor: AuthContext, kind: unknown, id: unknown) {
-  requireAdmin(actor);
+  await requireCurrentAdmin(actor);
   const target = identity(kind, id);
   const ref = adminDb.collection(target.collection).doc(target.id);
   const data = (await ref.get()).data();
@@ -143,9 +151,11 @@ export async function manageUserAccess(actor: AuthContext, raw: unknown) {
     throw badRequest("Ação inválida.");
   const ref = adminDb.collection(target.collection).doc(target.id);
   const operationId = randomUUID();
+  const completionRef = adminDb.collection("user_access_audit").doc(operationId);
   let uid = "";
   let resetLink: string | undefined;
-  let acquired = false;
+  let lockAttempted = false;
+  let completed = false;
   const action = String(input.action);
   let s!: ReturnType<typeof source>;
   let role = "SCOPED_PROVIDER";
@@ -154,6 +164,7 @@ export async function manageUserAccess(actor: AuthContext, raw: unknown) {
   let shouldEnable = false;
   try {
     await adminDb.runTransaction(async (tx) => {
+      await requireCurrentAdmin(actor, tx);
       const snap = await tx.get(ref);
       if (!snap.exists) throw new AuthError("Cadastro não encontrado.", 404);
       const data = snap.data()!;
@@ -202,9 +213,11 @@ export async function manageUserAccess(actor: AuthContext, raw: unknown) {
             throw conflict("Empresa indisponível.");
         }
       }
+      // A committed reservation may lose its acknowledgement. Cleanup must
+      // still inspect ownership, without ever releasing another operation's lock.
+      lockAttempted = true;
       tx.update(ref, { accessOperationId: operationId });
     });
-    acquired = true;
     if (action === "create") {
       if (
         typeof input.password !== "string" ||
@@ -218,6 +231,7 @@ export async function manageUserAccess(actor: AuthContext, raw: unknown) {
       } catch (e) {
         if ((e as { code?: string }).code !== "auth/user-not-found") throw e;
       }
+      await requireCurrentAdmin(actor);
       uid = (
         await adminAuth.createUser({
           email: s.email,
@@ -236,6 +250,7 @@ export async function manageUserAccess(actor: AuthContext, raw: unknown) {
       action === "create" || action === "enable" || (action !== "disable" && previouslyEnabled);
     // Lock access in Firestore first, then disable Auth/revoke tokens before changing grants.
     await adminDb.runTransaction(async (tx) => {
+      await requireCurrentAdmin(actor, tx);
       const data = (await tx.get(ref)).data();
       if (
         !data ||
@@ -259,7 +274,7 @@ export async function manageUserAccess(actor: AuthContext, raw: unknown) {
                 role,
                 permissions: [],
                 servedCompanies: companyIds,
-                companyId: role === "OPERATIONS" ? "nextcon" : companyIds[0] || null,
+                companyId: role === "OPERATIONS" ? null : companyIds[0] || null,
                 tenantId: role === "OPERATIONS" ? null : companyIds[0] || null,
                 [target.kind === "provider" ? "providerId" : "employeeId"]: target.id,
                 createdAt: stamp(),
@@ -270,6 +285,7 @@ export async function manageUserAccess(actor: AuthContext, raw: unknown) {
       );
       tx.update(ref, { accessUid: uid, accessVersion: Number(data.accessVersion || 0) + 1 });
       tx.create(adminDb.collection("user_access_audit").doc(), {
+        operationId,
         action,
         phase: "STARTED",
         actorUid: actor.uid,
@@ -286,8 +302,12 @@ export async function manageUserAccess(actor: AuthContext, raw: unknown) {
     });
     await adminAuth.updateUser(uid, { disabled: true });
     await adminAuth.revokeRefreshTokens(uid);
-    if (action === "reset-password") resetLink = await adminAuth.generatePasswordResetLink(s.email);
+    if (action === "reset-password") {
+      await requireCurrentAdmin(actor);
+      resetLink = await adminAuth.generatePasswordResetLink(s.email);
+    }
     await adminDb.runTransaction(async (tx) => {
+      await requireCurrentAdmin(actor, tx);
       const data = (await tx.get(ref)).data();
       if (
         !data ||
@@ -303,26 +323,33 @@ export async function manageUserAccess(actor: AuthContext, raw: unknown) {
         companyIds.some((id) => !source(data, target.kind).companyIds.includes(id))
       )
         throw conflict("Vínculos revogados durante a operação.");
+      const profileRef = adminDb.collection("users").doc(uid);
+      if (!linked((await tx.get(profileRef)).data(), target.kind, target.id))
+        throw conflict("Vínculo de acesso alterado.");
       const changes: Record<string, unknown> = { accessEnabled: false, updatedAt: stamp() };
       if (action === "update")
         Object.assign(changes, {
           role,
           servedCompanies: companyIds,
           permissions: [],
-          companyId: role === "OPERATIONS" ? "nextcon" : companyIds[0],
+          companyId: role === "OPERATIONS" ? null : companyIds[0],
           tenantId: role === "OPERATIONS" ? null : companyIds[0],
         });
-      tx.set(adminDb.collection("users").doc(uid), changes, { merge: true });
+      tx.set(profileRef, changes, { merge: true });
     });
     if (shouldEnable) {
+      await requireCurrentAdmin(actor);
       await adminAuth.updateUser(uid, { disabled: false });
+    }
+    try {
       await adminDb.runTransaction(async (tx) => {
+        await requireCurrentAdmin(actor, tx);
         const data = (await tx.get(ref)).data();
         if (
           !data ||
           data.accessOperationId !== operationId ||
           data.accessUid !== uid ||
-          !source(data, target.kind).active ||
+          (action !== "disable" && !source(data, target.kind).active) ||
           source(data, target.kind).email !== s.email
         )
           throw conflict("Cadastro alterado; acesso mantido bloqueado no NAI.");
@@ -330,24 +357,47 @@ export async function manageUserAccess(actor: AuthContext, raw: unknown) {
         const profile = (await tx.get(profileRef)).data();
         if (!linked(profile, target.kind, target.id)) throw conflict("Vínculo de acesso alterado.");
         if (
+          shouldEnable &&
           target.kind === "provider" &&
           expertCompanyIds(profile?.servedCompanies).some(
             (id) => !source(data, target.kind).companyIds.includes(id)
           )
         )
           throw conflict("Vínculos revogados durante a operação.");
-        tx.update(profileRef, { accessEnabled: true, updatedAt: stamp() });
+        // Commit the grant, its audit receipt and lock release together. A lost
+        // acknowledgement can be recovered only by this immutable operation receipt.
+        tx.update(profileRef, { accessEnabled: shouldEnable, updatedAt: stamp() });
+        tx.create(completionRef, {
+          operationId,
+          action,
+          phase: "COMPLETED",
+          actorUid: actor.uid,
+          targetUid: uid,
+          kind: target.kind,
+          recordId: target.id,
+          createdAt: stamp(),
+        });
+        tx.update(ref, { accessOperationId: FieldValue.delete() });
       });
+      completed = true;
+    } catch (error) {
+      const receipt = await completionRef.get().catch(() => null);
+      const data = receipt?.data();
+      if (
+        data?.operationId !== operationId ||
+        data.phase !== "COMPLETED" ||
+        data.action !== action ||
+        data.actorUid !== actor.uid ||
+        data.targetUid !== uid ||
+        data.kind !== target.kind ||
+        data.recordId !== target.id
+      )
+        throw error;
+      completed = true;
     }
-    await adminDb.collection("user_access_audit").add({
-      action,
-      phase: "COMPLETED",
-      actorUid: actor.uid,
-      targetUid: uid,
-      kind: target.kind,
-      recordId: target.id,
-      createdAt: stamp(),
-    });
+    // A reset link is a credential: never return it after an observed revocation,
+    // even when a completed transaction had to be recovered by its receipt.
+    if (resetLink) await requireCurrentAdmin(actor);
     return {
       success: true,
       resetLink,
@@ -356,7 +406,7 @@ export async function manageUserAccess(actor: AuthContext, raw: unknown) {
         : "Acesso atualizado. Nenhum e-mail foi enviado.",
     };
   } finally {
-    if (acquired)
+    if (lockAttempted && !completed)
       await adminDb.runTransaction(async (tx) => {
         const data = (await tx.get(ref)).data();
         if (data?.accessOperationId === operationId)
