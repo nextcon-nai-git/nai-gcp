@@ -1,28 +1,35 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+type Reference = {
+  path: string;
+  collection: (name: string) => { doc: (id?: string) => Reference };
+};
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
   verify: vi.fn(),
   tx: { get: vi.fn(), update: vi.fn(), create: vi.fn() },
   record: {} as Record<string, unknown>,
+  profileData: undefined as Record<string, unknown> | undefined,
 }));
 vi.mock("@/lib/auth/require-auth", () => ({
   requireAuth: mocks.auth,
   extractBearerToken: () => "token",
 }));
-const ref = {
-  collection: () => ({ doc: () => ({ path: "events/event" }) }),
-  path: "clinic_portal_private/id",
-};
-vi.mock("@/lib/firebase-admin", () => ({
-  adminAuth: { verifyIdToken: mocks.verify },
-  adminDb: {
-    collection: () => ({ doc: () => ref }),
-    doc: () => ref,
-    runTransaction: (fn: (tx: unknown) => unknown) => fn(mocks.tx),
-  },
-}));
+vi.mock("@/lib/firebase-admin", () => {
+  const ref = (path: string): Reference => ({
+    path,
+    collection: (name) => ({ doc: (id = "synthetic-event") => ref(`${path}/${name}/${id}`) }),
+  });
+  return {
+    adminAuth: { verifyIdToken: mocks.verify },
+    adminDb: {
+      collection: (name: string) => ({ doc: (id: string) => ref(`${name}/${id}`) }),
+      doc: ref,
+      runTransaction: (fn: (tx: unknown) => unknown) => fn(mocks.tx),
+    },
+  };
+});
 import { POST } from "./route";
 const id = "a".repeat(48);
 const clinical = {
@@ -46,6 +53,7 @@ const request = (body: unknown) =>
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("CLINIC_PORTAL_ENABLED", "true");
+  mocks.profileData = undefined;
   mocks.record = {
     ownerUid: "owner",
     sourcePath: "users/owner/asoRequests/request",
@@ -68,11 +76,38 @@ beforeEach(() => {
     email_verified: true,
   });
   mocks.auth.mockResolvedValue({ uid: "owner", role: "OPERATIONS" });
-  mocks.tx.get.mockImplementation(async () => ({ exists: true, data: () => mocks.record }));
+  mocks.tx.get.mockImplementation(async (reference: Reference) => {
+    const data = /^users\/[^/]+$/.test(reference.path)
+      ? mocks.profileData
+      : reference.path === `clinic_portal_private/${id}`
+        ? mocks.record
+        : undefined;
+    return { exists: data !== undefined, data: () => data };
+  });
 });
 describe("portal server authorization and persistence", () => {
+  it.each(["read", "confirm", "save", "submit"])(
+    "blocks %s for a suspended profile before reading the clinical record",
+    async (action) => {
+      mocks.profileData = { role: "DOCTOR", accessEnabled: false };
+      const response = await POST(
+        request({ action, id, version: 0, payload: clinical, reviewed: true })
+      );
+      expect(response.status).toBe(403);
+      expect(await response.text()).not.toContain("secret history");
+      expect(mocks.tx.get).toHaveBeenCalledTimes(1);
+      expect(mocks.tx.get).toHaveBeenCalledWith(expect.objectContaining({ path: "users/doctor" }));
+      expect(mocks.tx.update).not.toHaveBeenCalled();
+      expect(mocks.tx.create).not.toHaveBeenCalled();
+    }
+  );
+  it("keeps access for a valid external invitee who has no internal profile", async () => {
+    const response = await POST(request({ action: "read", id }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toHaveProperty("clinical", clinical);
+  });
   it("blocks a cards-only expert even if a prior invitation matches the email", async () => {
-    mocks.record.role = "SCOPED_PROVIDER";
+    mocks.profileData = { role: "SCOPED_PROVIDER", accessEnabled: true };
     expect((await POST(request({ action: "read", id }))).status).toBe(403);
     expect(mocks.tx.update).not.toHaveBeenCalled();
     expect(mocks.tx.create).not.toHaveBeenCalled();

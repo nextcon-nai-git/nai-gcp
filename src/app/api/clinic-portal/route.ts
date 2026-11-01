@@ -160,6 +160,8 @@ export async function POST(request: NextRequest) {
     const ref = collection().doc(body.id);
     return await adminDb.runTransaction(async (tx) => {
       const profile = await tx.get(adminDb.collection("users").doc(identity.uid));
+      if (profile.data()?.accessEnabled === false)
+        throw forbidden("Acesso suspenso pelo administrador.");
       if (profile.data()?.role === "SCOPED_PROVIDER")
         throw forbidden("Este perfil possui somente consulta de CNPJs e cards.");
       const snap = await tx.get(ref);
