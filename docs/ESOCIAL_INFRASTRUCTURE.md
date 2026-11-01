@@ -281,9 +281,12 @@ Não inventar o número do projeto, não configurar um provider inexistente e n�
 segredos. Sem as variáveis, os jobs falham antecipadamente com uma mensagem de configuração.
 
 A ação de autenticação está fixada no commit oficial de `google-github-actions/auth@v3`
-`7c6bc770dae815cd3e89ee6cdf493a5fab2cc093`. Ela só recebe `id-token: write` nos dois jobs de
-implantação, após checkout, instalação e testes. O ADC temporário é excluído pelo pós-job da ação
-e os arquivos `gha-creds-*.json` estão ignorados pelo Git.
+`7c6bc770dae815cd3e89ee6cdf493a5fab2cc093`. A permissão `id-token: write` pertence somente aos dois
+jobs de implantação e vale durante todo o job, inclusive etapas anteriores à ação. A troca por
+credenciais Google ocorre após a instalação e as validações previstas. Essa ordem não impede etapas
+anteriores do mesmo job de solicitar um token OIDC; a confiança depende também da `main` protegida,
+do ambiente `production` e das condições e permissões restritas da federação. O ADC temporário é
+excluído pelo pós-job da ação e os arquivos `gha-creds-*.json` estão ignorados pelo Git.
 
 ## 6. Executar e verificar sem A1 e sem envios
 
@@ -331,9 +334,16 @@ Registrar:
   `ESOCIAL_TRANSMISSION_ENABLED=false`, inclusive possíveis substituições no App Hosting.
 
 Para testar execução OIDC, primeiro conferir que o cofre continua vazio e que o bloqueio global de
-transmissão está efetivamente ativo. Usar a rota de consulta protegida com comportamento inerte
-durante a validação, nunca substituir o alvo por envio, aprovação ou upload. Um operador autorizado
-pode executar o job uma vez; a conta de implantação não precisa de `jobs.run`:
+transmissão está efetivamente ativo. Esses controles não tornam a rotina inerte sobre os dados:
+ela ainda pode finalizar respostas já armazenadas, marcar tentativa antiga como incerta ou
+reagendar uma consulta pendente. Para um ensaio sem alteração de dados de negócio, comprovar que
+a fila elegível está vazia ou usar um ambiente isolado. Não apagar, cancelar ou alterar eventos
+reais para esvaziar a fila. Se essa condição não puder ser conferida, registrar a execução de
+validação como bloqueada.
+
+Usar a rota de consulta protegida, nunca substituir o alvo por envio, aprovação ou upload. Com os
+pré-requisitos conferidos, um operador autorizado pode executar o job uma vez; a conta de
+implantação não precisa de `jobs.run`:
 
 ```bash
 gcloud scheduler jobs run nai-esocial-query --project="$NAI_PROJECT_ID" --location=us-central1
@@ -343,7 +353,10 @@ gcloud logging read \
 ```
 
 Correlacionar `AttemptStarted`/`AttemptFinished` com os registros da aplicação, incluindo horário,
-HTTP e resultado inerte. Não imprimir headers de autorização, tokens, certificados, XMLs clínicos
+HTTP e resultado. No ensaio de fila vazia, os contadores `checked`, `waiting` e `unavailable` devem
+ser zero; conferir também os demais contadores e a ausência de pendências indicadas pelo handler.
+Os registros de observabilidade e auditoria podem ser gravados mesmo nessa execução sem trabalho.
+Não imprimir headers de autorização, tokens, certificados, XMLs clínicos
 ou dados pessoais nos relatórios. Um 2xx sem evidência do handler não basta para concluir execução
 da rotina correta. Verificar também rejeição de uma chamada sem credencial ou com audience errada.
 
