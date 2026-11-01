@@ -136,6 +136,10 @@ Usar [Backup e recuperação](BACKUP_RECOVERY.md) para conferir um pacote de exp
 O kit local verifica integridade de arquivos e uma cópia de recuperação. Ele não exporta o banco,
 não cria cópia externa, não restaura Firestore e não prova consistência entre banco, Storage e Auth.
 
+A [proposta de backup nativo diário](FIRESTORE_BACKUP_PLAN.md) registra a configuração de sete
+dias, o estado observado e a fórmula de custo. Ela permanece uma proposta para revisão, sem
+programação salva ou restauração executada.
+
 Antes de declarar recuperação operacional aprovada:
 
 1. Definir o conjunto de dados e configurações necessário para recuperar o serviço, incluindo os
