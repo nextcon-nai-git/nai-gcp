@@ -6,6 +6,7 @@ import { AuthError } from "@/lib/auth/errors";
 import { privateFailure, privateHeaders } from "@/lib/http/private-api";
 import { requireAsoFlowAccess } from "@/services/aso-flow";
 import { syncAsoFlowMail } from "@/services/aso-flow-mail";
+import { monitorOperation } from "@/services/operational-runs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
       servedCompanies: claims.servedCompanies || [],
     };
     requireAsoFlowAccess(user);
-    const result = await syncAsoFlowMail(user);
+    const result = await monitorOperation("aso-mail", () => syncAsoFlowMail(user));
     return NextResponse.json(result, { headers: privateHeaders });
   } catch (error) {
     return privateFailure(error);

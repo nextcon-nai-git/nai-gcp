@@ -5,11 +5,13 @@ import { AuthError } from "@/lib/auth/errors";
 
 const mocks = vi.hoisted(() => ({
   verify: vi.fn(),
+  monitor: vi.fn(),
   profile: vi.fn(),
   sync: vi.fn(),
   collection: vi.fn(),
   doc: vi.fn(),
 }));
+vi.mock("@/services/operational-runs", () => ({ monitorOperation: mocks.monitor }));
 vi.mock("googleapis/build/src/apis/oauth2", () => ({
   auth: {
     OAuth2: class {
@@ -37,6 +39,9 @@ function privateResponse(response: Response, status: number) {
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.monitor.mockImplementation((_operation: string, execute: () => Promise<unknown>) =>
+    execute()
+  );
   vi.stubEnv("ASO_MAIL_SYNC_INVOKER_EMAIL", invoker);
   vi.stubEnv("ASO_MAIL_SYNC_AUDIENCE", audience);
   vi.stubEnv("ASO_MAIL_OPERATOR_UID", operator);
@@ -66,6 +71,7 @@ describe("monitor interno de ASOs por e-mail", () => {
       const result = await POST(request(authorization));
       privateResponse(result, 401);
       expect(mocks.verify).not.toHaveBeenCalled();
+      expect(mocks.monitor).not.toHaveBeenCalled();
       expect(mocks.profile).not.toHaveBeenCalled();
       expect(mocks.sync).not.toHaveBeenCalled();
     }
@@ -76,6 +82,7 @@ describe("monitor interno de ASOs por e-mail", () => {
       vi.stubEnv(variable, "");
       privateResponse(await POST(request()), 503);
       expect(mocks.verify).not.toHaveBeenCalled();
+      expect(mocks.monitor).not.toHaveBeenCalled();
       expect(mocks.profile).not.toHaveBeenCalled();
       expect(mocks.sync).not.toHaveBeenCalled();
     }
@@ -160,4 +167,9 @@ describe("monitor interno de ASOs por e-mail", () => {
     privateResponse(response, 503);
     expect(await response.text()).not.toContain("synthetic-secret");
   });
+});
+
+it("records only an authenticated worker invocation", async () => {
+  await POST(request());
+  expect(mocks.monitor).toHaveBeenCalledWith("aso-mail", expect.any(Function));
 });
