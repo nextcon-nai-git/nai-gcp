@@ -22,20 +22,20 @@ Não usar a conta de índices ou eSocial para contornar essa separação.
 
 ## Identidades e recursos fixados
 
-| Item | Valor |
-| --- | --- |
-| Projeto | `studio-8439299034-125c7` |
-| Repositório | `nextcon-nai-git/nai-gcp` |
-| Repository ID | `1210840335` |
-| Owner ID | `276102754` |
-| Ambiente GitHub | `production` |
-| Conta de implantação eSocial | `nai-esocial-deploy@studio-8439299034-125c7.iam.gserviceaccount.com` |
-| Conta de implantação de índices | `nai-indexes-deploy@studio-8439299034-125c7.iam.gserviceaccount.com` |
-| Conta de execução NAI | `firebase-app-hosting-compute@studio-8439299034-125c7.iam.gserviceaccount.com` |
-| Conta invocadora | `nai-esocial-query@studio-8439299034-125c7.iam.gserviceaccount.com` |
-| Cofre | `nai-esocial-a1` |
-| Job / região | `nai-esocial-query` / `us-central1` |
-| Frequência / fuso | `*/5 * * * *` / `America/Sao_Paulo` |
+| Item                            | Valor                                                                          |
+| ------------------------------- | ------------------------------------------------------------------------------ |
+| Projeto                         | `studio-8439299034-125c7`                                                      |
+| Repositório                     | `nextcon-nai-git/nai-gcp`                                                      |
+| Repository ID                   | `1210840335`                                                                   |
+| Owner ID                        | `276102754`                                                                    |
+| Ambiente GitHub                 | `production`                                                                   |
+| Conta de implantação eSocial    | `nai-esocial-deploy@studio-8439299034-125c7.iam.gserviceaccount.com`           |
+| Conta de implantação de índices | `nai-indexes-deploy@studio-8439299034-125c7.iam.gserviceaccount.com`           |
+| Conta de execução NAI           | `firebase-app-hosting-compute@studio-8439299034-125c7.iam.gserviceaccount.com` |
+| Conta invocadora                | `nai-esocial-query@studio-8439299034-125c7.iam.gserviceaccount.com`            |
+| Cofre                           | `nai-esocial-a1`                                                               |
+| Job / região                    | `nai-esocial-query` / `us-central1`                                            |
+| Frequência / fuso               | `*/5 * * * *` / `America/Sao_Paulo`                                            |
 
 A URI e a audience OIDC são, ambas:
 
@@ -260,9 +260,9 @@ de IAM efetivo em organização/pastas. Não remover papéis de outras identidad
 
 No ambiente `production` do repositório, criar **variáveis**, não segredos de chave:
 
-| Variável | Valor |
-| --- | --- |
-| `GCP_WORKLOAD_IDENTITY_PROVIDER` | Nome canônico conferido em `NAI_PROVIDER_NAME` |
+| Variável                             | Valor                                                                |
+| ------------------------------------ | -------------------------------------------------------------------- |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER`     | Nome canônico conferido em `NAI_PROVIDER_NAME`                       |
 | `GCP_ESOCIAL_DEPLOY_SERVICE_ACCOUNT` | `nai-esocial-deploy@studio-8439299034-125c7.iam.gserviceaccount.com` |
 | `GCP_INDEXES_DEPLOY_SERVICE_ACCOUNT` | `nai-indexes-deploy@studio-8439299034-125c7.iam.gserviceaccount.com` |
 
@@ -349,12 +349,12 @@ da rotina correta. Verificar também rejeição de uma chamada sem credencial ou
 
 ## Evidências e critérios de conclusão
 
-| Camada | Evidência exigida | O que não comprova |
-| --- | --- | --- |
-| Publicação | Commit e rollout do App Hosting com sucesso | IAM, cofre, scheduler, recibo eSocial |
-| Provisionamento | Nova execução WIF aprovada, metadados do cofre/job, zero versões e políticas conferidas | Chamada OIDC efetiva ou aceitação pelo eSocial |
-| Agendador | Execução OIDC correlacionada, rejeições de acesso indevido e comportamento inerte | Assinatura ou transmissão governamental |
-| Homologação futura | A1/procuração autorizados, testes restritos e recibos reais correlacionados | Autorização automática para produção |
+| Camada             | Evidência exigida                                                                       | O que não comprova                             |
+| ------------------ | --------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Publicação         | Commit e rollout do App Hosting com sucesso                                             | IAM, cofre, scheduler, recibo eSocial          |
+| Provisionamento    | Nova execução WIF aprovada, metadados do cofre/job, zero versões e políticas conferidas | Chamada OIDC efetiva ou aceitação pelo eSocial |
+| Agendador          | Execução OIDC correlacionada, rejeições de acesso indevido e comportamento inerte       | Assinatura ou transmissão governamental        |
+| Homologação futura | A1/procuração autorizados, testes restritos e recibos reais correlacionados             | Autorização automática para produção           |
 
 O certificado A1 permanece para instalação posterior do usuário. Homologação e habilitação de
 produção são etapas distintas. E-mails a clientes permanecem desligados. Se acesso ao Google Cloud
@@ -374,4 +374,3 @@ provisionamento separadamente, sem marcar a infraestrutura ou o sistema como hom
 - [Firestore: permissões atuais](https://docs.cloud.google.com/iam/docs/roles-permissions/firestore)
 - [Firebase CLI v15.33.0: ADC](https://github.com/firebase/firebase-tools/blob/v15.33.0/src/requireAuth.ts)
 - [Firebase CLI v15.33.0: preparação de regras/índices](https://github.com/firebase/firebase-tools/blob/v15.33.0/src/deploy/firestore/prepare.ts)
-

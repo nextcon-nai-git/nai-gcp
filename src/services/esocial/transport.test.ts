@@ -514,4 +514,3 @@ describe("bounded HTTPS mTLS with no real network or automatic retries", () => {
     expect(https.request).toHaveBeenCalledTimes(1);
   });
 });
-

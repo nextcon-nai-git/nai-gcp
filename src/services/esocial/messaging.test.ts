@@ -668,4 +668,3 @@ describe("recibos, recuperação e retificações", () => {
     await expect(operation(await submit(), "cancel")).rejects.toThrow("Cancelar rascunho");
   });
 });
-

@@ -695,4 +695,3 @@ export async function queryEsocialBatch(input: QueryEsocialBatchInput): Promise<
     );
   return parseEsocialQueryResponse(response.body, input);
 }
-

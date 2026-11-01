@@ -107,4 +107,3 @@ env:
     value: https://nai--studio-8439299034-125c7.us-central1.hosted.app/api/internal/webhook-deliveries
     availability:
       - RUNTIME
-

@@ -231,7 +231,9 @@ export async function runProvisioning(
       ).data;
     let policy = await readVaultPolicy();
     if (
-      policy.bindings?.some((binding) => binding.members?.includes(`serviceAccount:${invokerAccount}`))
+      policy.bindings?.some((binding) =>
+        binding.members?.includes(`serviceAccount:${invokerAccount}`)
+      )
     )
       throw new Error(
         "The dedicated query identity has unexpected vault grants; operator review required."

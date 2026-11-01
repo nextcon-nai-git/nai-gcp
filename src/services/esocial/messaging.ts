@@ -1491,4 +1491,3 @@ export async function syncEsocialMessages() {
     .set({ lastRunAt: now(), checked, waiting, unavailable });
   return { checked, waiting, unavailable };
 }
-

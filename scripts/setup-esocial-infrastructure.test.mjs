@@ -31,7 +31,9 @@ function fixture(overrides = {}) {
       bindings: [
         {
           role: "roles/cloudscheduler.serviceAgent",
-          members: [`serviceAccount:service-${number}@gcp-sa-cloudscheduler.iam.gserviceaccount.com`],
+          members: [
+            `serviceAccount:service-${number}@gcp-sa-cloudscheduler.iam.gserviceaccount.com`,
+          ],
         },
       ],
     },
@@ -243,7 +245,9 @@ test("service agent needs an unconditional role, without IAM writes", async () =
       bindings: [
         {
           role: "roles/cloudscheduler.serviceAgent",
-          members: [`serviceAccount:service-${number}@gcp-sa-cloudscheduler.iam.gserviceaccount.com`],
+          members: [
+            `serviceAccount:service-${number}@gcp-sa-cloudscheduler.iam.gserviceaccount.com`,
+          ],
           condition: { expression: "true" },
         },
       ],
