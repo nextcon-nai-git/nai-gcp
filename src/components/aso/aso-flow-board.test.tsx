@@ -532,9 +532,11 @@ describe("esteira compartilhada de ASOs", () => {
     expect(document.querySelector('[name="aso-candidate"]')).toBeNull();
     expect(document.body.textContent).toContain("Nenhum anexo aguardando conferência neste card");
     expect(
-      vi.mocked(fetch).mock.calls.filter(
-        ([url, init]) => String(url).includes("/email") && init?.method !== "POST"
-      )
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(
+          ([url, init]) => String(url).includes("/email") && init?.method !== "POST"
+        )
     ).toHaveLength(2);
   });
   it("exibe falha de recepção sem concluir o card nem repetir o POST automaticamente", async () => {
