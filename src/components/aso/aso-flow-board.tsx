@@ -816,8 +816,7 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
                           variant="outline"
                           size="sm"
                           disabled={
-                            busy ||
-                            (card.status === "reviewed" && !capabilities.clientEmailSend)
+                            busy || (card.status === "reviewed" && !capabilities.clientEmailSend)
                           }
                           title={
                             card.status === "reviewed" && !capabilities.clientEmailSend
@@ -1627,174 +1626,406 @@ function EmailReturns({
       } = await (
         await api("/email", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "sync", id: card.id }),
-        })
-      ).json();
-      await load();
-      if (active.current)
-        onMessage(
-          `${data.result.saved} anexos novos, ${data.result.examined} mensagens consultadas.${data.result.hasMore ? " Há mais resultados; repita a consulta." : ""}`
-        );
+          headers: { "Co…4661 tokens truncated…u00e1rio");
+    expect(document.body.textContent).toContain("Ainda não informado");
+    const form = document.querySelector<HTMLFormElement>('[role="dialog"] form')!;
+    await act(async () => {
+      form
+        .querySelectorAll<HTMLInputElement>('input[type="checkbox"]')
+        .forEach((checkbox) => checkbox.click());
     });
-  }
-  async function receive(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedCandidate || !identity || !documentChecked || !examDate || card.mailLock) return;
-    await perform(async () => {
-      const result: { card: AsoFlowCard } = await (
-        await api("/email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "receive",
-            id: card.id,
-            version: card.version,
-            candidateId: selectedCandidate.id,
-            examDate,
-            identityConfirmed: identity,
-            documentChecked,
-          }),
-        })
-      ).json();
-      if (active.current) onCard(result.card);
+    await act(async () =>
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+    );
+    const payload = JSON.parse(
+      String(vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === "POST")![1]?.body)
+    );
+    expect(payload).toMatchObject({
+      action: "review_aso",
+      identityConfirmed: true,
+      documentChecked: true,
+      id: card.id,
+      version: 1,
     });
-  }
-  return (
-    <div className="space-y-4">
-      <h3 className="font-semibold">Retornos por e-mail</h3>
-      <p className="text-xs text-muted-foreground">
-        Anexos vinculados a este card precisam de conferência antes de serem recebidos como ASO.
-      </p>
-      {inbox && (
-        <p className="text-sm">
-          {inbox.status.monitoringConfigured
-            ? `Caixa configurada: ${inbox.status.mailbox || "NEXTCON"}`
-            : inbox.status.reason || "Consulta de e-mail ainda não configurada."}
-        </p>
-      )}
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" disabled={busy} onClick={() => void perform(load)}>
-          <RefreshCw className="mr-2 size-4" />
-          Atualizar lista
-        </Button>
-        <Button
-          size="sm"
-          disabled={busy || !inbox?.status.monitoringConfigured || !!card.mailLock}
-          onClick={() => void sync()}
-        >
-          <Mail className="mr-2 size-4" />
-          Buscar novos anexos
-        </Button>
-      </div>
-      {busy && !inbox && (
-        <p role="status" className="text-sm text-muted-foreground">
-          Consultando anexos deste card…
-        </p>
-      )}
-      {inbox?.candidates.map((candidate) => (
-        <div key={candidate.id} className="rounded-lg border p-3 text-sm">
-          <label className="flex gap-2">
-            <input
-              type="radio"
-              name="aso-candidate"
-              value={candidate.id}
-              disabled={busy}
-              checked={selected === candidate.id}
-              onChange={() => {
-                setSelected(candidate.id);
-                setIdentity(false);
-                setDocumentChecked(false);
-                setExamDate("");
-              }}
-            />
-            <span>
-              <strong>{candidate.fileName}</strong>
-              <span className="mt-1 block text-xs text-muted-foreground">
-                {candidate.from} · {candidate.subject}
-              </span>
-            </span>
-          </label>
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-2"
-            disabled={busy}
-            onClick={() =>
-              void perform(async () => {
-                const response = await api(
-                  `/email?id=${encodeURIComponent(card.id)}&download=${encodeURIComponent(candidate.id)}`
-                );
-                const blob = await response.blob();
-                if (active.current) downloadBlob(blob, candidate.fileName);
-              })
-            }
-          >
-            <Download className="mr-2 size-4" />
-            Conferir anexo
-          </Button>
-        </div>
-      ))}
-      {inbox && !inbox.candidates.length && !inbox.nextCursor && (
-        <p className="text-sm text-muted-foreground">
-          Nenhum anexo aguardando conferência neste card.
-        </p>
-      )}
-      {inbox?.nextCursor && (
-        <Button
-          variant="outline"
-          disabled={busy}
-          onClick={() => void perform(() => load(inbox.nextCursor || null, true))}
-        >
-          Carregar mais retornos
-        </Button>
-      )}
-      {inbox?.truncated && (
-        <p className="text-xs text-amber-600">
-          Há mais registros de e-mail para consultar. Continue para conferir todos os retornos.
-        </p>
-      )}
-      {selectedCandidate && (
-        <form className="space-y-3 border-t pt-4" onSubmit={(event) => void receive(event)}>
-          <Field label="Data do exame no ASO">
-            <Input
-              type="date"
-              required
-              disabled={busy}
-              value={examDate}
-              onChange={(e) => setExamDate(e.target.value)}
-            />
-          </Field>
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="mt-1"
-              disabled={busy}
-              checked={identity}
-              onChange={(e) => setIdentity(e.target.checked)}
-            />
-            Conferi o CNPJ do cliente e o CPF do colaborador no anexo.
-          </label>
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="mt-1"
-              disabled={busy}
-              checked={documentChecked}
-              onChange={(e) => setDocumentChecked(e.target.checked)}
-            />
-            O anexo é o ASO deste atendimento; conferi a data, assinatura e legibilidade.
-          </label>
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={busy || !identity || !documentChecked || !examDate || !!card.mailLock}
-          >
-            <FolderOpen className="mr-2 size-4" />
-            Receber ASO para conferência
-          </Button>
-        </form>
-      )}
-    </div>
-  );
-}
+    expect(document.body.textContent).toContain("updated@example.invalid");
+  });
+  it("mantém anexos de e-mail como candidatos até a conferência explícita", async () => {
+    const candidate = {
+      id: "b".repeat(64),
+      fileName: "Retorno_teste.pdf",
+      from: "clinic@example.invalid",
+      subject: "Retorno de teste",
+      receivedAt: "2026-11-01T12:00:00Z",
+    };
+    vi.mocked(fetch).mockImplementation(async (url) =>
+      isDirectory(url)
+        ? directory()
+        : String(url).includes("/email")
+          ? json({
+              status: {
+                configured: true,
+                monitoringConfigured: true,
+                mailbox: "mailbox@example.invalid",
+              },
+              candidates: String(url).includes("cursor=") ? [candidate] : [],
+              nextCursor: String(url).includes("cursor=") ? null : "c".repeat(64),
+              truncated: !String(url).includes("cursor="),
+            })
+          : json(list([makeCard()]))
+    );
+    await render();
+    await click("Pessoa de teste 1");
+    await click("Retornos por e-mail");
+    expect(document.body.textContent).toContain("Retorno_teste.pdf");
+    expect(
+      vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes("/email"))
+    ).toHaveLength(2);
+    const radio = document.querySelector<HTMLInputElement>('[name="aso-candidate"]')!;
+    await act(async () => radio.click());
+    expect(button("Receber ASO para conferência").disabled).toBe(true);
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(
+      0
+    );
+  });
+  it("serializa a consulta inicial de retornos com as ações do card", async () => {
+    const pending = deferred<Response>();
+    vi.mocked(fetch).mockImplementation(async (url) =>
+      isDirectory(url)
+        ? directory()
+        : String(url).includes("/email")
+          ? pending.promise
+          : json(list([makeCard()]))
+    );
+    await openReturns();
+    expect(document.body.textContent).toContain("Consultando anexos deste card");
+    expect(button("Atualizar lista").disabled).toBe(true);
+    expect(button("Agendamento").disabled).toBe(true);
+    await act(async () => {
+      button("Atualizar lista").click();
+      button("Agendamento").click();
+      button("Close").click();
+    });
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(
+      vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes("/email"))
+    ).toHaveLength(1);
+    await act(async () => pending.resolve(json(mailbox(makeCandidate()))));
+    expect(document.body.textContent).toContain("Retorno_1.pdf");
+    expect(button("Atualizar lista").disabled).toBe(false);
+    expect(button("Agendamento").disabled).toBe(false);
+  });
+  it("descarta a seleção e a conferência quando atualiza a lista de anexos", async () => {
+    let reads = 0;
+    vi.mocked(fetch).mockImplementation(async (url) =>
+      isDirectory(url)
+        ? directory()
+        : String(url).includes("/email")
+          ? json(++reads === 1 ? mailbox(makeCandidate()) : mailbox())
+          : json(list([makeCard()]))
+    );
+    await openReturns();
+    await selectReturn();
+    await confirmReturn();
+    expect(button("Receber ASO para conferência").disabled).toBe(false);
+    await click("Atualizar lista");
+    expect(document.body.textContent).toContain("Nenhum anexo aguardando conferência neste card");
+    expect(document.querySelector('[role="dialog"] form')).toBeNull();
+    expect(document.querySelector('[name="aso-candidate"]')).toBeNull();
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(
+      0
+    );
+  });
+  it("não repete a consulta inicial após falha até a atualização explícita", async () => {
+    let reads = 0;
+    vi.mocked(fetch).mockImplementation(async (url) =>
+      isDirectory(url)
+        ? directory()
+        : String(url).includes("/email")
+          ? ++reads === 1
+            ? json({ error: "Caixa temporariamente indisponível." }, 503)
+            : json(mailbox(makeCandidate()))
+          : json(list([makeCard()]))
+    );
+    await openReturns();
+    expect(document.querySelector('[role="dialog"] [role="alert"]')?.textContent).toContain(
+      "Caixa temporariamente indisponível"
+    );
+    expect(reads).toBe(1);
+    expect(button("Atualizar lista").disabled).toBe(false);
+    await click("Atualizar lista");
+    expect(reads).toBe(2);
+    expect(document.body.textContent).toContain("Retorno_1.pdf");
+    expect(document.querySelector('[role="dialog"] [role="alert"]')).toBeNull();
+  });
+  it("não reutiliza data nem confirmações de um PDF ao selecionar outro anexo", async () => {
+    vi.mocked(fetch).mockImplementation(async (url) =>
+      isDirectory(url)
+        ? directory()
+        : String(url).includes("/email")
+          ? json(mailbox(makeCandidate(), makeCandidate(2)))
+          : json(list([makeCard()]))
+    );
+    await openReturns();
+    await selectReturn();
+    await confirmReturn();
+    expect(button("Receber ASO para conferência").disabled).toBe(false);
+    await selectReturn(1);
+    const form = document.querySelector<HTMLFormElement>('[role="dialog"] form')!;
+    expect(form.querySelector<HTMLInputElement>('input[type="date"]')!.value).toBe("");
+    expect(
+      [...form.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')].every(
+        (checkbox) => !checkbox.checked
+      )
+    ).toBe(true);
+    expect(button("Receber ASO para conferência").disabled).toBe(true);
+    await act(async () =>
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+    );
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(
+      0
+    );
+  });
+  it("mantém o card aberto e envia uma única recepção até obter a confirmação", async () => {
+    const pending = deferred<Response>();
+    let accepted = false;
+    vi.mocked(fetch).mockImplementation(async (url, init) =>
+      isDirectory(url)
+        ? directory()
+        : String(url).includes("/email")
+          ? init?.method === "POST"
+            ? pending.promise
+            : json(accepted ? mailbox() : mailbox(makeCandidate()))
+          : json(list([makeCard()]))
+    );
+    await openReturns();
+    await selectReturn();
+    const form = await confirmReturn();
+    await act(async () => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    const posts = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST");
+    expect(posts).toHaveLength(1);
+    expect(JSON.parse(String(posts[0][1]?.body))).toEqual({
+      action: "receive",
+      id: makeCard().id,
+      version: 1,
+      candidateId: makeCandidate().id,
+      examDate: "2026-11-01",
+      identityConfirmed: true,
+      documentChecked: true,
+    });
+    expect(button("Agendamento").disabled).toBe(true);
+    expect(button("Receber ASO para conferência").disabled).toBe(true);
+    expect(form.querySelector<HTMLInputElement>('input[type="date"]')!.disabled).toBe(true);
+    await act(async () => {
+      button("Agendamento").click();
+      button("Close").click();
+    });
+    expect(document.querySelector('[role="dialog"] form')).toBe(form);
+    expect(document.body.textContent).not.toContain("Na pasta do cliente");
+    accepted = true;
+    await act(async () => pending.resolve(json({ card: receivedCard() })));
+    expect(document.body.textContent).toContain("ASO recebido");
+    expect(document.body.textContent).not.toContain("Na pasta do cliente");
+    expect(document.body.textContent).not.toContain("Card encerrado");
+    expect(button("Conferir ASO").disabled).toBe(false);
+    expect(document.querySelector('[name="aso-candidate"]')).toBeNull();
+    expect(document.body.textContent).toContain("Nenhum anexo aguardando conferência neste card");
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(
+          ([url, init]) => String(url).includes("/email") && init?.method !== "POST"
+        )
+    ).toHaveLength(2);
+  });
+  it("exibe falha de recepção sem concluir o card nem repetir o POST automaticamente", async () => {
+    vi.mocked(fetch).mockImplementation(async (url, init) =>
+      isDirectory(url)
+        ? directory()
+        : String(url).includes("/email")
+          ? init?.method === "POST"
+            ? json({ error: "Recepção não confirmada. Confira antes de repetir." }, 503)
+            : json(mailbox(makeCandidate()))
+          : json(list([makeCard()]))
+    );
+    await openReturns();
+    await selectReturn();
+    const form = await confirmReturn();
+    await act(async () =>
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+    );
+    expect(document.querySelector('[role="dialog"] [role="alert"]')?.textContent).toContain(
+      "Recepção não confirmada"
+    );
+    expect(document.body.textContent).not.toContain("Card encerrado");
+    expect(document.body.textContent).not.toContain("Na pasta do cliente");
+    expect(button("Receber ASO para conferência").disabled).toBe(false);
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(
+      1
+    );
+    await click("Close");
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+  it("ignora a confirmação tardia de recepção após trocar de usuário", async () => {
+    const pending = deferred<Response>();
+    vi.mocked(fetch).mockImplementation(async (url, init) =>
+      isDirectory(url)
+        ? directory()
+        : String(url).includes("/email")
+          ? init?.method === "POST"
+            ? pending.promise
+            : json(mailbox(makeCandidate()))
+          : json(list([makeCard()]))
+    );
+    await openReturns();
+    await selectReturn();
+    const form = await confirmReturn();
+    await act(async () =>
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+    );
+    session.user = { uid: "operator-b", getIdToken: async () => "second-test-token" };
+    vi.mocked(fetch).mockImplementation(async (url) =>
+      isDirectory(url)
+        ? directory()
+        : json(list([{ ...makeCard(2), employeeName: "Pessoa da conta atual" }]))
+    );
+    await render();
+    await act(async () => pending.resolve(json({ card: receivedCard() })));
+    expect(host.textContent).toContain("Pessoa da conta atual");
+    expect(host.textContent).not.toContain("Pessoa de teste 1");
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(button("Atualizar").disabled).toBe(false);
+  });
+  it("impede novos envios enquanto o resultado anterior está em conferência", async () => {
+    const card = {
+      ...makeCard(),
+      mailLock: {
+        outboxId: "test-outbox",
+        documentHash: "test-hash",
+        kind: "kit" as const,
+        recipient: clinic.email,
+        version: 1,
+        startedAt: "2026-11-01T12:00:00Z",
+      },
+    };
+    vi.mocked(fetch).mockImplementation(async (url, init) =>
+      isDirectory(url)
+        ? directory()
+        : init?.method === "POST"
+          ? json({ card, reconciled: false, message: "Envio ainda em conferência." })
+          : json(list([card]))
+    );
+    await render();
+    await click("Pessoa de teste 1");
+    expect(button("Enviar e-mail").disabled).toBe(true);
+    expect(button("Salvar registro").disabled).toBe(true);
+    await click("Verificar envio");
+    expect(
+      JSON.parse(
+        String(vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === "POST")![1]?.body)
+      )
+    ).toEqual({ action: "reconcile", id: card.id });
+    expect(document.body.textContent).toContain("Envio ainda em conferência");
+  });
+  it("confere e importa mais de 200 linhas sem corte, em lotes sequenciais após confirmação", async () => {
+    fileRows.rows = Array.from({ length: 201 }, (_, index) => ({
+      companyCnpj: "00000000000000",
+      employeeCpf: "00000000000",
+      employeeName: `Pessoa ${index}`,
+      city: "Curitiba",
+      state: "PR",
+      unit: "Unidade",
+      examType: "periodico",
+      cycle: "2026-11",
+      sourceRow: index + 2,
+    }));
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      if (isDirectory(url)) return directory();
+      if (init?.method !== "POST") return json(list([]));
+      const body = JSON.parse(String(init.body));
+      if (body.action === "preview")
+        return json({
+          preview: {
+            rows: body.rows.map((row: AsoFlowRow) => ({
+              row,
+              index: row.sourceRow,
+              state: "ready",
+              errors: [],
+              id: makeCard(row.sourceRow).id,
+              companyName: "Empresa de teste",
+            })),
+            ready: body.rows.length,
+            existing: 0,
+            blocked: 0,
+          },
+        });
+      return json({
+        created: body.rows.length,
+        unchanged: 0,
+        cards: body.rows.map((row: AsoFlowRow) => makeCard(row.sourceRow)),
+      });
+    });
+    await render();
+    const fileInput = host.querySelector<HTMLInputElement>(
+      '[aria-label="Planilha de solicitações ASO"]'
+    )!;
+    Object.defineProperty(fileInput, "files", {
+      configurable: true,
+      value: [new File(["test"], "teste.csv", { type: "text/csv" })],
+    });
+    await act(async () => fileInput.dispatchEvent(new Event("change", { bubbles: true })));
+    const payloads = () =>
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(([, init]) => init?.method === "POST")
+        .map(([, init]) => JSON.parse(String(init?.body)));
+    expect(payloads().map((p) => [p.action, p.rows.length])).toEqual([
+      ["preview", 200],
+      ["preview", 1],
+    ]);
+    await click("Criar 201 cards prontos");
+    expect(payloads().map((p) => [p.action, p.rows.length])).toEqual([
+      ["preview", 200],
+      ["preview", 1],
+      ["import", 200],
+      ["import", 1],
+    ]);
+    expect(document.body.textContent).toContain("201 cards criados");
+  });
+  it("apaga dados da esteira e prévia quando a autorização é revogada", async () => {
+    await render();
+    expect(host.textContent).toContain("Pessoa de teste 1");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ error: "Acesso revogado" }, 403));
+    await click("Atualizar");
+    expect(host.textContent).toContain("Acesso revogado");
+    expect(host.textContent).not.toContain("Pessoa de teste 1");
+  });
+  it("não mostra uma resposta tardia da conta anterior", async () => {
+    let resolveFirst!: (response: Response) => void;
+    vi.mocked(fetch).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveFirst = resolve;
+      })
+    );
+    await render();
+    session.user = { uid: "operator-b", getIdToken: async () => "second-test-token" };
+    vi.mocked(fetch).mockImplementation(async (url) =>
+      isDirectory(url)
+        ? directory()
+        : json(list([{ ...makeCard(2), employeeName: "Pessoa da conta atual" }]))
+    );
+    await render();
+    await act(async () =>
+      resolveFirst(
+        json({
+          companies: [{ id: "old-company", name: "Pessoa da conta anterior", active: true }],
+          requiresSelection: false,
+        })
+      )
+    );
+    expect(host.textContent).toContain("Pessoa da conta atual");
+    expect(host.textContent).not.toContain("Pessoa da conta anterior");
+  });
+});
