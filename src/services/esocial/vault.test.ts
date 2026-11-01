@@ -396,6 +396,74 @@ describe("A1 vault custody — mocked Secret Manager, no real credentials or tra
 });
 
 describe("live internal operator authorization", () => {
+  it("rechecks an administrator after vault readiness and before creating a secret version", async () => {
+    mocks.permissions.mockImplementationOnce(async () => {
+      db.set(`users/${admin.uid}`, { role: "OPERATIONS", accessEnabled: true });
+      return {
+        data: { permissions: ["secretmanager.versions.add", "secretmanager.versions.access"] },
+      };
+    });
+    await expect(
+      uploadEsocialCertificate(admin, makeSyntheticA1().pfx, SYNTHETIC_PASSWORD, SYNTHETIC_CNPJ)
+    ).rejects.toMatchObject({ status: 403 });
+    expect(mocks.addVersion).not.toHaveBeenCalled();
+    expect(writes).toHaveLength(0);
+  });
+  it.each(["suspended", "downgraded", "removed"])(
+    "does not activate a returned secret version after the operator is %s",
+    async (change) => {
+      const previous = await uploadEsocialCertificate(
+        admin,
+        makeSyntheticA1().pfx,
+        SYNTHETIC_PASSWORD,
+        SYNTHETIC_CNPJ
+      );
+      const pointer = structuredClone(db.get(`${root}/settings/certificate`));
+      const previousRecord = structuredClone(db.get(`${root}/certificates/${previous.id}`));
+      const addVersion = mocks.addVersion.getMockImplementation()!;
+      writes = [];
+      mocks.addVersion.mockImplementationOnce(async (args) => {
+        const response = await addVersion(args);
+        if (change === "removed") db.delete(`users/${admin.uid}`);
+        else
+          db.set(`users/${admin.uid}`, {
+            role: change === "downgraded" ? "OPERATIONS" : "ADMIN",
+            accessEnabled: change !== "suspended",
+          });
+        return response;
+      });
+      await expect(
+        uploadEsocialCertificate(admin, makeSyntheticA1().pfx, SYNTHETIC_PASSWORD, SYNTHETIC_CNPJ)
+      ).rejects.toMatchObject({ status: 403 });
+      // The provider's already-created version is retained, but no active pointer is changed.
+      expect(secrets.size).toBe(2);
+      expect(certificateRecords()).toHaveLength(1);
+      expect(writes).toHaveLength(0);
+      expect(db.get(`${root}/settings/certificate`)).toEqual(pointer);
+      expect(db.get(`${root}/certificates/${previous.id}`)).toEqual(previousRecord);
+      expect(mocks.send).not.toHaveBeenCalled();
+    }
+  );
+  it("does not retire the active certificate after access is revoked before its transaction", async () => {
+    const previous = await uploadEsocialCertificate(
+      admin,
+      makeSyntheticA1().pfx,
+      SYNTHETIC_PASSWORD,
+      SYNTHETIC_CNPJ
+    );
+    const pointer = structuredClone(db.get(`${root}/settings/certificate`));
+    const previousRecord = structuredClone(db.get(`${root}/certificates/${previous.id}`));
+    const transaction = mocks.transaction.getMockImplementation()!;
+    writes = [];
+    mocks.transaction.mockImplementationOnce((run) => {
+      db.set(`users/${admin.uid}`, { role: "ADMIN", accessEnabled: false });
+      return transaction(run);
+    });
+    await expect(retireEsocialCertificate(admin)).rejects.toMatchObject({ status: 403 });
+    expect(writes).toHaveLength(0);
+    expect(db.get(`${root}/settings/certificate`)).toEqual(pointer);
+    expect(db.get(`${root}/certificates/${previous.id}`)).toEqual(previousRecord);
+  });
   it("rereads authorization and rejects suspended, missing or downgraded administrators before any secret API", async () => {
     for (const profile of [
       undefined,

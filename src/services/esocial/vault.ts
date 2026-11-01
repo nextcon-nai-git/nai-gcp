@@ -160,6 +160,8 @@ export async function uploadEsocialCertificate(
     registration(expectedRegistration) !== material.metadata.holder.number
   )
     throw badRequest("O titular do certificado não corresponde ao CPF/CNPJ confirmado.");
+  // Inspection and vault readiness may take time; recheck before writing a secret version.
+  requireEsocialAdministrator(await currentEsocialUser(user));
   const id = randomUUID().replaceAll("-", "");
   const api = await manager();
   let secretVersion: string;
@@ -195,6 +197,9 @@ export async function uploadEsocialCertificate(
     active: true,
   };
   await adminTransaction(async (tx) => {
+    // A returned secret version is not permission to activate it after access was revoked.
+    // A version created before revocation is retained for operator review, never activated here.
+    requireEsocialAdministrator(await currentEsocialUser(user, undefined, tx));
     const previous = (await tx.get(activeRef())).data();
     tx.create(certificates().doc(id), record);
     if (typeof previous?.activeId === "string")
@@ -225,6 +230,7 @@ export async function retireEsocialCertificate(user: AuthContext) {
   const current = await currentEsocialUser(user);
   requireEsocialAdministrator(current);
   await adminTransaction(async (tx) => {
+    requireEsocialAdministrator(await currentEsocialUser(user, undefined, tx));
     const pointer = (await tx.get(activeRef())).data();
     const at = new Date().toISOString();
     if (typeof pointer?.activeId === "string")

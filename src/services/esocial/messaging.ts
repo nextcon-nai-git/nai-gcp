@@ -776,14 +776,14 @@ async function transmit(user: AuthContext, id: string, expected: number, recover
         ? "Consulte o protocolo existente; só se recupera um envio sem protocolo confirmado."
         : "Confira e aprove o evento antes de transmitir."
     );
+  await currentEsocialUser(user, original.companyId);
   if (recovery && original.submission) {
     const attempt = (await ref(id).collection("attempts").doc(original.submission.id).get()).data();
     if (attempt?.response && attempt.response.status !== "uncertain")
-      return finalizeSubmission(id, original.submission.id, user.uid, attempt.response);
+      return finalizeSubmission(id, original.submission.id, user.uid, attempt.response, user);
   }
   if (!original.approval || original.approval.hash !== original.payloadHash)
     throw conflict("O conteúdo exige nova conferência e aprovação.");
-  await currentEsocialUser(user, original.companyId);
   const certificate = await loadEsocialCertificate(recovery ? original.certificateId : undefined);
   await connectionChecks(
     esocialReader,
@@ -813,6 +813,8 @@ async function transmit(user: AuthContext, id: string, expected: number, recover
     if (esocialHash(unsigned) !== original.payloadHash)
       throw conflict("XML divergente da aprovação.");
     await validateEsocialXml(unsigned, { allowUnsigned: true });
+    // Preparation awaits storage/XML validation; observe revocation before local signing too.
+    await currentEsocialUser(user, original.companyId);
     signedXml = signEsocialXml(unsigned, certificate.material);
   }
   const checked = await validateEsocialXml(signedXml);
@@ -932,10 +934,14 @@ async function finalizeSubmission(
   id: string,
   attemptId: string,
   actor: string,
-  result: Omit<BatchSubmission, "rawResponse"> & { artifact?: EsocialArtifact }
+  result: Omit<BatchSubmission, "rawResponse"> & { artifact?: EsocialArtifact },
+  requester?: AuthContext
 ) {
   return adminDb.runTransaction(async (tx) => {
     const current = (await tx.get(ref(id))).data() as StoredEvent;
+    // Manual query/recovery must retain current access through the state change.
+    // A response to an already authorized POST is persisted independently of later revocation.
+    if (requester) await operator(esocialTransactionReader(tx), requester, current.companyId);
     if (
       current.submission?.id !== attemptId ||
       !["submitting", "uncertain"].includes(current.status)
@@ -965,6 +971,8 @@ async function finalizeSubmission(
 async function query(user: AuthContext, id: string, expected: number) {
   let original = await load(user, id);
   version(original, expected);
+  // Reject revoked access before opening the A1 or applying a previously stored response.
+  await currentEsocialUser(user, original.companyId);
   if (
     ["submitting", "uncertain"].includes(original.status) &&
     original.submission &&
@@ -972,7 +980,13 @@ async function query(user: AuthContext, id: string, expected: number) {
   ) {
     const stored = (await ref(id).collection("attempts").doc(original.submission.id).get()).data();
     if (stored?.response) {
-      original = await finalizeSubmission(id, original.submission.id, user.uid, stored.response);
+      original = await finalizeSubmission(
+        id,
+        original.submission.id,
+        user.uid,
+        stored.response,
+        user
+      );
       if (original.status !== "processing") return original;
       expected = original.version;
     }
