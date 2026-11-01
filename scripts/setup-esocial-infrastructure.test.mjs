@@ -188,15 +188,70 @@ test("require-empty blocks identity, IAM and job writes", async () => {
   }
 });
 
-test("maintenance creates only the expected OIDC job", async () => {
-  const f = fixture({ job: null });
+test("maintenance updates only the existing OIDC job", async () => {
+  const f = fixture();
+  f.state.job.name = f.state.job.name.replace(`projects/${plan.project}/`, `projects/${number}/`);
+  f.state.job.schedule = "1 * * * *";
   const result = await runProvisioning(f.clients, flags("--apply --require-empty"));
+  assert.deepEqual(
+    f.writes.map((w) => w.name),
+    ["job.patch"]
+  );
+  assert.deepEqual(f.writes[0].args.requestBody, expectedJob());
+  assert.equal(result.schedulerConfigurationConfirmed, true);
+});
+
+test("maintenance and verification refuse an absent scheduler without writes", async () => {
+  for (const mode of ["--apply", "--verify"]) {
+    const f = fixture({ job: null });
+    await assert.rejects(runProvisioning(f.clients, flags(`${mode} --require-empty`)), {
+      stage: "scheduler",
+      httpStatus: 404,
+    });
+    assert.equal(f.writes.length, 0);
+    assert.equal(f.state.job, null);
+  }
+});
+
+test("invalid scheduler metadata is rejected before any job mutation", async () => {
+  for (const mode of ["--apply", "--bootstrap --apply", "--verify"]) {
+    for (const data of [null, undefined, {}, [], "unexpected", { name: `${plan.scheduler}-other` }]) {
+      const f = fixture();
+      f.clients.scheduler.projects.locations.jobs.get = async () => ({ data });
+      await assert.rejects(runProvisioning(f.clients, flags(`${mode} --require-empty`)), {
+        stage: "scheduler",
+      });
+      assert.equal(f.writes.length, 0);
+    }
+  }
+});
+
+test("only explicit bootstrap creates the expected OIDC job", async () => {
+  const f = fixture({ job: null });
+  const result = await runProvisioning(f.clients, flags("--bootstrap --apply --require-empty"));
   assert.deepEqual(
     f.writes.map((w) => w.name),
     ["job.create"]
   );
   assert.deepEqual(f.writes[0].args.requestBody, expectedJob());
+  assert.equal(result.mode, "bootstrapped");
   assert.equal(result.schedulerConfigurationConfirmed, true);
+});
+
+test("scheduler authorization and network failures never become creation", async () => {
+  for (const mode of ["--apply", "--bootstrap --apply"]) {
+    for (const code of [403, 500]) {
+      const f = fixture();
+      f.clients.scheduler.projects.locations.jobs.get = async () => {
+        throw Object.assign(new Error("private-scheduler-error"), { code });
+      };
+      await assert.rejects(runProvisioning(f.clients, flags(`${mode} --require-empty`)), {
+        stage: "scheduler",
+        httpStatus: code,
+      });
+      assert.equal(f.writes.length, 0);
+    }
+  }
 });
 
 test("maintenance never bootstraps API, account, vault or IAM", async () => {
@@ -291,9 +346,6 @@ test("an operator's existing scheduler pause is preserved", async () => {
 
 test("verify rejects meaningful scheduler drift without writing", async () => {
   const mutations = [
-    (job) => {
-      job.name += "-other";
-    },
     (job) => {
       job.description = "different";
     },

@@ -261,11 +261,22 @@ export async function runProvisioning(
 
     stage = "scheduler";
     let existing;
+    let missingSchedulerConfirmed = false;
     try {
       existing = (await scheduler.projects.locations.jobs.get({ name: jobName }, apiOptions)).data;
     } catch (error) {
-      if (status(error) !== 404 || options.verify) throw error;
+      if (status(error) !== 404 || !options.bootstrap) throw error;
+      missingSchedulerConfirmed = true;
     }
+    const existingNameMatches = [
+      jobName,
+      jobName.replace(`projects/${project}/`, `projects/${projectNumber}/`),
+    ].includes(existing?.name);
+    if (
+      !missingSchedulerConfirmed &&
+      (!existing || typeof existing !== "object" || Array.isArray(existing) || !existingNameMatches)
+    )
+      throw new Error("Scheduler metadata was not confirmed.");
     if (options.apply) {
       if (existing) {
         await scheduler.projects.locations.jobs.patch(
@@ -276,7 +287,7 @@ export async function runProvisioning(
           },
           apiOptions
         );
-      } else {
+      } else if (options.bootstrap && missingSchedulerConfirmed) {
         await scheduler.projects.locations.jobs.create(
           { parent, requestBody: expectedJob() },
           apiOptions
