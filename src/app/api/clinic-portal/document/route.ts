@@ -18,6 +18,26 @@ const MAX = 5 * 1024 * 1024;
 type RecordWithDocument = PortalRecord & {
   signedDocument?: { path: string; sha256: string; uploadedAt: string; uploadedBy: string };
 };
+type ReceivedDocument = NonNullable<RecordWithDocument["signedDocument"]>;
+const unconfirmedReceipt =
+  "Recebimento não confirmado. Consulte o estado do convite antes de reenviar o documento.";
+
+function requireProfileAccess(profile: Record<string, unknown> | undefined) {
+  if (profile?.accessEnabled === false) throw forbidden("Acesso suspenso pelo administrador.");
+  if (profile?.role === "SCOPED_PROVIDER")
+    throw forbidden("Este perfil possui somente consulta de CNPJs e cards.");
+}
+
+function matchesReceipt(record: RecordWithDocument | undefined, expected: ReceivedDocument) {
+  const received = record?.signedDocument;
+  return (
+    received?.path === expected.path &&
+    received.sha256 === expected.sha256 &&
+    received.uploadedBy === expected.uploadedBy &&
+    received.uploadedAt === expected.uploadedAt
+  );
+}
+
 function fail(error: unknown) {
   return NextResponse.json(
     { error: error instanceof AuthError ? error.message : "Não foi possível acessar o documento." },
@@ -34,15 +54,31 @@ async function identity(request: NextRequest) {
     throw new AuthError("Sessão inválida.");
   }
   const profile = (await adminDb.collection("users").doc(actor.uid).get()).data();
-  if (profile?.role === "SCOPED_PROVIDER")
-    throw forbidden("Este perfil possui somente consulta de CNPJs e cards.");
+  requireProfileAccess(profile);
   return actor;
 }
+
+async function requireDocumentReader(
+  request: NextRequest,
+  actor: Parameters<typeof grantFor>[1],
+  record: RecordWithDocument
+) {
+  if (grantFor(record, actor)?.role === "doctor") return;
+  const owner = await requireAuth(request);
+  if (
+    owner.uid !== record.ownerUid ||
+    !["SUPER_ADMIN", "ADMIN", "OPERATIONS", "DOCTOR", "HR", "RH"].includes(owner.role)
+  )
+    throw forbidden();
+}
+
 export async function POST(request: NextRequest) {
   if (process.env.CLINIC_PORTAL_ENABLED !== "true")
     return NextResponse.json({ error: "Portal em preparação." }, { status: 503, headers });
   let storedPath = "";
-  let committed = false;
+  // Once writes have been staged, a lost acknowledgement cannot prove rollback.
+  // Keep that object until its receipt or an operator can establish its outcome.
+  let mayBeReferenced = false;
   try {
     const actor = await identity(request);
     const length = Number(request.headers.get("content-length"));
@@ -78,32 +114,55 @@ export async function POST(request: NextRequest) {
       contentType: "application/pdf",
       metadata: { cacheControl: "private, no-store" },
     });
-    await adminDb.runTransaction(async (tx) => {
-      const current = (await tx.get(ref)).data() as RecordWithDocument | undefined;
-      if (
-        !current ||
-        grantFor(current, actor)?.role !== "doctor" ||
-        current.state !== "awaiting_signature" ||
-        current.signedDocument
-      )
-        throw forbidden();
-      const at = new Date().toISOString();
-      tx.update(ref, {
-        signedDocument: { path: storedPath, sha256, uploadedAt: at, uploadedBy: actor.uid },
-        updatedAt: at,
+    const received: ReceivedDocument = {
+      path: storedPath,
+      sha256,
+      uploadedAt: new Date().toISOString(),
+      uploadedBy: actor.uid,
+    };
+    const profileRef = adminDb.collection("users").doc(actor.uid);
+    try {
+      await adminDb.runTransaction(async (tx) => {
+        const [profile, snapshot] = await Promise.all([tx.get(profileRef), tx.get(ref)]);
+        requireProfileAccess(profile.data());
+        const current = snapshot.data() as RecordWithDocument | undefined;
+        if (
+          !current ||
+          grantFor(current, actor)?.role !== "doctor" ||
+          current.state !== "awaiting_signature" ||
+          current.signedDocument
+        )
+          throw forbidden();
+        mayBeReferenced = true;
+        tx.update(ref, { signedDocument: received, updatedAt: received.uploadedAt });
+        tx.update(adminDb.doc(current.sourcePath), {
+          clinicPortalStatus: "signed_document_received",
+          updatedAt: received.uploadedAt,
+        });
+        tx.create(ref.collection("events").doc(), {
+          action: "signed_pdf_received",
+          uid: actor.uid,
+          at: received.uploadedAt,
+          sha256,
+        });
       });
-      tx.update(adminDb.doc(current.sourcePath), {
-        clinicPortalStatus: "signed_document_received",
-        updatedAt: at,
+    } catch (error) {
+      if (!mayBeReferenced) throw error;
+      // The exact, randomly named receipt below is the only proof of this commit.
+      // A missing receipt never authorizes deleting a possibly referenced PDF.
+    }
+    try {
+      await adminDb.runTransaction(async (tx) => {
+        const [profile, snapshot] = await Promise.all([tx.get(profileRef), tx.get(ref)]);
+        requireProfileAccess(profile.data());
+        const current = snapshot.data() as RecordWithDocument | undefined;
+        if (!current || grantFor(current, actor)?.role !== "doctor") throw forbidden();
+        if (!matchesReceipt(current, received)) throw new AuthError(unconfirmedReceipt, 503);
       });
-      tx.create(ref.collection("events").doc(), {
-        action: "signed_pdf_received",
-        uid: actor.uid,
-        at,
-        sha256,
-      });
-    });
-    committed = true;
+    } catch (error) {
+      if (error instanceof AuthError) throw error;
+      throw new AuthError(unconfirmedReceipt, 503);
+    }
     return NextResponse.json(
       { message: "ASO recebido para conferência. A assinatura não foi validada automaticamente." },
       { headers }
@@ -111,7 +170,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return fail(error);
   } finally {
-    if (storedPath && !committed)
+    if (storedPath && !mayBeReferenced)
       await getStorage()
         .bucket(firebaseConfig.storageBucket)
         .file(storedPath)
@@ -129,15 +188,7 @@ export async function GET(request: NextRequest) {
     const ref = adminDb.collection("clinic_portal_private").doc(parsed.data);
     const record = (await ref.get()).data() as RecordWithDocument | undefined;
     if (!record?.signedDocument) throw forbidden();
-    const doctor = grantFor(record, actor)?.role === "doctor";
-    if (!doctor) {
-      const owner = await requireAuth(request);
-      if (
-        owner.uid !== record.ownerUid ||
-        !["SUPER_ADMIN", "ADMIN", "OPERATIONS", "DOCTOR", "HR", "RH"].includes(owner.role)
-      )
-        throw forbidden();
-    }
+    await requireDocumentReader(request, actor, record);
     const [bytes] = await getStorage()
       .bucket(firebaseConfig.storageBucket)
       .file(record.signedDocument.path)
@@ -159,6 +210,12 @@ export async function GET(request: NextRequest) {
         { status: 409, headers }
       );
     }
+    const currentActor = await identity(request);
+    const current = (await ref.get()).data() as RecordWithDocument | undefined;
+    if (!current?.signedDocument) throw forbidden();
+    await requireDocumentReader(request, currentActor, current);
+    if (!matchesReceipt(current, record.signedDocument))
+      throw new AuthError("O documento mudou durante a consulta. Atualize o convite.", 409);
     await ref.collection("events").add({
       action: "signed_pdf_read",
       uid: actor.uid,
