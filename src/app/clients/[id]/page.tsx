@@ -120,6 +120,12 @@ function ClientCockpit({ clientId }: { clientId: string }) {
           <p className="mt-3 text-sm">Responsável cadastrado: {company.responsible_name}</p>
         )}
       </header>
+      <Link
+        href={`/health-control?tab=esteira&company=${encodeURIComponent(clientId)}`}
+        className="inline-flex items-center rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+      >
+        Cards e pasta de ASOs
+      </Link>
       <ClientDocuments companyId={clientId} />
       <SstJourney companyId={clientId} companyName={company.name} />
       <Tabs defaultValue="colaboradores">

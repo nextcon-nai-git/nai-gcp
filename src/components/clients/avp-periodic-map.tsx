@@ -12,9 +12,11 @@ import {
 export function AvpPeriodicMap({
   people,
   onSelect,
+  label = "Mapa de periódicos AVP",
 }: {
   people: PeriodicPerson[];
   onSelect: (cityKey: string, progress: PeriodicProgress) => void;
+  label?: string;
 }) {
   const [uf, setUf] = useState("");
   const groups = useMemo(() => {
@@ -58,10 +60,7 @@ export function AvpPeriodicMap({
     : 400;
   const scale = size / 800;
   return (
-    <section
-      className="rounded-xl border bg-card p-4 space-y-3"
-      aria-label="Mapa de periódicos AVP"
-    >
+    <section className="rounded-xl border bg-card p-4 space-y-3" aria-label={label}>
       <label className="flex items-center gap-2 text-sm">
         UF
         <select

@@ -10,6 +10,13 @@ vi.mock("./clinical-workspace", () => ({
 vi.mock("./scheduling-workspace", () => ({
   default: () => <div data-area="scheduling">Solicitações e kits</div>,
 }));
+vi.mock("./aso-flow-board", () => ({
+  default: ({ initialCompany }: { initialCompany?: string }) => (
+    <div data-area="flow" data-client={initialCompany}>
+      Esteira de ASOs
+    </div>
+  ),
+}));
 
 import HealthControlPage from "@/app/health-control/page";
 import AsoSchedulerPage from "@/app/aso-scheduler/page";
@@ -29,6 +36,22 @@ afterEach(async () => {
 });
 
 describe("central de agendamento e clínica", () => {
+  it("abre a esteira pelo link preservando as demais áreas sem montá-las", async () => {
+    await act(async () =>
+      root.render(
+        await HealthControlPage({
+          searchParams: Promise.resolve({ tab: "esteira", company: "teste" }),
+        })
+      )
+    );
+    expect(container.querySelector('[data-area="flow"]')).not.toBeNull();
+    expect(container.querySelector('[data-area="flow"]')?.getAttribute("data-client")).toBe(
+      "teste"
+    );
+    expect(container.querySelector('[data-area="clinical"]')).toBeNull();
+    expect(container.querySelector('[data-area="scheduling"]')).toBeNull();
+    expect(container.querySelector('[aria-current="page"]')?.textContent).toContain("Esteira");
+  });
   it("preserva o acesso clínico antigo e monta somente a área selecionada ao navegar", async () => {
     await act(async () =>
       root.render(await HealthControlPage({ searchParams: Promise.resolve({}) }))
