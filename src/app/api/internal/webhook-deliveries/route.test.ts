@@ -4,8 +4,10 @@ import { POST } from "./route";
 
 const state = vi.hoisted(() => ({
   verify: vi.fn(),
+  monitor: vi.fn(),
   process: vi.fn(),
 }));
+vi.mock("@/services/operational-runs", () => ({ monitorOperation: state.monitor }));
 vi.mock("googleapis/build/src/apis/oauth2", () => ({
   auth: {
     OAuth2: class {
@@ -23,6 +25,7 @@ const request = (token = "Bearer token") =>
   });
 beforeEach(() => {
   vi.clearAllMocks();
+  state.monitor.mockImplementation((_operation: string, execute: () => Promise<unknown>) => execute());
   vi.stubEnv("WEBHOOK_INVOKER_EMAIL", "worker@example.test");
   vi.stubEnv("WEBHOOK_WORKER_AUDIENCE", "https://example.test/api/internal/webhook-deliveries");
   state.verify.mockResolvedValue({
@@ -85,10 +88,17 @@ it("fails closed when audience is absent", async () => {
   vi.stubEnv("WEBHOOK_WORKER_AUDIENCE", "");
   expect((await POST(request())).status).toBe(503);
   expect(state.verify).not.toHaveBeenCalled();
+      expect(state.monitor).not.toHaveBeenCalled();
   expect(state.process).not.toHaveBeenCalled();
 });
 it("rejects missing identity claims", async () => {
   state.verify.mockResolvedValue({ getPayload: () => undefined });
   expect((await POST(request())).status).toBe(403);
   expect(state.process).not.toHaveBeenCalled();
+});
+
+
+it("records only an authenticated worker invocation", async () => {
+  await POST(request());
+  expect(state.monitor).toHaveBeenCalledWith("webhook-deliveries", expect.any(Function));
 });

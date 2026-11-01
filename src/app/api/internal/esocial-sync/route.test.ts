@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { AuthError } from "@/lib/auth/errors";
 
-const m = vi.hoisted(() => ({ verify: vi.fn(), sync: vi.fn() }));
+const m = vi.hoisted(() => ({ verify: vi.fn(), sync: vi.fn(), monitor: vi.fn() }));
+vi.mock("@/services/operational-runs", () => ({ monitorOperation: m.monitor }));
 vi.mock("googleapis/build/src/apis/oauth2", () => ({
   auth: {
     OAuth2: class {
@@ -25,6 +26,7 @@ function privateResponse(response: Response, status: number) {
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  m.monitor.mockImplementation((_operation: string, execute: () => Promise<unknown>) => execute());
   vi.stubEnv("ESOCIAL_SYNC_INVOKER_EMAIL", invoker);
   vi.stubEnv("ESOCIAL_SYNC_AUDIENCE", audience);
   vi.stubEnv("ESOCIAL_SYNC_ENABLED", "true");
@@ -39,6 +41,7 @@ describe("consulta interna eSocial por OIDC", () => {
     async (header) => {
       privateResponse(await POST(request(header)), 401);
       expect(m.verify).not.toHaveBeenCalled();
+      expect(m.monitor).not.toHaveBeenCalled();
       expect(m.sync).not.toHaveBeenCalled();
     }
   );
@@ -48,6 +51,7 @@ describe("consulta interna eSocial por OIDC", () => {
       vi.stubEnv(name, "");
       privateResponse(await POST(request()), 503);
       expect(m.verify).not.toHaveBeenCalled();
+      expect(m.monitor).not.toHaveBeenCalled();
       expect(m.sync).not.toHaveBeenCalled();
     }
   );
@@ -92,4 +96,10 @@ describe("consulta interna eSocial por OIDC", () => {
     privateResponse(response, 503);
     expect(await response.text()).not.toContain("private-firebase-record");
   });
+});
+
+
+it("records only an authenticated worker invocation", async () => {
+  await POST(request());
+  expect(m.monitor).toHaveBeenCalledWith("esocial-query", expect.any(Function));
 });

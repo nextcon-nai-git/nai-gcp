@@ -3,6 +3,7 @@ import { auth } from "googleapis/build/src/apis/oauth2";
 import { AuthError } from "@/lib/auth/errors";
 import { privateFailure, privateHeaders } from "@/lib/http/private-api";
 import { syncEsocialMessages } from "@/services/esocial/messaging";
+import { monitorOperation } from "@/services/operational-runs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,8 +25,11 @@ export async function POST(request: NextRequest) {
       throw new AuthError("Agendador não autorizado.", 401);
     }
     // Only queries already transmitted records; each submitter's current access is rechecked.
-    return NextResponse.json(await syncEsocialMessages(), { headers: privateHeaders });
+    return NextResponse.json(await monitorOperation("esocial-query", syncEsocialMessages), {
+      headers: privateHeaders,
+    });
   } catch (error) {
     return privateFailure(error);
   }
 }
+

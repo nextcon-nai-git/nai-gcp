@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth as googleAuth } from "googleapis/build/src/apis/oauth2";
 import { processWebhookQueue } from "@/services/webhooks/webhook-dispatcher";
+import { monitorOperation } from "@/services/operational-runs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +25,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Agendador não autorizado." }, { status: 401, headers });
   }
   try {
-    return NextResponse.json(await processWebhookQueue(), { headers });
+    return NextResponse.json(await monitorOperation("webhook-deliveries", processWebhookQueue), {
+      headers,
+    });
   } catch {
     return NextResponse.json(
       { error: "Não foi possível concluir o processamento. A fila foi preservada." },
@@ -32,3 +35,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

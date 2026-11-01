@@ -1,7 +1,8 @@
 // @vitest-environment node
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-const m = vi.hoisted(() => ({ verify: vi.fn(), queue: vi.fn(), periodic: vi.fn() }));
+const m = vi.hoisted(() => ({ verify: vi.fn(), queue: vi.fn(), periodic: vi.fn(), monitor: vi.fn() }));
+vi.mock("@/services/operational-runs", () => ({ monitorOperation: m.monitor }));
 vi.mock("googleapis/build/src/apis/oauth2", () => ({
   auth: {
     OAuth2: class {
@@ -19,6 +20,7 @@ const request = (token = "signed-token") =>
   });
 beforeEach(() => {
   vi.resetAllMocks();
+  m.monitor.mockImplementation((_operation: string, execute: () => Promise<unknown>) => execute());
   vi.stubEnv("AVP_SYNC_INVOKER_EMAIL", "scheduler@example.test");
   vi.stubEnv("AVP_SYNC_AUDIENCE", "https://example.test/api/internal/avp-sheet-sync");
   m.verify.mockResolvedValue({
@@ -52,4 +54,10 @@ it("falhas das fontes são independentes e retornam erro para repetição do age
   expect(response.status).toBe(503);
   expect(m.periodic).toHaveBeenCalledOnce();
   expect(JSON.stringify(await response.json())).not.toContain("private queue");
+});
+
+
+it("records only an authenticated worker invocation", async () => {
+  await POST(request());
+  expect(m.monitor).toHaveBeenCalledWith("avp-sheets", expect.any(Function));
 });
