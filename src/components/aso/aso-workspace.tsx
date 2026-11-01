@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { CalendarDays, Stethoscope } from "lucide-react";
+import { CalendarDays, Columns3, Stethoscope } from "lucide-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
   asoWorkspaceHref,
@@ -16,10 +16,14 @@ const ClinicalWorkspace = dynamic(() => import("./clinical-workspace"), {
 const SchedulingWorkspace = dynamic(() => import("./scheduling-workspace"), {
   loading: () => <p role="status">Carregando agendamento…</p>,
 });
+const AsoFlowBoard = dynamic(() => import("./aso-flow-board"), {
+  loading: () => <p role="status">Carregando esteira…</p>,
+});
 
 const areas = [
   { id: "agendamento" as const, label: "Agendamento e kits", icon: CalendarDays },
   { id: "clinica" as const, label: "Clínica e ASO digital", icon: Stethoscope },
+  { id: "esteira" as const, label: "Esteira de ASOs", icon: Columns3 },
 ];
 
 export function AsoWorkspace({
@@ -59,7 +63,17 @@ export function AsoWorkspace({
         </nav>
       </header>
       <ErrorBoundary key={view}>
-        {view === "agendamento" ? <SchedulingWorkspace /> : <ClinicalWorkspace />}
+        {view === "esteira" ? (
+          <AsoFlowBoard
+            initialCompany={
+              typeof searchParams.company === "string" ? searchParams.company : undefined
+            }
+          />
+        ) : view === "agendamento" ? (
+          <SchedulingWorkspace />
+        ) : (
+          <ClinicalWorkspace />
+        )}
       </ErrorBoundary>
     </div>
   );

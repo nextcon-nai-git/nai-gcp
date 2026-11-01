@@ -1,12 +1,14 @@
 /**
  * eSocial drafts. S-2220 content follows S-1.3; a configured, verified signer and
  * business-rule validation are still required before any transmission.
- * Legacy S-2210/S-2240 generation stays unavailable pending current-layout validation.
+ * Legacy incomplete CAT/environment payloads are refused; current payloads use the shared schema.
  */
 
 import { buildS2220Xml } from "./s2220";
+import { buildEsocialEventXml } from "./events";
+import type { EsocialEventInput, EsocialEventType } from "@/lib/esocial-events";
 
-export type EsocialEvent = "S2210" | "S2220" | "S2240";
+export type EsocialEvent = EsocialEventType;
 
 export interface EsocialIdeEmpregador {
   tpInsc: 1 | 2; // 1: CNPJ, 2: CPF
@@ -155,23 +157,27 @@ export function escapeXml(unsafe: string): string {
 }
 
 export class EsocialXmlBuilder {
-  static buildS2210(data: S2210Payload): string {
-    void data;
+  static buildS2210(data: S2210Payload | EsocialEventInput): string {
+    if ("eventType" in data && data.eventType === "S2210") return buildEsocialEventXml(data);
     throw new Error(
       "S-2210 indisponível: leiaute vigente e dados revisados da CAT ainda precisam ser validados. Nenhum XML foi emitido."
     );
   }
 
   /** Builds an unsigned S-2220 draft, never a signed or transmitted event. */
-  static buildS2220(data: S2220Payload): string {
+  static buildS2220(data: S2220Payload | EsocialEventInput): string {
     return buildS2220Xml(data);
   }
 
-  static buildS2240(data: S2240Payload): string {
-    void data;
+  static buildS2240(data: S2240Payload | EsocialEventInput): string {
+    if ("eventType" in data && data.eventType === "S2240") return buildEsocialEventXml(data);
     throw new Error(
       "S-2240 indisponível: leiaute vigente e dados ambientais revisados ainda precisam ser validados. Nenhum XML foi emitido."
     );
+  }
+
+  static buildEvent(data: EsocialEventInput): string {
+    return buildEsocialEventXml(data);
   }
 
   static async signEvent(xml: string, certificateId: string): Promise<string> {

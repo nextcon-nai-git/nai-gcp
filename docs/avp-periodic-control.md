@@ -4,7 +4,7 @@ A operação interna lê a aba **Controle** da campanha e **NAI Credenciamento**
 
 ## Leitura e publicação
 
-- A campanha usa o cabeçalho da linha 4 e conserva a linha original, mesmo com colunas extras ou reordenadas. CPF + admissão deduplicam os registros; CPF não é devolvido pela API nem gravado na versão publicada.
+- A campanha usa o cabeçalho da linha 4 e conserva a linha original, mesmo com colunas extras ou reordenadas. CPF + admissão + unidade + município/UF deduplicam os registros, preservando vínculos diferentes; CPF não é devolvido pela API nem gravado na versão publicada.
 - O credenciamento usa o cabeçalho da linha 2. O valor negociado preenchido tem prioridade sobre o atual. Valor ambíguo permanece sem preço; a autorização para agendamento não comprova contrato assinado.
 - Prestadores e preços históricos continuam nas abas privadas anteriores, identificados por origem. A campanha atual não depende da antiga cópia da convocação.
 - As duas fontes devem passar pela validação antes de trocar a configuração. Escritas em partes completam uma versão imutável antes da troca do ponteiro. Falhas preservam a última leitura íntegra, com data e erro visíveis.

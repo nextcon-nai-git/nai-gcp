@@ -45,6 +45,7 @@ const output = () => ({
 });
 beforeEach(() => {
   model.generate.mockResolvedValue({ output: output() });
+  records.clear();
 });
 const records = vi.hoisted(() => new Map<string, any>());
 vi.mock("@/lib/auth/require-auth", () => ({
@@ -65,7 +66,21 @@ vi.mock("@/lib/firebase-admin", () => {
     limit: () => store,
     get: async () => ({ docs: [...records.values()].map((data) => ({ data: () => data })) }),
   };
-  return { adminDb: { collection: () => ({ doc: () => ({ collection: () => store }) }) } };
+  return {
+    adminDb: {
+      collection: () => ({ doc: () => ({ collection: () => store }) }),
+      runTransaction: async (fn: (tx: any) => Promise<unknown>) => {
+        const writes: Array<() => void> = [];
+        const result = await fn({
+          get: (ref: any) => ref.get(),
+          update: (ref: any, changes: any) =>
+            writes.push(() => records.set(ref.id, { ...records.get(ref.id), ...changes })),
+        });
+        writes.forEach((write) => write());
+        return result;
+      },
+    },
+  };
 });
 import {
   processAsoSystemOrchestration,
@@ -132,16 +147,18 @@ describe("Suíte do Sistema Agendador de ASOs + Montador de Kits", () => {
     expect(created.data?.validationPassed).toBe(false);
   });
 
-  it("3. Deve avançar no pipeline de 10 etapas (ex: de solicitado para agendado e kit_enviado)", async () => {
-    const requestsRes = await getAsoRequestsAction("test-token");
-    const req = requestsRes.data[0];
-
-    expect(req).toBeDefined();
-
-    const advanced = await advancePipelineStepAction(req.id, "kit_enviado", "test-token");
-    expect(advanced.success).toBe(true);
-    expect(advanced.data?.status).toBe("kit_enviado");
-    expect(advanced.data?.digitalKit?.kitSentAt).toBeDefined();
+  it("não transforma minuta de kit nem timestamp legado em comprovante de envio", async () => {
+    const existing = {
+      id: "synthetic-req",
+      status: "kit_montado",
+      digitalKit: { kitId: "MINUTA", kitSentAt: "2026-10-20T12:00:00Z" },
+      updatedAt: "2026-10-20T12:00:00Z",
+    };
+    records.set(existing.id, existing);
+    const advanced = await advancePipelineStepAction(existing.id, "kit_enviado", "test-token");
+    expect(advanced.success).toBe(false);
+    expect(advanced.error).toContain("envio efetivo");
+    expect(records.get(existing.id)).toEqual(existing);
   });
 
   it("não fabrica um agendamento quando o provedor falha", async () => {
@@ -164,6 +181,85 @@ describe("Suíte do Sistema Agendador de ASOs + Montador de Kits", () => {
       expect(clinic.supportedExams.length).toBeGreaterThan(0);
     });
   });
+});
+
+describe("avanço com evidência e controle transacional", () => {
+  const record = () => ({
+    id: "synthetic-req",
+    status: "solicitado",
+    validationPassed: false,
+    exams: [{ name: "Exame para revisão" }],
+    updatedAt: "2026-10-20T12:00:00Z",
+    employeeName: "Pessoa sintética",
+    sourceMessageId: "origem-preservada",
+    digitalKit: { kitSentAt: "2026-10-20T12:00:00Z", clinicConfirmedAt: "2026-10-20T12:00:00Z" },
+  });
+  it("avança só a próxima revisão, preserva identidade e não repete a escrita", async () => {
+    records.set("synthetic-req", record());
+    const first = await advancePipelineStepAction("synthetic-req", "validando", "test-token");
+    expect(first).toMatchObject({
+      success: true,
+      data: { status: "validando", sourceMessageId: "origem-preservada" },
+    });
+    const at = records.get("synthetic-req").updatedAt;
+    const again = await advancePipelineStepAction("synthetic-req", "validando", "test-token");
+    expect(again.data?.updatedAt).toBe(at);
+    expect(
+      (await advancePipelineStepAction("synthetic-req", "solicitado", "test-token")).success
+    ).toBe(false);
+    expect(records.get("synthetic-req").status).toBe("validando");
+  });
+  it("rejeita saltos, etapa arbitrária e identificadores inválidos sem alterar dados", async () => {
+    records.set("synthetic-req", record());
+    for (const target of ["clinica_selecionada", "administrator", "__proto__", null]) {
+      expect(
+        (await advancePipelineStepAction("synthetic-req", target as any, "test-token")).success
+      ).toBe(false);
+    }
+    expect((await advancePipelineStepAction(null as any, "validando", "test-token")).success).toBe(
+      false
+    );
+    expect((await advancePipelineStepAction("../other", "validando", "test-token")).success).toBe(
+      false
+    );
+    expect(records.get("synthetic-req")).toEqual(record());
+  });
+  it("não confirma exames sugeridos pela IA antes da revisão do PCMSO", async () => {
+    records.set("synthetic-req", { ...record(), status: "validando" });
+    const pending = await advancePipelineStepAction(
+      "synthetic-req",
+      "exames_definidos",
+      "test-token"
+    );
+    expect(pending).toMatchObject({ success: false });
+    expect(pending.error).toContain("PCMSO");
+    records.set("synthetic-req", { ...record(), status: "validando", validationPassed: true });
+    expect(
+      (await advancePipelineStepAction("synthetic-req", "exames_definidos", "test-token")).success
+    ).toBe(true);
+    expect(
+      (await advancePipelineStepAction("synthetic-req", "clinica_selecionada", "test-token"))
+        .success
+    ).toBe(false);
+  });
+  it.each([
+    "agendado",
+    "kit_montado",
+    "kit_enviado",
+    "clinica_confirmou",
+    "exame_realizado",
+    "aso_concluido",
+  ] as const)(
+    "exige evidência externa para %s mesmo com datas antigas e kit em memória",
+    async (stage) => {
+      const existing = { ...record(), status: stage, validationPassed: true };
+      records.set("synthetic-req", existing);
+      const result = await advancePipelineStepAction("synthetic-req", stage, "test-token");
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("Registre");
+      expect(records.get("synthetic-req")).toEqual(existing);
+    }
+  );
 });
 
 describe("manual ASO intake", () => {

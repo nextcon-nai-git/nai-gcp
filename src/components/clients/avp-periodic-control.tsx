@@ -16,6 +16,7 @@ import {
 } from "@/lib/avp-periodic-status";
 import { AvpPeriodicMap } from "./avp-periodic-map";
 import { AvpPeriodicSettings } from "./avp-periodic-settings";
+import { AVP_WORKFLOW_UPDATED_EVENT } from "@/lib/avp-workflow-progress";
 
 function Price({ price }: { price: AvpObservedPrice }) {
   const color = AVP_COST_BANDS[avpCostBand(price.cents)].className;
@@ -103,13 +104,19 @@ export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => v
     const visible = () => {
       if (document.visibilityState === "visible") void load(controller.signal);
     };
+    const workflowUpdated = (event: Event) => {
+      if ((event as CustomEvent<{ uid?: string }>).detail?.uid === user?.uid && user)
+        void load(controller.signal);
+    };
     document.addEventListener("visibilitychange", visible);
+    window.addEventListener(AVP_WORKFLOW_UPDATED_EVENT, workflowUpdated);
     return () => {
       controller.abort();
       clearInterval(timer);
       document.removeEventListener("visibilitychange", visible);
+      window.removeEventListener(AVP_WORKFLOW_UPDATED_EVENT, workflowUpdated);
     };
-  }, [load]);
+  }, [load, user]);
   useEffect(() => setPage(0), [city, search, peopleFilter, progressFilter]);
   const matches = (value: string) =>
     value
@@ -614,6 +621,9 @@ export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => v
                         </td>
                         <td className={cellClass}>
                           {p.status}
+                          {p.progressSource === "workflow" && (
+                            <p className="text-xs text-muted-foreground">Fonte: {p.sourceStatus}</p>
+                          )}
                           {p.asoReceivedAt && (
                             <p className="text-xs">
                               Recebimento de ASO na fonte: {p.asoReceivedAt}

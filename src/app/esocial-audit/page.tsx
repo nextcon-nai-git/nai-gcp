@@ -22,6 +22,12 @@ export default function EsocialAudit() {
       <section className="space-y-4 rounded-2xl border bg-white p-6">
         <h1 className="text-2xl font-semibold">Fila de eventos eSocial</h1>
         <p>Selecione um cliente no menu superior para consultar os eventos registrados.</p>
+        <Link
+          className="inline-block rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white"
+          href="/esocial/messaging"
+        >
+          Abrir mensageria eSocial
+        </Link>
         <Link className="text-teal-700 underline" href="/clients">
           Abrir clientes
         </Link>
@@ -46,9 +52,16 @@ function EventQueue({ companyId }: { companyId: string }) {
   return (
     <section className="space-y-5 rounded-2xl border bg-white p-6">
       <h1 className="text-2xl font-semibold">Fila de eventos eSocial</h1>
+      <Link
+        className="inline-block rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white"
+        href={`/esocial/messaging?company=${encodeURIComponent(companyId)}`}
+      >
+        Preparar e transmitir pelo NAI
+      </Link>
       <p className="text-sm text-slate-600">
         Até 100 eventos registrados para o cliente selecionado. A presença na fila e o status
-        interno não comprovam transmissão: confira o recibo do evento no sistema transmissor.
+        interno não comprovam transmissão. A mensageria do NAI acompanha os novos eventos,
+        protocolos e recibos.
       </p>
       {error ? (
         <p role="alert" className="text-amber-800">

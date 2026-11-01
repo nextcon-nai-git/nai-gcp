@@ -2,12 +2,14 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { emptyWorkflow } from "@/lib/avp-workflow";
+import { AVP_WORKFLOW_UPDATED_EVENT } from "@/lib/avp-workflow-progress";
 const mocks = vi.hoisted(() => ({ fetch: vi.fn() }));
 vi.mock("@/firebase", () => ({
   useUser: () => ({ user: { uid: "operator", getIdToken: async () => "synthetic-token" } }),
 }));
 import { AvpWorkflowPanel } from "./avp-workflow-panel";
 let container: HTMLDivElement, root: Root;
+const changed = vi.fn();
 const person = {
   id: "campaign-1",
   name: "Pessoa Teste",
@@ -22,6 +24,8 @@ beforeEach(() => {
     globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
   ).IS_REACT_ACT_ENVIRONMENT = true;
   mocks.fetch.mockReset();
+  changed.mockClear();
+  window.addEventListener(AVP_WORKFLOW_UPDATED_EVENT, changed);
   vi.stubGlobal("fetch", mocks.fetch);
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -31,6 +35,7 @@ afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
   vi.unstubAllGlobals();
+  window.removeEventListener(AVP_WORKFLOW_UPDATED_EVENT, changed);
 });
 async function click(text: string) {
   const button = [...container.querySelectorAll("button")].find((b) => b.textContent === text);
@@ -110,6 +115,8 @@ it.each(["ready", "delivered"] as const)(
     await click("Preparar entrega ao coordenador");
     expect(container.textContent).toContain("Salve a conferência antes de preparar a mensagem.");
     await click("Salvar acompanhamento");
+    expect(changed).toHaveBeenCalledOnce();
+    expect((changed.mock.calls[0][0] as CustomEvent).detail).toEqual({ uid: "operator" });
     const posts = mocks.fetch.mock.calls.filter(([, init]) => init?.method === "POST");
     expect(posts).toHaveLength(1);
     expect(posts[0][0]).toBe("/api/clients/grupo-avp/workflow");

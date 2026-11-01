@@ -1,258 +1,201 @@
 "use client";
 
-import * as React from "react";
-import {
-  HeartPulse,
-  Search,
-  CheckCircle2,
-  AlertCircle,
-  FileText,
-  Download,
-  Loader2,
-  SendHorizontal,
-  CloudDownload,
-  ShieldCheck,
-  Globe,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useMemo, useState } from "react";
+import { CheckCircle2, FileText, Loader2, Search } from "lucide-react";
+import { collection, doc, orderBy, query, where } from "firebase/firestore";
+import { useCollection, useDoc, useFirestore, useMemoFirebase, useUser } from "@/firebase";
+import { DownloadAsoButton } from "@/components/documents/download-aso-button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase";
-import { collection, query, orderBy, doc, where } from "firebase/firestore";
-import { cn } from "@/lib/utils";
-import { DownloadAsoButton } from "@/components/documents/download-aso-button";
+
+type ExamRecord = {
+  employeeName?: string;
+  data_emissao?: string | number | { toDate: () => Date };
+  resultado?: string;
+  status_esocial?: string;
+  protocolo_governo?: string;
+  examType?: string;
+};
+
+function examDate(value: ExamRecord["data_emissao"]) {
+  if (!value) return "Não informada";
+  const date =
+    typeof value === "object"
+      ? value.toDate()
+      : new Date(
+          typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+            ? `${value}T12:00:00Z`
+            : value
+        );
+  return Number.isFinite(date.getTime()) ? date.toLocaleDateString("pt-BR") : "Não informada";
+}
 
 export default function ClientExamsHistory() {
   const { user } = useUser();
   const db = useFirestore();
-  const [searchTerm, setSearchTerm] = React.useState("");
-
-  const profileRef = useMemoFirebase(() => {
-    if (!db || !user) return null;
-    return doc(db, "users", user.uid);
-  }, [db, user]);
-  const { data: profile } = useDoc(profileRef);
-
-  const asoQuery = useMemoFirebase(() => {
-    if (!db || !profile?.companyId) return null;
-    return query(
-      collection(db, "atendimentos_aso"),
-      where("companyId", "==", profile.companyId),
-      orderBy("data_emissao", "desc")
-    );
-  }, [db, profile]);
-
-  const { data: asos, isLoading } = useCollection(asoQuery);
-
-  // Otimização: Filtragem memorizada da lista de ASOs
-  const filteredAsos = React.useMemo(() => {
-    if (!asos) return [];
-    if (!searchTerm.trim()) return asos;
-    const lowerSearch = searchTerm.toLowerCase();
-    return asos.filter((a) => (a.employeeName || "").toLowerCase().includes(lowerSearch));
-  }, [asos, searchTerm]);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const profileRef = useMemoFirebase(
+    () => (db && user ? doc(db, "users", user.uid) : null),
+    [db, user]
+  );
+  const { data: profile, error: profileError } = useDoc<{
+    companyId?: string;
+    companyName?: string;
+  }>(profileRef);
+  const asoQuery = useMemoFirebase(
+    () =>
+      db && profile?.companyId
+        ? query(
+            collection(db, "atendimentos_aso"),
+            where("companyId", "==", profile.companyId),
+            orderBy("data_emissao", "desc")
+          )
+        : null,
+    [db, profile?.companyId]
+  );
+  const { data: records, isLoading, error } = useCollection<ExamRecord>(asoQuery);
+  const statuses = useMemo(
+    () => [...new Set((records || []).map((record) => record.status_esocial).filter(Boolean))],
+    [records]
+  );
+  const filtered = (records || []).filter(
+    (record) =>
+      (!status || record.status_esocial === status) &&
+      (record.employeeName || "")
+        .toLocaleLowerCase("pt-BR")
+        .includes(search.toLocaleLowerCase("pt-BR"))
+  );
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-headline font-black text-primary tracking-tight uppercase leading-none">
-            Portal do RH: Vigilância Médica
-          </h1>
-          <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-[0.2em] mt-2">
-            Monitoramento de ASOs, Assinaturas Digitais e eSocial S-2220.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            className="h-11 px-6 border-primary text-primary font-black uppercase text-[10px] tracking-widest gap-2"
-          >
-            <Download className="size-4" /> Exportar Tudo
-          </Button>
-        </div>
+    <section className="space-y-5 pb-10">
+      <header>
+        <h1 className="text-2xl font-semibold text-primary">Histórico de ASOs</h1>
+        <p className="mt-1 text-sm text-slate-600">Registros de exames da sua empresa.</p>
       </header>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="relative md:col-span-3 group">
-          <Search className="absolute left-4 top-3.5 size-4 text-slate-300 group-focus-within:text-primary transition-colors" />
+      <div className="flex flex-wrap gap-3">
+        <div className="relative min-w-60 flex-1">
+          <Search aria-hidden="true" className="absolute left-3 top-3 size-4 text-slate-500" />
           <Input
-            placeholder="Buscar colaborador por nome ou CPF..."
-            className="pl-12 h-12 bg-white border-none shadow-sm rounded-xl font-medium"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            aria-label="Buscar colaborador por nome"
+            placeholder="Buscar colaborador por nome"
+            className="bg-white pl-10"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
           />
         </div>
-        <Select defaultValue="all">
-          <SelectTrigger className="h-12 bg-white border-none shadow-sm rounded-xl font-bold uppercase text-[10px]">
-            <SelectValue placeholder="Status eSocial" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os Status</SelectItem>
-            <SelectItem value="Enviado">Enviado (OK)</SelectItem>
-            <SelectItem value="Pendente">Pendente</SelectItem>
-          </SelectContent>
-        </Select>
+        <select
+          aria-label="Status registrado no eSocial"
+          className="h-10 rounded-md border bg-white px-3 text-sm"
+          value={status}
+          onChange={(event) => setStatus(event.target.value)}
+        >
+          <option value="">Todos os status registrados</option>
+          {statuses.map((value) => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
+        </select>
       </div>
-
-      <Card className="card-shadow border-none bg-white rounded-[2rem] overflow-hidden">
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-24 text-center flex flex-col items-center gap-4">
-              <Loader2 className="size-12 animate-spin text-primary opacity-20" />
-              <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                Sincronizando Base de Saúde...
-              </p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader className="bg-slate-50/50">
-                <TableRow>
-                  <TableHead className="text-[10px] font-black uppercase py-5 pl-8">
-                    Colaborador
-                  </TableHead>
-                  <TableHead className="text-[10px] font-black uppercase">Data / Emissão</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase text-center">
-                    ASO (Status)
-                  </TableHead>
-                  <TableHead className="text-[10px] font-black uppercase text-center">
-                    eSocial (S-2220)
-                  </TableHead>
-                  <TableHead className="text-right pr-8">Dossiê</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredAsos.map((aso) => (
-                  <TableRow key={aso.id} className="hover:bg-slate-50 transition-colors group">
-                    <TableCell className="pl-8 py-5">
-                      <div className="flex items-center gap-3">
-                        <div className="size-9 rounded-xl bg-primary/5 flex items-center justify-center text-primary font-black text-xs shadow-inner">
-                          {aso.employeeName?.substring(0, 2).toUpperCase()}
-                        </div>
-                        <p className="font-bold text-primary text-xs uppercase leading-tight">
-                          {aso.employeeName}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <p className="text-xs font-bold text-primary">
-                        {new Date(aso.data_emissao).toLocaleDateString("pt-BR")}
+      {error || profileError ? (
+        <p
+          role="alert"
+          className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+        >
+          Não foi possível consultar os exames. Confira o acesso à empresa e tente novamente.
+        </p>
+      ) : !user ? (
+        <p role="status">Entre na sua conta para consultar os exames.</p>
+      ) : isLoading ? (
+        <p role="status" className="flex items-center gap-2 p-5 text-sm">
+          <Loader2 className="size-4 animate-spin" />
+          Carregando exames…
+        </p>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border bg-white">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 text-slate-600">
+              <tr>
+                <th className="p-4">Colaborador</th>
+                <th className="p-4">Data de emissão</th>
+                <th className="p-4">Resultado registrado</th>
+                <th className="p-4">eSocial S-2220</th>
+                <th className="p-4">Resumo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((record) => (
+                <tr key={record.id} className="border-t">
+                  <td className="p-4 font-medium">{record.employeeName || "Nome não informado"}</td>
+                  <td className="p-4">{examDate(record.data_emissao)}</td>
+                  <td className="p-4">
+                    <Badge variant="outline" className="gap-1">
+                      {record.resultado === "Apto" && (
+                        <CheckCircle2 aria-hidden="true" className="size-3" />
+                      )}
+                      {record.resultado || "Não informado"}
+                    </Badge>
+                  </td>
+                  <td className="space-y-1 p-4">
+                    <p className="text-xs">
+                      Status interno: {record.status_esocial || "Não informado"}
+                    </p>
+                    {record.protocolo_governo && (
+                      <p className="max-w-56 break-all text-xs text-slate-500">
+                        Protocolo informado: {record.protocolo_governo}
                       </p>
-                      <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">
-                        Assinado via NAI Cloud
-                      </p>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge
-                        className={cn(
-                          "text-[9px] font-black uppercase border-none px-3 h-6",
-                          aso.resultado === "Apto"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-red-100 text-red-700"
-                        )}
-                      >
-                        {aso.resultado === "Apto" ? (
-                          <CheckCircle2 className="size-2.5 mr-1" />
-                        ) : (
-                          <AlertCircle className="size-2.5 mr-1" />
-                        )}
-                        {aso.resultado}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex flex-col items-center gap-1">
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-[8px] font-black uppercase h-5",
-                            aso.status_esocial === "Enviado"
-                              ? "bg-emerald-50 text-emerald-600 border-emerald-100"
-                              : "bg-orange-50 text-orange-600 border-orange-100"
-                          )}
-                        >
-                          {aso.status_esocial === "Enviado" ? "PROTOCOLADO" : "PROCESSANDO"}
-                        </Badge>
-                        {aso.protocolo_governo && (
-                          <span className="text-[8px] font-mono text-slate-400">
-                            ID: {aso.protocolo_governo}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right pr-8">
+                    )}
+                    <p className="text-xs text-slate-500">
+                      Recibo do evento não verificado nesta tela.
+                    </p>
+                  </td>
+                  <td className="p-4">
+                    {record.employeeName ? (
                       <DownloadAsoButton
                         patientData={{
-                          patientName: aso.employeeName,
+                          patientName: record.employeeName,
                           companyName: profile?.companyName,
-                          status: aso.resultado,
-                          type: "Periódico",
+                          status: record.resultado || "Não informado",
+                          type: record.examType,
                         }}
                       />
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {!isLoading && filteredAsos.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={5}
-                      className="py-24 text-center opacity-30 font-black uppercase text-xs tracking-widest"
-                    >
-                      Nenhum registro localizado
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="p-6 bg-[#090e24] text-white rounded-[2rem] shadow-2xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform">
-            <ShieldCheck className="size-32 text-accent" />
-          </div>
-          <div className="relative z-10 space-y-4">
-            <Badge className="bg-accent text-primary border-none text-[8px] font-black uppercase tracking-[0.2em]">
-              Blindagem Legal
-            </Badge>
-            <h3 className="text-lg font-black uppercase font-headline">Validade Jurídica</h3>
-            <p className="text-xs text-white/60 leading-relaxed font-medium">
-              Todos os documentos gerados neste portal possuem assinatura digital certificada e
-              registro de metadados de emissão, garantindo plena aceitação em fiscalizações e
-              perícias judiciais.
-            </p>
-          </div>
+                    ) : (
+                      <span className="text-xs text-slate-500">Cadastro incompleto</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {!filtered.length && (
+                <tr>
+                  <td colSpan={5} className="p-12 text-center text-slate-500">
+                    Nenhum registro localizado.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-        <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-[2rem] flex flex-col justify-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary rounded-lg text-white shadow-sm">
-              <Globe className="size-4" />
-            </div>
-            <h4 className="text-sm font-black text-primary uppercase">NAI eSocial Engine</h4>
-          </div>
-          <p className="text-[11px] text-primary/70 leading-relaxed font-medium italic">
-            "Nosso motor de transmissão envia o evento S-2220 automaticamente para o governo assim
-            que o médico finaliza o atendimento, eliminando o risco de atrasos na folha."
+      )}
+      <div className="grid gap-3 text-sm text-slate-600 md:grid-cols-2">
+        <div className="rounded-lg border bg-white p-4">
+          <p className="mb-1 flex items-center gap-2 font-medium text-slate-800">
+            <FileText className="size-4" />
+            Documento original
+          </p>
+          <p>
+            O download desta tela gera um resumo do cadastro. A assinatura deve ser conferida no ASO
+            original arquivado pela equipe responsável.
+          </p>
+        </div>
+        <div className="rounded-lg border bg-white p-4">
+          <p className="mb-1 font-medium text-slate-800">Comprovação no eSocial</p>
+          <p>
+            O aceite depende do recibo do evento. Um protocolo de lote ou status interno não
+            confirma esse aceite. A equipe responsável prepara, autoriza e acompanha a transmissão.
           </p>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

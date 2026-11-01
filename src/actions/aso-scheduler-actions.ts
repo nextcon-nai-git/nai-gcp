@@ -5,7 +5,7 @@ import {
   AsoSystemOrchestratorOutput,
 } from "@/ai/flows/aso-scheduler-system-flow";
 import { AsoRequest, AsoPipelineStep, ExamType, DigitalKit } from "@/types/aso-scheduler-types";
-import { INITIAL_PARTNER_CLINICS } from "@/lib/aso-scheduler-data";
+import { z } from "zod";
 
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
@@ -250,52 +250,78 @@ export async function advancePipelineStepAction(
 ): Promise<{ success: boolean; data?: AsoRequest; error?: string }> {
   try {
     const user = await schedulerUser(token);
-    if (requestId.startsWith("rd-") && !canManageRdAso(user.role)) throw forbidden();
-    const store = requestId.startsWith("rd-")
-      ? rdRequestStore()
-      : adminDb.collection("users").doc(user.uid).collection("asoRequests");
-    if (!requestId || requestId.includes("/"))
-      return { success: false, error: "Solicitação inválida." };
-    const snapshot = await store.doc(requestId).get();
-    if (!snapshot.exists) {
-      return { success: false, error: "Solicitação de ASO não encontrada." };
-    }
-
-    const existing = snapshot.data() as AsoRequest;
-    if (
-      [
+    const step = z
+      .enum([
+        "solicitado",
+        "validando",
+        "exames_definidos",
+        "clinica_selecionada",
+        "agendado",
         "kit_montado",
         "kit_enviado",
         "clinica_confirmou",
         "exame_realizado",
         "aso_concluido",
-      ].includes(targetStep) &&
-      !existing.digitalKit
-    )
-      return {
-        success: false,
-        error: "Revise os exames e gere o kit antes de avançar para esta etapa.",
+      ])
+      .safeParse(targetStep);
+    if (!step.success) return { success: false, error: "Etapa de ASO inválida." };
+    if (typeof requestId !== "string" || !/^[\w-]{1,128}$/.test(requestId))
+      return { success: false, error: "Solicitação inválida." };
+    if (requestId.startsWith("rd-") && !canManageRdAso(user.role)) throw forbidden();
+    const store = requestId.startsWith("rd-")
+      ? rdRequestStore()
+      : adminDb.collection("users").doc(user.uid).collection("asoRequests");
+    const ref = store.doc(requestId);
+    return await adminDb.runTransaction(async (tx) => {
+      const snapshot = await tx.get(ref);
+      if (!snapshot.exists) return { success: false, error: "Solicitação de ASO não encontrada." };
+      const existing = snapshot.data() as AsoRequest;
+      // This legacy action changes internal review steps only. A draft kit and the
+      // timestamps previously written by this button are not external evidence.
+      const evidenceRequired: Partial<Record<AsoPipelineStep, string>> = {
+        agendado: "Registre a confirmação da clínica e a data do agendamento na esteira de ASOs.",
+        kit_montado: "Registre o pedido e o kit emitidos no SOC na esteira de ASOs.",
+        kit_enviado: "Registre o envio efetivo do kit e seu comprovante na esteira de ASOs.",
+        clinica_confirmou: "Registre a confirmação recebida da clínica na esteira de ASOs.",
+        exame_realizado:
+          "Registre a evidência do comparecimento e do exame realizado na esteira de ASOs.",
+        aso_concluido:
+          "Registre o ASO conferido, seu arquivamento e o comprovante de entrega ao cliente na esteira de ASOs.",
       };
-
-    const updated = {
-      ...existing,
-      status: targetStep,
-      updatedAt: new Date().toISOString(),
-    };
-
-    // Se avançou para kit_enviado, adiciona a data de envio
-    if (targetStep === "kit_enviado" && updated.digitalKit) {
-      updated.digitalKit.kitSentAt = new Date().toISOString();
-    }
-
-    // Se avançou para clinica_confirmou
-    if (targetStep === "clinica_confirmou" && updated.digitalKit) {
-      updated.digitalKit.clinicConfirmedAt = new Date().toISOString();
-    }
-
-    await store.doc(requestId).set(updated);
-
-    return { success: true, data: updated };
+      const error = evidenceRequired[step.data];
+      if (error) return { success: false, error };
+      if (
+        step.data === "exames_definidos" &&
+        (existing.validationPassed !== true || !existing.exams?.length)
+      )
+        return {
+          success: false,
+          error: "Registre a revisão dos exames com o PCMSO antes de defini-los como confirmados.",
+        };
+      if (
+        step.data === "clinica_selecionada" &&
+        (existing.validationPassed !== true ||
+          !existing.clinicId ||
+          !existing.clinicName ||
+          existing.clinicName === "A confirmar")
+      )
+        return { success: false, error: "Registre a clínica confirmada para este atendimento." };
+      if (existing.status === step.data) return { success: true, data: existing };
+      const next: Partial<Record<AsoPipelineStep, AsoPipelineStep>> = {
+        solicitado: "validando",
+        validando: "exames_definidos",
+        exames_definidos: "clinica_selecionada",
+      };
+      if (next[existing.status] !== step.data)
+        return {
+          success: false,
+          error:
+            "A etapa foi alterada ou o avanço não é permitido. Atualize o card e conclua a etapa atual.",
+        };
+      const changes = { status: step.data, updatedAt: new Date().toISOString() };
+      tx.update(ref, changes);
+      return { success: true, data: { ...existing, ...changes } };
+    });
   } catch (err: any) {
     console.error("[Advance Pipeline Action Error]", err);
     return {

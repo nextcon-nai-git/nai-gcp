@@ -14,6 +14,7 @@ import {
 } from "@/lib/avp-workflow";
 import type { PeriodicPerson } from "@/lib/avp-periodic-control";
 import type { AvpAsoEvidence } from "@/lib/avp-evidence";
+import { AVP_WORKFLOW_UPDATED_EVENT } from "@/lib/avp-workflow-progress";
 
 type Evidence = AvpAsoEvidence & { uploaded?: boolean };
 export function AvpWorkflowPanel() {
@@ -107,6 +108,9 @@ function Session() {
       if (active.current) {
         setRecords((old) => [...old.filter((r) => r.id !== data.record.id), data.record]);
         setVersion(data.record.version);
+        window.dispatchEvent(
+          new CustomEvent(AVP_WORKFLOW_UPDATED_EVENT, { detail: { uid: user?.uid } })
+        );
         setMessage("Acompanhamento salvo. Nenhuma mensagem foi enviada.");
       }
     } catch (e) {

@@ -8,10 +8,14 @@ describe("CNPJ identity validation", () => {
     expect(normalizeCnpj("12.ABC.345/01DE-35")).toBe("12ABC34501DE35");
   });
 
-  it.each(["00000000000000", "11222333000182", "12ABC34501DE36", "1234567890123"])(
-    "rejects invalid CNPJ %s",
-    (value) => {
-      expect(isValidCnpj(value)).toBe(false);
-    }
-  );
+  it.each([
+    "00000000000000",
+    "11222333000182",
+    "12ABC34501DE36",
+    "1234567890123",
+    "***12345678000195",
+    "12ABC34501DE35!",
+  ])("rejects invalid CNPJ %s", (value) => {
+    expect(isValidCnpj(value)).toBe(false);
+  });
 });

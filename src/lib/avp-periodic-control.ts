@@ -98,6 +98,12 @@ export type PeriodicPerson = {
   unit: string;
   status: string;
   progress?: PeriodicProgress;
+  sourceStatus?: string;
+  sourceProgress?: PeriodicProgress;
+  progressSource?: "spreadsheet" | "workflow";
+  progressConflict?: string;
+  workflowStage?: string;
+  workflowUpdatedAt?: string;
   asoReceivedAt?: string;
   review: string;
   phone: string;
@@ -219,7 +225,10 @@ export function buildAvpPeriodicControl(
     if (!row[0] || !row[3] || !row[1] || !/^[A-Z]{2}$/.test(row[2]))
       throw new Error("Há participante sem ID, nome, cidade ou UF válida.");
     const cpf = taxId(row[4]);
-    const key = cpf.length === 11 && row[22] ? `${cpf}|${row[22]}` : `source:${row[30] || row[0]}`;
+    const key =
+      cpf.length === 11 && row[22]
+        ? JSON.stringify([cpf, row[22], row[19], periodicCityKey(row[1], row[2])])
+        : `source:${row[30] || row[0]}`;
     const rows = grouped.get(key) || [];
     rows.push(row);
     grouped.set(key, rows);
