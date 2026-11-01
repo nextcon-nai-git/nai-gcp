@@ -285,6 +285,32 @@ async function resolveRows(
   for (const item of resolved) {
     if (!item.preview.id) continue;
     item.existing = existing.get(item.preview.id);
+    if (item.existing) {
+      const card = item.existing,
+        { row } = item.preview,
+        companyId = item.company!.id,
+        employeeId = item.employee!.id;
+      if (
+        card.id !== item.preview.id ||
+        card.companyId !== companyId ||
+        card.employeeId !== employeeId ||
+        card.cnpj !== asoFlowDigits(row.companyCnpj) ||
+        card.employeeIdentityHash !==
+          employeeIdentityHash(companyId, employeeId, row.employeeCpf) ||
+        asoFlowText(value(card.employeeName)) !== asoFlowText(row.employeeName) ||
+        asoFlowText(value(card.unit)) !== asoFlowText(row.unit) ||
+        asoFlowText(value(card.city)) !== asoFlowText(row.city) ||
+        value(card.state).toUpperCase() !== row.state.toUpperCase() ||
+        card.examType !== row.examType ||
+        card.cycle !== row.cycle
+      ) {
+        item.preview.errors.push(
+          "O card existente possui identificação diferente do cadastro ou desta solicitação. Confira o histórico antes de reimportar; nenhum vínculo foi alterado."
+        );
+        item.preview.state = "blocked";
+        continue;
+      }
+    }
     item.preview.state = item.existing || seen.has(item.preview.id) ? "exists" : "ready";
     seen.add(item.preview.id);
   }
@@ -679,6 +705,17 @@ export async function updateAsoFlowCard(user: AuthContext, input: unknown): Prom
 }
 const safeFileName = (text: string) =>
   text.replace(/[\\/\x00-\x1f\x7f<>:"|?*]/g, " ").slice(0, 175);
+function requireUploadVersion(
+  card: AsoFlowCard,
+  version: number,
+  kind: "kit" | "aso",
+  hash: string
+) {
+  // A lost acknowledgement can be retried after later review/delivery. It may only
+  // return the current identical document; a different PDF still needs the current version.
+  const replay = card[kind]?.hash === hash && version <= card.version;
+  requireVersion(card, replay ? card.version : version);
+}
 export async function uploadAsoFlowDocument(
   user: AuthContext,
   input: unknown,
@@ -697,9 +734,9 @@ export async function uploadAsoFlowDocument(
     throw badRequest("Envie um PDF válido de até 5 MB.");
   const data = parsed.data,
     before = await getAsoFlowCard(user, data.id);
-  requireVersion(before, data.version);
   const kind = data.action === "record_soc_kit" ? "kit" : "aso",
     hash = sha(bytes);
+  requireUploadVersion(before, data.version, kind, hash);
   if (before[kind]?.hash !== hash) mutable(before);
   if (
     kind === "kit" &&
@@ -730,12 +767,16 @@ export async function uploadAsoFlowDocument(
     const card = (await tx.get(cases().doc(data.id))).data() as AsoFlowCard;
     if (!card) throw new AuthError("Card não encontrado.", 404);
     requireAsoFlowAccess(user, card.companyId);
-    requireVersion(card, data.version);
+    requireUploadVersion(card, data.version, kind, hash);
     const identity = await currentIdentity(tx, card);
     const at = new Date().toISOString();
     const existingDocument = card[kind];
     if (existingDocument?.hash === hash) {
       if (
+        existingDocument.size !== bytes.length ||
+        (data.version < card.version &&
+          (existingDocument.reference !== data.reference ||
+            (data.action === "receive_aso" && existingDocument.source !== data.source))) ||
         (data.action === "receive_aso" && card.aso?.examDate !== data.examDate) ||
         (data.action === "record_soc_kit" &&
           (card.kit?.socOrder !== data.socOrder || card.kit?.socCompanyId !== data.socCompanyId))
@@ -764,6 +805,7 @@ export async function uploadAsoFlowDocument(
     };
     let orderRef: DocumentReference | null = null,
       oldOrderRef: DocumentReference | null = null;
+    let previousOrderData: Record<string, unknown> | null = null;
     if (data.action === "record_soc_kit") {
       const registeredSoc = value(identity.company.socCompanyId) || value(identity.company.socCode);
       if (registeredSoc && registeredSoc !== data.socCompanyId)
@@ -774,8 +816,13 @@ export async function uploadAsoFlowDocument(
         .collection("socOrders")
         .doc(sha(JSON.stringify([data.socCompanyId, data.socOrder])));
       const order = await tx.get(orderRef);
-      if (order.exists && order.data()?.caseId !== card.id)
-        throw conflict("Este pedido SOC já está vinculado a outro card.");
+      if (
+        order.exists &&
+        (order.data()?.caseId !== card.id ||
+          order.data()?.companyId !== card.companyId ||
+          order.data()?.employeeId !== card.employeeId)
+      )
+        throw conflict("Este pedido SOC já está vinculado a outro card ou identificação.");
       if (
         card.kit &&
         (card.kit.socOrder !== data.socOrder || card.kit.socCompanyId !== data.socCompanyId)
@@ -783,7 +830,16 @@ export async function uploadAsoFlowDocument(
         const ref = root()
           .collection("socOrders")
           .doc(sha(JSON.stringify([card.kit.socCompanyId, card.kit.socOrder])));
-        if ((await tx.get(ref)).data()?.caseId === card.id) oldOrderRef = ref;
+        const previousOrder = await tx.get(ref);
+        if (
+          previousOrder.exists &&
+          (previousOrder.data()?.caseId !== card.id ||
+            previousOrder.data()?.companyId !== card.companyId ||
+            previousOrder.data()?.employeeId !== card.employeeId)
+        )
+          throw conflict("O pedido SOC anterior possui vínculo divergente. Confira o histórico.");
+        oldOrderRef = ref;
+        previousOrderData = previousOrder.data() || {};
       }
       card.kit = {
         ...base,
@@ -816,9 +872,25 @@ export async function uploadAsoFlowDocument(
         supersededAt: at,
         supersededBy: user.uid,
       });
-    if (oldOrderRef) tx.delete(oldOrderRef);
+    if (oldOrderRef && data.action === "record_soc_kit")
+      tx.set(oldOrderRef, {
+        ...previousOrderData,
+        caseId: card.id,
+        companyId: card.companyId,
+        employeeId: card.employeeId,
+        current: false,
+        supersededAt: at,
+        supersededBy: user.uid,
+        replacementSocOrder: data.socOrder,
+        replacementSocCompanyId: data.socCompanyId,
+      });
     if (orderRef)
-      tx.set(orderRef, { caseId: card.id, companyId: card.companyId, employeeId: card.employeeId });
+      tx.set(orderRef, {
+        caseId: card.id,
+        companyId: card.companyId,
+        employeeId: card.employeeId,
+        current: true,
+      });
     save(tx, next);
     return next;
   });

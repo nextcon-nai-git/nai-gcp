@@ -214,7 +214,7 @@ const review = (card: AsoFlowCard) =>
     identityConfirmed: true,
     documentChecked: true,
   });
-const nativeKit = (card: AsoFlowCard, order = "123456") =>
+const nativeKit = (card: AsoFlowCard, order = "123456", bytes = pdf("native-kit")) =>
   uploadAsoFlowDocument(
     user,
     {
@@ -226,7 +226,7 @@ const nativeKit = (card: AsoFlowCard, order = "123456") =>
       socCompanyId: "1234",
       reference: "Pedido SOC nativo conferido no original",
     },
-    pdf("native-kit"),
+    bytes,
     "kit.pdf"
   );
 describe("resolução e importação canônica", () => {
@@ -303,6 +303,42 @@ describe("resolução e importação canônica", () => {
     await expect(importAsoFlowRows(user, input())).rejects.toMatchObject({ status: 409 });
     expect([...db.keys()].filter((p) => p.includes("/cases/"))).toHaveLength(0);
   });
+  it.each(["cpf", "cnpj", "name"])(
+    "bloqueia reimportação quando %s muda no mesmo ID cadastral, sem substituir o histórico",
+    async (field) => {
+      const original = await create();
+      const corrected = { ...row };
+      if (field === "cpf") {
+        corrected.employeeCpf = "111.444.777-35";
+        db.get("companies/ONE/employees/E1")!.cpf = corrected.employeeCpf;
+      } else if (field === "cnpj") {
+        corrected.companyCnpj = "04.252.011/0001-10";
+        db.get("companies/ONE")!.cnpj = corrected.companyCnpj;
+      } else {
+        corrected.employeeName = "Outra Pessoa Teste";
+        db.get("companies/ONE/employees/E1")!.name = corrected.employeeName;
+      }
+      const batch = input([corrected, { ...corrected, cycle: "2026-11" }]);
+      const preview = await previewAsoFlowImport(user, batch);
+      expect(preview).toMatchObject({ blocked: 1, existing: 0, ready: 1 });
+      expect(preview.rows[0].errors.join(" ")).toContain("card existente");
+      const before = structuredClone(db);
+      await expect(importAsoFlowRows(user, batch)).rejects.toMatchObject({ status: 409 });
+      expect(db).toEqual(before);
+      expect(await getAsoFlowCard(user, original.id)).toEqual(original);
+    }
+  );
+  it("não trata card sem fingerprint ou com vínculo divergente como duplicata válida", async () => {
+    const card = await create();
+    const stored = db.get(casePath(card.id))!;
+    delete stored.employeeIdentityHash;
+    expect((await previewAsoFlowImport(user, input())).blocked).toBe(1);
+    stored.employeeIdentityHash = card.employeeIdentityHash;
+    stored.employeeId = "OTHER";
+    expect((await previewAsoFlowImport(user, input())).blocked).toBe(1);
+    await expect(importAsoFlowRows(user, input())).rejects.toMatchObject({ status: 409 });
+    expect(db.get(casePath(card.id))?.employeeId).toBe("OTHER");
+  });
   it("recusa perfis de cliente/prestador e filtra cards/clínicas por carteira", async () => {
     const card = await create();
     await expect(
@@ -374,6 +410,34 @@ describe("ações com evidência e concorrência", () => {
       kitDelivery: { method: "manual", hash: card.kit!.hash },
     });
     await expect(nativeKit(sent, "999")).rejects.toMatchObject({ status: 409 });
+  });
+  it("preserva a reserva histórica do pedido SOC substituído e impede reutilização em outro card", async () => {
+    const original = await nativeKit(await schedule(await create()), "123456");
+    const replaced = await nativeKit(original, "654321", pdf("replacement-kit"));
+    const orders = [...db.entries()].filter(([path]) => path.includes("/socOrders/"));
+    expect(orders).toHaveLength(2);
+    expect(orders.map(([, record]) => record)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          caseId: original.id,
+          employeeId: original.employeeId,
+          current: false,
+          replacementSocOrder: "654321",
+        }),
+        expect.objectContaining({ caseId: original.id, current: true }),
+      ])
+    );
+    const other = await schedule(
+      (await importAsoFlowRows(user, input([{ ...row, cycle: "2026-09" }]))).cards[0]
+    );
+    await expect(nativeKit(other, "123456", pdf("other-kit"))).rejects.toMatchObject({
+      status: 409,
+    });
+    expect((await getAsoFlowCard(user, other.id)).kit).toBeUndefined();
+    expect((await getAsoFlowCard(user, original.id)).kit).toEqual(replaced.kit);
+    expect(db.get(`${casePath(original.id)}/history/${original.version}`)?.kit).toEqual(
+      original.kit
+    );
   });
   it("recusa código SOC divergente e CPF alterado depois da importação", async () => {
     const card = await schedule(await create());
@@ -472,6 +536,97 @@ describe("ações com evidência e concorrência", () => {
     const again = await receive(checked);
     expect(again).toEqual(checked);
     expect(db).toEqual(before);
+  });
+  it("recupera resposta perdida do upload com versão antiga sem desfazer revisão posterior", async () => {
+    const original = await create();
+    const checked = await review(await receive(original));
+    const before = structuredClone(db);
+    const again = await receive(original);
+    expect(again).toEqual(checked);
+    expect(db).toEqual(before);
+    expect(files.size).toBe(1);
+  });
+  it("converge uploads simultâneos do mesmo PDF para uma única revisão", async () => {
+    const original = await create();
+    const [a, b] = await Promise.all([receive(original), receive(original)]);
+    expect(a).toEqual(b);
+    expect(a.version).toBe(original.version + 1);
+    expect(
+      [...db.keys()].filter((path) => path.startsWith(`${casePath(a.id)}/history/`))
+    ).toHaveLength(2);
+    expect(files.size).toBe(1);
+  });
+  it("retoma upload após falha de commit usando o mesmo objeto privado já armazenado", async () => {
+    const original = await create();
+    m.transaction.mockRejectedValueOnce(new Error("Falha transitória de gravação"));
+    await expect(receive(original)).rejects.toThrow("Falha transitória");
+    expect((await getAsoFlowCard(user, original.id)).aso).toBeUndefined();
+    expect(files.size).toBe(1);
+    const recovered = await receive(original);
+    expect(recovered).toMatchObject({ status: "received", version: original.version + 1 });
+    expect(files.size).toBe(1);
+  });
+  it("retry antigo não substitui PDF nem aceita data ou identidade divergentes", async () => {
+    const original = await create();
+    const received = await receive(original);
+    await expect(receive(original, pdf("different-file"))).rejects.toMatchObject({ status: 409 });
+    await expect(
+      uploadAsoFlowDocument(
+        user,
+        {
+          action: "receive_aso",
+          id: original.id,
+          version: original.version,
+          identityConfirmed: true,
+          examDate: "2026-10-19",
+          source: "email",
+          reference: "Mensagem synthetic-2",
+        },
+        pdf(),
+        "aso.pdf"
+      )
+    ).rejects.toMatchObject({ status: 409 });
+    await expect(receive({ ...received, version: received.version + 1 })).rejects.toMatchObject({
+      status: 409,
+    });
+    db.get("companies/ONE/employees/E1")!.cpf = "111.444.777-35";
+    await expect(receive(original)).rejects.toMatchObject({ status: 409 });
+    expect((await getAsoFlowCard(user, original.id)).aso).toEqual(received.aso);
+    expect(files.size).toBe(1);
+  });
+  it.each([
+    { source: "upload", reference: "Mensagem synthetic-2" },
+    { source: "email", reference: "Outra referência de recebimento" },
+  ])("retry antigo não declara uma origem de recebimento diferente: %j", async (evidence) => {
+    const original = await create();
+    const received = await receive(original);
+    const before = structuredClone(db);
+    await expect(
+      uploadAsoFlowDocument(
+        user,
+        {
+          action: "receive_aso",
+          id: original.id,
+          version: original.version,
+          identityConfirmed: true,
+          examDate: "2026-10-20",
+          ...evidence,
+        },
+        pdf(),
+        "aso.pdf"
+      )
+    ).rejects.toMatchObject({ status: 409 });
+    expect(db).toEqual(before);
+    expect((await getAsoFlowCard(user, original.id)).aso).toEqual(received.aso);
+  });
+  it("retry antigo de kit preserva dados SOC e continua bloqueado durante envio reservado", async () => {
+    const original = await schedule(await create());
+    const kit = await nativeKit(original);
+    expect(await nativeKit(original)).toEqual(kit);
+    await expect(nativeKit(original, "999999")).rejects.toMatchObject({ status: 409 });
+    db.get(casePath(kit.id))!.mailLock = { outboxId: "a".repeat(64), kind: "kit" };
+    await expect(nativeKit(original)).rejects.toMatchObject({ status: 409 });
+    expect((await getAsoFlowCard(user, kit.id)).kit).toEqual(kit.kit);
   });
   it("reserva o envio com cadastro e permissão frescos, impedindo corrida com alteração do card", async () => {
     const card = await nativeKit(await schedule(await create()));
