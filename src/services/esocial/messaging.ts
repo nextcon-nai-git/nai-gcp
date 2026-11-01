@@ -1114,8 +1114,7 @@ async function queryAttempt(
       ].includes(failure.code);
     return adminDb.runTransaction(async (tx) => {
       const current = (await tx.get(ref(id))).data() as StoredEvent;
-      if (current.queryLease?.id !== leaseId)
-        return queryAttemptResult(current, "unavailable");
+      if (current.queryLease?.id !== leaseId) return queryAttemptResult(current, "unavailable");
       const failures = (current.queryFailures || 0) + 1;
       const next = changed(
         current,
@@ -1229,7 +1228,11 @@ async function queryAttempt(
     save(tx, next);
     return queryAttemptResult(
       next,
-      accepted || rejected ? "settled" : response.status === "processing" ? "waiting" : "unavailable"
+      accepted || rejected
+        ? "settled"
+        : response.status === "processing"
+          ? "waiting"
+          : "unavailable"
     );
   });
 }

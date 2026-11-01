@@ -162,9 +162,9 @@ export function OperationalStatusPanel() {
                       </dl>
                       {id === "esocial-query" && (
                         <p className="text-xs text-muted-foreground">
-                          Uma tentativa pode permanecer pendente ou indisponível. Os contadores
-                          não devem ser somados e não representam a fila inteira nem o aceite
-                          dos eventos.
+                          Uma tentativa pode permanecer pendente ou indisponível. Os contadores não
+                          devem ser somados e não representam a fila inteira nem o aceite dos
+                          eventos.
                         </p>
                       )}
                     </>
