@@ -54,6 +54,8 @@ export function OperationalStatusPanel() {
     controller.current?.abort();
     const active = new AbortController();
     controller.current = active;
+    await Promise.resolve();
+    if (active.signal.aborted || requestId.current !== id) return;
     setBusy(true);
     setError("");
     setReport(null);

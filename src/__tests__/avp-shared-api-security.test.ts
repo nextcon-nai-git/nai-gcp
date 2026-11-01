@@ -19,6 +19,9 @@ vi.mock("@/services/avp-sheet-sync", () => ({
   patchAvpQueue: mock.patch,
 }));
 vi.mock("@/services/avp-periodic-sync", () => ({ syncAvpPeriodicControl: mock.periodic }));
+vi.mock("@/services/operational-runs", () => ({
+  monitorOperation: async (_operation: string, execute: () => Promise<unknown>) => execute(),
+}));
 vi.mock("googleapis/build/src/apis/oauth2", () => ({
   auth: {
     OAuth2: class {
