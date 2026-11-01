@@ -1,6 +1,7 @@
 /** eSocial drafts only. Signature and transmission require a verified integration. */
 import { EsocialXmlBuilder } from "./xml-builder";
-export type EsocialEventType = "S2210" | "S2220" | "S2240";
+export type { EsocialEventType } from "@/lib/esocial-events";
+import { buildEsocialEventXml } from "./events";
 export class EsocialXmlService {
   static generateS2210(data: any): string {
     return EsocialXmlBuilder.buildS2210(data);
@@ -29,6 +30,16 @@ export class EsocialXmlService {
         medicoResp: data?.medicoResp,
       },
     });
+  }
+
+  static generateS2221(data: unknown): string {
+    return buildEsocialEventXml(data);
+  }
+  static generateS2230(data: unknown): string {
+    return buildEsocialEventXml(data);
+  }
+  static generateS3000(data: unknown): string {
+    return buildEsocialEventXml(data);
   }
 
   static generateS2240(data: any): string {

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { adminDb } from "@/lib/firebase-admin";
 import { firebaseConfig } from "@/firebase/config";
 import { AuthError, badRequest } from "@/lib/auth/errors";
+import { asoClientEmailSendingEnabled } from "@/lib/aso-email-policy";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import {
   AsoFlowDaySchema,
@@ -154,6 +155,11 @@ export async function sendAsoFlowMail(
   user: AuthContext,
   input: Extract<z.infer<typeof AsoFlowMailSchema>, { action: "send" }>
 ) {
+  if (input.kind === "aso" && !asoClientEmailSendingEnabled())
+    throw new AuthError(
+      "O envio de e-mail aos clientes está desativado. O documento permanece disponível no card.",
+      403
+    );
   const card = await getAsoFlowCard(user, input.id);
   if (card.version !== input.version)
     throw new AuthError("O card mudou. Atualize antes de enviar.", 409);

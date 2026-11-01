@@ -3,6 +3,7 @@ export function normalizeCnpj(value: string): string {
 }
 
 export function isValidCnpj(value: string): boolean {
+  if (!/^[A-Za-z0-9.\-/\s]+$/.test(value)) return false;
   const cnpj = normalizeCnpj(value);
   if (!/^[A-Z0-9]{12}\d{2}$/.test(cnpj) || /^([A-Z0-9])\1+$/.test(cnpj)) return false;
 

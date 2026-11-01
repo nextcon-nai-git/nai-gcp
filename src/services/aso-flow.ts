@@ -18,6 +18,7 @@ import { isPgrGlobalAdmin, requirePgrCompany } from "@/lib/auth/require-pgr-acce
 import { parseClaims } from "@/lib/auth/claims";
 import { socWebAccess } from "@/lib/integrations/soc-access";
 import { asoGmailConfiguration } from "@/lib/integrations/aso-gmail";
+import { asoClientEmailSendingEnabled } from "@/lib/aso-email-policy";
 import {
   AsoFlowIdSchema,
   AsoFlowImportSchema,
@@ -415,6 +416,7 @@ export function asoFlowCapabilities() {
   return {
     socGeneration: false,
     emailSend: mail.configured,
+    clientEmailSend: mail.configured && asoClientEmailSendingEnabled(),
     emailMonitoring: mail.monitoringConfigured,
     socPdfReception: false,
     socHref: socWebAccess().href,

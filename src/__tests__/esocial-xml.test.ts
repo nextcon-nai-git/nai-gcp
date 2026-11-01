@@ -21,7 +21,7 @@ describe("adaptação S-2220 sem inferência clínica", () => {
   it("aceita dados explícitos do formato anterior com XML escapado", () => {
     const xml = EsocialXmlService.generateS2220(flat);
     expect(xml).toContain("Profissional &amp; Sintético &lt;Revisão&gt;");
-    expect(xml).toContain("<nrInsc>12345678000190</nrInsc>");
+    expect(xml).toContain("<nrInsc>12345678000195</nrInsc>");
   });
   it.each([null, undefined, "", "desconhecido"])(
     "não transforma tipo ausente %j em ASO admissional",

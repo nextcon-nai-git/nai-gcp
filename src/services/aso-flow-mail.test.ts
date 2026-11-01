@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { createHash } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import type { AsoFlowCard } from "@/lib/aso-flow";
 const m = vi.hoisted(() => ({
@@ -131,6 +131,7 @@ function seedCandidate() {
   files.set(`aso-mail-private/${id}/${candidateId}.pdf`, Buffer.from(bytes));
 }
 beforeEach(() => {
+  vi.stubEnv("ASO_CLIENT_EMAIL_SEND_ENABLED", "true");
   vi.clearAllMocks();
   db = new Map();
   files = new Map();
@@ -233,7 +234,25 @@ beforeEach(() => {
   m.upload.mockResolvedValue({ ...card, version: 4, status: "received" });
 });
 
+afterEach(() => vi.unstubAllEnvs());
+
 describe("ASO email evidence and delivery", () => {
+  it("blocks client email before touching Gmail when client delivery is disabled", async () => {
+    vi.stubEnv("ASO_CLIENT_EMAIL_SEND_ENABLED", "false");
+    await expect(
+      sendAsoFlowMail(user, {
+        action: "send",
+        id,
+        version: 3,
+        kind: "aso",
+        recipient: "client@example.test",
+        confirmed: true,
+      })
+    ).rejects.toThrow("desativado");
+    expect(m.verified).not.toHaveBeenCalled();
+    expect(m.send).not.toHaveBeenCalled();
+    expect(m.reserve).not.toHaveBeenCalled();
+  });
   const sendInput = () => ({
     action: "send" as const,
     id,

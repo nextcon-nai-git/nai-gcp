@@ -62,11 +62,13 @@ import {
 } from "@/lib/aso-flow";
 import { ASO_FLOW_BATCH_SIZE, ASO_FLOW_TEMPLATE, readAsoFlowFile } from "@/lib/aso-flow-import";
 import { cn } from "@/lib/utils";
+import { AsoEsocialLink } from "@/components/esocial/aso-esocial-link";
 
 type Capabilities = {
   socGeneration: boolean;
   socHref?: string | null;
   emailSend: boolean;
+  clientEmailSend?: boolean;
   emailMonitoring: boolean;
   socPdfReception: boolean;
 };
@@ -488,6 +490,10 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
   }
   async function sendMail(kind: "kit" | "aso", recipient: string) {
     if (!selected) return;
+    if (kind === "aso" && !capabilities.clientEmailSend) {
+      setError("Envio ao cliente desativado.");
+      return;
+    }
     await perform(async () => {
       let result: { card: AsoFlowCard };
       try {
@@ -803,7 +809,17 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
                               ? "Kit SOC anexado"
                               : "Kit pendente"}
                         </span>
-                        <Button variant="outline" size="sm" onClick={() => openCard(card)}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={card.status === "reviewed" && !capabilities.clientEmailSend}
+                          title={
+                            card.status === "reviewed" && !capabilities.clientEmailSend
+                              ? "Envio ao cliente desativado"
+                              : undefined
+                          }
+                          onClick={() => openCard(card)}
+                        >
                           {terminal(card) ? "Ver histórico" : nextAction(card).label}
                           <ChevronRight className="ml-1 size-3" />
                         </Button>
@@ -1021,6 +1037,7 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
                   </Button>
                 )}
               </div>
+              <AsoEsocialLink card={selected} />
               {selected.mailLock && (
                 <div role="status" className="mb-4 rounded-xl border border-amber-400 p-3 text-sm">
                   <p>
@@ -1238,7 +1255,7 @@ function CardOperation({
       !capabilities.emailSend ||
       !checked ||
       (kind === "aso"
-        ? card.status !== "reviewed" || !card.clientEmail
+        ? !capabilities.clientEmailSend || card.status !== "reviewed" || !card.clientEmail
         : !card.kit || !card.clinic?.email);
     label = kind === "aso" ? "Enviar ASO e encerrar" : "Enviar kit à clínica";
   }
@@ -1465,6 +1482,9 @@ function CardOperation({
               <CircleAlert className="mt-0.5 size-4 shrink-0" />A conexão de e-mail ainda não está
               configurada no NAI.
             </p>
+          )}
+          {kind === "aso" && !capabilities.clientEmailSend && (
+            <p className="text-sm text-amber-600">Envio ao cliente desativado.</p>
           )}
           {kind === "aso" && card.status !== "reviewed" && (
             <p className="text-sm text-amber-600">

@@ -12,6 +12,11 @@ on:
         required: false
         type: boolean
         default: false
+      provision_esocial:
+        description: Provision empty A1 vault, private event indexes and query-only scheduler
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -47,6 +52,8 @@ jobs:
 
       - name: Run type check
         run: npm run typecheck
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
 
       - name: Run tests
         run: npm run test:run
@@ -138,3 +145,44 @@ jobs:
       - name: Remove temporary release credentials
         if: always()
         run: rm -f "$RUNNER_TEMP/nai-firebase-service-account.json"
+
+  provision-esocial:
+    name: Provision eSocial vault and query worker
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.provision_esocial))
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - name: Checkout tested code
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+      - name: Prepare scoped release credentials
+        env:
+          NAI_FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const value = process.env.NAI_FIREBASE_SERVICE_ACCOUNT_JSON;
+          try {
+            const account = JSON.parse(value || 'null');
+            if (!account?.client_email || !account?.private_key) throw new Error();
+            const target = path.join(process.env.RUNNER_TEMP, 'nai-esocial-service-account.json');
+            fs.writeFileSync(target, value, { mode: 0o600 });
+            fs.appendFileSync(process.env.GITHUB_ENV, `GOOGLE_APPLICATION_CREDENTIALS=${target}\n`);
+          } catch { throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON ausente ou inválido.'); }
+          NODE
+      - name: Publish private event indexes
+        run: npx --yes firebase-tools@15.33.0 deploy --only firestore:indexes --project studio-8439299034-125c7 --non-interactive
+      - name: Provision empty vault and authenticated query scheduler
+        run: node scripts/setup-esocial-infrastructure.mjs --apply
+      - name: Remove temporary release credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/nai-esocial-service-account.json"

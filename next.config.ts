@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: [
+    "libxml2-wasm",
     "pdfjs-dist",
     "genkit",
     "@genkit-ai/core",
@@ -12,6 +13,9 @@ const nextConfig: NextConfig = {
     "@opentelemetry/instrumentation-winston",
   ],
   outputFileTracingIncludes: {
+    "/api/esocial/*": ["./assets/esocial/**/*", "./node_modules/libxml2-wasm/lib/**/*"],
+    "/api/v1/esocial/*": ["./assets/esocial/**/*", "./node_modules/libxml2-wasm/lib/**/*"],
+    "/api/internal/esocial-sync": ["./assets/esocial/**/*", "./node_modules/libxml2-wasm/lib/**/*"],
     "/api/pgr/*": ["./node_modules/pdfjs-dist/legacy/build/*.mjs"],
     "/api/nai-importa/*": ["./node_modules/pdfjs-dist/legacy/build/*.mjs"],
     "/api/financial/balances": ["./node_modules/pdfjs-dist/legacy/build/*.mjs"],

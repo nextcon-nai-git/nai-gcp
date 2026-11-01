@@ -7,6 +7,29 @@ runConfig:
   maxInstances: 1
 
 env:
+  # Private A1 custody. The user uploads a PFX only after this secret is provisioned.
+  - variable: ESOCIAL_A1_SECRET_NAME
+    value: projects/studio-8439299034-125c7/secrets/nai-esocial-a1
+    availability:
+      - RUNTIME
+  # This worker only queries batches already explicitly transmitted by an operator.
+  - variable: ESOCIAL_SYNC_ENABLED
+    value: "true"
+    availability:
+      - RUNTIME
+  - variable: ESOCIAL_SYNC_INVOKER_EMAIL
+    value: nai-esocial-query@studio-8439299034-125c7.iam.gserviceaccount.com
+    availability:
+      - RUNTIME
+  - variable: ESOCIAL_SYNC_AUDIENCE
+    value: https://nai--studio-8439299034-125c7.us-central1.hosted.app/api/internal/esocial-sync
+    availability:
+      - RUNTIME
+  # Client email delivery is disabled by the operator's instruction.
+  - variable: ASO_CLIENT_EMAIL_SEND_ENABLED
+    value: "false"
+    availability:
+      - RUNTIME
   # Clinical portal isolation rules published and verified before enabling.
   - variable: CLINIC_PORTAL_ENABLED
     value: "true"
