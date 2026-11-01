@@ -509,7 +509,10 @@ describe("recibos, recuperação e retificações", () => {
       stored.status = "uncertain";
       delete stored.protocol;
       db.get(`${path(event.id)}/attempts/${stored.submission.id}`)!.response = {
-        status: "rejected", code: "400", description: "Resposta sintética", issues: [],
+        status: "rejected",
+        code: "400",
+        description: "Resposta sintética",
+        issues: [],
       };
       const before = structuredClone(stored);
       db.get("users/operator")!.accessEnabled = false;
@@ -531,7 +534,10 @@ describe("recibos, recuperação e retificações", () => {
       stored.status = "uncertain";
       delete stored.protocol;
       db.get(`${path(event.id)}/attempts/${stored.submission.id}`)!.response = {
-        status: "rejected", code: "400", description: "Resposta sintética", issues: [],
+        status: "rejected",
+        code: "400",
+        description: "Resposta sintética",
+        issues: [],
       };
       const before = structuredClone(stored);
       const transaction = m.transaction.getMockImplementation()!;

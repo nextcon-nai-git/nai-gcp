@@ -980,7 +980,13 @@ async function query(user: AuthContext, id: string, expected: number) {
   ) {
     const stored = (await ref(id).collection("attempts").doc(original.submission.id).get()).data();
     if (stored?.response) {
-      original = await finalizeSubmission(id, original.submission.id, user.uid, stored.response, user);
+      original = await finalizeSubmission(
+        id,
+        original.submission.id,
+        user.uid,
+        stored.response,
+        user
+      );
       if (original.status !== "processing") return original;
       expected = original.version;
     }

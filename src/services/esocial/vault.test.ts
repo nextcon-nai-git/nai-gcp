@@ -425,10 +425,11 @@ describe("live internal operator authorization", () => {
       mocks.addVersion.mockImplementationOnce(async (args) => {
         const response = await addVersion(args);
         if (change === "removed") db.delete(`users/${admin.uid}`);
-        else db.set(`users/${admin.uid}`, {
-          role: change === "downgraded" ? "OPERATIONS" : "ADMIN",
-          accessEnabled: change !== "suspended",
-        });
+        else
+          db.set(`users/${admin.uid}`, {
+            role: change === "downgraded" ? "OPERATIONS" : "ADMIN",
+            accessEnabled: change !== "suspended",
+          });
         return response;
       });
       await expect(
