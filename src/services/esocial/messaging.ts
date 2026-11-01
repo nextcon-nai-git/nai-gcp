@@ -968,7 +968,23 @@ async function finalizeSubmission(
   });
 }
 
+type QueryAttemptOutcome = "settled" | "waiting" | "unavailable";
+type QueryAttemptResult = { event: StoredEvent; outcome: QueryAttemptOutcome };
+const queryAttemptResult = (
+  event: StoredEvent,
+  outcome: QueryAttemptOutcome
+): QueryAttemptResult => ({ event, outcome });
+
 async function query(user: AuthContext, id: string, expected: number) {
+  return (await queryAttempt(user, id, expected)).event;
+}
+
+/** The attempt outcome is separate from the event's persisted history and public shape. */
+async function queryAttempt(
+  user: AuthContext,
+  id: string,
+  expected: number
+): Promise<QueryAttemptResult> {
   let original = await load(user, id);
   version(original, expected);
   // Reject revoked access before opening the A1 or applying a previously stored response.
@@ -987,7 +1003,11 @@ async function query(user: AuthContext, id: string, expected: number) {
         stored.response,
         user
       );
-      if (original.status !== "processing") return original;
+      if (original.status !== "processing")
+        return queryAttemptResult(
+          original,
+          original.status === "rejected" ? "settled" : "unavailable"
+        );
       expected = original.version;
     }
     if (
@@ -1001,7 +1021,8 @@ async function query(user: AuthContext, id: string, expected: number) {
           value = await load(user, id, reader);
         version(value, expected);
         await operator(reader, user, value.companyId);
-        if (value.status !== "submitting" || value.protocol) return value;
+        if (value.status !== "submitting" || value.protocol)
+          return queryAttemptResult(value, "unavailable");
         const next = changed(value, user.uid, "submission_interrupted", {
           status: "uncertain",
           nextPollAt: undefined,
@@ -1014,7 +1035,7 @@ async function query(user: AuthContext, id: string, expected: number) {
           ],
         });
         save(tx, next);
-        return next;
+        return queryAttemptResult(next, "unavailable");
       });
     }
   }
@@ -1093,7 +1114,8 @@ async function query(user: AuthContext, id: string, expected: number) {
       ].includes(failure.code);
     return adminDb.runTransaction(async (tx) => {
       const current = (await tx.get(ref(id))).data() as StoredEvent;
-      if (current.queryLease?.id !== leaseId) return current;
+      if (current.queryLease?.id !== leaseId)
+        return queryAttemptResult(current, "unavailable");
       const failures = (current.queryFailures || 0) + 1;
       const next = changed(
         current,
@@ -1117,7 +1139,7 @@ async function query(user: AuthContext, id: string, expected: number) {
         }
       );
       save(tx, next);
-      return next;
+      return queryAttemptResult(next, "unavailable");
     });
   }
   const artifact = await saveEsocialArtifact(
@@ -1129,7 +1151,7 @@ async function query(user: AuthContext, id: string, expected: number) {
   return adminDb.runTransaction(async (tx) => {
     const current = (await tx.get(ref(id))).data() as StoredEvent;
     if (current.queryLease?.id !== leaseId || current.protocol !== response.protocol)
-      return current;
+      return queryAttemptResult(current, "unavailable");
     const remote = response.events.find((e) => e.eventId === current.eventId);
     const accepted =
       response.status === "completed" &&
@@ -1205,7 +1227,10 @@ async function query(user: AuthContext, id: string, expected: number) {
       });
     }
     save(tx, next);
-    return next;
+    return queryAttemptResult(
+      next,
+      accepted || rejected ? "settled" : response.status === "processing" ? "waiting" : "unavailable"
+    );
   });
 }
 
@@ -1447,9 +1472,20 @@ export async function syncEsocialMessages() {
         const attempt = value.submission
           ? (await ref(value.id).collection("attempts").doc(value.submission.id).get()).data()
           : undefined;
-        if (attempt?.response && value.submission)
-          await finalizeSubmission(value.id, value.submission.id, user.uid, attempt.response);
-        else
+        if (attempt?.response && value.submission) {
+          const result = await finalizeSubmission(
+            value.id,
+            value.submission.id,
+            user.uid,
+            attempt.response
+          );
+          const applied =
+            result.submission?.id === value.submission.id &&
+            result.version === value.version + 1 &&
+            result.history?.at(-1)?.action === "submission_result";
+          if (applied && result.status === "processing") waiting++;
+          else if (!applied || result.status !== "rejected") unavailable++;
+        } else {
           await adminDb.runTransaction(async (tx) => {
             const current = (await tx.get(ref(value.id))).data() as StoredEvent;
             if (current.version === value.version && current.status === "submitting")
@@ -1468,11 +1504,15 @@ export async function syncEsocialMessages() {
                 })
               );
           });
-        waiting++;
+          unavailable++;
+        }
         continue;
       }
-      await query(user, value.id, value.version);
+      const attempt = await queryAttempt(user, value.id, value.version);
+      // checked counts attempts, not receipts; the two outcome counters can overlap it.
       checked++;
+      if (attempt.outcome === "waiting") waiting++;
+      else if (attempt.outcome === "unavailable") unavailable++;
     } catch {
       unavailable++;
       // A revoked submitter or unavailable A1 must not leave the first ten jobs

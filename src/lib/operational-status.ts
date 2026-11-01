@@ -79,7 +79,8 @@ export function summarizeOperation(operation: OperationId, value: unknown) {
   }
   const expected = counterNames[operation];
   if (expected.every((name) => name in counters)) outcome = "completed";
-  if (operation === "esocial-query" && counters.unavailable > 0) outcome = "partial";
+  if (operation === "esocial-query" && (counters.waiting > 0 || counters.unavailable > 0))
+    outcome = "partial";
   if (operation === "aso-mail" && counters.hasMore === 1) outcome = "partial";
   return { outcome, counters };
 }
@@ -126,7 +127,7 @@ export function parseOperationRun(
   if (data.outcome === "completed" && !required.every((name) => name in counters)) return null;
   if (
     data.outcome === "completed" &&
-    ((operation === "esocial-query" && counters.unavailable !== 0) ||
+    ((operation === "esocial-query" && (counters.waiting !== 0 || counters.unavailable !== 0)) ||
       (operation === "aso-mail" && counters.hasMore !== 0) ||
       (operation === "avp-sheets" &&
         ((counters.queueUpdated === 1 && !("rowCount" in counters)) ||

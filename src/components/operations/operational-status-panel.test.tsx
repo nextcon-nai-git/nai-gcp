@@ -116,4 +116,51 @@ describe("operational status panel", () => {
     expect(view.container.textContent).toContain("Configuração pendente: Destino autenticado");
     expect(view.container.textContent).toContain("Registro desatualizado");
   });
+  it.each([
+    { checked: 1, waiting: 1, unavailable: 0 },
+    { checked: 1, waiting: 0, unavailable: 1 },
+    { checked: 0, waiting: 0, unavailable: 1 },
+  ])("presents pending eSocial evidence without claiming a drained queue: %j", async (counters) => {
+    const data = report();
+    const latest = {
+      schemaVersion: 1 as const,
+      operation: "esocial-query" as const,
+      runId: "b1111111-2222-4333-a444-555555555555",
+      startedAt: "2026-11-01T15:59:59.000Z",
+      finishedAt: "2026-11-01T16:00:00.000Z",
+      durationMs: 1000,
+      outcome: "partial" as const,
+      counters,
+    };
+    data.operations[0].evidence = { state: "partial", latest, lastFailure: latest };
+    m.fetch.mockResolvedValueOnce(response(data));
+    await view.render(<OperationalStatusPanel />);
+    expect(view.container.textContent).toContain("Pendências registradas");
+    expect(view.container.textContent).toContain("Tentativas de consulta");
+    expect(view.container.textContent).toContain("Ainda pendentes");
+    expect(view.container.textContent).toContain("Indisponíveis ou incertos");
+    expect(view.container.textContent).toContain("não devem ser somados");
+    expect(view.container.textContent).toContain("não representam a fila inteira");
+    expect(view.container.textContent).not.toContain("Execução registrada");
+  });
+  it("keeps the last failure visible when its evidence is stale and has no counters", async () => {
+    const data = report();
+    const latest = {
+      schemaVersion: 1 as const,
+      operation: "esocial-query" as const,
+      runId: "b1111111-2222-4333-a444-555555555555",
+      startedAt: "2026-11-01T14:59:59.000Z",
+      finishedAt: "2026-11-01T15:00:00.000Z",
+      durationMs: 1000,
+      outcome: "failed" as const,
+      counters: {},
+    };
+    data.operations[0].evidence = { state: "stale", latest, lastFailure: latest };
+    m.fetch.mockResolvedValueOnce(response(data));
+    await view.render(<OperationalStatusPanel />);
+    expect(view.container.textContent).toContain("Registro desatualizado");
+    expect(view.container.textContent).toContain("Sem registro recente nos últimos 20 minutos");
+    expect(view.container.textContent).toContain("Último resultado: Falha registrada.");
+    expect(view.container.textContent).not.toContain("Execução registrada");
+  });
 });
