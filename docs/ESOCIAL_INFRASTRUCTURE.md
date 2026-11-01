@@ -11,8 +11,8 @@ Durante esta ativação, manter `ESOCIAL_TRANSMISSION_ENABLED=false` e
 do certificado não deve modificar esses controles automaticamente.
 
 A configuração inicial de APIs, contas, federação e IAM pertence a um operador já autorizado no
-Google Cloud. O pipeline cotidiano verifica os pré-requisitos e mantém o job; ele não recebe
-permissão para conceder papéis, criar chaves, criar certificados ou ler conteúdo do cofre.
+Google Cloud. O pipeline cotidiano verifica os pré-requisitos e atualiza o job existente; ele não recebe
+permissão para criar jobs, conceder papéis, criar chaves, criar certificados ou ler conteúdo do cofre.
 
 O job eSocial só executa em `workflow_dispatch`, na `main`, com `provision_esocial=true`.
 Índices possuem workflow e conta separados. A publicação do site continua no App Hosting.
@@ -102,6 +102,20 @@ O script Node usa Application Default Credentials (ADC), que são distintas do l
 Executá-lo somente em um ambiente com ADC do operador ou impersonação já configurada e autorizada;
 não baixar JSON de chave para fazê-lo funcionar.
 
+**Condição anterior à criação ou atualização da agenda:** comprovar que os dois bloqueios de envio
+estão efetivamente ativos e que a fila elegível de consultas está vazia, ou realizar o ensaio em
+ambiente isolado. O bootstrap cria o job ativo, que pode executar na próxima janela de cinco minutos;
+não espera a chamada manual da seção 6. Um cofre vazio e a transmissão desligada não tornam a rotina
+inerte: respostas já armazenadas, tentativas interrompidas e reagendamentos ainda podem alterar
+dados de negócio. A fila elegível reúne eventos `processing` ou `submitting` com `nextPollAt` vencido.
+A conferência deve ser somente leitura e a condição deve permanecer válida durante o ensaio;
+uma consulta pontual não impede a entrada concorrente de trabalho. Não esvaziar a fila modificando
+eventos reais. Sem essa garantia, manter bloqueados bootstrap, atualização e disparo da agenda.
+
+O script deste roteiro fixa projeto e URI de produção. Outro checkout, terminal ou ADC não constitui
+ambiente isolado. Essa alternativa exige projeto, recursos e destino próprios, com configuração
+previamente revisada; não executar os comandos abaixo supondo que o ambiente local os redirecionará.
+
 ```bash
 node scripts/setup-esocial-infrastructure.mjs
 node scripts/setup-esocial-infrastructure.mjs --bootstrap --apply --require-empty
@@ -110,9 +124,8 @@ node scripts/setup-esocial-infrastructure.mjs --bootstrap --apply --require-empt
 O primeiro comando mostra o plano sem rede. O segundo é a configuração inicial explícita:
 habilita as APIs necessárias ao módulo, cria a conta invocadora e o cofre se ausentes, confere que
 não há versão, ajusta os bindings do cofre para a conta runtime e configura o job de consulta.
-Antes de executá-lo, conferir o agente Scheduler descrito abaixo e o bloqueio efetivo de transmissão.
-Não carrega certificado e
-não concede IAM no projeto. Conteúdo preexistente faz `--require-empty` falhar; preservá-lo e
+Antes de executá-lo, conferir o agente Scheduler descrito abaixo e a condição de validação anterior.
+Não carrega certificado e não concede IAM no projeto. Conteúdo preexistente faz `--require-empty` falhar; preservá-lo e
 investigar, sem apagar versões.
 
 A conta runtime recebe, **apenas em `nai-esocial-a1`**:
@@ -146,7 +159,14 @@ gcloud iam workload-identity-pools describe "$NAI_POOL_ID" \
   --location=global --project="$NAI_PROJECT_ID"
 gcloud iam workload-identity-pools providers describe "$NAI_PROVIDER_ID" \
   --workload-identity-pool="$NAI_POOL_ID" --location=global --project="$NAI_PROJECT_ID"
+gcloud iam workload-identity-pools providers list \
+  --workload-identity-pool="$NAI_POOL_ID" --location=global --project="$NAI_PROJECT_ID" \
+  --format=json
 ```
+
+Usar o pool dedicado somente com o provider GitHub conferido. Os bindings por atributo pertencem
+ao pool; outro provider com mapeamento equivalente pode representar o mesmo principal. Se houver
+outros providers, interromper a reutilização e revisar a confiança, sem apagá-los automaticamente.
 
 Criar o pool apenas se sua inexistência tiver sido confirmada:
 
@@ -189,7 +209,9 @@ gcloud iam service-accounts add-iam-policy-binding "$NAI_INDEXES_ACCOUNT" \
 
 Esses bindings são idempotentes. Não é necessário conceder `roles/iam.serviceAccountTokenCreator`
 no projeto, nem criar chaves. Conferir também a proteção da `main` e as restrições de branches do
-ambiente `production`; não enfraquecer regras existentes para liberar uma execução.
+ambiente `production`; não enfraquecer regras existentes para liberar uma execução. Limitar o ambiente
+à `main` não substitui a proteção da branch: registrar separadamente as regras efetivas de revisão
+e checks exigidos antes de habilitar a confiança. Não registrar uma proteção apenas planejada como ativa.
 
 ## 4. Conceder apenas as operações do pipeline
 
@@ -202,7 +224,7 @@ Papel `naiEsocialInfrastructure`, atribuído à conta eSocial no projeto:
 ```bash
 gcloud iam roles create naiEsocialInfrastructure --project="$NAI_PROJECT_ID" \
   --title='NAI eSocial infrastructure maintenance' --stage=GA \
-  --permissions='resourcemanager.projects.get,resourcemanager.projects.getIamPolicy,serviceusage.services.get,serviceusage.services.use,iam.serviceAccounts.get,cloudscheduler.jobs.get,cloudscheduler.jobs.create,cloudscheduler.jobs.update'
+  --permissions='resourcemanager.projects.get,resourcemanager.projects.getIamPolicy,serviceusage.services.get,serviceusage.services.use,cloudscheduler.jobs.get,cloudscheduler.jobs.update'
 
 gcloud projects add-iam-policy-binding "$NAI_PROJECT_ID" \
   --member="serviceAccount:$NAI_ESOCIAL_ACCOUNT" \
@@ -225,14 +247,22 @@ gcloud iam service-accounts add-iam-policy-binding "$NAI_QUERY_ACCOUNT" \
   --role=roles/iam.serviceAccountUser
 ```
 
-A última concessão fornece `iam.serviceAccounts.actAs` somente na conta invocadora. Não conceder
-esse papel no projeto. O provisionador não recebe `secrets.setIamPolicy`, `versions.access`,
+A última concessão fornece `iam.serviceAccounts.actAs` e a leitura de metadados
+`iam.serviceAccounts.get` somente na conta invocadora; não é necessário repetir essa leitura no
+papel do projeto. Não conceder `roles/iam.serviceAccountUser` no projeto. O provisionador não recebe
+`cloudscheduler.jobs.create`, `secrets.setIamPolicy`, `versions.access`,
 `versions.add`, `serviceAccounts.create`, `serviceAccounts.setIamPolicy` ou `services.enable`.
 
 **Limitação do Cloud Scheduler:** ele não suporta políticas IAM por job nem condições IAM por
-atributos de recurso para isolar um job. As três permissões Scheduler acima abrangem os jobs do
-projeto. A limitação é reduzida por conta separada, ausência de `run/delete/pause/enable` e
-`actAs` exclusivo na conta sem acesso ao A1. Não alegar isolamento IAM por nome do job.
+atributos de recurso para isolar um job. As duas permissões Scheduler acima abrangem os jobs do
+projeto. A ausência de `create` impede que o pipeline crie novos jobs, inclusive jobs Pub/Sub; a
+criação fica exclusivamente no bootstrap do operador. A permissão `update` ainda permite modificar
+jobs existentes, inclusive seus destinos, mensagens ou agenda conforme o tipo. Revisar os demais
+jobs e consumidores do projeto antes de concedê-la. `actAs` exclusivo na conta sem acesso ao A1
+restringe a identidade de alvos HTTP autenticados, mas não isola alterações de jobs Pub/Sub
+existentes. A URI fixada no script é um controle do código, não uma restrição de IAM. A conta separada
+e a ausência de `create/run/delete/pause/enable` reduzem o alcance; não o eliminam e não oferecem
+isolamento IAM por nome do job.
 
 Papel `naiIndexDeployment`, atribuído somente à conta de índices:
 
@@ -291,7 +321,10 @@ excluído pelo pós-job da ação e os arquivos `gha-creds-*.json` estão ignora
 ## 6. Executar e verificar sem A1 e sem envios
 
 Depois do merge desta correção e da configuração anterior, iniciar **novas** execuções na `main`.
-Reexecutar uma execução antiga pode usar o workflow antigo e repetir o erro do JSON.
+Antes do dispatch eSocial, repetir a condição de validação da seção 2: flags efetivas desligadas
+e fila elegível vazia durante o ensaio, ou ambiente isolado. A atualização de um job ativo também
+pode produzir execução na próxima janela, sem chamada manual. Reexecutar uma execução antiga pode
+usar o workflow antigo e repetir o erro do JSON.
 
 ```bash
 gh workflow run deploy-indexes.yml --repo nextcon-nai-git/nai-gcp --ref main
@@ -306,7 +339,9 @@ node scripts/setup-esocial-infrastructure.mjs --apply --require-empty
 node scripts/setup-esocial-infrastructure.mjs --verify --require-empty
 ```
 
-`--apply` verifica APIs, contas, IAM, cofre vazio e agente Scheduler antes de manter o job.
+`--apply` verifica APIs, contas, IAM, cofre vazio e agente Scheduler antes de atualizar o job existente.
+Um job ausente faz o comando falhar sem criar recursos: somente `--bootstrap --apply`, executado pelo
+operador, pode criá-lo após um 404 confirmado. Resposta vazia ou inválida não comprova inexistência.
 `--verify` é somente leitura e exige configuração completa do job.
 Ambos preservam uma pausa deliberada de um job existente; não o retomam automaticamente.
 O workflow de ativação inicial recusa cofres com versões. Depois do futuro upload autorizado do A1,
@@ -327,7 +362,7 @@ Registrar:
 - cofre existente e **zero versões**, medidos pela API;
 - conta runtime e dois papéis exclusivamente no cofre;
 - ausência de acesso ao cofre para o invocador e para a conta de índices;
-- serviço, método POST, corpo vazio, audience e conta OIDC exatos;
+- serviço, método POST, corpo JSON `{}` (base64 `e30=` no recurso Scheduler), audience e conta OIDC exatos;
 - frequência, fuso, prazo, retentativas e estado do job;
 - estado real dos índices e preservação dos demais índices;
 - configuração efetiva de `ASO_CLIENT_EMAIL_SEND_ENABLED=false` e
@@ -377,6 +412,8 @@ provisionamento separadamente, sem marcar a infraestrutura ou o sistema como hom
 ## Fontes primárias conferidas
 
 - [Google: WIF para pipelines](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines)
+- [Google: boas práticas WIF e provider por pool](https://docs.cloud.google.com/iam/docs/best-practices-for-using-workload-identity-federation)
+- [Google: permissões do Service Account User](https://docs.cloud.google.com/iam/docs/roles-permissions/iam#iam.serviceAccountUser)
 - [GitHub: claims e permissões OIDC](https://docs.github.com/en/actions/reference/security/oidc)
 - [Google GitHub Actions auth](https://github.com/google-github-actions/auth)
 - [Tag v3 e commit](https://github.com/google-github-actions/auth/commit/7c6bc770dae815cd3e89ee6cdf493a5fab2cc093)
