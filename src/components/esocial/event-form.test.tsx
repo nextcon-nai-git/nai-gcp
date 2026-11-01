@@ -1,7 +1,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EventForm } from "./event-form";
+import { EventForm, updateAt, valueAt } from "./event-form";
 
 let host: HTMLDivElement, root: Root;
 const save = vi
@@ -86,5 +86,79 @@ describe("formulário de eventos", () => {
     expect(
       (save.mock.calls[0][0] as { aso: Record<string, unknown> }).aso.medicoResp
     ).toBeUndefined();
+  });
+});
+
+describe("caminhos de campos do formulário", () => {
+  it.each([
+    "__proto__",
+    "__proto__.__naiFormPollution",
+    "constructor",
+    "constructor.prototype.__naiFormPollution",
+    "prototype",
+    "aso.__proto__.__naiFormPollution",
+    "aso.constructor.prototype.__naiFormPollution",
+    "aso.prototype.__naiFormPollution",
+    "aso.exames.0.__proto__.__naiFormPollution",
+    "aso.exames.0.constructor",
+    "aso.exames.0.prototype",
+  ])("recusa leitura, gravação e remoção por segmento perigoso: %s", (path) => {
+    const payload = { aso: { exames: [{ dtExm: "2026-01-10" }] } };
+    const original = structuredClone(payload);
+    try {
+      expect(() => updateAt(payload, path, "synthetic")).toThrow("Caminho de campo inválido");
+      expect(() => updateAt(payload, path, undefined)).toThrow("Caminho de campo inválido");
+      expect(() => valueAt(payload, path)).toThrow("Caminho de campo inválido");
+      expect(payload).toEqual(original);
+      expect(Object.hasOwn(Object.prototype, "__naiFormPollution")).toBe(false);
+      expect(Object.hasOwn(Array.prototype, "__naiFormPollution")).toBe(false);
+    } finally {
+      Reflect.deleteProperty(Object.prototype, "__naiFormPollution");
+      Reflect.deleteProperty(Array.prototype, "__naiFormPollution");
+    }
+  });
+  it.each(["", ".aso", "aso.", "aso..tpAso"])("recusa segmentos vazios: %s", (path) => {
+    expect(() => updateAt({}, path, "synthetic")).toThrow("Caminho de campo inválido");
+    expect(() => valueAt({}, path)).toThrow("Caminho de campo inválido");
+  });
+  it("não lê propriedades herdadas nem modifica objetos herdados durante a travessia", () => {
+    const inherited = { value: "original" };
+    const key = "__naiFormInherited";
+    Object.defineProperty(Object.prototype, key, {
+      value: inherited,
+      configurable: true,
+      writable: true,
+    });
+    try {
+      expect(valueAt({}, `${key}.value`)).toBeUndefined();
+      const result = updateAt({}, `${key}.value`, "local");
+      expect(Object.hasOwn(result, key)).toBe(true);
+      expect(valueAt(result, `${key}.value`)).toBe("local");
+      expect(inherited).toEqual({ value: "original" });
+    } finally {
+      Reflect.deleteProperty(Object.prototype, key);
+    }
+  });
+  it("preserva arrays, campos tipados e remoção de opcionais sem modificar a entrada", () => {
+    const input = {
+      aso: {
+        tpAso: 1,
+        exames: [{ dtExm: "2026-01-10", procRealizado: "0295" }],
+        medicoResp: { nmMed: "Responsável sintético" },
+      },
+    };
+    const original = structuredClone(input);
+    const updated = updateAt(input, "aso.exames.0.procRealizado", "0296");
+    const removed = updateAt(updated, "aso.medicoResp", undefined);
+    expect(valueAt(removed, "aso.exames.0.procRealizado")).toBe("0296");
+    expect(valueAt(removed, "aso.tpAso")).toBe(1);
+    expect(valueAt(removed, "aso.medicoResp")).toBeUndefined();
+    expect(Array.isArray(valueAt(removed, "aso.exames"))).toBe(true);
+    expect(input).toEqual(original);
+  });
+  it("cria grupos e itens de array pelos mesmos caminhos usados no schema", () => {
+    const result = updateAt({}, "aso.exames.0.dtExm", "2026-01-10");
+    expect(result).toEqual({ aso: { exames: [{ dtExm: "2026-01-10" }] } });
+    expect(valueAt(result, "aso.exames.1.dtExm")).toBeUndefined();
   });
 });
