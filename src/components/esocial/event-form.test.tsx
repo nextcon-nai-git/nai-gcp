@@ -139,6 +139,70 @@ describe("caminhos de campos do formulário", () => {
       Reflect.deleteProperty(Object.prototype, key);
     }
   });
+  it.each(["local", undefined])(
+    "não aciona accessor herdado ao criar um grupo para gravar ou remover: %s",
+    (value) => {
+      const inherited = { marker: "original" };
+      const key = "__naiFormAccessorGroup";
+      const getter = vi.fn(() => inherited);
+      const setter = vi.fn();
+      Object.defineProperty(Object.prototype, key, {
+        get: getter,
+        set: setter,
+        configurable: true,
+      });
+      try {
+        const result = updateAt({}, `${key}.marker`, value);
+        expect(getter).not.toHaveBeenCalled();
+        expect(setter).not.toHaveBeenCalled();
+        expect(inherited).toEqual({ marker: "original" });
+        expect(Object.hasOwn(result, key)).toBe(true);
+        expect(valueAt(result, key)).not.toBe(inherited);
+        expect(valueAt(result, `${key}.marker`)).toBe(value);
+      } finally {
+        Reflect.deleteProperty(Object.prototype, key);
+      }
+    }
+  );
+  it.each([0, false, "local"])("define a folha própria sem invocar setter herdado: %s", (value) => {
+    const key = "__naiFormAccessorLeaf";
+    const getter = vi.fn(() => "inherited");
+    const setter = vi.fn();
+    Object.defineProperty(Object.prototype, key, {
+      get: getter,
+      set: setter,
+      configurable: true,
+    });
+    try {
+      const input = { aso: {} };
+      const result = updateAt(input, `aso.${key}`, value);
+      const group = valueAt(result, "aso") as Record<string, unknown>;
+      expect(getter).not.toHaveBeenCalled();
+      expect(setter).not.toHaveBeenCalled();
+      expect(Object.getOwnPropertyDescriptor(group, key)).toEqual({
+        value,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+      expect(input).toEqual({ aso: {} });
+    } finally {
+      Reflect.deleteProperty(Object.prototype, key);
+    }
+  });
+  it("preserva o descritor próprio de length ao atualizar arrays", () => {
+    const input = { aso: { exames: [{ dtExm: "2026-01-10" }, { dtExm: "2026-02-10" }] } };
+    const result = updateAt(input, "aso.exames.length", 1);
+    const items = valueAt(result, "aso.exames");
+    expect(items).toEqual([{ dtExm: "2026-01-10" }]);
+    expect(Object.getOwnPropertyDescriptor(items, "length")).toEqual({
+      value: 1,
+      writable: true,
+      enumerable: false,
+      configurable: false,
+    });
+    expect(input.aso.exames).toHaveLength(2);
+  });
   it("preserva arrays, campos tipados e remoção de opcionais sem modificar a entrada", () => {
     const input = {
       aso: {

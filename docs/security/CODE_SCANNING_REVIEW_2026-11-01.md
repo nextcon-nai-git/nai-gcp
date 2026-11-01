@@ -1,9 +1,11 @@
 # Triagem de segurança — 01/11/2026
 
-Registro da revisão dos alertas e do código disponível na `main` nesta data.
-Os alertas #22 e #23 permanecem abertos; a correção do #28 está no
-[PR #238](https://github.com/nextcon-nai-git/nai-gcp/pull/238), ainda em validação
-neste registro. A revisão não declara ausência de vulnerabilidades nem homologação operacional.
+Registro da revisão dos alertas, atualizado após a integração do
+[PR #238](https://github.com/nextcon-nai-git/nai-gcp/pull/238).
+O CI desse PR aprovou 4.048 testes, mas a análise na `main` em `2c3e274` manteve o
+[alerta #28 aberto](https://github.com/nextcon-nai-git/nai-gcp/security/code-scanning/28).
+Os alertas #22 e #23 também permanecem abertos. A correção complementar do #28 está em validação.
+A revisão não declara ausência de vulnerabilidades nem homologação operacional.
 Não houve rotação, revogação ou migração de chaves, acesso a dados clínicos ou uso de credenciais
 em chamadas externas.
 
@@ -56,14 +58,32 @@ localmente com objeto e marcador sintéticos. Os caminhos encontrados no formul�
 vêm dos campos definidos no schema, de caminhos constantes e de índices de arrays. Não foi
 demonstrado um caminho externo explorável na interface publicada.
 
-O PR #238 valida todos os segmentos antes da cópia, rejeita segmentos vazios, `__proto__`,
-`constructor` e `prototype`, e limita leitura e travessia a propriedades próprias. As
-regressões em [`event-form.test.tsx`](../../src/components/esocial/event-form.test.tsx)
-cobrem escrita, remoção, leitura herdada, arrays e preservação da entrada. Essa proteção
-corresponde à orientação da
-[regra CodeQL para funções que alteram protótipos](https://codeql.github.com/codeql-query-help/javascript/js-prototype-pollution-utility/).
-A aprovação final depende do CI e da nova análise do código; o alerta não foi encerrado
-manualmente. A mudança não ativa transmissão ao eSocial.
+O PR #238 passou a validar todos os segmentos antes da cópia, rejeitar segmentos vazios,
+`__proto__`, `constructor` e `prototype`, e conferir propriedades próprias na leitura e
+travessia. As regressões em
+[`event-form.test.tsx`](../../src/components/esocial/event-form.test.tsx) cobriram escrita,
+remoção, leitura herdada, arrays e preservação da entrada. A aprovação dos 4.048 testes no
+CI não encerrou o alerta: a análise de `2c3e274` ainda sinalizou a atribuição na linha 48.
+
+A revisão complementar reproduziu um caso residual: um getter/setter já instalado no
+protótipo pode interceptar uma atribuição comum ao criar um grupo ou gravar a folha.
+A leitura posterior também pode seguir o objeto devolvido pelo getter herdado. Esse caso
+exige um estado prévio de acesso ao protótipo; a revisão não demonstrou como um usuário da
+interface publicada produziria esse estado. A reprodução isolada comprova a fragilidade
+do helper, sem comprovar uma exploração da interface.
+
+A correção complementar define explicitamente propriedades próprias com
+`Object.defineProperty` e segue a referência local do novo grupo, evitando a atribuição
+e a releitura que poderiam acionar o accessor herdado. Mantém a validação dos segmentos
+e preserva os descritores próprios já presentes na cópia, inclusive `length` de arrays.
+As novas regressões exercitam accessors herdados na criação de grupos, na remoção de
+campos e na gravação da folha, além da preservação de arrays e da entrada.
+
+A orientação da
+[regra CodeQL para funções que alteram protótipos](https://codeql.github.com/codeql-query-help/javascript/js-prototype-pollution-utility/)
+fundamenta a proteção na função de atribuição. O resultado da correção complementar
+depende do CI e de nova análise CodeQL do commit correspondente. O alerta não foi
+encerrado ou suprimido manualmente. Nenhuma dessas mudanças ativa transmissão ao eSocial.
 
 ## Chave de configuração do Firebase Web
 

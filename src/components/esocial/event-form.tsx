@@ -40,12 +40,39 @@ export function updateAt(payload: Payload, path: string, value: unknown): Payloa
   let cursor: Payload = copy;
   for (let index = 0; index < parts.length - 1; index++) {
     const part = parts[index];
-    if (!Object.hasOwn(cursor, part) || !cursor[part] || typeof cursor[part] !== "object")
-      cursor[part] = /^\d+$/.test(parts[index + 1]) ? [] : {};
-    cursor = cursor[part] as Payload;
+    // Reject prototype navigation at the property access as well as before cloning.
+    if (part === "__proto__" || part === "constructor" || part === "prototype")
+      throw new Error("Caminho de campo inválido.");
+    if (Object.hasOwn(cursor, part)) {
+      const child = cursor[part];
+      if (child && typeof child === "object") {
+        cursor = child as Payload;
+        continue;
+      }
+    }
+    const child = /^\d+$/.test(parts[index + 1]) ? [] : {};
+    Object.defineProperty(
+      cursor,
+      part,
+      Object.hasOwn(cursor, part)
+        ? { value: child }
+        : { value: child, writable: true, enumerable: true, configurable: true }
+    );
+    // A normal assignment could invoke an inherited setter; follow our own new child.
+    cursor = child as Payload;
   }
-  if (value === undefined) delete cursor[parts[parts.length - 1]];
-  else cursor[parts[parts.length - 1]] = value;
+  const leaf = parts[parts.length - 1];
+  if (leaf === "__proto__" || leaf === "constructor" || leaf === "prototype")
+    throw new Error("Caminho de campo inválido.");
+  if (value === undefined) delete cursor[leaf];
+  else
+    Object.defineProperty(
+      cursor,
+      leaf,
+      Object.hasOwn(cursor, leaf)
+        ? { value }
+        : { value, writable: true, enumerable: true, configurable: true }
+    );
   return copy;
 }
 
