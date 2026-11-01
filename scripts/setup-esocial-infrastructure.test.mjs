@@ -215,7 +215,14 @@ test("maintenance and verification refuse an absent scheduler without writes", a
 
 test("invalid scheduler metadata is rejected before any job mutation", async () => {
   for (const mode of ["--apply", "--bootstrap --apply", "--verify"]) {
-    for (const data of [null, undefined, {}, [], "unexpected", { name: `${plan.scheduler}-other` }]) {
+    for (const data of [
+      null,
+      undefined,
+      {},
+      [],
+      "unexpected",
+      { name: `${plan.scheduler}-other` },
+    ]) {
       const f = fixture();
       f.clients.scheduler.projects.locations.jobs.get = async () => ({ data });
       await assert.rejects(runProvisioning(f.clients, flags(`${mode} --require-empty`)), {
