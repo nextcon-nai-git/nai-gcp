@@ -200,11 +200,10 @@ export default function CassiOperationsHubPage() {
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 Faturamento TISS Previsto
               </span>
-              <div className="text-2xl font-black text-amber-400">
-                Não apurado
-              </div>
+              <div className="text-2xl font-black text-amber-400">Não apurado</div>
               <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                <Clock size={12} className="text-amber-400" /> Sem atendimentos confirmados nesta tela
+                <Clock size={12} className="text-amber-400" /> Sem atendimentos confirmados nesta
+                tela
               </span>
             </div>
             <div className="h-12 w-12 rounded-2xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center text-amber-400">
@@ -255,7 +254,8 @@ export default function CassiOperationsHubPage() {
               </span>
               <div className="text-2xl font-black text-blue-400">90 Dias</div>
               <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                <FileText size={12} className="text-blue-400" /> Conferir Cláusula 4ª §1º no contrato
+                <FileText size={12} className="text-blue-400" /> Conferir Cláusula 4ª §1º no
+                contrato
               </span>
             </div>
             <div className="h-12 w-12 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400">

@@ -11,16 +11,16 @@ export default function NaiAuditStudio() {
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold text-primary">Auditoria de riscos</h1>
         <p className="max-w-3xl text-muted-foreground">
-          A auditoria automática desta tela ainda está indisponível. Uma conclusão sobre o
-          cliente exige evidências do local e revisão pelo profissional responsável.
+          A auditoria automática desta tela ainda está indisponível. Uma conclusão sobre o cliente
+          exige evidências do local e revisão pelo profissional responsável.
         </p>
       </header>
       <Card>
         <CardHeader>
           <CardTitle>Auditoria automática indisponível</CardTitle>
           <CardDescription id="audit-availability">
-            Esta página não consulta documentos, medições ou eventos do eSocial. Nenhum achado,
-            grau de risco ou resultado de auditoria é produzido aqui.
+            Esta página não consulta documentos, medições ou eventos do eSocial. Nenhum achado, grau
+            de risco ou resultado de auditoria é produzido aqui.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -34,8 +34,8 @@ export default function NaiAuditStudio() {
           <CardHeader>
             <CardTitle>Inventário de riscos</CardTitle>
             <CardDescription>
-              Registre os perigos identificados, avalie probabilidade e severidade e documente
-              os controles com o responsável técnico.
+              Registre os perigos identificados, avalie probabilidade e severidade e documente os
+              controles com o responsável técnico.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -50,8 +50,8 @@ export default function NaiAuditStudio() {
           <CardHeader>
             <CardTitle>Importação de documentos</CardTitle>
             <CardDescription>
-              Envie documentos ao NAI importa e confira as evidências e os rascunhos extraídos
-              antes de confirmar os registros.
+              Envie documentos ao NAI importa e confira as evidências e os rascunhos extraídos antes
+              de confirmar os registros.
             </CardDescription>
           </CardHeader>
           <CardContent>
