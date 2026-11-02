@@ -599,7 +599,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
 
             {task.sourceType !== "pgr" &&
               (editedTask.type === "pgr" || editedTask.oldPgrUrl || editedTask.newPgrUrl) && (
-                <div className="p-6 bg-slate-900 text-white rounded-[2rem] space-y-4 shadow-xl relative overflow-hidden">
+                <div className="p-6 bg-slate-900 text-white rounded-4xl space-y-4 shadow-xl relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-4 opacity-5">
                     <Paperclip className="size-16" />
                   </div>
@@ -705,7 +705,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                 </div>
               )}
 
-            <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-4 shadow-inner">
+            <div className="p-6 bg-slate-50 rounded-4xl border border-slate-100 space-y-4 shadow-inner">
               <p className="text-[9px] font-black uppercase text-primary/40 tracking-widest flex items-center gap-2">
                 <Layers className="size-3" /> Metadados de Conformidade
               </p>
@@ -841,7 +841,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
                 {editedTask.checklist?.map((item, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center gap-3 p-4 bg-white border border-slate-100 rounded-2xl shadow-sm group transition-all hover:border-primary/20"
+                    className="flex items-center gap-3 p-4 bg-white border border-slate-100 rounded-2xl shadow-xs group transition-all hover:border-primary/20"
                   >
                     <Checkbox
                       checked={item.checked}

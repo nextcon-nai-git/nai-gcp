@@ -12,7 +12,7 @@ import {
   type OmieConnection,
   type OmiePage,
 } from "@/lib/financial/omie";
-import { z } from "zod";
+import { z } from "zod/v3";
 import {
   fromOmieDate,
   OmieDreQuerySchema,

@@ -17,7 +17,7 @@ import {
 } from "@/lib/production/model";
 import { getFinanceBook } from "./financial-operations";
 import { checkCycleFinance, receiptIndex } from "@/lib/production/finance";
-import type { z } from "zod";
+import type { z } from "zod/v3";
 const objectName = "financial-operations/v1/production-central.json";
 const MAX_BYTES = 16 * 1024 * 1024;
 const bucket = () => getStorage().bucket(firebaseConfig.storageBucket);

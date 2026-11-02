@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 
 // 1. Enums (Tipos fixos)
 export const RoleEnum = z.enum(["SUPER_ADMIN", "CLIENT_ADMIN", "ENGINEER", "DOCTOR", "PROVIDER"]);

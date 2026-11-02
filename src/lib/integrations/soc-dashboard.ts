@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 
 export const SOC_DASHBOARD_MAX_BYTES = 750_000;
 const text = z.string().trim().min(1).max(400);

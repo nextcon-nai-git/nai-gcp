@@ -12,7 +12,7 @@ import {
   type TaskUpdateSchema,
 } from "@/lib/production/obligations";
 import type { ProductionRecord } from "@/lib/production/model";
-import type { z } from "zod";
+import type { z } from "zod/v3";
 
 const inputClass = "w-full rounded-md border border-input bg-background p-2 text-sm";
 const value = (f: FormData, key: string) => String(f.get(key) || "").trim();

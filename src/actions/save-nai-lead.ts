@@ -1,6 +1,6 @@
 "use server";
 
-import { z } from "zod";
+import { z } from "zod/v3";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase-admin";
 import { requireAiAction, DOCUMENT_AI_ROLES } from "@/lib/auth/ai-action";

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 
 export const AVP_COST_BANDS = {
   green: { label: "Abaixo de R$ 40", color: "#15803d", className: "bg-green-100 text-green-900" },

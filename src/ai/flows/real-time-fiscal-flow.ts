@@ -6,7 +6,7 @@ import { requireAiAction, FINANCIAL_AI_ROLES } from "@/lib/auth/ai-action";
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "zod";
+import { z } from "genkit";
 
 const FiscalDocInputSchema = z.object({
   serviceDescription: z.string().describe("Descrição textual do serviço prestado na nota."),

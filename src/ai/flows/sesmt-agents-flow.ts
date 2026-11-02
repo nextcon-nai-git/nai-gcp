@@ -9,7 +9,7 @@
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "zod";
+import { z } from "genkit";
 import { aiFailureCode } from "@/lib/ai-failure";
 import { SESMT_AGENTS_CONFIG } from "@/ai/sesmt-agents-config";
 import type { AgentRole, SesmtAgentConfig } from "@/ai/sesmt-agents-config";

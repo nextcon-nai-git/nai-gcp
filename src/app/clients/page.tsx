@@ -65,7 +65,7 @@ import {
 } from "firebase/firestore";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { cn } from "@/lib/utils";
 import { useSgi } from "@/contexts/sgi-context";
 import { enriquecerDadosEmpresa } from "@/actions/company-enrichment";
@@ -185,7 +185,7 @@ function ClientsSession() {
     );
   }, [activeCompaniesList, searchTerm, showInactive, isGlobalStaff]);
 
-  const form = useForm<CompanyFormValues>({
+  const form = useForm<z.input<typeof companySchema>, unknown, CompanyFormValues>({
     resolver: zodResolver(companySchema),
     defaultValues: {
       name: "",
@@ -460,7 +460,7 @@ function ClientsSession() {
             onClick={handleSyncCompanies}
             disabled={isSubmitting || !canManage || !isGlobalStaff}
             variant="outline"
-            className="border-accent text-accent hover:bg-accent/10 h-12 px-6 rounded-2xl font-black uppercase text-[10px] tracking-widest gap-2 shadow-sm"
+            className="border-accent text-accent hover:bg-accent/10 h-12 px-6 rounded-2xl font-black uppercase text-[10px] tracking-widest gap-2 shadow-xs"
           >
             <RefreshCw className={cn("size-4", isSubmitting && "animate-spin")} /> Sincronizar
             Clientes ({REAL_COMPANIES.length})
@@ -505,7 +505,7 @@ function ClientsSession() {
 
       {/* NOVO CLIENTE NACIONAL EM DESTAQUE: GRUPO AVP */}
       <Link href="/clients/grupo-avp" className="block group">
-        <Card className="rounded-3xl border-2 border-blue-200/80 bg-gradient-to-br from-[#00172e] via-[#002244] to-[#0a325c] text-white p-6 shadow-xl hover:shadow-2xl hover:scale-[1.01] transition-all relative overflow-hidden">
+        <Card className="rounded-3xl border-2 border-blue-200/80 bg-linear-to-br from-[#00172e] via-[#002244] to-[#0a325c] text-white p-6 shadow-xl hover:shadow-2xl hover:scale-[1.01] transition-all relative overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
@@ -535,7 +535,7 @@ function ClientsSession() {
 
       {/* CLIENTE ESTRATÉGICO CONTRATUAL: CASSI BANCO DO BRASIL */}
       <Link href="/clients/cassi" className="block group">
-        <Card className="rounded-3xl border-2 border-amber-400/40 bg-gradient-to-br from-[#002244] via-[#003366] to-[#0d223a] text-white p-6 shadow-xl hover:shadow-2xl hover:scale-[1.01] transition-all relative overflow-hidden">
+        <Card className="rounded-3xl border-2 border-amber-400/40 bg-linear-to-br from-[#002244] via-[#003366] to-[#0d223a] text-white p-6 shadow-xl hover:shadow-2xl hover:scale-[1.01] transition-all relative overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
@@ -577,7 +577,7 @@ function ClientsSession() {
         <Search className="absolute left-4 top-3.5 size-5 text-slate-300 group-focus-within:text-primary transition-all" />
         <Input
           placeholder="Pesquisar por Unidade, Razão Social, CNPJ ou Cidade..."
-          className="pl-12 h-14 bg-white border-none shadow-sm rounded-2xl font-medium"
+          className="pl-12 h-14 bg-white border-none shadow-xs rounded-2xl font-medium"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -637,7 +637,7 @@ function ClientsSession() {
           </Card>
         )}
         {isLoading ? (
-          <div className="py-24 text-center bg-white rounded-[2.5rem] shadow-sm">
+          <div className="py-24 text-center bg-white rounded-[2.5rem] shadow-xs">
             <Loader2 className="size-12 animate-spin mx-auto opacity-20 text-primary" />
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-4">
               Carregando Clientes...
@@ -677,7 +677,7 @@ function ClientsSession() {
         )}
 
         {(!filteredCompanies || filteredCompanies.length === 0) && !isLoading && (
-          <div className="py-24 text-center bg-white rounded-[2.5rem] shadow-sm opacity-40">
+          <div className="py-24 text-center bg-white rounded-[2.5rem] shadow-xs opacity-40">
             <Building2 className="size-12 mx-auto text-slate-300 mb-2" />
             <p className="text-xs font-black uppercase tracking-widest text-slate-500">
               Nenhum cliente cadastrado ou encontrado na busca
@@ -1044,7 +1044,7 @@ function SwipeableCompanyRow({
   const isCompanyActive = company.active ?? true;
 
   return (
-    <div className="relative overflow-hidden rounded-2xl my-2 border bg-slate-50/50 shadow-sm transition-all select-none">
+    <div className="relative overflow-hidden rounded-2xl my-2 border bg-slate-50/50 shadow-xs transition-all select-none">
       {/* BACKGROUND SWIPE DIREITA -> EXCLUIR (SIM / NÃO) */}
       <div
         onPointerDown={(e) => e.stopPropagation()}
@@ -1239,7 +1239,7 @@ function SwipeableCompanyRow({
             <Button
               size="sm"
               variant="outline"
-              className="h-8 px-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider text-primary border-primary/20 hover:bg-primary hover:text-white transition-all gap-1 shadow-sm shrink-0"
+              className="h-8 px-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider text-primary border-primary/20 hover:bg-primary hover:text-white transition-all gap-1 shadow-xs shrink-0"
               onClick={(e) => {
                 e.stopPropagation();
                 onOpenCockpit();
@@ -1254,7 +1254,7 @@ function SwipeableCompanyRow({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1 h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm transition-all hover:scale-105 shrink-0"
+                className="inline-flex items-center gap-1 h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-xs transition-all hover:scale-105 shrink-0"
               >
                 <MessageCircle size={12} /> WhatsApp
               </a>

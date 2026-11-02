@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { KitSelection } from "@/lib/operational-kits";
 
 export const WorkAction = z.object({

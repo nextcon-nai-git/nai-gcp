@@ -9,7 +9,7 @@ import { requireAvpAccess, canAccessAvpEvidence } from "@/lib/auth/avp-access";
 import { AuthError, badRequest, forbidden } from "@/lib/auth/errors";
 import { AvpEvidenceSchema } from "@/lib/avp-evidence";
 import { limitedFormData, limitedJson } from "@/lib/http/private-api";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

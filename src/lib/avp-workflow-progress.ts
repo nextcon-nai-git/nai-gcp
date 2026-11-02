@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { WorkflowSchema, WORKFLOW_STAGES, workflowProblems } from "./avp-workflow";
 import { periodicProgress, type PeriodicProgress } from "./avp-periodic-status";
 import type { PeriodicPerson } from "./avp-periodic-control";

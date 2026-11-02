@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { isCalendarDate } from "@/lib/financial/omie-dre";
 import { MAX_OBLIGATIONS, type ProductionTask } from "./obligations";
 import type { ProductionRecord } from "./model";

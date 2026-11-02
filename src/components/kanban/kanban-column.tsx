@@ -36,9 +36,7 @@ export function KanbanColumn({ id, title, tasks }: ColumnProps) {
         className={cn(
           "flex-1 p-2 rounded-xl transition-colors min-h-[350px] border border-border bg-muted/40",
 
-          isOver
-            ? "ring-4 ring-primary/5 bg-primary/10 border-primary/10 scale-[1.01]"
-            : "bg-opacity-40"
+          isOver && "ring-4 ring-primary/5 bg-primary/10 border-primary/10 scale-[1.01]"
         )}
       >
         <div className="space-y-2">

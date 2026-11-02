@@ -37,7 +37,7 @@ export function TaskCard({ task, preview = false }: { task: OpsTask; preview?: b
             : undefined
         }
         className={cn(
-          "rounded-xl border border-border bg-card p-3 text-card-foreground shadow-sm transition-shadow hover:shadow-md",
+          "rounded-xl border border-border bg-card p-3 text-card-foreground shadow-xs transition-shadow hover:shadow-md",
           isDragging && "opacity-40"
         )}
       >
@@ -65,9 +65,9 @@ export function TaskCard({ task, preview = false }: { task: OpsTask; preview?: b
         </div>
         <button
           onClick={() => setOpen(true)}
-          className="w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 rounded"
+          className="w-full text-left focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-blue-500 rounded"
         >
-          <h4 className="text-sm font-semibold leading-5 break-words">{task.title}</h4>
+          <h4 className="text-sm font-semibold leading-5 wrap-break-word">{task.title}</h4>
           <p className="mt-1 truncate text-xs text-muted-foreground">{task.companyName}</p>
           {task.description && !task.restricted && (
             <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{task.description}</p>

@@ -56,7 +56,7 @@ export default function FapRatSimulator() {
         <div className="flex gap-2">
           <Button
             variant="outline"
-            className="h-12 px-6 rounded-2xl border-primary text-primary font-black uppercase text-[10px] gap-2 shadow-sm btn-hover-effect"
+            className="h-12 px-6 rounded-2xl border-primary text-primary font-black uppercase text-[10px] gap-2 shadow-xs btn-hover-effect"
           >
             <FileWarning className="size-4" /> Relatório FAP
           </Button>
@@ -143,7 +143,7 @@ export default function FapRatSimulator() {
           </Card>
 
           <Card className="border-none bg-blue-50/50 rounded-[2.5rem] p-10 flex gap-8 items-start shadow-inner border border-blue-100">
-            <div className="size-16 rounded-[1.5rem] bg-primary text-white flex items-center justify-center shrink-0 shadow-2xl">
+            <div className="size-16 rounded-3xl bg-primary text-white flex items-center justify-center shrink-0 shadow-2xl">
               <Brain size={32} className="text-accent" />
             </div>
             <div className="space-y-3">

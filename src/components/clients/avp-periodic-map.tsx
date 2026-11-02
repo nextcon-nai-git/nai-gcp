@@ -115,7 +115,7 @@ export function AvpPeriodicMap({
                 role="button"
                 tabIndex={0}
                 aria-label={label}
-                className="cursor-pointer outline-none focus:stroke-foreground"
+                className="cursor-pointer outline-hidden focus:stroke-foreground"
                 onClick={select}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {

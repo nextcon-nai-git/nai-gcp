@@ -53,11 +53,11 @@ export function ReportModal({ todayCount, criticalCount }: ReportModalProps) {
         </div>
         <div className="p-8 space-y-6 bg-slate-50">
           <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center text-center">
+            <div className="p-4 bg-white rounded-2xl shadow-xs border border-slate-100 flex flex-col items-center text-center">
               <p className="text-[10px] uppercase font-black text-slate-400">Total Atendimentos</p>
               <p className="text-3xl font-black text-primary mt-2">{todayCount}</p>
             </div>
-            <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center text-center">
+            <div className="p-4 bg-white rounded-2xl shadow-xs border border-slate-100 flex flex-col items-center text-center">
               <p className="text-[10px] uppercase font-black text-slate-400">Casos Críticos</p>
               <p className="text-3xl font-black text-red-600 mt-2">{criticalCount}</p>
             </div>

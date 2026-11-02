@@ -43,7 +43,7 @@ function CostTable({ title, costs }: { title: string; costs: OmieDreCost[] }) {
               className="flex items-start justify-between gap-4 border-b pb-3 last:border-0"
             >
               <div className="min-w-0">
-                <p className="break-words text-sm font-medium">{cost.name}</p>
+                <p className="wrap-break-word text-sm font-medium">{cost.name}</p>
                 <p className="mt-1 text-xs text-slate-500">
                   {cost.cnpj ? `CNPJ ${cost.cnpj}` : "Identidade fiscal a conferir"} ·{" "}
                   {cost.entries} lançamentos

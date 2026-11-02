@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 
 /**
  * Schemas de validação rigorosa para dados SST (eSocial Ready)

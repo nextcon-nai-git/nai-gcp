@@ -311,7 +311,7 @@ export default function CassiBillingPage() {
           <Button
             disabled={!guideReady}
             onClick={copyRpaToClipboard}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm shadow-blue-500/20"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-xs shadow-blue-500/20"
           >
             <Sparkles className="w-4 h-4 mr-2" />
             Copiar Script RPA (1-Clique)
@@ -817,7 +817,7 @@ export default function CassiBillingPage() {
             {/* COLUNA DIREITA: RESUMO, RPA E CONTROLE DE PRAZOS */}
             <div className="space-y-6">
               {/* Card Resumo Financeiro */}
-              <Card className="border-blue-200 dark:border-blue-900/50 bg-gradient-to-b from-blue-50/50 to-transparent dark:from-blue-950/20">
+              <Card className="border-blue-200 dark:border-blue-900/50 bg-linear-to-b from-blue-50/50 to-transparent dark:from-blue-950/20">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-blue-600" />
@@ -850,7 +850,7 @@ export default function CassiBillingPage() {
                     </div>
                   </div>
 
-                  <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border shadow-sm">
+                  <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border shadow-xs">
                     <span className="text-xs text-muted-foreground block">
                       Valor Total da Guia:
                     </span>
@@ -863,7 +863,7 @@ export default function CassiBillingPage() {
                     <Button
                       disabled={!guideReady}
                       onClick={copyRpaToClipboard}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-5 shadow-sm"
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-5 shadow-xs"
                     >
                       <Sparkles className="w-4 h-4 mr-2" />
                       Copiar Script RPA (Portal CASSI)

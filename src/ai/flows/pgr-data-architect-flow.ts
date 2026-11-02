@@ -9,7 +9,7 @@ import "server-only";
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "zod";
+import { z } from "genkit";
 
 const ArchitectInputSchema = z.object({
   rawInput: z.string().describe("Descrição do perigo, ambiente de trabalho ou medida de controle."),

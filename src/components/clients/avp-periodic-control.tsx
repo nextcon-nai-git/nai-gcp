@@ -8,6 +8,7 @@ import { AVP_SOURCE } from "@/lib/avp-source-config";
 import { formatBrlCents } from "@/lib/avp-costs";
 import type { AvpPeriodicControl, AvpObservedPrice } from "@/lib/avp-periodic-control";
 import { ClinicContractDialog } from "./clinic-contract-dialog";
+import { AvpPeriodicWork } from "./avp-periodic-work";
 import { AVP_COST_BANDS, avpCostBand } from "@/lib/avp-evidence";
 import {
   AVP_PERIODIC_INTERVAL_MS,
@@ -304,6 +305,7 @@ export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => v
               ["cities", "Cobertura por cidade"],
               ["clinics", "Clínicas e valores"],
               ["people", "Lista de periódicos"],
+              ["work", "Fila de trabalho"],
             ].map(([value, label]) => (
               <Button
                 key={value}
@@ -576,6 +578,7 @@ export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => v
               )}
             </>
           )}
+          {view === "work" && <AvpPeriodicWork />}
           {view === "people" && (
             <>
               <select

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 
 export const FINANCIAL_ACTION_IMPORT_MAX_BYTES = 2 * 1024 * 1024;
 export const financialActionPriorities = ["critical", "high", "medium", "low"] as const;

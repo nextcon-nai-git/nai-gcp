@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { isValidCpf } from "./cpf";
 import { isValidCnpj } from "./cnpj";
 import {

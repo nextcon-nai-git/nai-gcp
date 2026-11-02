@@ -1,6 +1,6 @@
 "use server";
 
-import { z } from "zod";
+import { z } from "genkit";
 import { ai } from "@/ai/genkit";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase-admin";

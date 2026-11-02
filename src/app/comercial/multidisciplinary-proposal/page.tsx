@@ -178,10 +178,10 @@ export default function MultidisciplinaryProposalPage() {
               {specialists.map((s) => (
                 <Card
                   key={s.title}
-                  className="card-shadow border-none bg-white rounded-[2rem] overflow-hidden group hover:ring-2 ring-primary/5 transition-all"
+                  className="card-shadow border-none bg-white rounded-4xl overflow-hidden group hover:ring-2 ring-primary/5 transition-all"
                 >
                   <div className={cn("p-6 flex flex-col items-center text-center gap-4", s.bg)}>
-                    <div className={cn("p-3 rounded-2xl bg-white shadow-sm", s.color)}>
+                    <div className={cn("p-3 rounded-2xl bg-white shadow-xs", s.color)}>
                       <s.icon className="size-6" />
                     </div>
                     <h3 className="font-black text-primary uppercase text-[11px] leading-tight">

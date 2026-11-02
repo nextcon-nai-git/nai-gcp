@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { FieldValue } from "firebase-admin/firestore";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { adminDb } from "@/lib/firebase-admin";
 import {
   requireApiKey,

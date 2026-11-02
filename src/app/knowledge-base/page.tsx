@@ -198,7 +198,7 @@ function KnowledgeBaseSession() {
               key={id}
               onClick={() => setActivePersona(id)}
               className={cn(
-                "p-4 rounded-[1.5rem] border transition-all flex items-center gap-4 text-left",
+                "p-4 rounded-3xl border transition-all flex items-center gap-4 text-left",
                 isActive
                   ? "bg-white border-primary shadow-lg ring-2 ring-primary/5 scale-[1.02]"
                   : "bg-slate-50 border-transparent hover:border-slate-200"
@@ -249,7 +249,7 @@ function KnowledgeBaseSession() {
                     className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                   >
                     <div
-                      className={`max-w-[85%] p-6 rounded-3xl ${msg.role === "user" ? "bg-primary text-white rounded-tr-none shadow-xl" : "bg-slate-50 border rounded-tl-none text-primary shadow-sm"}`}
+                      className={`max-w-[85%] p-6 rounded-3xl ${msg.role === "user" ? "bg-primary text-white rounded-tr-none shadow-xl" : "bg-slate-50 border rounded-tl-none text-primary shadow-xs"}`}
                     >
                       <p className="text-sm leading-relaxed font-medium whitespace-pre-wrap">
                         {msg.content}
@@ -330,7 +330,7 @@ function KnowledgeBaseSession() {
           </CardContent>
         </Card>
         <div className="lg:col-span-1 space-y-6 text-left">
-          <Card className="border-none bg-primary text-white rounded-[2rem] p-6 shadow-xl relative overflow-hidden">
+          <Card className="border-none bg-primary text-white rounded-4xl p-6 shadow-xl relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4 opacity-5">
               <Zap className="size-20" />
             </div>

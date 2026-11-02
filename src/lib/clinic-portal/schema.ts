@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 
 export const portalId = z.string().regex(/^[a-f0-9]{48}$/);
 export const requestId = z.string().regex(/^[\w-]{1,128}$/);

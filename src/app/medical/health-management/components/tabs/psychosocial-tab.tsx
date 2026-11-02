@@ -95,7 +95,7 @@ export function PsychosocialTab() {
       </Card>
 
       <div className="space-y-6">
-        <Card className="card-shadow border border-white/10 bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#020617] text-white rounded-[2.5rem] p-8 relative overflow-hidden group">
+        <Card className="card-shadow border border-white/10 bg-linear-to-br from-[#0f172a] via-[#1e1b4b] to-[#020617] text-white rounded-[2.5rem] p-8 relative overflow-hidden group">
           <div className="absolute inset-0 bg-[url('/noise.png')] opacity-20 mix-blend-overlay"></div>
           <div className="absolute -top-10 -right-10 p-6 opacity-20 transition-transform duration-700 group-hover:rotate-12 group-hover:scale-110">
             <Sparkles className="size-48 text-accent" />
@@ -120,8 +120,8 @@ export function PsychosocialTab() {
                     <Zap className="size-4" /> Solicitar Intervenção
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[420px] rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden bg-white">
-                  <div className="p-6 bg-gradient-to-r from-[#0f172a] to-primary text-white relative">
+                <DialogContent className="sm:max-w-[420px] rounded-4xl border-none shadow-2xl p-0 overflow-hidden bg-white">
+                  <div className="p-6 bg-linear-to-r from-[#0f172a] to-primary text-white relative">
                     <div className="absolute top-0 right-0 p-2 opacity-10">
                       <Brain className="size-16" />
                     </div>

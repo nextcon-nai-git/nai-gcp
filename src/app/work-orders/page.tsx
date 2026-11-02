@@ -466,7 +466,7 @@ export default function WorkOrdersPage() {
         </div>
         <article
           id="work-order-preview"
-          className="space-y-5 break-words rounded-xl border bg-card p-5 text-sm print:border-0 print:p-0"
+          className="space-y-5 wrap-break-word rounded-xl border bg-card p-5 text-sm print:border-0 print:p-0"
         >
           <h2 className="text-xl font-bold">ORDEM DE SERVIÇO DE SST — NR-01</h2>
           <p className="font-semibold text-amber-700 dark:text-amber-300">

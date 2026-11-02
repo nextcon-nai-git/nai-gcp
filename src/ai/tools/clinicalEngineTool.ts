@@ -1,5 +1,5 @@
 import { ai } from "@/ai/genkit";
-import { z } from "zod";
+import { z } from "genkit";
 import { CLINICAL_LINE_CODES, clinicalEngine } from "@/services/clinical-rules/engine";
 import { logger } from "@/lib/logger";
 

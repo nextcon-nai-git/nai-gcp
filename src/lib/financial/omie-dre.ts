@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { FinancialAction, FinancialActionImport } from "./actions";
 
 export function isCalendarDate(value: string): boolean {

@@ -89,6 +89,14 @@ function readRows(values: unknown[][], headers: readonly string[]) {
     .filter((row) => row.some((v) => text(v) !== ""))
     .map((row) => headers.map((_, i) => text(row[i])));
 }
+/** Canonical campaign rows are consumed only by the server source reader. */
+export const readPeriodicCampaignRows = (values: unknown[][]) => readRows(values, CAMPAIGN_HEADERS);
+export function periodicCampaignIdentity(row: string[]) {
+  const cpf = taxId(row[4]);
+  return cpf.length === 11 && row[22]
+    ? JSON.stringify([cpf, row[22], row[19], periodicCityKey(row[1], row[2])])
+    : `source:${row[30] || row[0]}`;
+}
 export type PeriodicPerson = {
   id: string;
   name: string;
@@ -112,6 +120,13 @@ export type PeriodicPerson = {
   classification: "cancelled" | "review" | "listed";
   duplicateRows: number;
   sourceRows: number[];
+  lastExam?: string;
+  periodicityMonths?: string;
+  reviewDetail?: string;
+  /** Opaque server-generated binding; raw identity fields are never returned. */
+  workId?: string;
+  workSourceVersion?: string;
+  workIdentityComplete?: boolean;
 };
 export type AvpObservedPrice = {
   clinic: string;
@@ -224,11 +239,7 @@ export function buildAvpPeriodicControl(
   for (const row of campaign) {
     if (!row[0] || !row[3] || !row[1] || !/^[A-Z]{2}$/.test(row[2]))
       throw new Error("Há participante sem ID, nome, cidade ou UF válida.");
-    const cpf = taxId(row[4]);
-    const key =
-      cpf.length === 11 && row[22]
-        ? JSON.stringify([cpf, row[22], row[19], periodicCityKey(row[1], row[2])])
-        : `source:${row[30] || row[0]}`;
+    const key = periodicCampaignIdentity(row);
     const rows = grouped.get(key) || [];
     rows.push(row);
     grouped.set(key, rows);
@@ -262,6 +273,12 @@ export function buildAvpPeriodicControl(
       classification,
       duplicateRows: rows.length - 1,
       sourceRows: rows.map((r) => Number(r[30])).filter(Number.isInteger),
+      lastExam: row[27],
+      periodicityMonths: row[23],
+      reviewDetail: rows
+        .map((r) => r[29])
+        .filter(Boolean)
+        .join(" / "),
     };
   });
   const clinicMap = new Map<string, PeriodicClinic>();

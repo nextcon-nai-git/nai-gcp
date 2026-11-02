@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { ObligationsSchema } from "./obligations";
 /** Null denotes absent/unreadable information; no defaults become contract facts. */
 export const ExtractionSchema = z.object({

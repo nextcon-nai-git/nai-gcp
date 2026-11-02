@@ -10,7 +10,7 @@ import { requireAiAction, DOCUMENT_AI_ROLES } from "@/lib/auth/ai-action";
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "zod";
+import { z } from "genkit";
 
 export const ActionItem5W2HSchema = z.object({
   what: z.string().describe("O que deve ser feito (ação corretiva imediata)."),

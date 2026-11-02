@@ -9,7 +9,7 @@ import {
   type Transaction,
 } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { adminDb } from "@/lib/firebase-admin";
 import { firebaseConfig } from "@/firebase/config";
 import type { AuthContext } from "@/lib/auth/auth-context";

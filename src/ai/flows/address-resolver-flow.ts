@@ -8,7 +8,7 @@ import "server-only";
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "zod";
+import { z } from "genkit";
 
 const AddressInputSchema = z.object({
   companyName: z.string().describe("Nome da empresa cliente."),

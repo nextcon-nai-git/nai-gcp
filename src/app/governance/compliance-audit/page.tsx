@@ -113,7 +113,7 @@ export default function ComplianceAuditPage() {
                 value={inputPayload}
                 onChange={(e) => setInputPayload(e.target.value)}
                 placeholder='{ "findings": [...] }'
-                className="w-full h-80 bg-slate-950 text-emerald-400 font-mono text-[10px] p-6 rounded-[2rem] border-none shadow-inner resize-none focus:ring-2 ring-accent/20"
+                className="w-full h-80 bg-slate-950 text-emerald-400 font-mono text-[10px] p-6 rounded-4xl border-none shadow-inner resize-none focus:ring-2 ring-accent/20"
               />
               <Button
                 onClick={handleRunAudit}
@@ -166,7 +166,7 @@ export default function ComplianceAuditPage() {
                 >
                   <CardContent className="p-10 flex flex-col md:flex-row items-center justify-between gap-8">
                     <div className="flex items-center gap-6">
-                      <div className="p-5 bg-white/10 rounded-[2rem] border border-white/20 shadow-2xl">
+                      <div className="p-5 bg-white/10 rounded-4xl border border-white/20 shadow-2xl">
                         <AlertTriangle
                           className={cn(
                             "size-10",
@@ -201,7 +201,7 @@ export default function ComplianceAuditPage() {
                   {result.findings.map((finding, idx) => (
                     <Card
                       key={idx}
-                      className="card-shadow border-none bg-white rounded-[2rem] p-8 text-left hover:ring-2 ring-primary/5 transition-all"
+                      className="card-shadow border-none bg-white rounded-4xl p-8 text-left hover:ring-2 ring-primary/5 transition-all"
                     >
                       <Badge
                         variant="outline"

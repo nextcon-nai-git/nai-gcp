@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { Button } from "@/components/ui/button";
 import type { Command, ProductionRecord } from "@/lib/production/model";
 import {

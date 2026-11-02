@@ -95,7 +95,7 @@ export default function ClinicalEnginePage() {
           </Button>
           <textarea
             id="clinical-json"
-            className="w-full h-[500px] p-4 font-mono text-sm bg-muted text-foreground rounded-2xl shadow-inner focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full h-[500px] p-4 font-mono text-sm bg-muted text-foreground rounded-2xl shadow-inner focus:outline-hidden focus:ring-2 focus:ring-ring"
             value={jsonInput}
             onChange={(event) => {
               setJsonInput(event.target.value);
@@ -124,14 +124,14 @@ export default function ClinicalEnginePage() {
           <h2 className="flex items-center gap-2 text-foreground font-bold">
             <Activity className="size-5" /> Resumo preliminar
           </h2>
-          <div className="bg-muted/50 rounded-2xl p-6 min-h-[500px] border shadow-sm space-y-4 overflow-y-auto">
+          <div className="bg-muted/50 rounded-2xl p-6 min-h-[500px] border shadow-xs space-y-4 overflow-y-auto">
             {resultados === null ? (
               <p className="text-muted-foreground font-medium">
                 Nenhum resumo disponível. Informe os dados para conferência.
               </p>
             ) : (
               resultados.map((res) => (
-                <Card key={res.codigo} className="border-l-4 border-l-primary shadow-sm">
+                <Card key={res.codigo} className="border-l-4 border-l-primary shadow-xs">
                   <CardHeader className="py-3 px-4 bg-muted/50">
                     <CardTitle className="text-sm font-black uppercase text-card-foreground">
                       {res.linha}

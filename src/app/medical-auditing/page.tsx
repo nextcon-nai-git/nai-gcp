@@ -69,7 +69,7 @@ export default function MedicalAuditingDashboard() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Badge className="bg-emerald-100 text-emerald-700 border-none font-black uppercase text-[10px] h-10 px-4 flex items-center shadow-sm">
+          <Badge className="bg-emerald-100 text-emerald-700 border-none font-black uppercase text-[10px] h-10 px-4 flex items-center shadow-xs">
             <CheckCircle2 className="size-4 mr-2" /> RN 424 ANS CONFORME
           </Badge>
           <Button
@@ -255,7 +255,7 @@ export default function MedicalAuditingDashboard() {
 
 function MetricCard({ label, value, sub, icon: Icon, color, bg, trend }: any) {
   return (
-    <Card className="border-none shadow-sm bg-white rounded-[2rem] group hover:ring-2 ring-primary/5 transition-all overflow-hidden relative">
+    <Card className="border-none shadow-xs bg-white rounded-4xl group hover:ring-2 ring-primary/5 transition-all overflow-hidden relative">
       <CardContent className="p-6 relative z-10 text-left">
         <div className="flex items-center justify-between mb-4">
           <div

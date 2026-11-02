@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { suggestExams } from "@/ai/flows/suggest-exams-flow";
 import { requireAuth, extractBearerToken } from "@/lib/auth/require-auth";
 import { AuthError, forbidden, handleAuthError } from "@/lib/auth/errors";

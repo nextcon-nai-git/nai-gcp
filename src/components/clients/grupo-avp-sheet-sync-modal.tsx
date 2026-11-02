@@ -557,7 +557,7 @@ export function GrupoAvpSheetSyncModal({
           </TabsList>
 
           {/* ABA 1: SINCRONIZAÇÃO EM TEMPO REAL COM GOOGLE DRIVE */}
-          <TabsContent value="online-drive" className="space-y-6 focus-visible:outline-none">
+          <TabsContent value="online-drive" className="space-y-6 focus-visible:outline-hidden">
             {managedSync && onManagedRefresh ? (
               <div className="space-y-3 rounded-xl border border-slate-700 p-4 text-sm">
                 <h4 className="font-semibold">Planilha de pendencias Grupo AVP</h4>
@@ -789,7 +789,7 @@ export function GrupoAvpSheetSyncModal({
           </TabsContent>
 
           {/* ABA 2: IMPORTAÇÃO MANUAL (ARQUIVO EXCEL/CSV OU COLAR CTRL+V) */}
-          <TabsContent value="manual-import" className="space-y-6 focus-visible:outline-none">
+          <TabsContent value="manual-import" className="space-y-6 focus-visible:outline-hidden">
             {/* ZONA DE DROP / UPLOAD DE ARQUIVO */}
             <div className="p-6 rounded-2xl bg-slate-900/70 border-2 border-dashed border-slate-700 text-center space-y-3 hover:border-emerald-500/50 transition-colors">
               <input

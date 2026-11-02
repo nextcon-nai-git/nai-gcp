@@ -6,7 +6,7 @@ import { requireAiAction, DOCUMENT_AI_ROLES } from "@/lib/auth/ai-action";
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "zod";
+import { z } from "genkit";
 
 const EmployeeExtractionInputSchema = z.object({
   rawText: z.string().describe("O texto bruto copiado de um PDF, Excel ou documento de RH."),

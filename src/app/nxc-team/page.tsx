@@ -87,7 +87,7 @@ import { deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -177,7 +177,7 @@ function NcxTeamSession() {
     });
   }, [allEmployees, searchTerm, contractFilter]);
 
-  const form = useForm<NcxEmployeeFormValues>({
+  const form = useForm<z.input<typeof nxcEmployeeSchema>, unknown, NcxEmployeeFormValues>({
     resolver: zodResolver(nxcEmployeeSchema),
     defaultValues: {
       name: "",
@@ -271,7 +271,7 @@ function NcxTeamSession() {
         Registro diário de atividades
       </Link>
       {/* HEADER BANNER */}
-      <div className="bg-gradient-to-r from-[#001F3F] via-[#002B4E] to-[#0A192F] p-8 rounded-3xl text-white shadow-2xl relative overflow-hidden border border-accent/20">
+      <div className="bg-linear-to-r from-[#001F3F] via-[#002B4E] to-[#0A192F] p-8 rounded-3xl text-white shadow-2xl relative overflow-hidden border border-accent/20">
         <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-96 h-96 bg-accent/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">

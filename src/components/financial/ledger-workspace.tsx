@@ -68,7 +68,7 @@ import {
 } from "@/lib/financial/ledger";
 
 const inputClass =
-  "h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-teal-600/30";
+  "h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-hidden focus:ring-2 focus:ring-teal-600/30";
 const monthLabel = (s: string) =>
   new Intl.DateTimeFormat("pt-BR", { month: "short", year: "2-digit", timeZone: "UTC" }).format(
     new Date(s + "-15T12:00:00Z")
@@ -1043,7 +1043,7 @@ function LedgerSessionWorkspace({ user }: { user: User }) {
                   <dl className="mt-5 space-y-4 text-sm">
                     <div>
                       <dt className="text-xs text-slate-400">Documento original</dt>
-                      <dd className="mt-1 break-words">{book.sourceName}</dd>
+                      <dd className="mt-1 wrap-break-word">{book.sourceName}</dd>
                     </div>
                     <div>
                       <dt className="text-xs text-slate-400">Cobertura</dt>

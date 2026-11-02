@@ -1,7 +1,7 @@
 "use server";
 
 import { ai } from "@/ai/genkit";
-import { z } from "zod";
+import { z } from "genkit";
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { forbidden } from "@/lib/auth/errors";

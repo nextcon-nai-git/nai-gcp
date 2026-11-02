@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { isValidPgrCnpj } from "@/lib/pgr-schema";
 
 export const MONTHLY_CONTRACT_ID = "fixed-monthly-billing";

@@ -36,7 +36,7 @@ export default function IndustrialErgonomicsPage() {
           </span>
           <Button
             onClick={() => window.print()}
-            className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-lg shadow-orange-500/20 active:scale-95"
+            className="bg-linear-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-lg shadow-orange-500/20 active:scale-95"
           >
             💾 Exportar Ficha Paisagem (PDF)
           </Button>
@@ -46,15 +46,15 @@ export default function IndustrialErgonomicsPage() {
       {/* INFOGRÁFICO PAISAGEM PRINCIPAL */}
       <div className="max-w-[1400px] mx-auto bg-slate-900/30 border border-slate-800/80 rounded-[3rem] p-8 md:p-12 backdrop-blur-xl shadow-2xl relative overflow-hidden flex flex-col justify-between min-h-[700px] text-left">
         {/* AURORA GLOW FX */}
-        <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-gradient-to-br from-orange-500/10 to-transparent rounded-full blur-[120px] pointer-events-none" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-gradient-to-tr from-cyan-500/5 to-transparent rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-linear-to-br from-orange-500/10 to-transparent rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-linear-to-tr from-cyan-500/5 to-transparent rounded-full blur-[100px] pointer-events-none" />
 
         {/* HEADER DA APRESENTAÇÃO EXECUTIVA */}
         <header className="border-b border-slate-800/80 pb-6 mb-10 flex justify-between items-start relative z-10">
           <div>
             <div className="flex items-center gap-3">
               <span className="h-3 w-3 rounded-full bg-orange-500 animate-pulse" />
-              <h1 className="text-2xl font-black tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent uppercase font-headline">
+              <h1 className="text-2xl font-black tracking-tight bg-linear-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent uppercase font-headline">
                 NAI Studio{" "}
                 <span className="text-orange-400 font-mono font-light text-sm tracking-widest border border-orange-500/20 bg-orange-500/5 px-3 py-1 rounded ml-2">
                   AEP 2026

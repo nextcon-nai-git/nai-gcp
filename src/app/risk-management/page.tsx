@@ -362,7 +362,7 @@ function RiskInventoryContent() {
         />
       </section>
 
-      <Card className="overflow-hidden rounded-3xl border-slate-200 shadow-sm">
+      <Card className="overflow-hidden rounded-3xl border-slate-200 shadow-xs">
         <CardHeader className="border-b bg-slate-50/70">
           <div className="flex items-center justify-between gap-4">
             <div>

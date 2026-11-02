@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { z } from "zod";
+import type { z } from "genkit";
 
 const mocks = vi.hoisted(() => ({
   defineTool: vi.fn((_config: unknown, handler: unknown) => handler),
@@ -14,6 +14,12 @@ import {
   PatientDataSchema,
   evaluateClinicalLinesTool,
 } from "./clinicalEngineTool";
+
+// Registration happens once on import; retain it before per-test mock cleanup.
+const toolConfig = mocks.defineTool.mock.calls[0][0] as {
+  description: string;
+  outputSchema: unknown;
+};
 
 type ToolOutput = z.infer<typeof ClinicalSummaryOutputSchema>;
 const callTool = evaluateClinicalLinesTool as unknown as (input: unknown) => Promise<ToolOutput>;
@@ -54,13 +60,9 @@ describe("clinical summary tool boundary", () => {
   });
 
   it("does not describe the summary as an official guideline or mandate repetition", () => {
-    const config = mocks.defineTool.mock.calls[0][0] as {
-      description: string;
-      outputSchema: unknown;
-    };
-    expect(config.description).not.toMatch(/diretriz|oficia|exat|sempre use/i);
-    expect(config.description).toContain("revisão profissional");
-    expect(config.outputSchema).toBe(ClinicalSummaryOutputSchema);
+    expect(toolConfig.description).not.toMatch(/diretriz|oficia|exat|sempre use/i);
+    expect(toolConfig.description).toContain("revisão profissional");
+    expect(toolConfig.outputSchema).toBe(ClinicalSummaryOutputSchema);
   });
 
   it.each([

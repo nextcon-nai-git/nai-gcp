@@ -164,7 +164,7 @@ export function OperationalKitPanel({
   };
   const fieldClass = "mt-1 w-full rounded-md border bg-background p-2 text-foreground";
   const summaryClass =
-    "flex cursor-pointer list-none items-center gap-2 rounded-lg p-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 [&::-webkit-details-marker]:hidden";
+    "flex cursor-pointer list-none items-center gap-2 rounded-lg p-3 text-sm font-semibold focus-visible:outline-solid focus-visible:outline-2 [&::-webkit-details-marker]:hidden";
   const valid = KitSelection.safeParse(selection).success;
   return (
     <section className="space-y-4 rounded-xl border p-4" aria-label="Emissão de kits no NAI">
@@ -177,7 +177,7 @@ export function OperationalKitPanel({
         </span>
       </div>
       <details className="text-sm text-muted-foreground">
-        <summary className="inline-flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 focus-visible:outline focus-visible:outline-2">
+        <summary className="inline-flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 focus-visible:outline-solid focus-visible:outline-2">
           <CircleHelp aria-hidden="true" className="h-4 w-4" /> Como funciona
         </summary>
         <div className="mt-2 space-y-2 rounded-lg bg-muted/40 p-3">

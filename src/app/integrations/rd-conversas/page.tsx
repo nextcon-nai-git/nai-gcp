@@ -77,7 +77,7 @@ function DataTable({ rows, columns }: { rows: Row[]; columns: [string, string][]
           {rows.map((row, index) => (
             <tr key={row.id || index} className="border-t">
               {columns.map(([key]) => (
-                <td key={key} className="max-w-md whitespace-pre-wrap break-words p-3">
+                <td key={key} className="max-w-md whitespace-pre-wrap wrap-break-word p-3">
                   {key.endsWith("At") ? dateText(row[key]) : row[key] || "—"}
                 </td>
               ))}

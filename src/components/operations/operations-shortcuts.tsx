@@ -60,8 +60,8 @@ export function OperationsShortcuts({
             href={action.href}
             className={
               compact
-                ? "flex min-h-20 flex-col items-center justify-center gap-2 rounded-xl border bg-card p-3 text-center text-sm transition-colors hover:border-primary hover:bg-muted focus-visible:outline focus-visible:outline-2"
-                : "rounded-lg border p-4 hover:bg-muted focus-visible:outline focus-visible:outline-2"
+                ? "flex min-h-20 flex-col items-center justify-center gap-2 rounded-xl border bg-card p-3 text-center text-sm transition-colors hover:border-primary hover:bg-muted focus-visible:outline-solid focus-visible:outline-2"
+                : "rounded-lg border p-4 hover:bg-muted focus-visible:outline-solid focus-visible:outline-2"
             }
             title={action.description}
           >

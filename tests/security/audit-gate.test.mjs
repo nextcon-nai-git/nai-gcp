@@ -124,7 +124,19 @@ test("does not extend a reviewed exception to another owner or advisory name", (
   assert.throws(() => assessAudit(name), /Unpatched vulnerability/);
 });
 
-test("does not extend a reviewed exception to nested or aliased installations", () => {
+test("accepts only the explicitly reviewed and byte-verified Genkit copies", () => {
+  const input = patched();
+  input.vulnerabilities.zod.nodes = [
+    "node_modules/@genkit-ai/core/node_modules/zod",
+    "node_modules/@genkit-ai/telemetry-server/node_modules/zod",
+    "node_modules/@genkit-ai/tools-common/node_modules/zod",
+  ];
+  assert.deepEqual(assessAudit(input).backportedHighPackages, ["zod"]);
+  input.vulnerabilities.zod.via.push(advisory("zod", "high", "https://example.invalid/new"));
+  assert.throws(() => assessAudit(input), /Unpatched vulnerability/);
+});
+
+test("does not extend a reviewed exception to unreviewed nested or aliased installations", () => {
   for (const nodes of [
     ["node_modules/other/node_modules/zod"],
     ["node_modules/zod", "node_modules/other/node_modules/zod"],

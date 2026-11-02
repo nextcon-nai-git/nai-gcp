@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { requireAuth, extractBearerToken } from "@/lib/auth/require-auth";
 import { AuthError, forbidden, badRequest } from "@/lib/auth/errors";

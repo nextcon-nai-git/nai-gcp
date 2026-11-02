@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { isCalendarDate } from "@/lib/financial/omie-dre";
 import { isValidCnpj, normalizeCnpj } from "@/lib/cnpj";
 import { instructions, type CardId } from "./instructions";

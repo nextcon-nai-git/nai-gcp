@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { isCalendarDate } from "./omie-dre";
 const day = z.string().refine(isCalendarDate, "Data inválida");
 export const ReportInputSchema = z

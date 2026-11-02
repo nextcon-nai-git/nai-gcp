@@ -6,7 +6,7 @@ import "server-only";
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "zod";
+import { z } from "genkit";
 
 const ProviderEnrichInputSchema = z.object({
   name: z.string().describe("Nome da empresa/clínica."),

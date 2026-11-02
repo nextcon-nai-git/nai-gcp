@@ -2,7 +2,7 @@ import "server-only";
 import { getStorage } from "firebase-admin/storage";
 import "@/lib/firebase-admin";
 import { firebaseConfig } from "@/firebase/config";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { AuthError } from "@/lib/auth/errors";
 export const privateBucket = () => getStorage().bucket(firebaseConfig.storageBucket);
 const code = (e: unknown) => (e && typeof e === "object" && "code" in e ? Number(e.code) : 0);

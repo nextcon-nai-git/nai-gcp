@@ -3,7 +3,9 @@ import plugin from "tailwindcss/plugin";
 /** Bridge older module utilities to the shared navy theme, including hover/focus and opacity.
  * Screen-only: printed documents keep their original paper colors.
  */
-export const naiTheme = plugin(({ addUtilities, e }) => {
+export const naiTheme = plugin(({ addUtilities }) => {
+  // All generated names contain only letters, numbers, hyphens and opacity slashes.
+  const e = (name: string) => name.replaceAll("/", "\\/");
   const rules: Record<string, Record<string, string>> = {};
   const add = (name: string, property: string, color: string) => {
     rules[`.dark .${e(name)}`] = { [property]: color };
@@ -14,21 +16,20 @@ export const naiTheme = plugin(({ addUtilities, e }) => {
       add(`bg-${name}/${opacity}`, "background-color", `hsl(var(--${token}) / ${opacity / 100})`);
     }
     for (const direction of ["from", "via", "to"]) {
-      // Keep gradient stops consistent with the same surface colors.
-      if (direction === "to")
-        add(
-          `to-${name}`,
-          "--tw-gradient-to",
-          `hsl(var(--${token})) var(--tw-gradient-to-position)`
-        );
-      if (direction === "from") {
-        const selector = `.dark .${e(`from-${name}`)}`;
-        rules[selector] = {
-          "--tw-gradient-from": `hsl(var(--${token})) var(--tw-gradient-from-position)`,
-          "--tw-gradient-to": `hsl(var(--${token}) / 0) var(--tw-gradient-to-position)`,
-          "--tw-gradient-stops": "var(--tw-gradient-from), var(--tw-gradient-to)",
-        };
-      }
+      // Tailwind 4 registers stop values as <color>; positions belong only in
+      // the stop list. Keep the direction and optional middle stop intact.
+      const stops =
+        "var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position))";
+      rules[`.dark .${e(`${direction}-${name}`)}`] = {
+        [`--tw-gradient-${direction}`]: `hsl(var(--${token}))`,
+        ...(direction === "via"
+          ? {
+              "--tw-gradient-via-stops":
+                "var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-via) var(--tw-gradient-via-position), var(--tw-gradient-to) var(--tw-gradient-to-position)",
+              "--tw-gradient-stops": "var(--tw-gradient-via-stops)",
+            }
+          : { "--tw-gradient-stops": stops }),
+      };
     }
   };
   background("white", "card");
@@ -90,5 +91,12 @@ export const naiTheme = plugin(({ addUtilities, e }) => {
     for (const shade of [600, 700, 800, 900, 950])
       add(`text-${family}-${shade}`, "color", `hsl(${hue} 90% 82% / var(--tw-text-opacity, 1))`);
   }
-  addUtilities({ "@media screen": rules });
+  addUtilities(
+    Object.fromEntries(
+      Object.entries(rules).map(([selector, declaration]) => [
+        selector,
+        { "@media screen": declaration },
+      ])
+    )
+  );
 });
