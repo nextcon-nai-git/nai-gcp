@@ -24,7 +24,7 @@ beforeEach(() => {
     clientId: "company-a",
     scopes: ["esocial:write"],
   });
-  state.get.mockResolvedValue({ exists: true, data: () => ({ cnpj: "12.345.678/0001-90" }) });
+  state.get.mockResolvedValue({ exists: true, data: () => ({ cnpj: "12.345.678/0001-95" }) });
 });
 
 describe("rascunho eSocial autenticado e isolado por empresa", () => {

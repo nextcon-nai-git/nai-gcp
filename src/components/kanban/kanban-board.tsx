@@ -7,6 +7,7 @@ import {
   DragOverlay,
   DragStartEvent,
   PointerSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
   closestCorners,
@@ -18,13 +19,10 @@ import { KanbanColumn } from "./kanban-column";
 import { TaskCard } from "./task-card";
 import { createPortal } from "react-dom";
 import { useFirestore, useUser } from "@/firebase";
-import { doc } from "firebase/firestore";
-import {
-  updateDocumentNonBlocking,
-  deleteDocumentNonBlocking,
-} from "@/firebase/non-blocking-updates";
+import { taskKey } from "@/lib/task-workspace";
+import { doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Archive, Sparkles } from "lucide-react";
+import { Trash2, Archive } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { updatePgrTask } from "@/hooks/use-pgr-workspace";
 
@@ -63,11 +61,7 @@ function SpecialDropZone({
   );
 }
 
-export function KanbanBoard({
-  tasks: initialTasks,
-  columns = DEFAULT_COLUMNS,
-  boardType = "operational",
-}: KanbanBoardProps) {
+export function KanbanBoard({ tasks: initialTasks, columns = DEFAULT_COLUMNS }: KanbanBoardProps) {
   const [tasks, setTasks] = useState<OpsTask[]>(initialTasks);
   const [activeTask, setActiveTask] = useState<OpsTask | null>(null);
   const { user } = useUser();
@@ -81,12 +75,13 @@ export function KanbanBoard({
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 5 },
-    })
+    }),
+    useSensor(KeyboardSensor)
   );
 
   function handleDragStart(event: DragStartEvent) {
     const { active } = event;
-    const task = tasks.find((t) => t.id === active.id);
+    const task = tasks.find((t) => taskKey(t) === active.id);
     if (task) setActiveTask(task);
   }
 
@@ -99,8 +94,9 @@ export function KanbanBoard({
     const taskId = active.id as string;
     const dropTargetId = over.id as string;
 
-    const currentTask = tasks.find((t) => t.id === taskId);
+    const currentTask = tasks.find((t) => taskKey(t) === taskId);
     if (!currentTask || !currentTask.companyId) return;
+    if (!["trash", "archive", ...columns.map((c) => c.id)].includes(dropTargetId)) return;
     if (currentTask.sourceType === "pgr") {
       if (!user) return;
       if (dropTargetId === "trash") {
@@ -116,8 +112,10 @@ export function KanbanBoard({
         await updatePgrTask(user, currentTask.companyId, currentTask.id, { status: nextStatus });
         setTasks((prev) =>
           nextStatus === "archived"
-            ? prev.filter((t) => t.id !== taskId)
-            : prev.map((t) => (t.id === taskId ? { ...t, status: nextStatus as TaskStatus } : t))
+            ? prev.filter((t) => taskKey(t) !== taskId)
+            : prev.map((t) =>
+                taskKey(t) === taskId ? { ...t, status: nextStatus as TaskStatus } : t
+              )
         );
         toast({
           title: "Card do PGR atualizado",
@@ -135,48 +133,29 @@ export function KanbanBoard({
     }
     if (!db) return;
 
-    const taskRef = doc(db, "companies", currentTask.companyId, "tasks", taskId);
+    const taskRef = doc(db, "companies", currentTask.companyId, "tasks", currentTask.id);
 
-    // --- LÓGICA DE EXCLUSÃO (LIXO) ---
-    if (dropTargetId === "trash") {
-      if (confirm(`Deseja excluir permanentemente o card "${currentTask.title}"?`)) {
-        setTasks((prev) => prev.filter((t) => t.id !== taskId));
-        deleteDocumentNonBlocking(taskRef);
-        toast({ title: "Card Excluído", description: "O registro foi removido da base Nextcon." });
-      }
+    if (dropTargetId === "trash" && !confirm(`Excluir permanentemente "${currentTask.title}"?`))
       return;
-    }
-
-    // --- LÓGICA DE ARQUIVAMENTO ---
-    if (dropTargetId === "archive") {
-      setTasks((prev) => prev.filter((t) => t.id !== taskId));
-      updateDocumentNonBlocking(taskRef, { status: "archived" });
+    const newStatus = dropTargetId === "archive" ? "archived" : (dropTargetId as TaskStatus);
+    if (newStatus === currentTask.status) return;
+    try {
+      if (dropTargetId === "trash") await deleteDoc(taskRef);
+      else await updateDoc(taskRef, { status: newStatus });
+      setTasks((prev) =>
+        dropTargetId === "trash" || newStatus === "archived"
+          ? prev.filter((t) => taskKey(t) !== taskId)
+          : prev.map((t) => (taskKey(t) === taskId ? { ...t, status: newStatus as TaskStatus } : t))
+      );
       toast({
-        title: "Card Arquivado",
-        description: "O registro será mantido por 1 ano para fins de auditoria.",
+        title: "Quadro atualizado",
+        description: "Alteração salva. Nenhuma mensagem foi enviada.",
       });
-      return;
-    }
-
-    // --- LÓGICA DE TRANSIÇÃO ENTRE COLUNAS ---
-    const newStatus = dropTargetId as TaskStatus;
-    if (currentTask.status === newStatus) return;
-
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)));
-
-    if (boardType === "commercial" && newStatus === "implementation") {
+    } catch {
       toast({
-        title: "Iniciando Implantação",
-        description: "O projeto está sendo preparado para a engenharia.",
-      });
-    }
-
-    updateDocumentNonBlocking(taskRef, { status: newStatus });
-
-    if (newStatus === "done") {
-      toast({
-        title: "Tarefa Finalizada",
-        description: "Gatilhando automação de documentos e envio eSocial...",
+        variant: "destructive",
+        title: "Não foi possível salvar",
+        description: "O card permanece na etapa anterior. Tente novamente.",
       });
     }
   }
@@ -189,9 +168,9 @@ export function KanbanBoard({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex h-full gap-6 overflow-x-auto pb-4 scrollbar-thin flex-1">
+        <div className="flex h-full gap-3 overflow-x-auto pb-4 scrollbar-thin flex-1">
           {columns.map((col) => (
-            <div key={col.id} className="h-full">
+            <div key={col.id} className="h-full shrink-0">
               <KanbanColumn
                 id={col.id as TaskStatus}
                 title={col.title}
@@ -207,7 +186,7 @@ export function KanbanBoard({
           <div className="fixed bottom-10 left-1/2 -translate-x-1/2 w-full max-w-2xl px-6 flex gap-4 animate-in slide-in-from-bottom-10 duration-500 z-50">
             <SpecialDropZone
               id="archive"
-              label="Arquivar (1 Ano)"
+              label="Arquivar"
               icon={Archive}
               activeColor="bg-amber-600"
             />
@@ -225,7 +204,7 @@ export function KanbanBoard({
             <DragOverlay adjustScale={true}>
               {activeTask ? (
                 <div className="rotate-3 scale-105 opacity-90 cursor-grabbing drop-shadow-2xl">
-                  <TaskCard task={activeTask} />
+                  <TaskCard task={activeTask} preview />
                 </div>
               ) : null}
             </DragOverlay>,

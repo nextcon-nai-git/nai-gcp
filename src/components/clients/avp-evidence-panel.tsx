@@ -42,7 +42,9 @@ function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
   }, []);
   const owner = React.useRef(user?.uid);
   const refreshVersion = React.useRef(0);
-  owner.current = user?.uid;
+  React.useLayoutEffect(() => {
+    owner.current = user?.uid;
+  }, [user?.uid]);
   const api = React.useCallback(
     async (init?: RequestInit, query = "") => {
       if (!user) throw new Error("Entre no NAI para consultar evidências.");

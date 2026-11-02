@@ -98,6 +98,13 @@ async function upload(
   await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
 }
 describe("report archive", () => {
+  it("requires a specific company instead of issuing an unsupported global archive query", async () => {
+    m.scope = "all";
+    await v.render(<Page />);
+    expect(v.container.textContent).toContain("Selecione uma empresa autorizada");
+    expect(v.container.textContent).not.toContain("Laudo sintético");
+  });
+
   it("shows only the selected company's reports and opens its analysis", async () => {
     await v.render(<Page />);
     expect(v.container.textContent).toContain("Laudo sintético");
@@ -120,15 +127,12 @@ describe("report archive", () => {
       expect(m.classify).not.toHaveBeenCalled();
     }
   );
-  it("requires a selected company before protocoling", async () => {
+  it("does not offer protocol storage without a selected company", async () => {
     m.scope = "all";
     await v.render(<Page />);
-    await upload();
-    await v.click("Confirmar armazenamento");
+    expect(v.container.querySelector("button")).toBeNull();
     expect(m.upload).not.toHaveBeenCalled();
-    expect(m.toast).toHaveBeenLastCalledWith(
-      expect.objectContaining({ title: "Unidade não selecionada" })
-    );
+    expect(m.classify).not.toHaveBeenCalled();
   });
   it.each(["", "application/x-pdf", "application/octet-stream"])(
     "accepts a PDF with browser type %s and normalizes its upload metadata",

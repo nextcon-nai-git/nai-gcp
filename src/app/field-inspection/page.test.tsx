@@ -216,6 +216,28 @@ describe("field inspection boundaries", () => {
     await picture(new File([], "empty.jpg", { type: "image/jpeg" }));
     expect(m.toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: "Foto inválida" }));
   });
+  it("blocks analysis after a rejected replacement even when notes are filled", async () => {
+    await prepare();
+    await picture();
+    await picture(new File(["invalid"], "bad.txt", { type: "text/plain" }));
+    expect(v.container.querySelector("img")).toBeNull();
+    expect(v.button("Auditar Imagem").disabled).toBe(true);
+    await v.click("Auditar Imagem");
+    expect(m.analyze).not.toHaveBeenCalled();
+    await picture();
+    expect(v.button("Auditar Imagem").disabled).toBe(false);
+  });
+  it("discards a late photo analysis after its image was rejected or replaced", async () => {
+    await prepare();
+    await picture();
+    const pending = deferred<any>();
+    m.analyze.mockReturnValueOnce(pending.promise);
+    await v.click("Auditar Imagem");
+    await picture(new File(["bad"], "bad.txt", { type: "text/plain" }));
+    await act(async () => pending.resolve(report));
+    expect(v.container.textContent).not.toContain("Risco sintético");
+    expect(m.save).not.toHaveBeenCalled();
+  });
   it("advertises the accepted photo formats and explains native mobile conversion", async () => {
     await prepare();
     for (const input of v.container.querySelectorAll('input[type="file"]')) {

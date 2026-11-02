@@ -1,6 +1,7 @@
 import Papa from "papaparse";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import { forbidden } from "@/lib/auth/errors";
+import { socWebAccess } from "./soc-access";
 
 export type SocResource = "companies" | "employees" | "asos";
 export type SocRow = Record<string, string>;
@@ -63,6 +64,7 @@ export function socConfiguration() {
     ),
     connected: null,
     writesEnabled: false,
+    webAccess: socWebAccess(),
   };
 }
 function invalid(message: string): never {

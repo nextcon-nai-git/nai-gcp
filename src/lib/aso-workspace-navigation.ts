@@ -1,8 +1,8 @@
-export type AsoWorkspaceView = "agendamento" | "clinica";
+export type AsoWorkspaceView = "agendamento" | "clinica" | "esteira";
 export type AsoSearchParams = Record<string, string | string[] | undefined>;
 
 export function asoWorkspaceView(params: AsoSearchParams): AsoWorkspaceView {
-  return params.tab === "agendamento" ? "agendamento" : "clinica";
+  return params.tab === "agendamento" || params.tab === "esteira" ? params.tab : "clinica";
 }
 
 /** Keep existing deep-link parameters when switching areas or opening a legacy URL. */

@@ -6,11 +6,18 @@ import { Badge } from "@/components/ui/badge";
 
 const availableModules = [
   {
-    name: "Painel SOC · Clientes e pendências",
+    name: "Assistente NAI · Clínicas e kits",
     description:
-      "Acompanhe o levantamento dos clientes ativos, os relatórios disponíveis e as pendências confirmadas. Consulte também cadastros e ASOs com as credenciais configuradas.",
+      "Acesse os módulos de credenciamento, periódicos e geração de PDF. Use a OpenAI para consultar documentos e tarefas e propor cards do cliente selecionado.",
+    href: "/assistente",
+    action: "Abrir assistente NAI",
+  },
+  {
+    name: "Central SOC · Clínicas, kits e consultas",
+    description:
+      "Acesse credenciamento de clínicas, geração de kits e periódicos. Confira a conexão de serviço e o acesso ao SOC em um só lugar.",
     href: "/integrations/soc",
-    action: "Abrir painel SOC",
+    action: "Abrir central SOC",
   },
   {
     name: "RD Conversas · Tallos",

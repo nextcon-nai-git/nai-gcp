@@ -24,7 +24,10 @@
     "infra:indexes": "firebase deploy --only firestore:indexes",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:rules": "npx --yes firebase-tools@15.33.0 emulators:exec --project demo-nai-security --only firestore,storage --config firebase.test.json \"vitest run --config vitest.rules.config.ts\""
+    "test:rules": "npx --yes firebase-tools@15.33.0 emulators:exec --project demo-nai-security --only firestore,storage --config firebase.test.json \"vitest run --config vitest.rules.config.ts\"",
+    "postinstall": "node scripts/security/apply-dependency-patches.mjs",
+    "test:dependency-security": "node scripts/security/apply-dependency-patches.mjs --check && node --test tests/security/audit-gate.test.mjs tests/security/dependency-patches.test.mjs",
+    "prebuild": "node scripts/security/apply-dependency-patches.mjs --check"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
@@ -57,6 +60,7 @@
     "@radix-ui/react-tooltip": "^1.2.16",
     "@react-pdf/renderer": "^4.1.0",
     "@scalar/nextjs-api-reference": "^0.12.7",
+    "@xmldom/xmldom": "0.9.12",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
@@ -69,8 +73,10 @@
     "googleapis": "^185.0.0",
     "jspdf": "4.2.1",
     "jszip": "^3.10.2",
+    "libxml2-wasm": "0.7.2",
     "lucide-react": "^1.58.0",
-    "next": "15.5.27",
+    "next": "15.5.28",
+    "node-forge": "1.4.2",
     "papaparse": "^5.7.0",
     "pdfjs-dist": "6.4.299",
     "react": "^19.2.1",
@@ -81,19 +87,21 @@
     "recharts": "^2.15.1",
     "tailwind-merge": "^3.0.1",
     "tailwindcss-animate": "^1.0.7",
-    "zod": "^3.24.2"
+    "xml-crypto": "6.4.0",
+    "zod": "3.25.76",
+    "zod-security-v4": "npm:zod@4.6.7"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^4.0.1",
     "@types/node": "^26",
+    "@types/node-forge": "1.3.14",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.1",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.0.1",
     "@vitest/coverage-v8": "4.1.11",
     "eslint": "9.39.4",
-    "eslint-config-next": "16.2.3",
-    "eslint-plugin-react-hooks": "7.0.1",
+    "eslint-config-next": "16.4.2",
     "genkit-cli": "1.43.0",
     "jsdom": "^29.0.2",
     "postcss": "^8.5.28",
@@ -109,6 +117,7 @@
     "picomatch@<2.3.2": "^2.3.2",
     "@grpc/grpc-js": ">=1.14.0",
     "adm-zip": ">=0.5.12",
-    "@opentelemetry/propagator-jaeger": "2.9.0"
+    "@opentelemetry/propagator-jaeger": "2.9.0",
+    "zod@>=4.0.0 <4.6.6": "4.6.7"
   }
 }

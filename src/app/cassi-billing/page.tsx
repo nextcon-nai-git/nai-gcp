@@ -51,114 +51,62 @@ export default function CassiBillingPage() {
 
   // Formulário da Guia CASSI
   const [guideType, setGuideType] = useState<"SP_SADT" | "INTERNACAO" | "HONORARIOS">("SP_SADT");
-  const [authNumber, setAuthNumber] = useState("9847291034");
-  const [authDate, setAuthDate] = useState("2026-09-04");
-  const [providerGuideNumber, setProviderGuideNumber] = useState(
-    `NXC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`
-  );
-  const [passwordValidity, setPasswordValidity] = useState("2026-10-04");
+  const [authNumber, setAuthNumber] = useState("");
+  const [authDate, setAuthDate] = useState("");
+  const [providerGuideNumber, setProviderGuideNumber] = useState("");
+  const [passwordValidity, setPasswordValidity] = useState("");
 
   // Beneficiário
-  const [cardNumber, setCardNumber] = useState("1029384756001");
-  const [cardValidity, setCardValidity] = useState("2028-12-31");
-  const [beneficiaryName, setBeneficiaryName] = useState("MARCOS AURÉLIO DA SILVA");
-  const [cns, setCns] = useState("700001234567890");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardValidity, setCardValidity] = useState("");
+  const [beneficiaryName, setBeneficiaryName] = useState("");
+  const [cns, setCns] = useState("");
   const [isNewborn] = useState(false);
 
   // Executante & Solicitante
-  const [selectedProviderId, setSelectedProviderId] = useState("50917337000136");
-  const [operatorCode, setOperatorCode] = useState("44.337.647/0001-89");
-  const [cnesCode, setCnesCode] = useState("9384721");
+  const [selectedProviderId, setSelectedProviderId] = useState("");
+  const [operatorCode, setOperatorCode] = useState("");
+  const [cnesCode, setCnesCode] = useState("");
   const [contractedName] = useState("NXC SAÚDE EMPRESARIAL LTDA");
 
-  const [doctorName, setDoctorName] = useState("DR. CAIO VINICIUS DE CASTRO LIMA MARTINS");
+  const [doctorName, setDoctorName] = useState("");
   const [councilType, setCouncilType] = useState("CRM");
-  const [councilNumber, setCouncilNumber] = useState("30470");
-  const [councilUf, setCouncilUf] = useState("DF");
-  const [cboCode, setCboCode] = useState("225125");
+  const [councilNumber, setCouncilNumber] = useState("");
+  const [councilUf, setCouncilUf] = useState("");
+  const [cboCode, setCboCode] = useState("");
 
   // Atendimento & CID
   const [attendanceType, setAttendanceType] = useState("01 - Consulta");
   const [careCharacter, setCareCharacter] = useState<"1" | "2">("1");
   const [consultationType] = useState("1 - Primeira Consulta");
   const [accidentIndication] = useState("0 - Não Acidente");
-  const [primaryCid, setPrimaryCid] = useState("Z10.0");
+  const [primaryCid, setPrimaryCid] = useState("");
   const [secondaryCid, setSecondaryCid] = useState("");
 
   // Procedimentos
-  const [procedures, setProcedures] = useState<CassiProcedureItem[]>([
-    {
-      id: "proc_1",
-      code: "10101012",
-      description: "Consulta em consultório (no horário normal ou preestabelecido)",
-      isPackage: false,
-      date: "2026-09-04",
-      quantity: 1,
-      unitValue: 120.0,
-      totalValue: 120.0,
-    },
-  ]);
+  const [procedures, setProcedures] = useState<CassiProcedureItem[]>([]);
 
   // Despesas adicionais
   const [expenses] = useState<CassiExpenseItem[]>([]);
 
   // Anexos
-  const [attachments] = useState<CassiAttachmentItem[]>([
-    {
-      id: "att_1",
-      docType: "Laudo Médico",
-      fileName: "laudo_medico_ocupacional.pdf",
-      fileSize: "1.2 MB",
-      description: "Laudo Clínico Ocupacional e Atestado de Aptidão",
-    },
-    {
-      id: "att_2",
-      docType: "Nota Fiscal",
-      fileName: "nfe_servico_cassi_092026.pdf",
-      fileSize: "850 KB",
-      description: "Nota Fiscal de Prestação de Serviços ref. Consulta",
-    },
-  ]);
+  const [attachments] = useState<CassiAttachmentItem[]>([]);
 
   // Lista de guias em acompanhamento (Workflow CASSI)
-  const [trackedGuides] = useState([
-    {
-      id: "G-1029",
-      providerGuideNumber: "NXC-2026-8912",
-      beneficiaryName: "CARLOS ALBERTO NOGUEIRA",
-      guideType: "SP/SADT",
-      authNumber: "84729104",
-      status: "PENDENTE_TRANSMISSAO",
-      daysRemaining: 7,
-      total: 240.0,
-      date: "01/09/2026",
-      hasPendingDocs: false,
-    },
-    {
-      id: "G-1028",
-      providerGuideNumber: "NXC-2026-8845",
-      beneficiaryName: "ANA PAULA FERREIRA",
-      guideType: "SP/SADT",
-      authNumber: "84729011",
-      status: "PENDENTE_REGULARIZACAO",
-      daysRemaining: 4,
-      total: 350.0,
-      date: "28/08/2026",
-      hasPendingDocs: true,
-    },
-    {
-      id: "G-1027",
-      providerGuideNumber: "NXC-2026-8790",
-      beneficiaryName: "JULIANA PARENTE MACEDO",
-      guideType: "Internação",
-      authNumber: "17106509",
-      status: "TRANSMITIDO",
-      daysRemaining: 0,
-      total: 10000.0,
-      date: "15/08/2026",
-      hasPendingDocs: false,
-    },
-  ]);
+  const [trackedGuides] = useState<
+    Array<{
+      id: string;
+      providerGuideNumber: string;
+      beneficiaryName: string;
+      guideType: string;
+      authNumber: string;
+      status: string;
+      daysRemaining: number;
+      total: number;
+      date: string;
+      hasPendingDocs: boolean;
+    }>
+  >([]);
 
   const handleSelectProvider = (provId: string) => {
     setSelectedProviderId(provId);
@@ -256,10 +204,34 @@ export default function CassiBillingPage() {
     totalGuideValue: totalValue,
   };
 
-  const rpaScript = generateCassiRpaScript(guidePayload);
-  const tissXml = generateTissXml(guidePayload);
+  const guideReady =
+    [
+      authNumber,
+      authDate,
+      providerGuideNumber,
+      cardNumber,
+      beneficiaryName,
+      operatorCode,
+      cnesCode,
+      doctorName,
+      councilNumber,
+      councilUf,
+    ].every((value) => value.trim()) &&
+    procedures.length > 0 &&
+    procedures.every(
+      (item) =>
+        item.code &&
+        item.date &&
+        Number.isInteger(item.quantity) &&
+        item.quantity > 0 &&
+        Number.isFinite(item.unitValue) &&
+        item.unitValue >= 0
+    );
+  const rpaScript = guideReady ? generateCassiRpaScript(guidePayload) : "";
+  const tissXml = guideReady ? generateTissXml(guidePayload) : "";
 
   const copyRpaToClipboard = () => {
+    if (!guideReady) return;
     navigator.clipboard.writeText(rpaScript);
     toast({
       title: "Script RPA Copiado! 🚀",
@@ -269,6 +241,7 @@ export default function CassiBillingPage() {
   };
 
   const copyBookmarklet = () => {
+    if (!guideReady) return;
     const bookmarkletCode = `javascript:${encodeURIComponent(rpaScript)}`;
     navigator.clipboard.writeText(bookmarkletCode);
     toast({
@@ -279,6 +252,7 @@ export default function CassiBillingPage() {
   };
 
   const downloadXml = () => {
+    if (!guideReady) return;
     const blob = new Blob([tissXml], { type: "application/xml" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -315,7 +289,8 @@ export default function CassiBillingPage() {
               </div>
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 Gerador inteligente de Guias TISS (SP/SADT, Internação e Honorários), preenchimento
-                automatizado via RPA e conformidade ANS (34665-9).
+                em rascunho para conferência. Nenhuma guia foi transmitida nem validada pela
+                operadora.
               </p>
             </div>
           </div>
@@ -325,6 +300,7 @@ export default function CassiBillingPage() {
         <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="outline"
+            disabled={!guideReady}
             onClick={copyBookmarklet}
             className="border-slate-300 hover:bg-slate-100 dark:border-slate-700"
           >
@@ -333,6 +309,7 @@ export default function CassiBillingPage() {
           </Button>
 
           <Button
+            disabled={!guideReady}
             onClick={copyRpaToClipboard}
             className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm shadow-blue-500/20"
           >
@@ -342,6 +319,7 @@ export default function CassiBillingPage() {
 
           <Button
             variant="secondary"
+            disabled={!guideReady}
             onClick={downloadXml}
             className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800"
           >
@@ -883,6 +861,7 @@ export default function CassiBillingPage() {
 
                   <div className="space-y-2 pt-2">
                     <Button
+                      disabled={!guideReady}
                       onClick={copyRpaToClipboard}
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-5 shadow-sm"
                     >
@@ -891,6 +870,7 @@ export default function CassiBillingPage() {
                     </Button>
                     <Button
                       variant="outline"
+                      disabled={!guideReady}
                       onClick={copyBookmarklet}
                       className="w-full border-blue-200 hover:bg-blue-50 text-blue-700 dark:border-blue-800 dark:text-blue-300"
                     >
@@ -899,6 +879,7 @@ export default function CassiBillingPage() {
                     </Button>
                     <Button
                       variant="secondary"
+                      disabled={!guideReady}
                       onClick={downloadXml}
                       className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
                     >

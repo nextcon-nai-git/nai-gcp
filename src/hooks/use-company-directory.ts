@@ -14,6 +14,8 @@ import {
 export interface DirectoryCompany {
   id: string;
   name: string;
+  cnpj?: string;
+  cnae?: string;
   displayName?: string;
   razaoSocial?: string;
   city?: string;
@@ -82,6 +84,8 @@ export function useCompanyDirectory(
                   name: typeof item.name === "string" ? item.name : document.id,
                   displayName: typeof item.displayName === "string" ? item.displayName : undefined,
                   razaoSocial: typeof item.razaoSocial === "string" ? item.razaoSocial : undefined,
+                  cnpj: typeof item.cnpj === "string" ? item.cnpj : undefined,
+                  cnae: typeof item.cnae === "string" ? item.cnae : undefined,
                   city: typeof item.city === "string" ? item.city : undefined,
                   state: typeof item.state === "string" ? item.state : undefined,
                   active: typeof item.active === "boolean" ? item.active : undefined,

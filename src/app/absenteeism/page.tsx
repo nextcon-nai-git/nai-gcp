@@ -161,12 +161,18 @@ interface MedicalLeaveRecord {
   [key: string]: unknown;
 }
 
-export default function AbsenteeismPage() {
+export default function AbsenteeismScope() {
+  const { user } = useUser();
+  const { activeClientId } = useSgi();
+  return <AbsenteeismPage key={JSON.stringify([user?.uid, activeClientId])} />;
+}
+
+function AbsenteeismPage() {
   const { toast } = useToast();
   const db = useFirestore();
   const { user, role, companyId: userCompanyId } = useUser();
   const { activeClientId, isGlobalStaff, authorizedCompanies } = useSgi();
-  const isGlobalAdmin = role === "SUPER_ADMIN" || role === "ADMIN";
+  const isGlobalAdmin = isGlobalStaff;
 
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -202,10 +208,18 @@ export default function AbsenteeismPage() {
     return null;
   }, [db, isGlobalStaff, authorizedCompanies, userCompanyId]);
 
-  const { data: companies } = useCollection(companiesQuery);
+  const { data: companies, error: companiesError } = useCollection(companiesQuery, {
+    permissionErrors: "local",
+  });
 
   const expertisesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
+    if (activeClientId && activeClientId !== "all" && activeClientId !== "unauthorized") {
+      return query(
+        collection(db, "companies", activeClientId, "legalExpertises"),
+        orderBy("createdAt", "desc")
+      );
+    }
     if (isGlobalAdmin) {
       return query(collectionGroup(db, "legalExpertises"), orderBy("createdAt", "desc"));
     }
@@ -216,9 +230,13 @@ export default function AbsenteeismPage() {
       );
     }
     return null;
-  }, [db, user, isGlobalAdmin, userCompanyId]);
+  }, [db, user, isGlobalAdmin, userCompanyId, activeClientId]);
 
-  const { data: expertises, isLoading } = useCollection(expertisesQuery);
+  const {
+    data: expertises,
+    isLoading,
+    error: expertisesError,
+  } = useCollection(expertisesQuery, { permissionErrors: "local" });
 
   const checkNTEP = (cid: string) => {
     if (!cid) return false;
@@ -290,6 +308,18 @@ export default function AbsenteeismPage() {
     const checkedItems = Object.values(record.ntepWorkflow).filter((v) => v === true).length;
     return Math.round((checkedItems / totalItems) * 100);
   };
+
+  if (companiesError || expertisesError)
+    return (
+      <div role="alert" className="p-6 space-y-3">
+        <h1>Sentinela: consulta indisponível</h1>
+        <p>
+          Não foi possível consultar os registros autorizados. Isso não significa ausência de
+          afastamentos. Confira a empresa e seu acesso.
+        </p>
+        <Button onClick={() => window.location.reload()}>Tentar novamente</Button>
+      </div>
+    );
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300 pb-20">

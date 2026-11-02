@@ -15,6 +15,7 @@ const session = vi.hoisted(() => ({
 }));
 vi.mock("@/firebase", () => ({ useUser: () => session }));
 import { AvpPeriodicControlPanel } from "./avp-periodic-control";
+import { AVP_WORKFLOW_UPDATED_EVENT } from "@/lib/avp-workflow-progress";
 let root: Root, host: HTMLDivElement;
 const fixture = (name = "Pessoa autorizada") => {
   const p = Array<string>(31).fill("");
@@ -89,6 +90,27 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 describe("painel de periódicos AVP", () => {
+  it("atualiza o mapa após gravação confirmada da mesma sessão sem forçar nova leitura da planilha", async () => {
+    vi.mocked(fetch).mockImplementation(async () => response(fixture()));
+    await render();
+    const count = vi.mocked(fetch).mock.calls.length;
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent(AVP_WORKFLOW_UPDATED_EVENT, { detail: { uid: "other-user" } })
+      );
+    });
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(count);
+    const scheduled = fixture();
+    scheduled.people[0].status = "Agendado";
+    scheduled.people[0].progress = "scheduled";
+    vi.mocked(fetch).mockResolvedValueOnce(response(scheduled));
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(AVP_WORKFLOW_UPDATED_EVENT, { detail: { uid: "a" } }));
+    });
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(count + 1);
+    expect(vi.mocked(fetch).mock.calls.at(-1)?.[0]).toBe("/api/clients/grupo-avp/periodic-control");
+    expect(host.querySelector('[aria-label="Fortaleza/CE: 1 agendados"]')).not.toBeNull();
+  });
   it("filtra estritamente acima de 40 e mantém a ressalva de preço histórico", async () => {
     await render();
     await click("Clínicas e valores");
@@ -131,4 +153,30 @@ describe("painel de periódicos AVP", () => {
     expect(host.textContent).toContain("Pessoa da conta B");
     expect(host.textContent).not.toContain("Pessoa anterior privada");
   });
+});
+
+it("atualiza a consulta a cada hora enquanto aberta e interrompe após sair da conta", async () => {
+  vi.useFakeTimers();
+  try {
+    vi.mocked(fetch).mockImplementation(async () => response(fixture()));
+    await render();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(59 * 60 * 1000);
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60 * 1000);
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    session.user = null;
+    await render();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(host.textContent).not.toContain("Pessoa autorizada");
+  } finally {
+    vi.useRealTimers();
+  }
 });

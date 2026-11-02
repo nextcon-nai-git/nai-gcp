@@ -111,7 +111,7 @@ describe("scheduling persistence and session boundaries", () => {
     expect(v.container.textContent).toContain("Pessoa sintética");
     await v.click("Nova Solicitação de ASO");
     expect(
-      [...v.container.querySelectorAll("input,textarea")]
+      [...v.container.querySelectorAll('input:not([type="checkbox"]),textarea')]
         .map((e) => (e as HTMLInputElement).value)
         .every((x) => x === "")
     ).toBe(true);
@@ -151,6 +151,15 @@ describe("scheduling persistence and session boundaries", () => {
     expect(v.container.textContent).not.toContain("registrada.");
     await act(async () => p.resolve({ success: true, data: { ...request, id: "created" } }));
     expect(v.container.textContent).toContain("created registrada");
+    await v.click("Nova Solicitação de ASO");
+    expect((v.container.querySelector('input[type="checkbox"]') as HTMLInputElement).checked).toBe(
+      false
+    );
+    expect(
+      [...v.container.querySelectorAll('input:not([type="checkbox"]),textarea')].every(
+        (e) => (e as HTMLInputElement).value === ""
+      )
+    ).toBe(true);
   });
   it.each(["reject", "response"])(
     "recovers create failure (%s) without losing input",

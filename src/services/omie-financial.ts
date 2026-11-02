@@ -68,10 +68,14 @@ const dreTooLarge = () =>
     "O relatório Omie excedeu o limite desta consulta. Selecione um período menor.",
     413
   );
-async function readDreJson(response: Response): Promise<unknown> {
+async function readOmieJson(response: Response, kind: keyof typeof methods): Promise<unknown> {
+  const tooLarge = () =>
+    kind === "dre"
+      ? dreTooLarge()
+      : new AuthError("A resposta Omie excedeu o limite seguro desta consulta.", 413);
   if (Number(response.headers.get("content-length") || 0) > DRE_RESPONSE_MAX_BYTES) {
-    await response.body?.cancel();
-    throw dreTooLarge();
+    await response.body?.cancel().catch(() => {});
+    throw tooLarge();
   }
   if (!response.body) throw unavailable();
   const reader = response.body.getReader();
@@ -83,8 +87,8 @@ async function readDreJson(response: Response): Promise<unknown> {
       if (chunk.done) break;
       bytes += chunk.value.byteLength;
       if (bytes > DRE_RESPONSE_MAX_BYTES) {
-        await reader.cancel();
-        throw dreTooLarge();
+        await reader.cancel().catch(() => {});
+        throw tooLarge();
       }
       chunks.push(chunk.value);
     }
@@ -119,24 +123,8 @@ async function call(
     });
     let data: unknown;
     try {
-      data =
-        kind === "dre" ||
-        [
-          "invoices",
-          "catalogParties",
-          "categories",
-          "accounts",
-          "partyDetail",
-          "categoryDetail",
-          "accountDetail",
-          "createSupplier",
-          "createPayable",
-          "createReceivable",
-        ].includes(kind)
-          ? await readDreJson(response)
-          : await response.json();
+      data = await readOmieJson(response, kind);
     } catch (error) {
-      if (error instanceof AuthError) throw error;
       // An HTML 429/503 must retain the HTTP cause instead of becoming a JSON/key error.
       if (!response.ok) throw omieResponseError(response.status);
       throw error;
@@ -453,19 +441,20 @@ export async function listOmie(user: AuthContext, input: unknown): Promise<OmieP
     ...(status !== "ALL" ? { filtrar_por_status: status } : {}),
   });
   const item = z.object({
-    codigo_lancamento_omie: z.number().int(),
-    numero_documento: z.string().optional(),
-    codigo_cliente_fornecedor: z.number().optional(),
-    data_vencimento: z.string(),
+    codigo_lancamento_omie: z.number().int().safe().positive(),
+    numero_documento: z.string().max(1000).optional(),
+    // Zero is not resolved as a real party ID; the provider does not document a positive minimum.
+    codigo_cliente_fornecedor: z.number().int().safe().nonnegative().optional(),
+    data_vencimento: z.string().refine((value) => fromOmieDate(value) !== null),
     valor_documento: z.number().finite(),
-    status_titulo: z.string().optional(),
-    codigo_categoria: z.string().optional(),
+    status_titulo: z.string().max(1000).optional(),
+    codigo_categoria: z.string().max(1000).optional(),
   });
   const result = z
     .object({
-      pagina: z.number().int().nonnegative(),
-      total_de_paginas: z.number().int().nonnegative(),
-      total_de_registros: z.number().int().nonnegative(),
+      pagina: z.number().int().safe().positive(),
+      total_de_paginas: z.number().int().safe().nonnegative(),
+      total_de_registros: z.number().int().safe().nonnegative(),
     })
     .safeParse(data);
   const records = z
@@ -473,6 +462,17 @@ export async function listOmie(user: AuthContext, input: unknown): Promise<OmieP
     .max(50)
     .safeParse(data[kind === "payable" ? "conta_pagar_cadastro" : "conta_receber_cadastro"]);
   if (!result.success || !records.success) throw unavailable();
+  const metadata = result.data;
+  if (
+    metadata.pagina !== page ||
+    metadata.total_de_registros < records.data.length ||
+    (metadata.total_de_registros === 0
+      ? page !== 1 || records.data.length !== 0 || metadata.total_de_paginas > 1
+      : metadata.total_de_paginas < page || records.data.length === 0) ||
+    new Set(records.data.map((record) => record.codigo_lancamento_omie)).size !==
+      records.data.length
+  )
+    throw unavailable();
   const names = await partyNames(
     credentials,
     records.data.flatMap((r) =>

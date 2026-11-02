@@ -1,0 +1,103 @@
+[
+  {
+    "package": "zod",
+    "version": "3.25.76",
+    "file": "v3/types.js",
+    "beforeSha256": "9763a2938f0e7f983363ef4bf6530e7583e3f2d54f8a4a6684efad58febc6e8e",
+    "afterSha256": "a01e9f0a07ddfd522312cf0d8ee10caf9b21ea677cbc8431f731b84c6d778ff3",
+    "changes": [
+      {
+        "before": "message: def.exactLength.message,\n                });\n                status.dirty();",
+        "after": "message: def.exactLength.message,\n                });\n                status.dirty();\n                if (tooBig) return INVALID;"
+      },
+      {
+        "before": "message: def.maxLength.message,\n                });\n                status.dirty();",
+        "after": "message: def.maxLength.message,\n                });\n                return INVALID;"
+      },
+      {
+        "before": "message: def.maxSize.message,\n                });\n                status.dirty();",
+        "after": "message: def.maxSize.message,\n                });\n                return INVALID;"
+      }
+    ]
+  },
+  {
+    "package": "zod",
+    "version": "3.25.76",
+    "file": "v3/types.cjs",
+    "beforeSha256": "06487cc05ed45c5dd29789bf0aa75734d1ce06592a7f2665ba4ca90a68e8a3e1",
+    "afterSha256": "258b6d818e30b794157fe3a4cd53064f2abf8a1e4e91faa699249df59fb5a58c",
+    "changes": [
+      {
+        "before": "message: def.exactLength.message,\n                });\n                status.dirty();",
+        "after": "message: def.exactLength.message,\n                });\n                status.dirty();\n                if (tooBig) return parseUtil_js_1.INVALID;"
+      },
+      {
+        "before": "message: def.maxLength.message,\n                });\n                status.dirty();",
+        "after": "message: def.maxLength.message,\n                });\n                return parseUtil_js_1.INVALID;"
+      },
+      {
+        "before": "message: def.maxSize.message,\n                });\n                status.dirty();",
+        "after": "message: def.maxSize.message,\n                });\n                return parseUtil_js_1.INVALID;"
+      }
+    ]
+  },
+  {
+    "package": "zod",
+    "version": "3.25.76",
+    "file": "src/v3/types.ts",
+    "beforeSha256": "70309a0877c35d036842e291fe7c8a4439d5db49411d233f8a22bf8a59c41419",
+    "afterSha256": "ad115a1c20a5e7592177e725dce996bbb3df2f6af2a5ec55d34339b30e11bc72",
+    "changes": [
+      {
+        "before": "message: def.exactLength.message,\n        });\n        status.dirty();",
+        "after": "message: def.exactLength.message,\n        });\n        status.dirty();\n        if (tooBig) return INVALID;"
+      },
+      {
+        "before": "message: def.maxLength.message,\n        });\n        status.dirty();",
+        "after": "message: def.maxLength.message,\n        });\n        return INVALID;"
+      },
+      {
+        "before": "message: def.maxSize.message,\n        });\n        status.dirty();",
+        "after": "message: def.maxSize.message,\n        });\n        return INVALID;"
+      }
+    ]
+  },
+  {
+    "package": "extract-zip",
+    "version": "2.0.1",
+    "file": "index.js",
+    "optional": true,
+    "beforeSha256": "1073ca8196d3c9ae51b0de41df9d7c347957c8501d0749d852b4994789cddd78",
+    "afterSha256": "a89a9aaf06311952742643a35d06e97e32705952f1bbbf28f4e4bcd275ac68be",
+    "changes": [
+      {
+        "before": "const { createWriteStream, promises: fs } = require('fs')",
+        "after": "const { createWriteStream, constants, promises: fs } = require('fs')"
+      },
+      {
+        "before": "const getStream = require('get-stream')\n",
+        "after": ""
+      },
+      {
+        "before": "  async extract () {",
+        "after": "  // Reject existing symlink ancestors before mkdir can create anything outside root.\n  async ensureDirectory (directory, mode) {\n    const relative = path.relative(this.opts.dir, directory)\n    if (path.isAbsolute(relative) || relative.split(path.sep).includes('..')) {\n      throw new Error('Archive directory escapes extraction root')\n    }\n    let current = this.opts.dir\n    for (const part of relative.split(path.sep).filter(Boolean)) {\n      current = path.join(current, part)\n      try {\n        await fs.mkdir(current, { mode })\n      } catch (error) {\n        if (error.code !== 'EEXIST') throw error\n      }\n      const stat = await fs.lstat(current)\n      if (stat.isSymbolicLink() || !stat.isDirectory()) {\n        throw new Error('Archive directory is a symlink or not a directory')\n      }\n    }\n  }\n\n  async extract () {"
+      },
+      {
+        "before": "await fs.mkdir(destDir, { recursive: true })",
+        "after": "await this.ensureDirectory(destDir)"
+      },
+      {
+        "before": "    const symlink = (mode & IFMT) === IFLNK",
+        "after": "    const symlink = (mode & IFMT) === IFLNK\n    // The Genkit toolchain does not require archive-created symlinks.\n    if (symlink) throw new Error('Archive symlink entries are not permitted')"
+      },
+      {
+        "before": "    await fs.mkdir(destDir, mkdirOptions)",
+        "after": "    await this.ensureDirectory(destDir, mkdirOptions.mode)"
+      },
+      {
+        "before": "    if (symlink) {\n      const link = await getStream(readStream)\n      debug('creating symlink', link, dest)\n      await fs.symlink(link, dest)\n    } else {\n      await pipeline(readStream, createWriteStream(dest, { mode: procMode }))\n    }",
+        "after": "    try {\n      const existing = await fs.lstat(dest)\n      if (existing.isSymbolicLink()) throw new Error('Archive target is a symlink')\n    } catch (error) {\n      if (error.code !== 'ENOENT') throw error\n    }\n    await pipeline(readStream, createWriteStream(dest, {\n      mode: procMode,\n      flags: constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | (constants.O_NOFOLLOW || 0)\n    }))"
+      }
+    ]
+  }
+]

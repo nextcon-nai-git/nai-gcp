@@ -1119,7 +1119,10 @@ for (const [cidade, lat, lng] of [
 const cachoeiro = coordinates.get("CACHOEIRO DE ITAPEMIRIM-ES");
 if (cachoeiro) coordinates.set("CACHOEIRO DO ITAPEMIRIM-ES", cachoeiro);
 
-export function aggregateAvpLocalities(asos: GrupoAvpAso[]): AvpLocalityAggregate[] {
+export function aggregateAvpLocalities(
+  asos: GrupoAvpAso[],
+  clinicCities: { cidade: string; uf: string }[] = []
+): AvpLocalityAggregate[] {
   const map = new Map<
     string,
     { coord: CityGeoCoordinate; geoKnown: boolean; items: GrupoAvpAso[] }
@@ -1146,6 +1149,22 @@ export function aggregateAvpLocalities(asos: GrupoAvpAso[]): AvpLocalityAggregat
     map.get(key)!.items.push(item);
   });
 
+  for (const city of clinicCities) {
+    const key = `${normalizeAvpCity(city.cidade)}-${city.uf.trim().toUpperCase()}`;
+    if (map.has(key)) continue;
+    const known = coordinates.get(key);
+    const coord: CityGeoCoordinate = known || {
+      cidade: city.cidade,
+      uf: city.uf,
+      lat: Number.NaN,
+      lng: Number.NaN,
+      x: Number.NaN,
+      y: Number.NaN,
+      region: ufRegion(city.uf),
+    };
+    map.set(key, { coord, geoKnown: !!known, items: [] });
+  }
+
   const aggregates: AvpLocalityAggregate[] = [];
 
   map.forEach(({ coord, geoKnown, items }, key) => {
@@ -1160,7 +1179,7 @@ export function aggregateAvpLocalities(asos: GrupoAvpAso[]): AvpLocalityAggregat
     });
 
     // Determina o status primário
-    let primaryStatus: string = items[0]?.status || "AGENDADO";
+    let primaryStatus: string = items[0]?.status || "SEM ASOS";
     if (urgentCount > 0) {
       primaryStatus = "URGENTE";
     } else {
@@ -1190,7 +1209,7 @@ export function aggregateAvpLocalities(asos: GrupoAvpAso[]): AvpLocalityAggregat
     aggregates.push({
       key,
       geoKnown,
-      cidade: items[0].cidade,
+      cidade: items[0]?.cidade || coord.cidade,
       uf: coord.uf,
       lat: coord.lat,
       lng: coord.lng,

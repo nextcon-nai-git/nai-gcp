@@ -111,6 +111,15 @@ describe("health management source and access states", () => {
     );
     expect(host.textContent).not.toContain("0 atendimentos");
   });
+  it.each([
+    ["failed-precondition", "índice do banco de dados"],
+    ["permission-denied", "negada pelas regras de acesso"],
+  ])("distinguishes %s without exposing backend error contents", async (code, message) => {
+    mock.error = Object.assign(new Error("private backend details"), { code });
+    await render();
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(message);
+    expect(host.textContent).not.toContain("private backend details");
+  });
   it("starts in the current local month without invented health or compliance metrics", async () => {
     const now = new Date();
     mock.rows = [

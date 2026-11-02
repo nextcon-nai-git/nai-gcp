@@ -28,10 +28,23 @@ export const object = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 export const string = (v: unknown, max = 500) => (typeof v === "string" ? v.slice(0, max) : "");
 export function items(v: unknown): Record<string, unknown>[] {
-  if (Array.isArray(v)) return v.map(object);
+  if (Array.isArray(v)) {
+    if (v.some((item) => !item || typeof item !== "object" || Array.isArray(item)))
+      throw new TallosError(502, "O Tallos retornou um formato de dados não reconhecido.");
+    return v as Record<string, unknown>[];
+  }
   const r = object(v);
-  for (const key of ["data", "items", "results", "reports", "customers", "employees", "messages"]) {
-    if (Array.isArray(r[key])) return (r[key] as unknown[]).map(object);
+  for (const key of [
+    "data",
+    "docs",
+    "items",
+    "results",
+    "reports",
+    "customers",
+    "employees",
+    "messages",
+  ]) {
+    if (Array.isArray(r[key])) return items(r[key]);
   }
   if (r.data && typeof r.data === "object") return items(r.data);
   throw new TallosError(502, "O Tallos retornou um formato de dados não reconhecido.");
@@ -58,6 +71,11 @@ export function providerId(v: unknown) {
   return id;
 }
 export type TallosResult = { data: unknown; total: number | null; pages: number | null };
+const unconfirmedResponse = () =>
+  new TallosError(
+    504,
+    "O Tallos não confirmou a resposta. Atualize a consulta; para envios, confira o histórico antes de tentar novamente."
+  );
 export async function tallosRequest(
   path: string,
   query: Record<string, string> = {},
@@ -95,10 +113,7 @@ export async function tallosRequest(
       }
     );
   } catch {
-    throw new TallosError(
-      504,
-      "O Tallos não confirmou a resposta. Atualize a consulta; para envios, confira o histórico antes de tentar novamente."
-    );
+    throw unconfirmedResponse();
   }
   if (!response.ok) {
     const messages: Record<number, string> = {
@@ -128,11 +143,14 @@ export async function tallosRequest(
       if (part.done) break;
       bytes += part.value.length;
       if (bytes > 4 * 1024 * 1024) {
-        await reader.cancel();
+        await reader.cancel().catch(() => {});
         throw new TallosError(502, "Resposta Tallos excedeu o limite. Reduza o período.");
       }
       chunks.push(part.value);
     }
+  } catch (error) {
+    if (error instanceof TallosError) throw error;
+    throw unconfirmedResponse();
   } finally {
     reader.releaseLock();
   }
@@ -144,7 +162,8 @@ export async function tallosRequest(
   }
   const count = (key: string) => {
     const v = response.headers.get(key);
-    return v && /^\d+$/.test(v) ? Number(v) : null;
+    const parsed = v && /^\d+$/.test(v) ? Number(v) : null;
+    return parsed !== null && Number.isSafeInteger(parsed) ? parsed : null;
   };
   return { data, total: count("X-Total"), pages: count("X-Pages") };
 }

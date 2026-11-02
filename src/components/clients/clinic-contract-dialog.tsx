@@ -38,7 +38,7 @@ export function ClinicContractDialog({
   const [preview, setPreview] = useState<{ text: string; pending: string[] } | null>(null);
   const owner = useRef(user?.uid);
   const generation = useRef(0);
-  const initialOwner = useRef(user?.uid);
+  const [initialOwner] = useState(user?.uid);
   useLayoutEffect(() => {
     owner.current = user?.uid;
     generation.current++;
@@ -140,7 +140,7 @@ export function ClinicContractDialog({
         id
       );
   }
-  if (!user || user.uid !== initialOwner.current) return null;
+  if (!user || user.uid !== initialOwner) return null;
   return (
     <Dialog
       open

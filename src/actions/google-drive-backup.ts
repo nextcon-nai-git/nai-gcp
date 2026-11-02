@@ -1,9 +1,10 @@
 "use server";
 
 /**
- * @fileOverview NAI Google Drive Sync & Backup Service - nextcon@nextconsaude.com.br
- * Realiza backup redundante e espelhamento automático de todos os laudos,
- * recibos de EPI, CNHs e ASOs do sistema no Google Drive corporativo.
+ * @fileOverview Estado da integração de backup Google Drive, ainda não configurada.
+ * Nenhuma sincronização ou cópia externa é executada por este módulo.
+ * O exercício local de recuperação de arquivos está em docs/BACKUP_RECOVERY.md
+ * e não muda o estado desta integração nem comprova restauração do banco.
  */
 
 import { ActionResult } from "@/types/schema";

@@ -71,6 +71,7 @@ function FieldInspectionSession() {
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
   const galleryInputRef = React.useRef<HTMLInputElement>(null);
 
+  const [invalidImage, setInvalidImage] = React.useState(false);
   const [selectedImage, setSelectedImage] = React.useState<string | null>(null);
   const [locationName, setLocationName] = React.useState("");
   const [notes, setNotes] = React.useState("");
@@ -184,11 +185,15 @@ function FieldInspectionSession() {
   const handleImageCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    imageVersion.current++;
+    setSelectedImage(null);
+    setReport(null);
     if (
       !file.size ||
       file.size > 10 * 1024 * 1024 ||
       !["image/png", "image/jpeg", "image/webp"].includes(file.type)
     ) {
+      setInvalidImage(true);
       toast({
         variant: "destructive",
         title: "Foto inválida",
@@ -196,6 +201,7 @@ function FieldInspectionSession() {
       });
       return;
     }
+    setInvalidImage(false);
     const version = ++imageVersion.current;
 
     const reader = new FileReader();
@@ -232,14 +238,16 @@ function FieldInspectionSession() {
       !user ||
       !currentCompany ||
       !locationName.trim() ||
+      invalidImage ||
       (!selectedImage && !notes.trim())
     )
       return;
+    const version = imageVersion.current;
     pending.current = true;
     setIsAnalyzing(true);
     try {
       const token = await getActionIdToken();
-      if (!active.current) return;
+      if (!active.current || imageVersion.current !== version) return;
       const result = await analyzeFieldInspectionPhoto(
         {
           imageBase64: selectedImage || undefined,
@@ -251,7 +259,7 @@ function FieldInspectionSession() {
         },
         token
       );
-      if (!active.current) return;
+      if (!active.current || imageVersion.current !== version) return;
       setReport(result);
       if (result.findings.length > 0) {
         setExpandedPlanId(result.findings[0].id);
@@ -285,7 +293,7 @@ function FieldInspectionSession() {
         description: `Índice de Segurança: ${result.safetyIndex}% | ${result.findings.length} itens analisados.`,
       });
     } catch (err: any) {
-      if (!active.current) return;
+      if (!active.current || imageVersion.current !== version) return;
       toast({
         variant: "destructive",
         title: "Erro na vistoria",
@@ -510,6 +518,7 @@ function FieldInspectionSession() {
               !user ||
               !currentCompany ||
               !locationName.trim() ||
+              invalidImage ||
               (!selectedImage && !notes.trim())
             }
             className="w-full h-12 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-sm uppercase tracking-wider rounded-xl shadow-lg gap-2"

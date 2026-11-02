@@ -7,30 +7,21 @@ import {
   Users,
   MapPin,
   Clock,
-  Phone,
-  Mail,
   CheckCircle2,
   AlertTriangle,
   FileText,
   Calendar,
   ShieldCheck,
-  Sparkles,
-  ArrowRight,
   Stethoscope,
   AlertCircle,
   FileSpreadsheet,
-  Download,
   Printer,
   Copy,
   Check,
-  Briefcase,
   HeartPulse,
   Activity,
   DollarSign,
   Scale,
-  Search,
-  Filter,
-  ExternalLink,
   PlusCircle,
   LifeBuoy,
 } from "lucide-react";
@@ -42,178 +33,55 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import {
-  CASSI_OFFICIAL_CONTRACT,
-  HEALTH_OPERATION_CARDS,
-  INITIAL_CASSI_ACTIVITIES,
-  HealthOperationCard,
-  CassiActivityItem,
-} from "@/lib/cassi-contract-data";
+import { CASSI_OFFICIAL_CONTRACT, HEALTH_OPERATION_CARDS } from "@/lib/cassi-contract-data";
 
 export default function CassiOperationsHubPage() {
   const { toast } = useToast();
-  const [activities, setActivities] = React.useState<CassiActivityItem[]>(INITIAL_CASSI_ACTIVITIES);
-  const [filterCategory, setFilterCategory] = React.useState<string>("ALL");
-  const [searchTerm, setSearchTerm] = React.useState<string>("");
   const [copiedAccount, setCopiedAccount] = React.useState(false);
+  const copyTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  React.useEffect(() => () => clearTimeout(copyTimer.current), []);
 
-  // Modal / Novo Atendimento State
-  const [showNewModal, setShowNewModal] = React.useState(false);
-  const [newOrder, setNewOrder] = React.useState({
-    serviceType: "Retorno ao Trabalho (RT)",
-    tissCode: "0.096.03.0151",
-    price: 291.34,
-    employeeName: "",
-    employeeMatricula: "",
-    unitOrAgency: "",
-    city: "Curitiba",
-    uf: "PR",
-    guideSadtNumber: "",
-    authPassword: "",
-    doctorName: "Dr. Rodrigo Martins (CRM-PR 38.921)",
-  });
-
-  // Formulário CAT Anexo II State
+  // Draft only: a clinical record and verified professional review are required for issuance.
   const [catForm, setCatForm] = React.useState({
     employeeName: "",
     matricula: "",
     dependencia: "",
-    medicalUnit: "NXC Saúde Empresarial - Curitiba",
-    date: new Date().toISOString().split("T")[0],
-    time: "10:00",
-    internacao: "NAO",
-    provavelDuracaoDias: "15",
-    afastamentoTrabalho: "SIM",
-    descricaoLesao:
-      "Trauma contuso em membro superior direito com escoriações após evento em agência bancária.",
-    diagnosticoProvavel: "Transtorno de estresse agudo e contusão osteomuscular",
-    cid: "F43.0 / S60",
-    observacoes: "Encaminhado para acolhimento PAVAS e avaliação de estresse pós-traumático.",
-    doctorName: "Dr. Rodrigo Martins",
-    doctorCrm: "38.921",
-    doctorUf: "PR",
+    medicalUnit: "",
+    date: "",
+    time: "",
+    internacao: "",
+    provavelDuracaoDias: "",
+    afastamentoTrabalho: "",
+    descricaoLesao: "",
+    diagnosticoProvavel: "",
+    cid: "",
+    observacoes: "",
+    doctorName: "",
+    doctorCrm: "",
+    doctorUf: "",
   });
 
-  const handleCopyBank = () => {
-    navigator.clipboard.writeText(
-      "Banco do Brasil (001) | Agência: 3722 | C/C: 13005630-6 | NXC SAUDE EMPRESARIAL LTDA"
-    );
-    setCopiedAccount(true);
-    toast({
-      title: "Dados Bancários Copiados!",
-      description: "Agência 3722, C/C 13005630-6 copiada para faturamento CASSI.",
-    });
-    setTimeout(() => setCopiedAccount(false), 2500);
-  };
-
-  const handleServiceTypeChange = (sType: string) => {
-    if (
-      sType === "Retorno ao Trabalho (RT)" ||
-      sType === "Avaliação de Capacidade Laborativa e Deficiência (PCD)"
-    ) {
-      setNewOrder((prev) => ({
-        ...prev,
-        serviceType: sType,
-        tissCode: "0.096.03.0151",
-        price: 291.34,
-      }));
-    } else {
-      setNewOrder((prev) => ({
-        ...prev,
-        serviceType: sType,
-        tissCode: "1.01.01.012",
-        price: 173.76,
-      }));
-    }
-  };
-
-  const handleCreateOrder = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newOrder.employeeName || !newOrder.guideSadtNumber || !newOrder.authPassword) {
+  const handleCopyBank = async () => {
+    setCopiedAccount(false);
+    clearTimeout(copyTimer.current);
+    try {
+      await navigator.clipboard.writeText(
+        "Banco do Brasil (001) | Agência: 3722 | C/C: 13005630-6 | NXC SAUDE EMPRESARIAL LTDA"
+      );
+      setCopiedAccount(true);
       toast({
-        title: "Preenchimento Obrigatório",
-        description:
-          "O contrato exige o preenchimento da Guia SP/SADT e Senha de Autorização CASSI.",
+        title: "Dados bancários copiados",
+        description: "Confira os dados no contrato antes de utilizar.",
+      });
+      copyTimer.current = setTimeout(() => setCopiedAccount(false), 2500);
+    } catch {
+      toast({
+        title: "Não foi possível copiar",
+        description: "Selecione e copie os dados do contrato manualmente.",
         variant: "destructive",
       });
-      return;
     }
-
-    const created: CassiActivityItem = {
-      id: `CASSI_ACT_${Date.now()}`,
-      orderNumber: `CASSI-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-      serviceType: newOrder.serviceType,
-      employeeName: newOrder.employeeName.toUpperCase(),
-      employeeMatricula: newOrder.employeeMatricula.toUpperCase() || "BB-0.000.000-0",
-      unitOrAgency: newOrder.unitOrAgency || "Agência Curitiba",
-      city: newOrder.city,
-      uf: newOrder.uf,
-      date: new Date().toISOString().split("T")[0],
-      tissCode: newOrder.tissCode,
-      price: newOrder.price,
-      status: "EM_ATENDIMENTO",
-      guideSadtNumber: newOrder.guideSadtNumber,
-      authPassword: newOrder.authPassword,
-      hasGuideSignature: true,
-      slaDeadline: newOrder.serviceType.includes("Retorno") ? "Hoje (SLA D0)" : "24h Portal CASSI",
-      isSlaOnTrack: true,
-      medicalDoctorName: newOrder.doctorName.split("(")[0].trim(),
-      medicalDoctorCrm: newOrder.doctorName.includes("(")
-        ? newOrder.doctorName.split("(")[1].replace(")", "")
-        : "CRM-PR",
-      notes: "Ordem gerada no hub de saúde. Aguardando conclusão clínica e upload no portal CASSI.",
-    };
-
-    setActivities([created, ...activities]);
-    setShowNewModal(false);
-    toast({
-      title: "Ordem de Atendimento Criada!",
-      description: `Atendimento registrado com código TISS ${newOrder.tissCode} (R$ ${newOrder.price.toFixed(2)}).`,
-    });
   };
-
-  const markCompletedD0 = (id: string) => {
-    setActivities((prev) =>
-      prev.map((a) => {
-        if (a.id === id) {
-          return {
-            ...a,
-            status: "CONCLUIDO_D0",
-            notes: "ASO e Parecer concluídos no mesmo dia (D0). Devolutiva enviada à CASSI.",
-          };
-        }
-        return a;
-      })
-    );
-    toast({
-      title: "SLA D0 Cumprido!",
-      description: "Atendimento finalizado com sucesso no mesmo dia conforme Cláusula 1ª §2º.",
-    });
-  };
-
-  // Filtragem
-  const filteredActivities = activities.filter((a) => {
-    const matchesSearch =
-      !searchTerm ||
-      a.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      a.employeeMatricula.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      a.unitOrAgency.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      a.guideSadtNumber.toLowerCase().includes(searchTerm.toLowerCase());
-
-    if (filterCategory === "ALL") return matchesSearch;
-    if (filterCategory === "RETORNO") return matchesSearch && a.serviceType.includes("Retorno");
-    if (filterCategory === "PAVAS") return matchesSearch && a.serviceType.includes("PAVAS");
-    if (filterCategory === "EPS") return matchesSearch && a.serviceType.includes("EPS");
-    if (filterCategory === "FATURADO") return matchesSearch && a.status === "FATURADO_TISS";
-    return matchesSearch;
-  });
-
-  // Totais
-  const totalFaturadoPrevisto = activities.reduce((acc, curr) => acc + curr.price, 0);
-  const totalRetornosD0 = activities.filter(
-    (a) => a.serviceType.includes("Retorno") && a.status === "CONCLUIDO_D0"
-  ).length;
-  const totalPavas = activities.filter((a) => a.serviceType.includes("PAVAS")).length;
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-[1650px] mx-auto pb-24">
@@ -245,14 +113,14 @@ export default function CassiOperationsHubPage() {
 
             <h1 className="text-2xl md:text-4xl font-black tracking-tight text-white flex items-center gap-3">
               <Building2 className="text-amber-400 h-8 w-8 md:h-10 md:w-10" />
-              CASSI — Operação em Saúde Ocupacional & PCMSO BB
+              CASSI — Referências contratuais & PCMSO BB
             </h1>
 
             <p className="text-slate-300 text-xs md:text-sm max-w-4xl leading-relaxed">
-              Central de gestão assistencial para a{" "}
-              <strong>Caixa de Assistência dos Funcionários do Banco do Brasil</strong>. Controle em
-              tempo real das linhas de cuidado (EPS, Retorno D0, PAVAS, Perícias), kit ambulatorial
-              in company para agências e faturamento TISS.
+              Referências do contrato com a{" "}
+              <strong>Caixa de Assistência dos Funcionários do Banco do Brasil</strong>: serviços,
+              prazos, kit ambulatorial e orientações de faturamento TISS. A execução dos
+              atendimentos e as devolutivas precisam ser confirmadas nos sistemas responsáveis.
             </p>
 
             <div className="flex flex-wrap items-center gap-4 text-xs text-slate-300 pt-1">
@@ -273,7 +141,8 @@ export default function CassiOperationsHubPage() {
 
           <div className="flex flex-col sm:flex-row lg:flex-col gap-2.5 shrink-0">
             <Button
-              onClick={() => setShowNewModal(true)}
+              disabled
+              aria-describedby="cassi-availability"
               className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs uppercase px-5 py-5 rounded-2xl shadow-xl flex items-center gap-2 transition-all"
             >
               <PlusCircle size={16} /> Nova Ordem de Atendimento
@@ -305,7 +174,25 @@ export default function CassiOperationsHubPage() {
         </div>
       </div>
 
-      {/* 4 CARDS DE INDICADORES PRINCIPAIS */}
+      <section
+        id="cassi-availability"
+        className="space-y-3 rounded-2xl border border-amber-400/40 bg-amber-50 p-5 text-slate-900"
+        aria-labelledby="cassi-availability-title"
+      >
+        <h2 id="cassi-availability-title" className="font-semibold">
+          Operação CASSI não integrada nesta página
+        </h2>
+        <p className="text-sm">
+          O cadastro de ordens, a devolutiva à CASSI e a apuração de SLA estão indisponíveis aqui.
+          Registre os atendimentos no sistema adotado pela equipe e confira o protocolo de cada
+          devolutiva. Esta consulta contratual não comprova execução ou envio.
+        </p>
+        <Button asChild variant="outline">
+          <Link href="/aso-scheduler">Abrir agendador interno de ASOs</Link>
+        </Button>
+      </section>
+
+      {/* Referências contratuais; indicadores operacionais ainda não apurados. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-amber-400/30 bg-slate-900/90 shadow-xl rounded-2xl">
           <CardContent className="p-5 flex items-center justify-between">
@@ -313,11 +200,10 @@ export default function CassiOperationsHubPage() {
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 Faturamento TISS Previsto
               </span>
-              <div className="text-2xl font-black text-amber-400">
-                R$ {totalFaturadoPrevisto.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-              </div>
+              <div className="text-2xl font-black text-amber-400">Não apurado</div>
               <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                <Clock size={12} className="text-amber-400" /> Prazo 45 dias pós-protocolo
+                <Clock size={12} className="text-amber-400" /> Sem atendimentos confirmados nesta
+                tela
               </span>
             </div>
             <div className="h-12 w-12 rounded-2xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center text-amber-400">
@@ -332,9 +218,9 @@ export default function CassiOperationsHubPage() {
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 Retorno ao Trabalho (SLA D0)
               </span>
-              <div className="text-2xl font-black text-emerald-400">100% no Prazo</div>
+              <div className="text-2xl font-black text-emerald-400">SLA não apurado</div>
               <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
-                <CheckCircle2 size={12} /> {totalRetornosD0} devolutivas no mesmo dia
+                <Clock size={12} /> Sem comprovantes de devolutiva nesta tela
               </span>
             </div>
             <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
@@ -349,9 +235,9 @@ export default function CassiOperationsHubPage() {
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 Programa PAVAS (Assalto/Sequestro)
               </span>
-              <div className="text-2xl font-black text-rose-400">{totalPavas} Casos Acolhidos</div>
+              <div className="text-2xl font-black text-rose-400">Não apurado</div>
               <span className="text-[10px] text-rose-300 flex items-center gap-1">
-                <AlertCircle size={12} /> Acolhimento imediato + CAT
+                <AlertCircle size={12} /> Conferir registros assistenciais
               </span>
             </div>
             <div className="h-12 w-12 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400">
@@ -364,12 +250,12 @@ export default function CassiOperationsHubPage() {
           <CardContent className="p-5 flex items-center justify-between">
             <div className="space-y-1">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                Trava de Preclusão TISS
+                Referência contratual TISS
               </span>
               <div className="text-2xl font-black text-blue-400">90 Dias</div>
               <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                <ShieldCheck size={12} className="text-blue-400" /> Cláusula 4ª §1º (Sem glosas por
-                prazo)
+                <FileText size={12} className="text-blue-400" /> Conferir Cláusula 4ª §1º no
+                contrato
               </span>
             </div>
             <div className="h-12 w-12 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400">
@@ -392,7 +278,7 @@ export default function CassiOperationsHubPage() {
             value="atendimentos_lista"
             className="rounded-xl text-xs font-bold py-2.5 px-4 data-[state=active]:bg-amber-400 data-[state=active]:text-slate-950"
           >
-            Atendimentos e Ordens ({activities.length})
+            Atendimentos e Ordens
           </TabsTrigger>
           <TabsTrigger
             value="kit_ambulatorial_bb"
@@ -525,10 +411,8 @@ export default function CassiOperationsHubPage() {
 
                     <div className="pt-2">
                       <Button
-                        onClick={() => {
-                          handleServiceTypeChange(card.serviceType);
-                          setShowNewModal(true);
-                        }}
+                        disabled
+                        aria-describedby="cassi-availability"
                         className="w-full bg-slate-800 hover:bg-amber-400 hover:text-slate-950 text-white font-bold text-xs rounded-xl py-2 transition-all flex items-center justify-center gap-2"
                       >
                         <PlusCircle size={14} /> Registrar Atendimento
@@ -541,183 +425,21 @@ export default function CassiOperationsHubPage() {
           </div>
         </TabsContent>
 
-        {/* ABA 2: LISTAGEM DE ATENDIMENTOS E ORDENS EM TEMPO REAL */}
         <TabsContent value="atendimentos_lista" className="space-y-4">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900/90 p-4 rounded-2xl border border-slate-800">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <Input
-                placeholder="Buscar por nome do funcionário, matrícula BB, dependência ou guia SP/SADT..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 bg-slate-950 border-slate-800 text-xs rounded-xl text-white"
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant={filterCategory === "ALL" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilterCategory("ALL")}
-                className={cn(
-                  "text-xs rounded-xl",
-                  filterCategory === "ALL"
-                    ? "bg-amber-400 text-slate-950 font-bold"
-                    : "text-slate-300"
-                )}
-              >
-                Todos ({activities.length})
+          <Card>
+            <CardHeader>
+              <CardTitle>Registro de atendimentos CASSI indisponível</CardTitle>
+              <CardDescription>
+                Esta página não consulta ordens, assinaturas, faturamentos ou devolutivas
+                confirmadas. O cumprimento de SLA depende dos registros e protocolos do atendimento.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild variant="outline">
+                <Link href="/aso-scheduler">Consultar solicitações de ASO</Link>
               </Button>
-              <Button
-                variant={filterCategory === "RETORNO" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilterCategory("RETORNO")}
-                className={cn(
-                  "text-xs rounded-xl",
-                  filterCategory === "RETORNO"
-                    ? "bg-amber-400 text-slate-950 font-bold"
-                    : "text-slate-300"
-                )}
-              >
-                Retorno D0
-              </Button>
-              <Button
-                variant={filterCategory === "PAVAS" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilterCategory("PAVAS")}
-                className={cn(
-                  "text-xs rounded-xl",
-                  filterCategory === "PAVAS"
-                    ? "bg-amber-400 text-slate-950 font-bold"
-                    : "text-slate-300"
-                )}
-              >
-                PAVAS
-              </Button>
-              <Button
-                variant={filterCategory === "EPS" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilterCategory("EPS")}
-                className={cn(
-                  "text-xs rounded-xl",
-                  filterCategory === "EPS"
-                    ? "bg-amber-400 text-slate-950 font-bold"
-                    : "text-slate-300"
-                )}
-              >
-                EPS BB
-              </Button>
-              <Button
-                variant={filterCategory === "FATURADO" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilterCategory("FATURADO")}
-                className={cn(
-                  "text-xs rounded-xl",
-                  filterCategory === "FATURADO"
-                    ? "bg-amber-400 text-slate-950 font-bold"
-                    : "text-slate-300"
-                )}
-              >
-                Faturados
-              </Button>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {filteredActivities.map((act) => (
-              <Card
-                key={act.id}
-                className="bg-slate-900/80 border-slate-800 hover:border-slate-700 rounded-2xl transition-all"
-              >
-                <CardContent className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  <div className="space-y-2 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge
-                        className={cn(
-                          "text-[10px] font-black uppercase tracking-wider",
-                          act.status === "CONCLUIDO_D0" && "bg-emerald-500 text-slate-950",
-                          act.status === "FATURADO_TISS" && "bg-blue-600 text-white",
-                          act.status === "AGUARDANDO_PORTAL" && "bg-amber-400 text-slate-950",
-                          act.status === "EM_ATENDIMENTO" && "bg-purple-600 text-white"
-                        )}
-                      >
-                        {act.status.replace("_", " ")}
-                      </Badge>
-                      <span className="font-mono text-xs font-bold text-amber-300">
-                        {act.orderNumber}
-                      </span>
-                      <span className="text-xs text-slate-400">•</span>
-                      <span className="text-xs font-bold text-white">{act.serviceType}</span>
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] font-mono border-slate-700 text-slate-300"
-                      >
-                        TISS: {act.tissCode}
-                      </Badge>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-4 text-xs text-slate-300">
-                      <span className="font-bold text-white flex items-center gap-1.5">
-                        <Users size={14} className="text-amber-400" /> {act.employeeName}
-                      </span>
-                      <span className="text-slate-400 font-mono">
-                        Matrícula: {act.employeeMatricula}
-                      </span>
-                      <span className="flex items-center gap-1 text-slate-400">
-                        <MapPin size={13} className="text-slate-500" /> {act.unitOrAgency} (
-                        {act.city}/{act.uf})
-                      </span>
-                      <span className="text-slate-400">
-                        Guia:{" "}
-                        <strong className="text-slate-200 font-mono">{act.guideSadtNumber}</strong>{" "}
-                        (Senha: {act.authPassword})
-                      </span>
-                    </div>
-
-                    {act.notes && (
-                      <p className="text-xs text-slate-400 bg-slate-950/60 p-2 rounded-xl border border-slate-800/80">
-                        {act.notes}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end justify-between gap-3 shrink-0">
-                    <div className="text-right">
-                      <span className="text-xs text-slate-400 block">Valor TISS:</span>
-                      <span className="text-lg font-black text-emerald-400">
-                        R$ {act.price.toFixed(2)}
-                      </span>
-                      <span className="text-[11px] text-amber-300 block font-semibold">
-                        SLA: {act.slaDeadline}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {act.status !== "CONCLUIDO_D0" && act.status !== "FATURADO_TISS" && (
-                        <Button
-                          size="sm"
-                          onClick={() => markCompletedD0(act.id)}
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl h-8 px-3 flex items-center gap-1"
-                        >
-                          <CheckCircle2 size={13} /> Concluir D0
-                        </Button>
-                      )}
-
-                      <Link href="/cassi-billing">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-slate-700 hover:border-amber-400 text-white font-bold text-xs rounded-xl h-8 px-3 flex items-center gap-1"
-                        >
-                          <FileSpreadsheet size={13} className="text-amber-300" /> Faturar TISS
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ABA 3: VISITAS ÀS AGÊNCIAS BB & KIT AMBULATORIAL */}
@@ -760,14 +482,14 @@ export default function CassiOperationsHubPage() {
                     className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800/80"
                   >
                     <div className="flex items-center gap-3">
-                      <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                      <FileText size={16} className="text-slate-400 shrink-0" />
                       <span className="text-xs font-semibold text-white">{item}</span>
                     </div>
                     <Badge
                       variant="outline"
-                      className="text-[10px] text-emerald-300 border-emerald-500/30"
+                      className="text-[10px] text-slate-300 border-slate-700"
                     >
-                      Calibrado / OK
+                      Exigência contratual
                     </Badge>
                   </div>
                 ))}
@@ -938,13 +660,14 @@ export default function CassiOperationsHubPage() {
                     Trabalho (CAT)
                   </CardTitle>
                   <CardDescription className="text-xs text-slate-400">
-                    Modelo oficial contratual preenchido pelo médico examinador após atendimento
-                    (Físico & Digital).
+                    Rascunho não emitido. A emissão depende de atendimento vinculado, identificação
+                    do médico e revisão profissional. Nenhum certificado foi verificado.
                   </CardDescription>
                 </div>
 
                 <Button
-                  onClick={() => window.print()}
+                  disabled
+                  title="Emissão requer atendimento vinculado e revisão profissional verificada."
                   className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs uppercase rounded-xl flex items-center gap-2"
                 >
                   <Printer size={14} /> Imprimir / Exportar CAT
@@ -954,8 +677,11 @@ export default function CassiOperationsHubPage() {
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">Nome do Funcionário</Label>
+                  <Label htmlFor="cat-employeeName" className="text-xs text-slate-300 font-bold">
+                    Nome do Funcionário
+                  </Label>
                   <Input
+                    id="cat-employeeName"
                     value={catForm.employeeName}
                     onChange={(e) => setCatForm({ ...catForm, employeeName: e.target.value })}
                     placeholder="Ex: MARCOS AURÉLIO DA SILVA"
@@ -963,10 +689,11 @@ export default function CassiOperationsHubPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">
+                  <Label htmlFor="cat-matricula" className="text-xs text-slate-300 font-bold">
                     Matrícula Banco do Brasil
                   </Label>
                   <Input
+                    id="cat-matricula"
                     value={catForm.matricula}
                     onChange={(e) => setCatForm({ ...catForm, matricula: e.target.value })}
                     placeholder="Ex: BB-7.892.411-0"
@@ -974,10 +701,11 @@ export default function CassiOperationsHubPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">
+                  <Label htmlFor="cat-dependencia" className="text-xs text-slate-300 font-bold">
                     Dependência / Agência BB
                   </Label>
                   <Input
+                    id="cat-dependencia"
                     value={catForm.dependencia}
                     onChange={(e) => setCatForm({ ...catForm, dependencia: e.target.value })}
                     placeholder="Ex: Agência Centro Cívico (0042)"
@@ -988,25 +716,38 @@ export default function CassiOperationsHubPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">Data do Atendimento</Label>
+                  <Label htmlFor="cat-date" className="text-xs text-slate-300 font-bold">
+                    Data do Atendimento
+                  </Label>
                   <Input
                     type="date"
+                    id="cat-date"
                     value={catForm.date}
                     onChange={(e) => setCatForm({ ...catForm, date: e.target.value })}
                     className="bg-slate-950 border-slate-800 text-xs text-white rounded-xl"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">Hora</Label>
+                  <Label htmlFor="cat-time" className="text-xs text-slate-300 font-bold">
+                    Hora
+                  </Label>
                   <Input
+                    type="time"
+                    required
+                    id="cat-time"
                     value={catForm.time}
                     onChange={(e) => setCatForm({ ...catForm, time: e.target.value })}
                     className="bg-slate-950 border-slate-800 text-xs text-white rounded-xl"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">Houve Internação?</Label>
+                  <Label htmlFor="cat-internacao" className="text-xs text-slate-300 font-bold">
+                    Houve Internação?
+                  </Label>
                   <Input
+                    pattern="SIM|NAO|NÃO"
+                    required
+                    id="cat-internacao"
                     value={catForm.internacao}
                     onChange={(e) => setCatForm({ ...catForm, internacao: e.target.value })}
                     placeholder="SIM / NÃO"
@@ -1014,10 +755,18 @@ export default function CassiOperationsHubPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">
+                  <Label
+                    htmlFor="cat-provavelDuracaoDias"
+                    className="text-xs text-slate-300 font-bold"
+                  >
                     Duração do Tratamento (dias)
                   </Label>
                   <Input
+                    type="number"
+                    min={0}
+                    step={1}
+                    required
+                    id="cat-provavelDuracaoDias"
                     value={catForm.provavelDuracaoDias}
                     onChange={(e) =>
                       setCatForm({ ...catForm, provavelDuracaoDias: e.target.value })
@@ -1028,10 +777,11 @@ export default function CassiOperationsHubPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs text-slate-300 font-bold">
+                <Label htmlFor="cat-descricaoLesao" className="text-xs text-slate-300 font-bold">
                   Descrição e Natureza da Lesão
                 </Label>
                 <Input
+                  id="cat-descricaoLesao"
                   value={catForm.descricaoLesao}
                   onChange={(e) => setCatForm({ ...catForm, descricaoLesao: e.target.value })}
                   className="bg-slate-950 border-slate-800 text-xs text-white rounded-xl"
@@ -1040,8 +790,14 @@ export default function CassiOperationsHubPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">Diagnóstico Provável</Label>
+                  <Label
+                    htmlFor="cat-diagnosticoProvavel"
+                    className="text-xs text-slate-300 font-bold"
+                  >
+                    Diagnóstico Provável
+                  </Label>
                   <Input
+                    id="cat-diagnosticoProvavel"
                     value={catForm.diagnosticoProvavel}
                     onChange={(e) =>
                       setCatForm({ ...catForm, diagnosticoProvavel: e.target.value })
@@ -1050,8 +806,11 @@ export default function CassiOperationsHubPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">CID-10 ou CID-11</Label>
+                  <Label htmlFor="cat-cid" className="text-xs text-slate-300 font-bold">
+                    CID-10 ou CID-11
+                  </Label>
                   <Input
+                    id="cat-cid"
                     value={catForm.cid}
                     onChange={(e) => setCatForm({ ...catForm, cid: e.target.value })}
                     className="bg-slate-950 border-slate-800 text-xs text-white rounded-xl"
@@ -1063,14 +822,14 @@ export default function CassiOperationsHubPage() {
                 <div className="text-xs space-y-1">
                   <span className="text-slate-400">Médico Examinador:</span>
                   <div className="font-bold text-white">
-                    {catForm.doctorName} — CRM/{catForm.doctorUf} {catForm.doctorCrm}
+                    Profissional ainda não vinculado a atendimento
                   </div>
                   <span className="text-emerald-400 text-[11px] font-semibold flex items-center gap-1">
-                    <ShieldCheck size={13} /> Certificado Digital ICP-Brasil A1 Ativo
+                    <ShieldCheck size={13} /> Certificado não verificado
                   </span>
                 </div>
                 <Badge className="bg-amber-400 text-slate-950 font-bold text-xs px-3 py-1">
-                  Pronto para Envio à CASSI
+                  Rascunho — emissão indisponível
                 </Badge>
               </div>
             </CardContent>
@@ -1160,164 +919,6 @@ export default function CassiOperationsHubPage() {
           </div>
         </TabsContent>
       </Tabs>
-
-      {/* MODAL / NOVA ORDEM DE ATENDIMENTO CASSI */}
-      {showNewModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-amber-400/40 rounded-3xl max-w-xl w-full p-6 space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div>
-                <h3 className="text-lg font-black text-white flex items-center gap-2">
-                  <PlusCircle className="text-amber-400" /> Nova Ordem de Atendimento CASSI
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Preencha os dados e valide a Guia SP/SADT obrigatória.
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowNewModal(false)}
-                className="text-slate-400 hover:text-white rounded-xl"
-              >
-                ✕
-              </Button>
-            </div>
-
-            <form onSubmit={handleCreateOrder} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-slate-300 font-bold">
-                  Modalidade do Atendimento
-                </Label>
-                <select
-                  value={newOrder.serviceType}
-                  onChange={(e) => handleServiceTypeChange(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 text-xs text-white p-2.5 rounded-xl"
-                >
-                  <option value="Retorno ao Trabalho (RT)">
-                    Retorno ao Trabalho (RT) — Valor a cadastrar (SLA D0)
-                  </option>
-                  <option value="Atendimento PAVAS (Vítimas de Assalto/Sequestro)">
-                    Atendimento PAVAS — Valor a cadastrar (Urgente)
-                  </option>
-                  <option value="EPS - Exames Periódicos de Saúde BB">
-                    EPS - Periódico Banco do Brasil — Valor a cadastrar
-                  </option>
-                  <option value="Exame Médico Admissional">
-                    Exame Admissional — Valor a cadastrar
-                  </option>
-                  <option value="Exame Médico Demissional">
-                    Exame Demissional — Valor a cadastrar
-                  </option>
-                  <option value="Avaliação de Capacidade Laborativa e Deficiência (PCD)">
-                    Avaliação PCD / Capacidade — Valor a cadastrar
-                  </option>
-                  <option value="Homologação de Atestados e Perícia Médica">
-                    Homologação / Perícia Médica — Valor a cadastrar
-                  </option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">Código TISS</Label>
-                  <Input
-                    disabled
-                    value={newOrder.tissCode}
-                    className="bg-slate-950 border-slate-800 text-xs text-amber-300 font-mono rounded-xl"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">Valor Fixo Contratual</Label>
-                  <Input
-                    disabled
-                    value={`R$ ${newOrder.price.toFixed(2)}`}
-                    className="bg-slate-950 border-slate-800 text-xs text-emerald-400 font-bold rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">
-                    Nome do Funcionário BB *
-                  </Label>
-                  <Input
-                    required
-                    placeholder="Nome completo do bancário"
-                    value={newOrder.employeeName}
-                    onChange={(e) => setNewOrder({ ...newOrder, employeeName: e.target.value })}
-                    className="bg-slate-950 border-slate-800 text-xs text-white rounded-xl"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">Matrícula BB</Label>
-                  <Input
-                    placeholder="Ex: BB-7.892.411-0"
-                    value={newOrder.employeeMatricula}
-                    onChange={(e) =>
-                      setNewOrder({ ...newOrder, employeeMatricula: e.target.value })
-                    }
-                    className="bg-slate-950 border-slate-800 text-xs text-white rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs text-slate-300 font-bold">Agência / Dependência BB</Label>
-                <Input
-                  placeholder="Ex: Agência Batel (1500) - Curitiba/PR"
-                  value={newOrder.unitOrAgency}
-                  onChange={(e) => setNewOrder({ ...newOrder, unitOrAgency: e.target.value })}
-                  className="bg-slate-950 border-slate-800 text-xs text-white rounded-xl"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">Número Guia SP/SADT *</Label>
-                  <Input
-                    required
-                    placeholder="Ex: SP-SADT-9821099"
-                    value={newOrder.guideSadtNumber}
-                    onChange={(e) => setNewOrder({ ...newOrder, guideSadtNumber: e.target.value })}
-                    className="bg-slate-950 border-slate-800 text-xs text-white rounded-xl font-mono"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-300 font-bold">
-                    Senha de Autorização CASSI *
-                  </Label>
-                  <Input
-                    required
-                    placeholder="Ex: AUT-782991-BB"
-                    value={newOrder.authPassword}
-                    onChange={(e) => setNewOrder({ ...newOrder, authPassword: e.target.value })}
-                    className="bg-slate-950 border-slate-800 text-xs text-white rounded-xl font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-3 flex items-center justify-end gap-3">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setShowNewModal(false)}
-                  className="text-slate-400 hover:text-white text-xs rounded-xl"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs uppercase px-5 rounded-xl shadow-lg"
-                >
-                  Confirmar Ordem
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

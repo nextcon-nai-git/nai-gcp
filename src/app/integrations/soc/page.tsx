@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useUser } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { SocDashboard } from "./soc-dashboard";
+import { SocOperations } from "./soc-operations";
+import type { SocWebAccess } from "@/lib/integrations/soc-access";
 
 type Resource = "companies" | "employees" | "asos" | "runs";
 type Row = Record<string, string | number | null>;
 type Configuration = {
   companyIds: string[];
   resources: Record<string, { configured: boolean; format: string }>;
+  webAccess?: SocWebAccess;
 };
 const labels: Record<Resource, string> = {
   companies: "Empresas",
@@ -51,6 +54,8 @@ const columns: Record<Resource, [string, string][]> = {
     ["companyId", "Empresa SOC"],
     ["status", "Resultado"],
     ["code", "Diagnóstico"],
+    ["periodStart", "Emissão inicial"],
+    ["periodEnd", "Emissão final"],
     ["records", "Registros"],
     ["needsReview", "Conferir"],
   ],
@@ -78,7 +83,9 @@ function Session() {
     };
   }, []);
   const identity = useRef(user?.uid);
-  identity.current = user?.uid;
+  useLayoutEffect(() => {
+    identity.current = user?.uid;
+  }, [user?.uid]);
   const [config, setConfig] = useState<Configuration | null>(null);
   const [resource, setResource] = useState<Resource>("employees");
   const [companyId, setCompanyId] = useState("");
@@ -186,17 +193,12 @@ function Session() {
         <Link href="/integrations" className="text-sm underline">
           Integrações
         </Link>
-        <h1 className="text-3xl font-semibold text-primary">Painel SOC</h1>
+        <h1 className="text-3xl font-semibold text-primary">Central SOC</h1>
         <p className="text-muted-foreground">
           Acompanhe clientes ativos, relatórios e pendências verificadas da operação.
         </p>
       </header>
-      <Link
-        href="/integrations/soc/convocations"
-        className="inline-block rounded-lg border px-4 py-3 font-medium underline"
-      >
-        Convocações SOC · importar e consultar base AVP
-      </Link>
+      {config && <SocOperations access={config.webAccess} />}
       <SocDashboard />
       <details className="space-y-6 rounded-lg border p-4">
         <summary className="cursor-pointer text-lg font-semibold">
@@ -223,6 +225,12 @@ function Session() {
             ) : (
               <p>
                 {user ? "Aguardando verificação da configuração." : "Entre no NAI para consultar."}
+              </p>
+            )}
+            {config && (
+              <p>
+                Escopo da conexão: {config.companyIds.length} empresas autorizadas no servidor. A
+                carteira do levantamento manual não amplia esse escopo automaticamente.
               </p>
             )}
             <p>A credencial de login no SOC é diferente da chave de cada Exporta Dados.</p>
@@ -332,9 +340,10 @@ function Session() {
             )}
             {resource === "runs" && (
               <p className="text-sm text-muted-foreground">
-                O monitoramento diário consulta cadastros das empresas autorizadas quando o
-                agendador está configurado. Nenhuma execução diária é presumida a partir da presença
-                das credenciais.
+                O agendador, quando habilitado, consulta empresas autorizadas confirmadas como
+                ativas e ASOs emitidos nos últimos 31 dias, em lotes. Este relatório não comprova
+                vencimentos nem paralisações. Falhas e cobertura parcial precisam ser conferidas no
+                histórico; credenciais configuradas não confirmam uma execução.
               </p>
             )}
           </CardContent>

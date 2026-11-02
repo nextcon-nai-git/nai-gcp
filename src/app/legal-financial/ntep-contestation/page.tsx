@@ -25,21 +25,34 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useSgi } from "@/contexts/sgi-context";
-import { REAL_COMPANIES } from "@/lib/real-data";
+import { useCompanyDirectory } from "@/hooks/use-company-directory";
+import { useUser, useFirestore } from "@/firebase";
 import {
   generateNtepContestation,
   NtepContestationOutput,
 } from "@/ai/flows/ntep-contestation-generator";
 import { useToast } from "@/hooks/use-toast";
 
-export default function NtepContestationPage() {
+export default function NtepContestationScope() {
+  const { user } = useUser();
+  const { activeClientId } = useSgi();
+  return <NtepContestationPage key={JSON.stringify([user?.uid, activeClientId])} />;
+}
+
+function NtepContestationPage() {
   const { activeClientId } = useSgi();
   const { toast } = useToast();
 
-  const currentCompany = React.useMemo(() => {
-    const found = REAL_COMPANIES.find((c) => c.id === activeClientId);
-    return found || { name: "", cnpj: "", cnae: "" };
-  }, [activeClientId]);
+  const { user } = useUser();
+  const db = useFirestore();
+  const { canBrowseAllCompanies, authorizedCompanies } = useSgi();
+  const { data: companies } = useCompanyDirectory(
+    db,
+    user?.uid,
+    canBrowseAllCompanies,
+    authorizedCompanies
+  );
+  const currentCompany = companies.find((company) => company.id === activeClientId);
 
   const [employeeName, setEmployeeName] = React.useState("");
   const [jobRole, setJobRole] = React.useState("");
@@ -52,14 +65,22 @@ export default function NtepContestationPage() {
   const [copied, setCopied] = React.useState(false);
 
   const handleGenerate = async () => {
+    if (
+      !currentCompany?.cnpj ||
+      !employeeName.trim() ||
+      !jobRole.trim() ||
+      !cid.trim() ||
+      !workEnvironment.trim()
+    )
+      return;
     setResult(null);
     setIsGenerating(true);
     try {
       const res = await generateNtepContestation(
         {
-          companyName: currentCompany.name,
-          cnpj: currentCompany.cnpj,
-          cnae: (currentCompany as any).cnae || "",
+          companyName: currentCompany?.name || "Selecione uma empresa autorizada",
+          cnpj: currentCompany?.cnpj || "",
+          cnae: currentCompany?.cnae || "",
           employeeName,
           jobRole,
           cid,
@@ -125,10 +146,10 @@ export default function NtepContestationPage() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-bold text-white flex items-center gap-2">
               <Building2 className="size-5 text-sky-400" />
-              Empresa Requerente: {currentCompany.name}
+              Empresa Requerente: {currentCompany?.name || "Selecione uma empresa autorizada"}
             </CardTitle>
             <Badge variant="outline" className="text-slate-400 border-slate-700 text-xs font-mono">
-              CNPJ: {currentCompany.cnpj || "44.882.110/0001-92"}
+              CNPJ: {currentCompany?.cnpj || "Não informado no cadastro"}
             </Badge>
           </div>
         </CardHeader>
@@ -188,7 +209,14 @@ export default function NtepContestationPage() {
 
           <Button
             onClick={handleGenerate}
-            disabled={isGenerating}
+            disabled={
+              isGenerating ||
+              !currentCompany?.cnpj ||
+              !employeeName.trim() ||
+              !jobRole.trim() ||
+              !cid.trim() ||
+              !workEnvironment.trim()
+            }
             className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-sm uppercase tracking-wider rounded-xl shadow-lg gap-2"
           >
             <Sparkles className={`size-4 ${isGenerating ? "animate-spin" : ""}`} />

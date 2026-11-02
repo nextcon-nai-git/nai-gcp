@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   CheckSquare,
   ClipboardList,
+  FileSpreadsheet,
   FileText,
   FileUp,
   FolderCheck,
@@ -390,6 +391,11 @@ export default function NaiImportaPage() {
             <ScanLine className="size-7" />
           </div>
         </div>
+        <Button asChild variant="outline">
+          <Link href="/health-control?tab=esteira">
+            <FileSpreadsheet className="mr-2 size-4" /> Importar planilha de ASOs
+          </Link>
+        </Button>
       </header>
 
       <ol aria-label="Etapas da importação" className="grid grid-cols-3 gap-2 sm:gap-4">

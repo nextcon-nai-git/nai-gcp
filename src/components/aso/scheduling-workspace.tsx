@@ -1,5 +1,6 @@
 "use client";
 
+import { ClinicPortalInvite } from "@/components/aso/clinic-portal-invite";
 import { KitPdfGenerator } from "@/components/aso/kit-pdf-generator";
 import React, { useState, useEffect } from "react";
 import { useSgi } from "@/contexts/sgi-context";
@@ -92,6 +93,8 @@ function SchedulingSession() {
     examType: "admissional" as ExamType,
     declaredRisks: "",
     userPrompt: "",
+    manualReview: false,
+    manualExamNames: "",
   });
 
   const [aiAnalysisResult, setAiAnalysisResult] = useState<AsoSystemOrchestratorOutput | null>(
@@ -182,6 +185,10 @@ function SchedulingSession() {
       const res = await createAsoRequestAction(
         {
           ...formData,
+          manualExamNames: formData.manualExamNames
+            .split("\n")
+            .map((s) => s.trim())
+            .filter(Boolean),
           declaredRisks: formData.declaredRisks
             .split(",")
             .map((s) => s.trim())
@@ -194,6 +201,20 @@ function SchedulingSession() {
       if (!mounted.current) return;
       setRequests((prev) => [res.data!, ...prev.filter((r) => r.id !== res.data!.id)]);
       setSelectedRequest(res.data);
+      setFormData({
+        companyName: "",
+        cnpj: "",
+        employeeName: "",
+        cpf: "",
+        roleTitle: "",
+        department: "",
+        examType: "admissional",
+        declaredRisks: "",
+        userPrompt: "",
+        manualReview: false,
+        manualExamNames: "",
+      });
+      setAiAnalysisResult(null);
       setActiveTab("kanban");
       setNotice(
         `Solicitação de ASO ${res.data.id} registrada. Confira os dados e as sugestões antes de prosseguir.`
@@ -640,6 +661,39 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                 </div>
               </div>
 
+              <div className="space-y-3 py-4 text-sm text-slate-200">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.manualReview}
+                    onChange={(e) => setFormData({ ...formData, manualReview: e.target.checked })}
+                  />
+                  Registrar para revisão manual, sem depender da IA
+                </label>
+                {formData.manualReview && (
+                  <>
+                    <label htmlFor="manual-exams">
+                      Exames informados pela equipe (um por linha)
+                    </label>
+                    <textarea
+                      id="manual-exams"
+                      required
+                      maxLength={10000}
+                      rows={3}
+                      value={formData.manualExamNames}
+                      onChange={(e) =>
+                        setFormData({ ...formData, manualExamNames: e.target.value })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white"
+                    />
+                    <p className="text-xs text-amber-300">
+                      O pedido ficará solicitado, sem confirmação de clínica ou aptidão. Confira os
+                      exames com o PCMSO antes do atendimento.
+                    </p>
+                  </>
+                )}
+              </div>
+
               <div className="flex items-center justify-between pt-4 border-t border-slate-800 gap-3">
                 <button
                   type="button"
@@ -665,7 +719,9 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                   ) : (
                     <Send className="w-4 h-4" />
                   )}
-                  Criar & Processar com IA
+                  {formData.manualReview
+                    ? "Registrar para revisão manual"
+                    : "Criar & Processar com IA"}
                 </button>
               </div>
             </form>
@@ -766,6 +822,13 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                 ))}
               </select>
             </label>
+            {selectedRequest && (
+              <ClinicPortalInvite
+                key={`${user?.uid}:${selectedRequest.id}`}
+                requestId={selectedRequest.id}
+                existingId={selectedRequest.clinicPortalId}
+              />
+            )}
             {selectedRequest?.digitalKit ? (
               <div className="bg-slate-900/90 border border-cyan-500/40 p-6 rounded-2xl shadow-2xl space-y-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-800 pb-4 gap-4">
@@ -893,8 +956,9 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
               <div className="text-xs text-slate-500 italic py-16 text-center border border-dashed border-slate-800 rounded-xl space-y-2">
                 <FileText className="w-8 h-8 mx-auto text-slate-700" />
                 <p>
-                  Selecione uma solicitação no Pipeline Kanban para visualizar ou exportar o Kit
-                  Digital de Atendimento.
+                  {selectedRequest
+                    ? "A solicitação selecionada ainda não possui kit digital. Confira os dados e gere o kit antes de visualizar ou exportar."
+                    : "Selecione uma solicitação no Pipeline Kanban para visualizar ou exportar o Kit Digital de Atendimento."}
                 </p>
               </div>
             )}

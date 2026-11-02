@@ -3,6 +3,8 @@ import { useState } from "react";
 import { useUser, useAuth } from "@/firebase";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Activity } from "lucide-react";
 export default function SettingsPage() {
   const { user, role, companyId } = useUser();
   const auth = useAuth();
@@ -27,6 +29,14 @@ export default function SettingsPage() {
       <p>{user?.email}</p>
       <p>Perfil: {role || "Aguardando liberação"}</p>
       <p>Empresa: {companyId || "Definida pelo administrador"}</p>
+      {role === "SUPER_ADMIN" && (
+        <Button asChild variant="outline">
+          <Link href="/admin/operations">
+            <Activity className="mr-2 h-4 w-4" />
+            Acompanhar operações
+          </Link>
+        </Button>
+      )}
       <Button onClick={reset} disabled={!user?.email || sending}>
         {sending ? "Solicitando…" : "Redefinir senha por e-mail"}
       </Button>

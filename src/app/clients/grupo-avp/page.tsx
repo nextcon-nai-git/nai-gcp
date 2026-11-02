@@ -27,6 +27,7 @@ import { AvpSchedulingRequestForm } from "@/components/clients/avp-scheduling-re
 import { GrupoAvpCredenciamentoHub } from "@/components/clients/grupo-avp-credenciamento-hub";
 
 import { AvpEvidencePanel } from "@/components/clients/avp-evidence-panel";
+import { AvpWorkflowPanel } from "@/components/clients/avp-workflow-panel";
 import { AvpPeriodicControlPanel } from "@/components/clients/avp-periodic-control";
 import { useUser } from "@/firebase";
 import { canAccessAvpEvidence } from "@/lib/auth/avp-access";
@@ -37,6 +38,7 @@ export default function GrupoAvpClientHubPage() {
   const { toast } = useToast();
   const [copiedChannel, setCopiedChannel] = React.useState<string | null>(null);
 
+  const [activeTab, setActiveTab] = React.useState("asos");
   const [queueSummary, setQueueSummary] = React.useState({
     total: 0,
     urgentes: 0,
@@ -233,7 +235,7 @@ export default function GrupoAvpClientHubPage() {
       </div>
 
       {/* TABS DE NAVEGAÇÃO OPERACIONAL */}
-      <Tabs defaultValue="asos" className="w-full space-y-8">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-8">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-200 pb-4">
           <TabsList className="bg-slate-100 p-1.5 rounded-2xl h-auto flex flex-wrap gap-1">
             <TabsTrigger
@@ -253,6 +255,9 @@ export default function GrupoAvpClientHubPage() {
                   className="rounded-xl py-2.5 px-4 text-xs font-bold"
                 >
                   Periódicos e rede AVP
+                </TabsTrigger>
+                <TabsTrigger value="workflow" className="rounded-xl py-2.5 px-4 text-xs font-bold">
+                  Esteira de ASOs
                 </TabsTrigger>
                 <TabsTrigger value="payments" className="rounded-xl py-2.5 px-4 text-xs font-bold">
                   Pagamentos às clínicas
@@ -299,7 +304,6 @@ export default function GrupoAvpClientHubPage() {
         {/* TAB 1: GESTÃO DE ASOS */}
         <TabsContent
           value="asos"
-          forceMount
           className="space-y-6 focus-visible:outline-none data-[state=inactive]:hidden"
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -325,7 +329,10 @@ export default function GrupoAvpClientHubPage() {
         {canSeeEvidence && (
           <>
             <TabsContent value="periodicos">
-              <AvpPeriodicControlPanel />
+              <AvpPeriodicControlPanel onOpenCosts={() => setActiveTab("asos")} />
+            </TabsContent>
+            <TabsContent value="workflow">
+              <AvpWorkflowPanel />
             </TabsContent>
             <TabsContent value="payments">
               <AvpEvidencePanel kind="payment" />
@@ -425,7 +432,7 @@ export default function GrupoAvpClientHubPage() {
                   </p>
                   <div className="p-3 bg-white rounded-2xl border border-blue-200 text-center overflow-hidden">
                     <strong className="text-[11px] font-black font-mono text-blue-900 truncate block">
-                      atendimento.grupavp@nextonsaude.com.br
+                      atendimento.grupavp@nextconsaude.com.br
                     </strong>
                   </div>
                 </div>
@@ -435,13 +442,13 @@ export default function GrupoAvpClientHubPage() {
                     asChild
                     className="flex-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-[11px] uppercase tracking-wider h-10 gap-1.5 shadow-md"
                   >
-                    <a href="mailto:atendimento.grupavp@nextonsaude.com.br">
+                    <a href="mailto:atendimento.grupavp@nextconsaude.com.br">
                       <Mail size={14} /> Enviar E-mail
                     </a>
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => handleCopy("atendimento.grupavp@nextonsaude.com.br", "E-mail")}
+                    onClick={() => handleCopy("atendimento.grupavp@nextconsaude.com.br", "E-mail")}
                     className="rounded-xl border-blue-200 text-blue-800 h-10 px-3"
                   >
                     {copiedChannel === "E-mail" ? <Check size={16} /> : <Copy size={16} />}

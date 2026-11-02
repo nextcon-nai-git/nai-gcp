@@ -7,7 +7,7 @@ export default function CrmRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/");
+    router.replace("/comercial");
   }, [router]);
 
   return null;

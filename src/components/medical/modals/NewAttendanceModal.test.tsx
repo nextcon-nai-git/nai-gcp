@@ -150,6 +150,23 @@ afterEach(async () => {
 });
 
 describe("nursing attendance form", () => {
+  it("toggles care lines once from both label and input and saves their actual selection", async () => {
+    await validForm();
+    const label = [...host.querySelectorAll("label")].find((node) =>
+      node.textContent?.includes("Pausa Ativa")
+    )!;
+    const input = label.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    await act(async () => label.click());
+    expect(input.checked).toBe(true);
+    await act(async () => input.click());
+    expect(input.checked).toBe(false);
+    await act(async () => label.click());
+    await submit();
+    expect(mock.save).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ care_lines: ["pausa_ativa"] })
+    );
+  });
   it("starts without a fabricated credential and validates it before writing", async () => {
     expect((host.querySelector('input[name="coren"]') as HTMLInputElement).value).toBe("");
     await validForm();

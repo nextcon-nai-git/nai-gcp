@@ -164,12 +164,12 @@ function ContractsSession() {
     data: contracts,
     isLoading: loadingContracts,
     error: contractsError,
-  } = useCollection<StoredContract>(contractsQuery);
+  } = useCollection<StoredContract>(contractsQuery, { permissionErrors: "local" });
   const {
     data: companies,
     isLoading: loadingCompanies,
     error: companiesError,
-  } = useCollection<Company>(companiesQuery);
+  } = useCollection<Company>(companiesQuery, { permissionErrors: "local" });
   const accessDenied = [contractsError, companiesError].some(
     (error) =>
       error instanceof FirestorePermissionError ||
@@ -306,6 +306,9 @@ function ContractsSession() {
           A consulta não foi autorizada. Os dados da importação foram retirados da tela.
         </p>
         <Button onClick={() => window.location.reload()}>Verificar acesso novamente</Button>
+        <Button asChild variant="outline">
+          <Link href="/production">Abrir Central de Contratos e Produção</Link>
+        </Button>
       </main>
     );
   const shown = (contracts || [])

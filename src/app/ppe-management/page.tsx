@@ -231,7 +231,7 @@ function PpeManagementSession() {
     if (!validation.valid) {
       toast({
         variant: "destructive",
-        title: "Bloqueio de Conformidade NR-06",
+        title: "Bloqueio de Conferência NR-06 pendente",
         description: validation.issues[0],
       });
       return;
@@ -960,15 +960,15 @@ function PpeManagementSession() {
             </div>
             <div>
               <p className="text-[10px] font-black uppercase text-emerald-800">
-                C.A.s Válidos no MTE
+                C.A.s com validade cadastrada
               </p>
               <h3 className="text-2xl font-black text-emerald-900">
-                {catalogStats.valid} Conformes
+                {catalogStats.valid} dentro da data informada
               </h3>
             </div>
           </div>
           <Badge className="mt-3 bg-white text-emerald-700 border-none text-[8px] font-black uppercase w-fit">
-            Conformidade NR-06
+            Conferência NR-06 pendente
           </Badge>
         </Card>
 
@@ -1156,8 +1156,8 @@ function PpeManagementSession() {
                 Histórico de Entregas e Fichas Assinadas
               </CardTitle>
               <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1">
-                Rastreabilidade digital com autenticação biométrica e hash imutável de assinatura
-                perante o MTE.
+                Histórico de entregas cadastradas. Esta tela não comprova biometria, assinatura
+                digital ou validação pelo MTE.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0 overflow-x-auto">
@@ -1271,7 +1271,7 @@ function PpeManagementSession() {
                 Catálogo de EPIs Certificados por Função (NR-06)
               </CardTitle>
               <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1">
-                EPIs cadastrados com número de C.A., status de validade perante o MTE e cargos
+                EPIs cadastrados com número de C.A., data de validade informada e cargos
                 habilitados.
               </CardDescription>
             </CardHeader>
@@ -1282,7 +1282,7 @@ function PpeManagementSession() {
                     <TableHead className="pl-8">Equipamento</TableHead>
                     <TableHead>Categoria</TableHead>
                     <TableHead>C.A. (MTE)</TableHead>
-                    <TableHead>Validade MTE</TableHead>
+                    <TableHead>Validade informada</TableHead>
                     <TableHead>Funções Recomendadas</TableHead>
                     <TableHead className="pr-8 text-right">Ação</TableHead>
                   </TableRow>

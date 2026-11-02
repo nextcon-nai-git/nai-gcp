@@ -7,6 +7,18 @@ export interface TimeClockEmployee {
   status?: string;
   active?: boolean;
   cpf?: string;
+  admissionDate?: string;
+  workSchedule?: string;
+  schedule?: string;
+  weeklyHours?: string | number;
+  employer?: {
+    companyName?: string;
+    cnpj?: string;
+    address?: string;
+    cei?: string;
+    caepf?: string;
+    cno?: string;
+  };
   role?: string;
   jobTitle?: string;
   jobRole?: string;

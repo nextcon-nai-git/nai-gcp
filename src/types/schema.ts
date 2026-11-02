@@ -175,6 +175,10 @@ export interface OpsTask extends MasterEntity {
   riskDegree?: number;
   isInvoiced?: boolean;
   location?: string;
+  latitude?: number;
+  longitude?: number;
+  contactEmail?: string;
+  emailThreadUrl?: string;
   tags?: string[];
   checklist?: Array<{ id?: string; text: string; checked: boolean; mandatory?: boolean }>;
   dueDate: string;

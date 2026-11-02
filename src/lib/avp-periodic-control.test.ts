@@ -58,7 +58,21 @@ const build = (people = [person()], providers = [provider()], prices: unknown[][
     [PRICE_HEADERS, ...prices]
   );
 describe("controle da campanha periódica e rede AVP", () => {
-  it("deduplica CPF + admissão sem perder linhas e sem retornar CPF ou diagnóstico", () => {
+  it.each([
+    ["Sim", ""],
+    ["", "Sim"],
+    ["Sim", "", "Não"],
+  ])("distingue ausência de evidência de contrato de uma negativa explícita: %j", (...states) => {
+    const result = build(
+      [person()],
+      states.map((state) => provider(undefined, undefined, undefined, state))
+    );
+    const conflict = states.includes("Não");
+    expect(result.clinics[0].contractReported).toBe(!conflict);
+    expect(result.clinics[0].contractConflict).toBe(conflict);
+    expect(result.cities[0].contracted).toBe(conflict ? 0 : 1);
+  });
+  it("deduplica o mesmo CPF, admissão, unidade e município sem expor CPF", () => {
     const duplicate = person("2");
     duplicate[1] = "Fortaleza - ASSOBES Jóquei";
     const d = build([person(), duplicate]);
@@ -72,6 +86,21 @@ describe("controle da campanha periódica e rede AVP", () => {
     expect(d.people[0].sourceRows).toEqual([5, 6]);
     expect(JSON.stringify(d.people)).not.toContain("00000000001");
     expect(d.cities[0].contracted).toBe(1);
+  });
+  it("preserva vínculos de unidades e municípios distintos para o mesmo CPF e admissão", () => {
+    const first = person();
+    first[19] = "Unidade A";
+    const otherUnit = person("2");
+    otherUnit[19] = "Unidade B";
+    const otherCity = person("3", "00000000001", "Marabá", "PA");
+    otherCity[19] = "Unidade A";
+    const result = build([first, otherUnit, otherCity]);
+    expect(result.summary).toMatchObject({ sourceRows: 3, uniquePeople: 3, duplicates: 0 });
+    expect(result.people.map((p) => [p.unit, p.cityKey])).toEqual([
+      ["Unidade A", "FORTALEZA|CE"],
+      ["Unidade B", "FORTALEZA|CE"],
+      ["Unidade A", "MARABA|PA"],
+    ]);
   });
   it("mantém cancelamentos e em-dia da fonte fora do grupo sem ressalvas", () => {
     const cancelled = person();

@@ -59,8 +59,8 @@ describe("validação dos dados S-2220", () => {
   });
   it("aceita CNPJ alfanumérico normalizado", () => {
     const data = input();
-    data.ideEmpregador.nrInsc = "AB.CDE.FGH/IJKL-12";
-    data.id = "ID1ABCDEFGHIJKL122026101212345600001";
-    expect(buildS2220Xml(data)).toContain("<nrInsc>ABCDEFGHIJKL12</nrInsc>");
+    data.ideEmpregador.nrInsc = "12.ABC.345/01DE-35";
+    data.id = "ID112ABC34501DE352026101212345600001";
+    expect(buildS2220Xml(data)).toContain("<nrInsc>12ABC34501DE35</nrInsc>");
   });
 });

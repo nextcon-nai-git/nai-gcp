@@ -264,7 +264,7 @@ export default function FinancialModule() {
         <StatCard
           title="Medição Cetesb"
           amount="R$ 46.603,75"
-          trend="Protocolado"
+          trend="Valor histórico informado; conciliação pendente"
           icon={Calculator}
           color="text-purple-600"
           bg="bg-purple-50"
@@ -331,20 +331,21 @@ export default function FinancialModule() {
                 </div>
                 <div className="space-y-8 flex-1 relative z-10">
                   <Badge className="bg-emerald-600 text-white border-none font-black text-[9px] tracking-[0.4em] h-7 px-4 shadow-lg rounded-lg">
-                    MEDIÇÃO PROTOCOLADA
+                    REFERÊNCIA HISTÓRICA
                   </Badge>
                   <h3 className="text-4xl font-black text-primary uppercase font-headline tracking-tighter">
                     Resumo Executivo Julho/2026
                   </h3>
                   <p className="text-lg font-medium text-emerald-800 leading-relaxed italic max-w-xl">
-                    "O faturamento total de{" "}
-                    <strong className="text-emerald-950">R$ 46.603,75</strong> foi validado e está
-                    pronto para emissão de nota fiscal técnica."
+                    Valor histórico informado:{" "}
+                    <strong className="text-emerald-950">R$ 46.603,75</strong>. As rubricas e os
+                    documentos de origem ainda precisam de conciliação; este resumo não autoriza
+                    emissão de nota nem comprova recebimento.
                   </p>
                 </div>
                 <div className="text-center md:text-right shrink-0 relative z-10 bg-white/20 p-8 rounded-[2.5rem] backdrop-blur-md border border-white/30 shadow-2xl">
                   <p className="text-[11px] font-black uppercase text-emerald-700 tracking-widest mb-2">
-                    Valor Total do Período
+                    Valor histórico informado
                   </p>
                   <h2 className="text-4xl font-black text-primary font-headline tabular-nums leading-none mb-6">
                     R$ 46.603,75
@@ -372,13 +373,12 @@ export default function FinancialModule() {
                     Status do Razão
                   </h4>
                   <p className="text-sm text-white/50 leading-relaxed font-medium">
-                    O fechamento fiscal de Fevereiro está{" "}
-                    <span className="text-accent font-black">92% concluído</span>. Aguardando
-                    sincronização final das rubricas.
+                    O fechamento não é apurado automaticamente neste painel. Confira títulos,
+                    rubricas, extratos e pendências no ERP financeiro.
                   </p>
                 </div>
                 <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                  <div className="h-full bg-accent" style={{ width: "92%" }} />
+                  <div className="h-full bg-accent" style={{ width: "0%" }} />
                 </div>
               </div>
             </Card>
@@ -406,7 +406,7 @@ export default function FinancialModule() {
                     </CardDescription>
                   </div>
                   <Badge className="bg-white text-emerald-700 font-black h-10 px-8 rounded-[1.25rem] shadow-xl border-none">
-                    STATUS: FINALIZADO
+                    STATUS: CONFERÊNCIA PENDENTE
                   </Badge>
                 </div>
               </CardHeader>
@@ -434,7 +434,7 @@ export default function FinancialModule() {
                                 {svc.name}
                               </span>
                               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                                Gatilho eSocial: OK
+                                Vínculo eSocial não verificado
                               </span>
                             </div>
                           </div>
@@ -454,10 +454,12 @@ export default function FinancialModule() {
                         Faturamento Total do Período
                       </TableCell>
                       <TableCell className="text-right pr-10 py-12 font-black text-emerald-600 text-3xl font-headline tabular-nums">
-                        {CETESB_JULY_2026_BILLING.totalValue.toLocaleString("pt-BR", {
-                          style: "currency",
-                          currency: "BRL",
-                        })}
+                        {CETESB_JULY_2026_BILLING.services.length > 0
+                          ? CETESB_JULY_2026_BILLING.totalValue.toLocaleString("pt-BR", {
+                              style: "currency",
+                              currency: "BRL",
+                            })
+                          : "Não apurado: rubricas indisponíveis"}
                       </TableCell>
                     </TableRow>
                   </TableBody>
@@ -479,14 +481,14 @@ export default function FinancialModule() {
                       Parecer da Auditoria
                     </h4>
                     <p className="text-base italic text-slate-300 font-medium leading-relaxed">
-                      "As rubricas médicas e de engenharia foram cruzadas com os logs de ponto
-                      digital e evidências de plantão, garantindo 100% de integridade financeira."
+                      As rubricas e evidências de plantão ainda precisam de conciliação. Este painel
+                      não comprova integridade financeira nem recebimento.
                     </p>
                   </div>
                   <div className="pt-6 border-t border-white/10 space-y-4">
                     <div className="flex justify-between items-center text-[10px] font-black uppercase text-white/30">
                       <span>Rastreabilidade</span>
-                      <span className="text-emerald-400">NAI SECURE-SYNC</span>
+                      <span className="text-emerald-400">Evidências pendentes</span>
                     </div>
                     <Button className="w-full h-16 bg-accent hover:opacity-90 text-primary font-black uppercase text-[11px] tracking-widest rounded-2xl shadow-2xl gap-3 btn-hover-effect">
                       <FileText className="size-5" /> Exportar p/ Fiscalização

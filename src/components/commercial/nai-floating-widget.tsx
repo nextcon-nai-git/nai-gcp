@@ -310,6 +310,11 @@ function NaiFloatingWidgetSession() {
             {!chatMode ? (
               /* Specialty Selection Menu View */
               <div className="p-6 overflow-y-auto space-y-6 flex-1 max-h-[480px]">
+                <Button asChild variant="outline" className="w-full">
+                  <Link href="/assistente" onClick={() => setIsOpen(false)}>
+                    Assistente de trabalho
+                  </Link>
+                </Button>
                 <div className="bg-white p-5 rounded-[2rem] rounded-tl-none border-l-4 border-accent shadow-sm relative">
                   <Sparkles className="absolute -top-2 -right-2 size-5 text-accent animate-pulse" />
                   <p className="text-xs italic text-slate-700 font-bold leading-relaxed">

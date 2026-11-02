@@ -1,33 +1,25 @@
-/**
- * Modelos de Dados e Tipagem para Ordem de Serviço de SST - NR-01 (subitem 1.4.1) e Art. 157 da CLT.
- * Calibrada com o PGR Oficial da CONSTRUFAM ENGENHARIA E EMPREENDIMENTOS LTDA.
- */
-
+/** Dados informados para a minuta de OS de cada empregador e função. */
 export interface WorkOrderCompanyInfo {
   razaoSocial: string;
   nomeFantasia: string;
   cnpj: string;
   cnae: string;
-  grauRisco: number;
+  grauRisco: string;
   endereco: string;
   cidadeUf: string;
   contratante: string;
   unidadeOperacional: string;
 }
-
 export interface WorkOrderEmployeeInfo {
   nome: string;
   cpf: string;
-  matricula?: string;
+  matricula: string;
   cargo: string;
   setor: string;
   ghe: string;
-  dataAdmissao?: string;
+  dataAdmissao: string;
   dataEmissaoOs: string;
-  numeroColeteSalvaVidas?: string;
-  registroArrais?: string;
 }
-
 export interface WorkOrderRiskItem {
   fatorRisco: string;
   grupo: "Acidente" | "Físico" | "Químico" | "Biológico" | "Ergonômico";
@@ -38,20 +30,17 @@ export interface WorkOrderRiskItem {
   possiveisDanos: string;
   medidasPrevenconais: string;
 }
-
 export interface WorkOrderPpeItem {
   equipamento: string;
   ca: string;
   obrigatoriedade: string;
   finalidade: string;
 }
-
 export interface WorkOrderRuleItem {
   titulo: string;
   descricao: string;
 }
-
-export interface WorkOrderConstrufamData {
+export interface WorkOrderData {
   id: string;
   numeroControle: string;
   versaoPgr: string;
@@ -61,18 +50,9 @@ export interface WorkOrderConstrufamData {
   descricaoAtividades: string[];
   riscosIdentificados: WorkOrderRiskItem[];
   episObrigatorios: WorkOrderPpeItem[];
-  regrasOuroEmbarcado: WorkOrderRuleItem[];
+  regrasSeguranca: WorkOrderRuleItem[];
   proibicoesExpressas: string[];
-  procedimentoHomemAoMar: string[];
-  direitosDeveresClt: {
-    artigo157: string;
-    artigo158: string;
-    item141Nr01: string;
-    item143DireitoRecusa: string;
-  };
-  responsavelSst: {
-    nome: string;
-    cargo: string;
-    registroProfissional: string;
-  };
+  procedimentosEmergencia: string[];
+  orientacoesGerais: string;
+  responsavelSst: { nome: string; cargo: string; registroProfissional: string };
 }

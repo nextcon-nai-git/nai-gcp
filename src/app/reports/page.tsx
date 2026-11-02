@@ -51,7 +51,7 @@ export default function ReportsCenter() {
   const { user } = useUser();
   const { activeClientId } = useSgi();
   if (!user) return <p>Entre no NAI para consultar documentos.</p>;
-  if (!activeClientId || activeClientId === "unauthorized")
+  if (!activeClientId || activeClientId === "unauthorized" || activeClientId === "all")
     return <p>Selecione uma empresa autorizada.</p>;
   return <ReportsSession key={`${user.uid}:${activeClientId}`} />;
 }
@@ -90,7 +90,7 @@ function ReportsSession() {
     data: reports,
     isLoading: loadingReports,
     error: reportsError,
-  } = useCollection(reportsQuery);
+  } = useCollection(reportsQuery, { permissionErrors: "local" });
 
   const filteredReports = React.useMemo(() => {
     if (!reports) return [];

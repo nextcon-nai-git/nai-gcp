@@ -77,24 +77,24 @@ export function OmieDreWorkspace() {
   const [error, setError] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
   const [rowPage, setRowPage] = useState(0);
-  const session = useRef({ generation: 0, requests: new Set<AbortController>() }).current;
+  const sessionRef = useRef({ generation: 0, requests: new Set<AbortController>() });
   const report = data?.uid === user?.uid ? data?.report : null;
 
   useEffect(() => {
-    session.generation++;
-    for (const controller of session.requests) controller.abort();
-    session.requests.clear();
+    sessionRef.current.generation++;
+    for (const controller of sessionRef.current.requests) controller.abort();
+    sessionRef.current.requests.clear();
     setData(null);
     setBusy(false);
     setSaving(false);
     setError("");
     setSavedMessage("");
     return () => {
-      session.generation++;
-      for (const controller of session.requests) controller.abort();
-      session.requests.clear();
+      sessionRef.current.generation++;
+      for (const controller of sessionRef.current.requests) controller.abort();
+      sessionRef.current.requests.clear();
     };
-  }, [session, user?.uid]);
+  }, [user?.uid]);
 
   async function request(path: string, controller: AbortController, init?: RequestInit) {
     if (!user) throw new Error("Entre no NAI para consultar o financeiro.");
@@ -113,11 +113,11 @@ export function OmieDreWorkspace() {
     if (
       (response.status === 401 || response.status === 403) &&
       !controller.signal.aborted &&
-      session.requests.has(controller)
+      sessionRef.current.requests.has(controller)
     ) {
-      session.generation++;
-      for (const pending of session.requests) pending.abort();
-      session.requests.clear();
+      sessionRef.current.generation++;
+      for (const pending of sessionRef.current.requests) pending.abort();
+      sessionRef.current.requests.clear();
       setData(null);
       setSavedMessage("");
       setBusy(false);
@@ -142,10 +142,10 @@ export function OmieDreWorkspace() {
       return;
     }
     setQuery(selected.data);
-    const current = session.generation;
+    const current = sessionRef.current.generation;
     const uid = user.uid;
     const controller = new AbortController();
-    session.requests.add(controller);
+    sessionRef.current.requests.add(controller);
     setBusy(true);
     setError("");
     setSavedMessage("");
@@ -154,10 +154,10 @@ export function OmieDreWorkspace() {
     try {
       const params = new URLSearchParams(selected.data);
       const result = await request(`/api/financial/omie/dre?${params}`, controller);
-      if (session.generation === current && !controller.signal.aborted)
+      if (sessionRef.current.generation === current && !controller.signal.aborted)
         setData({ uid, report: result });
     } catch (error) {
-      if (session.generation === current && !controller.signal.aborted)
+      if (sessionRef.current.generation === current && !controller.signal.aborted)
         setError(
           error instanceof Error && error.name === "TimeoutError"
             ? "A consulta da DRE demorou além do limite. Tente um período menor."
@@ -166,16 +166,16 @@ export function OmieDreWorkspace() {
               : "Falha ao consultar a DRE."
         );
     } finally {
-      session.requests.delete(controller);
-      if (session.generation === current) setBusy(false);
+      sessionRef.current.requests.delete(controller);
+      if (sessionRef.current.generation === current) setBusy(false);
     }
   }
 
   async function saveActions() {
     if (!report || busy || saving || !report.rows.length) return;
-    const current = session.generation;
+    const current = sessionRef.current.generation;
     const controller = new AbortController();
-    session.requests.add(controller);
+    sessionRef.current.requests.add(controller);
     setSaving(true);
     setError("");
     setSavedMessage("");
@@ -184,18 +184,18 @@ export function OmieDreWorkspace() {
         method: "POST",
         body: JSON.stringify(report.suggestedActions),
       });
-      if (session.generation === current && !controller.signal.aborted)
+      if (sessionRef.current.generation === current && !controller.signal.aborted)
         setSavedMessage(
           result.alreadySaved
             ? "Os cards desta consulta já estão salvos. O progresso foi preservado."
             : `${result.batch.actions.length} cards salvos no painel de ações financeiras.`
         );
     } catch (error) {
-      if (session.generation === current && !controller.signal.aborted)
+      if (sessionRef.current.generation === current && !controller.signal.aborted)
         setError(error instanceof Error ? error.message : "Não foi possível salvar os cards.");
     } finally {
-      session.requests.delete(controller);
-      if (session.generation === current) setSaving(false);
+      sessionRef.current.requests.delete(controller);
+      if (sessionRef.current.generation === current) setSaving(false);
     }
   }
 

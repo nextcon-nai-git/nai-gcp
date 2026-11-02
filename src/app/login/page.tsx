@@ -2,17 +2,23 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Globe, Mail, Zap } from "lucide-react";
+import { Loader2, Mail, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/firebase";
 import {
   GoogleAuthProvider,
+  type Auth,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
 } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
+
+// Firebase exposes languageCode as a mutable SDK setting.
+function configureAuthLanguage(auth: Auth) {
+  auth.languageCode = "pt-BR";
+}
 
 export default function LoginPage() {
   const [email, setEmail] = React.useState("");
@@ -70,7 +76,7 @@ export default function LoginPage() {
     setGoogleError("");
 
     try {
-      auth.languageCode = "pt-BR";
+      configureAuthLanguage(auth);
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
       await signInWithPopup(auth, provider);
@@ -112,7 +118,7 @@ export default function LoginPage() {
     setLoading(true);
     setResetError("");
     try {
-      auth.languageCode = "pt-BR";
+      configureAuthLanguage(auth);
       await sendPasswordResetEmail(auth, targetEmail);
       setResetSent(true);
     } catch (error: unknown) {
@@ -313,11 +319,6 @@ export default function LoginPage() {
             </Button>
           )}
         </form>
-        <div className="pt-6 border-t flex flex-col items-center gap-4">
-          <div className="flex items-center gap-2 text-[9px] font-black text-slate-300 uppercase tracking-widest">
-            <Globe className="size-3" /> NAI Cloud Infrastructure
-          </div>
-        </div>
       </div>
     </div>
   );

@@ -72,6 +72,24 @@ describe("Tallos access and boundaries", () => {
     });
     expect(() => items({ unexpected: true })).toThrow();
   });
+  it("accepts the documented reports docs envelope without treating a malformed response as empty", () => {
+    expect(items({ message: "success", docs: [{ id: 1, title: "Synthetic report" }] })).toEqual([
+      { id: 1, title: "Synthetic report" },
+    ]);
+    expect(items({ docs: [] })).toEqual([]);
+    expect(() => items({ docs: null })).toThrow();
+  });
+  it.each([null, "private-provider-message", 42, true, []].map((invalid) => ({ invalid })))(
+    "rejects an invalid list member instead of turning $invalid into a blank record",
+    ({ invalid }) => {
+      for (const data of [
+        [{ id: "valid" }, invalid],
+        { docs: [{ id: "valid" }, invalid] },
+        { data: { results: [{ id: "valid" }, invalid] } },
+      ])
+        expect(() => items(data)).toThrow("formato de dados não reconhecido");
+    }
+  );
   it("uses server credentials, disallows redirects and does not leak provider error bodies", async () => {
     vi.stubEnv("TALLOS_API_TOKEN", "synthetic-test-token");
     const fetcher = vi.fn().mockResolvedValue(
@@ -90,6 +108,70 @@ describe("Tallos access and boundaries", () => {
     fetcher.mockResolvedValue(new Response("secret provider error", { status: 403 }));
     await expect(tallosRequest("/v2/customers")).rejects.toThrow("Seu plano ou credencial");
     await expect(tallosRequest("/v2/customers/../../other")).rejects.toThrow("Recurso inválido");
+  });
+  it.each(["read", "send"])(
+    "classifies an interrupted %s response as unconfirmed without retrying or exposing upstream text",
+    async (operation) => {
+      vi.stubEnv("TALLOS_API_TOKEN", "synthetic-test-token");
+      let reads = 0;
+      const stream = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (++reads === 1) controller.enqueue(Buffer.from('{"accepted":'));
+          else controller.error(new Error("private-provider-detail synthetic-test-token"));
+        },
+      });
+      const fetcher = vi.fn().mockResolvedValueOnce(new Response(stream));
+      vi.stubGlobal("fetch", fetcher);
+      await expect(
+        tallosRequest(
+          operation === "send" ? "/v2/messages/synthetic-id/send" : "/v2/customers",
+          {},
+          operation === "send" ? new URLSearchParams({ text: "Synthetic test" }) : undefined
+        )
+      ).rejects.toMatchObject({
+        status: 504,
+        message:
+          "O Tallos não confirmou a resposta. Atualize a consulta; para envios, confira o histórico antes de tentar novamente.",
+      });
+      expect(fetcher).toHaveBeenCalledOnce();
+      expect(stream.locked).toBe(false);
+    }
+  );
+  it("keeps oversized bodies distinct from an interrupted response", async () => {
+    vi.stubEnv("TALLOS_API_TOKEN", "synthetic-test-token");
+    const cancel = vi.fn();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(4 * 1024 * 1024 + 1));
+      },
+      cancel,
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(stream)));
+    await expect(tallosRequest("/v2/customers")).rejects.toMatchObject({
+      status: 502,
+      message: "Resposta Tallos excedeu o limite. Reduza o período.",
+    });
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(stream.locked).toBe(false);
+  });
+  it("does not advertise unsafe or invalid pagination counts", async () => {
+    vi.stubEnv("TALLOS_API_TOKEN", "synthetic-test-token");
+    const fetcher = vi.fn();
+    vi.stubGlobal("fetch", fetcher);
+    for (const value of [String(Number.MAX_SAFE_INTEGER + 1), "9".repeat(400), "-1", "1.5"]) {
+      fetcher.mockResolvedValueOnce(
+        new Response("[]", {
+          headers: { "X-Total": value, "X-Pages": value },
+        })
+      );
+      expect(await tallosRequest("/v2/customers")).toEqual({ data: [], total: null, pages: null });
+    }
+    fetcher.mockResolvedValueOnce(
+      new Response("[]", {
+        headers: { "X-Total": "0", "X-Pages": "0" },
+      })
+    );
+    expect(await tallosRequest("/v2/customers")).toEqual({ data: [], total: 0, pages: 0 });
   });
 });
 

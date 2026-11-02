@@ -44,6 +44,32 @@ describe("SOC direct consultation", () => {
     m.user = null;
     await v.render(<Page />);
     expect(m.fetch).not.toHaveBeenCalled();
+    expect(v.container.textContent).not.toContain("Central de operação");
+  });
+  it("exposes operational destinations after server authorization", async () => {
+    await v.render(<Page />);
+    expect(v.container.querySelector('a[href="/providers"]')?.textContent).toContain(
+      "Credenciamento de clínicas"
+    );
+    expect(
+      v.container.querySelector('a[href="/health-control?tab=agendamento"]')?.textContent
+    ).toContain("Gerar kit em PDF");
+    expect(v.container.textContent).toContain("Login único ainda não configurado");
+  });
+  it("does not expose operational controls when access is denied", async () => {
+    m.fetch.mockResolvedValue(res({ error: "Acesso negado." }, false));
+    await v.render(<Page />);
+    expect(v.container.textContent).not.toContain("Central de operação");
+  });
+  it("opens configured SSO without sharing referrer or claiming an active session", async () => {
+    m.fetch.mockResolvedValue(
+      res({ ...config, webAccess: { mode: "sso", href: "https://idp.example.com/saml/soc" } })
+    );
+    await v.render(<Page />);
+    const link = v.container.querySelector('a[href="https://idp.example.com/saml/soc"]');
+    expect(link?.getAttribute("referrerpolicy")).toBe("no-referrer");
+    expect(link?.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(v.container.textContent).toContain("A autenticação será validada pelo provedor");
   });
   it("distinguishes configured from verified and filters units", async () => {
     await v.render(<Page />);

@@ -73,7 +73,7 @@ export function GlobalCommandPalette({
     {
       id: "action-credenciamento",
       title: "Credenciamento Brasil (WhatsApp 1-Clique)",
-      subtitle: "117+ clínicas ocupacionais e disparo automático de proposta",
+      subtitle: "Clínicas cadastradas e informações para credenciamento",
       category: "actions",
       icon: Zap,
       href: "/clients/grupo-avp",
@@ -126,8 +126,8 @@ export function GlobalCommandPalette({
     },
     {
       id: "action-os-nr01",
-      title: "Ordem de Serviço NR-01 (Construfam / Trabalho Embarcado)",
-      subtitle: "Geração de PDF oficial, salvatagem e diretrizes de trabalho embarcado",
+      title: "Ordem de Serviço de SST (NR-01)",
+      subtitle: "Minuta por cliente, função, atividades e PGR",
       category: "actions",
       icon: LifeBuoy,
       href: "/work-orders",
@@ -216,7 +216,7 @@ export function GlobalCommandPalette({
     {
       id: "mod-integrations",
       title: "Middleware ERPs (TOTVS / SAP / Senior)",
-      subtitle: "Integração via Webhooks e API REST",
+      subtitle: "Conectores disponíveis e requisitos de configuração",
       category: "modules",
       icon: Zap,
       href: "/integrations",

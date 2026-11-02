@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => {
     cardSet,
     sharedDoc,
     db: {
+      runTransaction: async (fn: (tx: any) => Promise<unknown>) =>
+        fn({ get: (ref: any) => ref.get(), update: (ref: any, changes: any) => ref.set(changes) }),
       collection: vi.fn((name: string) => ({
         doc: vi.fn(() => ({ collection: vi.fn(() => (name === "users" ? own : shared)) })),
       })),
@@ -83,11 +85,14 @@ describe("shared RD ASO queue authorization", () => {
     expect(mocks.sharedDoc).toHaveBeenCalledWith("rd-test");
     expect(mocks.cardSet).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: "rd-test",
         status: "validando",
-        employeeName: "Pessoa de Teste",
-        source: "rd-conversas",
+        updatedAt: expect.any(String),
       })
     );
+    expect(result.data).toMatchObject({
+      id: "rd-test",
+      employeeName: "Pessoa de Teste",
+      source: "rd-conversas",
+    });
   });
 });

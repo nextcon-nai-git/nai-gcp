@@ -247,6 +247,153 @@ describe("Omie financial boundary", () => {
     fetchMock.mockResolvedValue(response({ unexpected: true }));
     await expect(listOmie(admin, {})).rejects.toThrow("Omie");
   });
+  const financialTitle = {
+    codigo_lancamento_omie: 42,
+    codigo_cliente_fornecedor: 77,
+    valor_documento: 123.45,
+    data_vencimento: "10/10/2026",
+  };
+  const financialPage = {
+    pagina: 1,
+    total_de_paginas: 1,
+    total_de_registros: 1,
+    registros: 1,
+    conta_receber_cadastro: [financialTitle],
+  };
+  it.each([
+    ["a different page", { pagina: 2 }],
+    ["zero pages with a title", { total_de_paginas: 0 }],
+    ["zero total with a title", { total_de_registros: 0 }],
+    ["an empty page with a nonzero total", { registros: 0, conta_receber_cadastro: [] }],
+    ["an unsafe total", { total_de_registros: Number.MAX_SAFE_INTEGER + 1 }],
+    [
+      "an invalid due date",
+      { conta_receber_cadastro: [{ ...financialTitle, data_vencimento: "30/02/2026" }] },
+    ],
+    [
+      "a zero title ID",
+      { conta_receber_cadastro: [{ ...financialTitle, codigo_lancamento_omie: 0 }] },
+    ],
+    [
+      "an unsafe title ID",
+      {
+        conta_receber_cadastro: [
+          { ...financialTitle, codigo_lancamento_omie: Number.MAX_SAFE_INTEGER + 1 },
+        ],
+      },
+    ],
+    [
+      "a fractional party ID",
+      { conta_receber_cadastro: [{ ...financialTitle, codigo_cliente_fornecedor: 77.5 }] },
+    ],
+    [
+      "duplicated title IDs",
+      {
+        registros: 2,
+        total_de_registros: 2,
+        conta_receber_cadastro: [financialTitle, financialTitle],
+      },
+    ],
+  ])("rejects %s before querying names or returning financial results", async (_label, change) => {
+    storage.data = JSON.stringify(saved);
+    fetchMock.mockResolvedValueOnce(response({ ...financialPage, ...(change as object) }));
+    await expect(listOmie(admin, {})).rejects.toMatchObject({ code: "OMIE_RESPONSE", status: 502 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it.each([0, 1])("accepts a truly empty first page with %s total pages", async (pages) => {
+    storage.data = JSON.stringify(saved);
+    fetchMock.mockResolvedValueOnce(
+      response({
+        pagina: 1,
+        total_de_paginas: pages,
+        total_de_registros: 0,
+        registros: 0,
+        conta_receber_cadastro: [],
+      })
+    );
+    expect(await listOmie(admin, {})).toMatchObject({ page: 1, pages, total: 0, rows: [] });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it.each([0, undefined])(
+    "keeps a title with unresolved party code %s without guessing a counterparty",
+    async (partyCode) => {
+      storage.data = JSON.stringify(saved);
+      fetchMock.mockResolvedValueOnce(
+        response({
+          ...financialPage,
+          // The official contract does not define registros as the array length.
+          registros: 50,
+          conta_receber_cadastro: [{ ...financialTitle, codigo_cliente_fornecedor: partyCode }],
+        })
+      );
+      const result = await listOmie(admin, {});
+      expect(result).toMatchObject({ page: 1, pages: 1, total: 1 });
+      expect(result.rows).toEqual([
+        expect.objectContaining({
+          id: "42",
+          partyCode: partyCode === undefined ? "—" : "0",
+          partyName: null,
+          amount: 123.45,
+        }),
+      ]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    }
+  );
+  it("does not label an out-of-range page as an empty financial account", async () => {
+    storage.data = JSON.stringify(saved);
+    fetchMock.mockResolvedValueOnce(
+      response({
+        pagina: 2,
+        total_de_paginas: 0,
+        total_de_registros: 0,
+        conta_receber_cadastro: [],
+      })
+    );
+    await expect(listOmie(admin, { page: 2 })).rejects.toMatchObject({ code: "OMIE_RESPONSE" });
+  });
+  it("limits non-DRE responses while streaming instead of buffering the entire body", async () => {
+    storage.data = JSON.stringify(saved);
+    const cancel = vi.fn();
+    let chunks = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (++chunks <= 20) controller.enqueue(new Uint8Array(1024 * 1024));
+        else controller.close();
+      },
+      cancel,
+    });
+    fetchMock.mockResolvedValueOnce(new Response(stream));
+    await expect(listOmie(admin, {})).rejects.toMatchObject({ status: 413 });
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(chunks).toBeLessThan(20);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it("does not read or save an oversized company response", async () => {
+    const cancel = vi.fn();
+    fetchMock.mockResolvedValueOnce(
+      new Response(new ReadableStream({ cancel }), {
+        headers: { "Content-Length": String(17 * 1024 * 1024) },
+      })
+    );
+    await expect(connectOmie(admin, credentials)).rejects.toMatchObject({ status: 413 });
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(storage.calls).toBe(0);
+    expect(storage.data).toBeNull();
+  });
+  it("preserves a rate-limit response even when its error body exceeds the cap", async () => {
+    storage.data = JSON.stringify(saved);
+    fetchMock.mockResolvedValueOnce(
+      new Response("sensitive upstream response", {
+        status: 429,
+        headers: { "Content-Length": String(17 * 1024 * 1024) },
+      })
+    );
+    await expect(listOmie(admin, {})).rejects.toMatchObject({
+      code: "OMIE_RATE_LIMIT",
+      status: 429,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it("disconnects locally without changing any data at Omie", async () => {
     storage.data = JSON.stringify(saved);
     expect(await disconnectOmie(admin)).toEqual({ connected: false });

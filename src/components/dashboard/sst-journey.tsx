@@ -10,9 +10,8 @@ const journeys = [
     id: "prevent",
     label: "Prevenir riscos",
     icon: ShieldCheck,
-    title: "Do documento à prevenção em campo",
-    description:
-      "Reúna os documentos, confira os riscos e transforme as medidas de prevenção em ações acompanhadas.",
+    title: null,
+    description: null,
     steps: [
       "Conferir documentos e unidade",
       "Revisar inventário de riscos",
@@ -95,15 +94,9 @@ export function SstJourney({
       className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
     >
       <div className="border-b border-slate-100 p-5 sm:p-6">
-        <p className="text-xs font-semibold uppercase tracking-widest text-teal-700">
-          Jornada integrada
-        </p>
-        <h2 id="sst-journey-title" className="mt-2 text-xl font-semibold text-slate-900">
+        <h2 id="sst-journey-title" className="text-xl font-semibold text-slate-900">
           O que você precisa resolver agora?
         </h2>
-        <p className="mt-2 text-sm text-slate-500">
-          Escolha uma etapa para acessar os módulos e os próximos passos.
-        </p>
         <div
           className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4"
           aria-label="Etapas da jornada"
@@ -133,9 +126,13 @@ export function SstJourney({
         className="grid gap-6 bg-slate-50/60 p-5 sm:p-6 lg:grid-cols-[1fr_1.2fr]"
       >
         <div>
-          <h3 className="text-lg font-semibold text-slate-900">{journey.title}</h3>
-          <p className="mt-2 text-sm leading-6 text-slate-600">{journey.description}</p>
-          <p className="mt-4 text-xs leading-5 text-slate-500">
+          {journey.title && (
+            <h3 className="text-lg font-semibold text-slate-900">{journey.title}</h3>
+          )}
+          {journey.description && (
+            <p className="mt-2 text-sm leading-6 text-slate-600">{journey.description}</p>
+          )}
+          <p className={cn("text-xs leading-5 text-slate-500", journey.title && "mt-4")}>
             {scoped
               ? `Cliente selecionado: ${companyName || "consulte o seletor acima"}.`
               : "Selecione um cliente acima para abrir seus documentos e ações."}{" "}

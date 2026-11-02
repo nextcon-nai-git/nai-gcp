@@ -207,6 +207,8 @@ export function NaiQuoteComponent() {
                       <Input
                         required
                         type="number"
+                        min={1}
+                        step={1}
                         className="h-11 bg-slate-50 border-none rounded-xl font-bold shadow-inner"
                         value={formData.quantidadeFuncionarios}
                         onChange={(e) =>
