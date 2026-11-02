@@ -74,6 +74,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v3";
 import { useToast } from "@/hooks/use-toast";
 import { ISO_CHECKLISTS } from "@/lib/iso-checklists";
+import { csvTextCell } from "@/lib/csv-cell";
 
 const auditFormSchema = z.object({
   companyId: z.string().min(1, "Selecione a unidade"),
@@ -148,17 +149,11 @@ export default function IsoAuditsElite() {
     ? Math.round((evaluated.filter(Boolean).length / evaluated.length) * 100)
     : null;
   function exportAudits() {
-    const cell = (v: unknown) =>
-      '"' +
-      String(v ?? "")
-        .replace(/^[=+@-]/, "'$&")
-        .replace(/"/g, '""') +
-      '"';
     const csv = [
       ["Unidade", "Norma", "Auditor", "Data", "Status"],
       ...audits.map((a) => [a.companyName, a.scope, a.auditorName, a.date, a.status]),
     ]
-      .map((row) => row.map(cell).join(";"))
+      .map((row) => row.map(csvTextCell).join(";"))
       .join("\r\n");
     const url = URL.createObjectURL(new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { DELETE, POST } from "./route";
@@ -29,7 +30,9 @@ beforeEach(() => {
 const req = (method: string, body?: unknown, query = "?id=w") =>
   new NextRequest(`https://example.test/api/webhooks${query}`, {
     method,
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    ...(body === undefined
+      ? {}
+      : { body: JSON.stringify(body), headers: { "content-type": "application/json" } }),
   });
 it("denies deactivation of another tenant webhook without mutation", async () => {
   state.get.mockResolvedValue({ exists: true, data: () => ({ clientId: "b" }) });
@@ -62,4 +65,25 @@ it("stores only a validated normalized URL", async () => {
       events: ["aso.expired"],
     })
   );
+});
+it("cancels an oversized webhook request before resolving a destination or persisting a secret", async () => {
+  const cancel = vi.fn();
+  const request = new NextRequest("https://example.test/api/webhooks", {
+    method: "POST",
+    headers: { "content-type": "application/json", "content-length": "1" },
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(9000));
+        controller.enqueue(new Uint8Array(9000));
+      },
+      cancel,
+    }),
+    duplex: "half",
+  } as ConstructorParameters<typeof NextRequest>[1]);
+  const response = await POST(request);
+  expect(response.status).toBe(413);
+  expect(response.headers.get("cache-control")).toContain("no-store");
+  expect(cancel).toHaveBeenCalledOnce();
+  expect(state.validate).not.toHaveBeenCalled();
+  expect(state.add).not.toHaveBeenCalled();
 });

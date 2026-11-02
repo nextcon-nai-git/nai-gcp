@@ -96,7 +96,7 @@ export async function preparePgrDraft(
     );
     requirePgrDocumentAccess(user, analysis);
     if (Buffer.byteLength(JSON.stringify(analysis)) > 800000)
-      throw new Error("Resultado acima do limite; divida o documento por unidade.");
+      throw badRequest("Resultado acima do limite; divida o documento por unidade.");
     const companies = await getPgrCompanies(user);
     const safeName = fileName.replace(/[\u0000-\u001f]/g, "").slice(0, 200) || "Documento.pdf";
     await leaseRef.set({

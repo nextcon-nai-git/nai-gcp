@@ -1,10 +1,10 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { FieldValue } from "firebase-admin/firestore";
-import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { adminDb } from "@/lib/firebase-admin";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import { AuthError, badRequest, forbidden } from "@/lib/auth/errors";
 import { EXPERT_ROLE, expertCompanyIds, projectExpertCompany } from "@/lib/expert-workspace";
+import { manageUserAccess, previewUserAccess } from "./user-access";
 
 function requireAdmin(user: AuthContext) {
   if (user.role !== "SUPER_ADMIN") throw forbidden();
@@ -109,82 +109,44 @@ export async function createExpertAccount(
     input.password.length > 128
   )
     throw badRequest("Informe o prestador revisado e uma senha inicial de 8 a 128 caracteres.");
-  const source = await previewExpertAccount(user, input.providerId);
+  // The canonical access workflow rereads current administrative authority and
+  // keeps the profile blocked until its final grant, audit receipt and lock
+  // release commit together. Do not maintain a second, weaker grant path here.
+  const reviewed = await previewUserAccess(user, "provider", input.providerId);
+  const source = expertProviderSource(input.providerId, {
+    name: reviewed.name,
+    email: reviewed.email,
+    servedCompanies: reviewed.companyIds,
+    accessUid: reviewed.accessUid,
+    active: reviewed.active,
+  });
   if (source.revision !== input.revision)
     throw new AuthError("O cadastro mudou. Atualize a revisão.", 409);
-  // Do not reset credentials, adopt an unrelated account or overwrite a role.
-  try {
-    const existing = await adminAuth.getUserByEmail(source.email);
-    const profile = (await adminDb.collection("users").doc(existing.uid).get()).data();
+  if (reviewed.account) {
     if (
-      profile?.role === EXPERT_ROLE &&
-      profile.providerId === source.id &&
-      source.accessUid === existing.uid &&
-      profile.accessEnabled === true &&
-      !existing.disabled
+      reviewed.account.enabled &&
+      reviewed.account.role === EXPERT_ROLE &&
+      JSON.stringify([...reviewed.account.companyIds].sort()) === JSON.stringify(source.companyIds)
     )
       return { created: false, alreadyExists: true, email: source.email };
     throw new AuthError(
-      "Este e-mail já possui uma conta. A revisão administrativa deve ser feita sem sobrescrever senha ou perfil.",
+      "O cadastro já possui um login que exige revisão administrativa. Nenhum acesso foi alterado.",
       409
     );
-  } catch (error) {
-    if (!(
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "auth/user-not-found"
-    ))
-      throw error;
   }
-  if (source.accessUid)
-    throw new AuthError("O cadastro já possui um vínculo de acesso. Revise antes de alterar.", 409);
-  // A partially failed operation leaves the new account disabled, never privileged.
-  const account = await adminAuth.createUser({
-    email: source.email,
-    displayName: source.name,
+  if (reviewed.warning || source.accessUid)
+    throw new AuthError(
+      "Este e-mail ou cadastro já possui um vínculo de acesso. Nenhuma conta foi substituída.",
+      409
+    );
+  await manageUserAccess(user, {
+    kind: "provider",
+    id: source.id,
+    action: "create",
+    revision: reviewed.revision,
+    role: EXPERT_ROLE,
+    companyIds: source.companyIds,
     password: input.password,
-    disabled: true,
   });
-  await adminDb.runTransaction(async (tx) => {
-    const providerRef = adminDb.collection("providers").doc(source.id);
-    const provider = await tx.get(providerRef);
-    if (
-      !provider.exists ||
-      expertProviderSource(source.id, provider.data()!).revision !== source.revision
-    )
-      throw new AuthError("Os vínculos mudaram. A conta ficou desabilitada para revisão.", 409);
-    const profileRef = adminDb.collection("users").doc(account.uid);
-    if ((await tx.get(profileRef)).exists)
-      throw new AuthError("Perfil já existente. Nenhum perfil foi substituído.", 409);
-    for (const id of source.companyIds) {
-      const company = await tx.get(adminDb.collection("companies").doc(id));
-      if (!company.exists || company.data()?.isDeleted === true)
-        throw new AuthError("Uma unidade foi removida. A conta permanece desabilitada.", 409);
-    }
-    tx.create(profileRef, {
-      id: account.uid,
-      name: source.name,
-      email: source.email,
-      role: EXPERT_ROLE,
-      providerId: source.id,
-      servedCompanies: source.companyIds,
-      permissions: [],
-      accessEnabled: true,
-      createdBy: user.uid,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    tx.update(providerRef, { accessUid: account.uid, updatedAt: FieldValue.serverTimestamp() });
-    tx.create(adminDb.collection("expert_access_audit").doc(), {
-      action: "CREATE_READ_ONLY_EXPERT_ACCESS",
-      actorUid: user.uid,
-      targetUid: account.uid,
-      providerId: source.id,
-      companyIds: source.companyIds,
-      createdAt: FieldValue.serverTimestamp(),
-    });
-  });
-  await adminAuth.updateUser(account.uid, { disabled: false });
   return { created: true, alreadyExists: false, email: source.email };
 }

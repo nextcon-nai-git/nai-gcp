@@ -11,13 +11,16 @@ const m = vi.hoisted(() => ({
   create: vi.fn(),
   update: vi.fn(),
   save: vi.fn(),
+  download: vi.fn(),
   collection: vi.fn(),
   transaction: vi.fn(),
 }));
 vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: m.auth }));
 vi.mock("@/firebase/config", () => ({ firebaseConfig: { storageBucket: "test" } }));
 vi.mock("firebase-admin/storage", () => ({
-  getStorage: () => ({ bucket: () => ({ file: () => ({ save: m.save }) }) }),
+  getStorage: () => ({
+    bucket: () => ({ file: () => ({ save: m.save, download: m.download }) }),
+  }),
 }));
 vi.mock("@/lib/firebase-admin", () => ({
   adminDb: { collection: m.collection, runTransaction: m.transaction },
@@ -106,6 +109,68 @@ describe("private AVP evidence", () => {
     expect((await POST(new NextRequest(url, { method: "POST", body: form }))).status).toBe(400);
     expect(m.save).not.toHaveBeenCalled();
     expect(m.update).not.toHaveBeenCalled();
+  });
+  it("returns only the PDF matching its immutable indexed digest with private headers", async () => {
+    const bytes = Buffer.from("%PDF-1.7 synthetic AVP evidence");
+    m.get.mockResolvedValue({
+      data: () => ({
+        kind: "aso",
+        uploaded: true,
+        fileHash: createHash("sha256").update(bytes).digest("hex"),
+      }),
+    });
+    m.download.mockResolvedValue([bytes]);
+    const response = await GET(new NextRequest(url + "?document=" + "a".repeat(64)));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.headers.get("vary")).toBe("Authorization");
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(bytes);
+    expect(m.auth).toHaveBeenCalledTimes(2);
+  });
+  it.each(["suspended", "scope", "external"])(
+    "does not release a PDF after %s access changes during Storage download",
+    async (scenario) => {
+      const bytes = Buffer.from("%PDF-1.7 private synthetic contents");
+      m.get.mockResolvedValue({
+        data: () => ({
+          kind: "aso",
+          uploaded: true,
+          fileHash: createHash("sha256").update(bytes).digest("hex"),
+        }),
+      });
+      m.download.mockImplementation(async () => {
+        if (scenario === "suspended")
+          m.auth.mockRejectedValue(new AuthError("Acesso suspenso.", 403));
+        else
+          m.auth.mockResolvedValue({
+            uid: "admin",
+            role: scenario === "scope" ? "OPERATIONS" : "ADMIN",
+            tenantId: scenario === "external" ? "GRUPO_AVP" : null,
+            servedCompanies: [],
+          });
+        return [bytes];
+      });
+      const response = await GET(new NextRequest(url + "?document=" + "a".repeat(64)));
+      expect(response.status).toBe(403);
+      expect(await response.text()).not.toContain("private synthetic contents");
+      expect(m.download).toHaveBeenCalledOnce();
+      expect(m.auth).toHaveBeenCalledTimes(2);
+    }
+  );
+  it("refuses mismatching stored PDF bytes and malformed indexed hashes", async () => {
+    m.get.mockResolvedValue({
+      data: () => ({ kind: "aso", uploaded: true, fileHash: "c".repeat(64) }),
+    });
+    m.download.mockResolvedValue([Buffer.from("%PDF-1.7 private synthetic replacement")]);
+    const response = await GET(new NextRequest(url + "?document=" + "a".repeat(64)));
+    expect(response.status).toBe(409);
+    expect(await response.text()).not.toContain("private synthetic replacement");
+    m.download.mockClear();
+    m.get.mockResolvedValue({
+      data: () => ({ kind: "aso", uploaded: true, fileHash: "../other-document" }),
+    });
+    expect((await GET(new NextRequest(url + "?document=" + "a".repeat(64)))).status).toBe(409);
+    expect(m.download).not.toHaveBeenCalled();
   });
 });
 

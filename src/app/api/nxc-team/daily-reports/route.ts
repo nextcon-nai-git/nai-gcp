@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase-admin";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { AuthError, forbidden, handleAuthError } from "@/lib/auth/errors";
+import { limitedBytes } from "@/lib/http/private-api";
 import {
   dailyReportSchema,
   activityLines,
@@ -55,7 +56,15 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await authorize(request);
-    const parsed = dailyReportSchema.safeParse(await request.json());
+    // Includes JSON escaping for every allowed character in the 20,000-character report.
+    const bytes = await limitedBytes(request, 128 * 1024);
+    let body: unknown;
+    try {
+      body = JSON.parse(bytes.toString("utf8"));
+    } catch {
+      throw new AuthError("JSON inválido.", 400);
+    }
+    const parsed = dailyReportSchema.safeParse(body);
     if (!parsed.success)
       return NextResponse.json(
         { error: "Confira nome, regime, data e descrição das atividades." },

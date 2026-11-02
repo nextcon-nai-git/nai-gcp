@@ -16,16 +16,20 @@ beforeAll(async () => {
     storage: { rules: readFileSync("storage.rules", "utf8") },
   });
   await env.withSecurityRulesDisabled(async (ctx) => {
-    for (const [uid, role, enabled] of [
-      ["access-admin", "SUPER_ADMIN", true],
-      ["access-ops", "OPERATIONS", true],
-      ["access-disabled", "OPERATIONS", false],
-      ["access-disabled-doctor", "DOCTOR", false],
+    for (const [uid, role, enabled, deleted] of [
+      ["access-admin", "SUPER_ADMIN", true, false],
+      ["access-ops", "OPERATIONS", true, false],
+      ["access-disabled", "OPERATIONS", false, false],
+      ["access-disabled-doctor", "DOCTOR", false, false],
+      ["access-deleted-admin", "SUPER_ADMIN", true, true],
+      ["access-deleted-ops", "OPERATIONS", true, true],
+      ["access-deleted-doctor", "DOCTOR", true, true],
     ] as const)
       await setDoc(doc(ctx.firestore(), "users", uid), {
         role,
         companyId: role === "DOCTOR" ? "access-client" : "nextcon",
         accessEnabled: enabled,
+        isDeleted: deleted,
       });
     await setDoc(doc(ctx.firestore(), "nxc_employees/access-staff"), {
       name: "Synthetic",
@@ -67,6 +71,30 @@ it("suspended clinician cannot read health files or records", async () => {
     getBytes(ref(ctx.storage(), "clientes/access-client/prontuarios/test/file.pdf"))
   );
 });
+it.each(["access-deleted-admin", "access-deleted-ops", "access-deleted-doctor"])(
+  "deleted profile %s loses direct database and file access despite a live session",
+  async (uid) => {
+    const ctx = env.authenticatedContext(uid);
+    await assertFails(getDoc(doc(ctx.firestore(), "companies/access-client")));
+    await assertFails(
+      getDoc(doc(ctx.firestore(), "companies/access-client/medical_records/record"))
+    );
+    await assertFails(getBytes(ref(ctx.storage(), "internos_nextcon/operacao/access-test.pdf")));
+    await assertFails(
+      getBytes(ref(ctx.storage(), "clientes/access-client/prontuarios/test/file.pdf"))
+    );
+    await assertFails(
+      uploadBytes(
+        ref(ctx.storage(), "internos_nextcon/operacao/deleted-upload.pdf"),
+        new Uint8Array([1]),
+        {
+          contentType: "application/pdf",
+        }
+      )
+    );
+    await assertFails(updateDoc(doc(ctx.firestore(), "users", uid), { isDeleted: false }));
+  }
+);
 it("operational editors cannot replace account links or audit", async () => {
   const db = env.authenticatedContext("access-ops").firestore();
   await assertSucceeds(

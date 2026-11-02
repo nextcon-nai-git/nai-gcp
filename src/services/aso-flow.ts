@@ -1,5 +1,5 @@
 import "server-only";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   FieldPath,
   type DocumentReference,
@@ -60,6 +60,23 @@ export function requireAsoFlowAccess(user: AuthContext, companyId?: string) {
   )
     throw forbidden("Esteira de ASOs disponível somente à equipe interna autorizada.");
   if (companyId) requirePgrCompany(user, companyId);
+}
+async function currentAsoFlowUser(user: AuthContext, companyId?: string, tx?: Transaction) {
+  requireAsoFlowAccess(user, companyId);
+  const ref = adminDb.collection("users").doc(user.uid);
+  const profile = (tx ? await tx.get(ref) : await ref.get()).data();
+  if (!profile || profile.accessEnabled === false || profile.isDeleted === true)
+    throw forbidden("O acesso do operador foi revogado.");
+  const claims = parseClaims(profile);
+  const current: AuthContext = {
+    ...user,
+    role: claims.role,
+    tenantId: claims.tenantId || null,
+    permissions: claims.permissions || [],
+    servedCompanies: claims.servedCompanies || [],
+  };
+  requireAsoFlowAccess(current, companyId);
+  return current;
 }
 const allowed = (user: AuthContext, companyId: string) => {
   try {
@@ -341,13 +358,18 @@ function parseImport(input: unknown) {
 export async function previewAsoFlowImport(user: AuthContext, input: unknown) {
   requireAsoFlowAccess(user);
   const data = parseImport(input);
-  return previewResult(await resolveRows(user, data.rows, read));
+  const resolved = await resolveRows(user, data.rows, read);
+  const current = await currentAsoFlowUser(user);
+  for (const item of resolved) if (item.company) requireAsoFlowAccess(current, item.company.id);
+  return previewResult(resolved);
 }
 export async function importAsoFlowRows(user: AuthContext, input: unknown) {
   requireAsoFlowAccess(user);
   const data = parseImport(input);
   return adminDb.runTransaction(async (tx) => {
+    const current = await currentAsoFlowUser(user, undefined, tx);
     const resolved = await resolveRows(user, data.rows, transactionReader(tx));
+    for (const item of resolved) if (item.company) requireAsoFlowAccess(current, item.company.id);
     const preview = previewResult(resolved);
     if (preview.blocked)
       throw conflict(
@@ -408,7 +430,7 @@ export async function getAsoFlowCard(user: AuthContext, caseId: string): Promise
   requireAsoFlowAccess(user);
   const card = (await cases().doc(id(caseId)).get()).data() as AsoFlowCard | undefined;
   if (!card) throw new AuthError("Card não encontrado.", 404);
-  requireAsoFlowAccess(user, card.companyId);
+  await currentAsoFlowUser(user, card.companyId);
   return card;
 }
 export async function listAsoFlowCards(
@@ -430,6 +452,8 @@ export async function listAsoFlowCards(
   const snapshot = await query.limit(201).get();
   const cards = snapshot.docs.slice(0, 200).map((d) => ({ ...d.data(), id: d.id }) as AsoFlowCard);
   const clinics = await listAsoFlowClinics(user, options.companyId);
+  const current = await currentAsoFlowUser(user, options.companyId);
+  for (const card of cards) requireAsoFlowAccess(current, card.companyId);
   return {
     cards,
     nextCursor: snapshot.size > 200 ? cards.at(-1)!.id : null,
@@ -464,7 +488,7 @@ export async function listAsoFlowClinics(
   const snapshot = await query.limit(2001).get();
   if (snapshot.size > 2000)
     throw badRequest("Selecione um cliente para reduzir a lista de clínicas.");
-  return snapshot.docs.flatMap((doc) => {
+  const clinics = snapshot.docs.flatMap((doc) => {
     const clinic = doc.data();
     const ids = Array.isArray(clinic.servedCompanies)
       ? clinic.servedCompanies.filter((c): c is string => typeof c === "string" && allowed(user, c))
@@ -477,6 +501,10 @@ export async function listAsoFlowClinics(
       ? [{ id: doc.id, name: value(clinic.name), email: email(clinic.email), companyIds: ids }]
       : [];
   });
+  const current = await currentAsoFlowUser(user, companyId);
+  for (const clinic of clinics)
+    for (const id of clinic.companyIds) requireAsoFlowAccess(current, id);
+  return clinics;
 }
 function validateClinic(
   data: Record<string, unknown> | undefined,
@@ -565,10 +593,16 @@ export async function readAsoFlowDocument(user: AuthContext, caseId: string, kin
   if (!["kit", "aso"].includes(kind)) throw badRequest("Tipo de documento inválido.");
   const card = await getAsoFlowCard(user, caseId);
   const result = await verifyDocument(card, kind);
-  await cases()
-    .doc(card.id)
-    .collection("documentAccess")
-    .add({ kind, hash: result.hash, at: new Date().toISOString(), actor: user.uid });
+  // Do not release bytes when access changes while Storage is being read.
+  await adminDb.runTransaction(async (tx) => {
+    await currentAsoFlowUser(user, card.companyId, tx);
+    tx.create(cases().doc(card.id).collection("documentAccess").doc(randomUUID()), {
+      kind,
+      hash: result.hash,
+      at: new Date().toISOString(),
+      actor: user.uid,
+    });
+  });
   return result;
 }
 export async function updateAsoFlowCard(user: AuthContext, input: unknown): Promise<AsoFlowCard> {
@@ -584,7 +618,7 @@ export async function updateAsoFlowCard(user: AuthContext, input: unknown): Prom
   return adminDb.runTransaction(async (tx) => {
     const card = (await tx.get(cases().doc(data.id))).data() as AsoFlowCard;
     if (!card) throw new AuthError("Card não encontrado.", 404);
-    requireAsoFlowAccess(user, card.companyId);
+    await currentAsoFlowUser(user, card.companyId, tx);
     requireVersion(card, data.version);
     mutable(card);
     const identity = await currentIdentity(tx, card);
@@ -766,7 +800,7 @@ export async function uploadAsoFlowDocument(
   return adminDb.runTransaction(async (tx) => {
     const card = (await tx.get(cases().doc(data.id))).data() as AsoFlowCard;
     if (!card) throw new AuthError("Card não encontrado.", 404);
-    requireAsoFlowAccess(user, card.companyId);
+    await currentAsoFlowUser(user, card.companyId, tx);
     requireUploadVersion(card, data.version, kind, hash);
     const identity = await currentIdentity(tx, card);
     const at = new Date().toISOString();
@@ -932,7 +966,7 @@ export async function reserveAsoFlowMail(
     const card = snapshot.data() as AsoFlowCard | undefined;
     if (!card) throw new AuthError("Card não encontrado.", 404);
     const profileData = profile.data();
-    if (!profileData || profileData.accessEnabled === false)
+    if (!profileData || profileData.accessEnabled === false || profileData.isDeleted === true)
       throw forbidden("O acesso do operador foi revogado.");
     const claims = parseClaims(profileData);
     requireAsoFlowAccess(
@@ -1042,7 +1076,7 @@ export async function recordAsoFlowSent(
     const [snapshot, receipt] = await Promise.all([tx.get(ref), tx.get(outbox)]);
     const card = snapshot.data() as AsoFlowCard | undefined;
     if (!card || !receipt.exists) throw conflict("Envio não encontrado para conferência.");
-    requireAsoFlowAccess(user, card.companyId);
+    await currentAsoFlowUser(user, card.companyId, tx);
     requireVersion(card, input.version, true);
     mutable(card);
     const lock = card.mailLock;

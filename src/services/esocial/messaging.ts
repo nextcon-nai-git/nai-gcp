@@ -207,7 +207,8 @@ async function load(user: AuthContext, id: string, reader = esocialReader): Prom
 }
 async function operator(reader: EsocialReader, user: AuthContext, companyId: string) {
   const profile = (await reader.doc(adminDb.collection("users").doc(user.uid))).data();
-  if (!profile || profile.accessEnabled === false) throw forbidden("Operador indisponível.");
+  if (!profile || profile.accessEnabled === false || profile.isDeleted === true)
+    throw forbidden("Operador indisponível.");
   const c = parseClaims(profile);
   const current: AuthContext = {
     uid: user.uid,
@@ -1434,11 +1435,19 @@ export async function downloadEsocialDocument(user: AuthContext, id: string, typ
     kind = type as EsocialArtifactKind,
     artifact = value.artifacts[kind];
   if (!artifact) throw new AuthError("Documento ainda indisponível.", 404);
+  await currentEsocialUser(user, value.companyId);
   const xml = await readEsocialArtifact(value.companyId, value.id, kind, artifact);
-  await ref(id)
-    .collection("documentAccess")
-    .doc(uuid())
-    .set({ kind, hash: artifact.hash, actor: user.uid, at: now() });
+  await adminDb.runTransaction(async (tx) => {
+    // Storage reads can outlive a revocation. Recheck at the audited release point,
+    // so a stale request cannot return confidential XML after losing its scope.
+    await currentEsocialUser(user, value.companyId, tx);
+    tx.create(ref(id).collection("documentAccess").doc(uuid()), {
+      kind,
+      hash: artifact.hash,
+      actor: user.uid,
+      at: now(),
+    });
+  });
   return { xml, filename: `${value.eventType}-${value.eventId}-${kind}.xml` };
 }
 

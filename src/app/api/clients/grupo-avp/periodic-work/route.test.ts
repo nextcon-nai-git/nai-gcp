@@ -100,4 +100,60 @@ describe("acesso à fila de trabalho AVP", () => {
     expect((await PATCH(request("PATCH", body))).status).toBe(400);
     expect(mocks.patch).not.toHaveBeenCalled();
   });
+  it.each([undefined, "1"])(
+    "interrompe o stream com Content-Length %s sem salvar a etapa",
+    async (length) => {
+      const cancel = vi.fn();
+      const streamed = new NextRequest("https://nai.test/api/clients/grupo-avp/periodic-work", {
+        method: "PATCH",
+        headers: length ? { "content-length": length } : {},
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(new Uint8Array(12000));
+            controller.enqueue(new Uint8Array(12001));
+          },
+          cancel,
+        }),
+        duplex: "half",
+      } as ConstructorParameters<typeof NextRequest>[1]);
+      const response = await PATCH(streamed);
+      expect(response.status).toBe(413);
+      expect(await response.json()).toEqual({ error: "Requisição muito grande." });
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(mocks.patch).not.toHaveBeenCalled();
+    }
+  );
+  it("preserva limite em caracteres, JSON com BOM e texto multibyte sem Content-Length", async () => {
+    const body = {
+      id: `periodico-2026-${"a".repeat(64)}`,
+      sourceVersion: "a".repeat(64),
+      revision: 0,
+      stage: "validar",
+      responsible: "Operador teste",
+      nextDate: "",
+      evidence: "漢".repeat(1000),
+      evidenceDate: "2026-11-02",
+      evidenceKind: "review",
+      clinic: "Clínica revisada",
+      appointmentTime: "",
+      receiptNumber: "",
+      nonApplicabilityReason: "漢".repeat(1000),
+    };
+    const raw = JSON.stringify(body);
+    expect(raw.length).toBeLessThan(6000);
+    expect(Buffer.byteLength(raw)).toBeGreaterThan(6000);
+    const streamed = new NextRequest("https://nai.test/api/clients/grupo-avp/periodic-work", {
+      method: "PATCH",
+      body: "\uFEFF" + raw,
+    });
+    expect((await PATCH(streamed)).status).toBe(200);
+    expect(mocks.patch).toHaveBeenCalledExactlyOnceWith(body, "operator");
+    mocks.patch.mockClear();
+    const oversized = new NextRequest("https://nai.test/api/clients/grupo-avp/periodic-work", {
+      method: "PATCH",
+      body: " ".repeat(6001) + raw,
+    });
+    expect((await PATCH(oversized)).status).toBe(413);
+    expect(mocks.patch).not.toHaveBeenCalled();
+  });
 });

@@ -5,6 +5,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { requirePgrCompany } from "@/lib/auth/require-pgr-access";
 import { AuthError, handleAuthError, badRequest } from "@/lib/auth/errors";
+import { limitedBytes } from "@/lib/http/private-api";
 import { adminDb } from "@/lib/firebase-admin";
 import { getPgrAi } from "@/services/pgr-ai-provider";
 import { assertPgrClientBinding } from "@/lib/pgr-save-plan";
@@ -57,8 +58,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth(request);
     await requirePgrAppCheck(request);
-    const text = await request.text();
-    if (Buffer.byteLength(text) > 2000) throw badRequest("Solicitação acima do limite.");
+    const text = (await limitedBytes(request, 2000)).toString("utf8");
     const input = Input.parse(JSON.parse(text));
     requirePgrCompany(user, input.companyId);
     const { ref, analysis, companyRef } = await loadNaiImportForReview(user, input);

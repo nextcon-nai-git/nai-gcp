@@ -56,6 +56,39 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("APIs de PGR: autenticação, isolamento e App Check", () => {
+  it("does not expose unexpected provider or SDK failure details", async () => {
+    const form = new FormData();
+    form.set(
+      "file",
+      new File(["%PDF-1.7 synthetic"], "synthetic.pdf", { type: "application/pdf" })
+    );
+    mock.prepare.mockRejectedValueOnce(
+      new Error("credential=synthetic-secret; document=synthetic-private-diagnosis")
+    );
+    const response = await analyze(
+      new NextRequest("https://nai.local/api/pgr/analyze", { method: "POST", body: form })
+    );
+    expect(response.status).toBe(422);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    const text = await response.text();
+    expect(text).not.toContain("synthetic-secret");
+    expect(text).not.toContain("synthetic-private-diagnosis");
+    expect(mock.prepare).toHaveBeenCalledOnce();
+  });
+  it("preserves safe expected analysis validation guidance", async () => {
+    const form = new FormData();
+    form.set(
+      "file",
+      new File(["%PDF-1.7 synthetic"], "synthetic.pdf", { type: "application/pdf" })
+    );
+    const message = "Resultado acima do limite; divida o documento por unidade.";
+    mock.prepare.mockRejectedValueOnce(new AuthError(message, 400));
+    const response = await analyze(
+      new NextRequest("https://nai.local/api/pgr/analyze", { method: "POST", body: form })
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: message });
+  });
   it("recusa chamadas anônimas antes de qualquer análise ou persistência", async () => {
     mock.auth.mockRejectedValue(new AuthError("Autenticação necessária", 401));
     for (const [handler, path, method] of [

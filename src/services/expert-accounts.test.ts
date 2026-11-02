@@ -1,21 +1,19 @@
 import { beforeEach, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
-  getUser: vi.fn(),
-  createUser: vi.fn(),
-  updateUser: vi.fn(),
   collection: vi.fn(),
-  transaction: vi.fn(),
-  create: vi.fn(),
-  update: vi.fn(),
+  preview: vi.fn(),
+  manage: vi.fn(),
   provider: {} as Record<string, unknown>,
-  existing: null as Record<string, unknown> | null,
-  changed: false,
+  account: null as Record<string, unknown> | null,
+  warning: "",
 }));
-vi.mock("@/lib/firebase-admin", () => ({
-  adminAuth: { getUserByEmail: m.getUser, createUser: m.createUser, updateUser: m.updateUser },
-  adminDb: { collection: m.collection, runTransaction: m.transaction },
+vi.mock("@/lib/firebase-admin", () => ({ adminDb: { collection: m.collection } }));
+vi.mock("./user-access", () => ({
+  previewUserAccess: m.preview,
+  manageUserAccess: m.manage,
 }));
 import { createExpertAccount, previewExpertAccount, listExpertAccounts } from "./expert-accounts";
+import { AuthError } from "@/lib/auth/errors";
 import type { AuthContext } from "@/lib/auth/auth-context";
 const admin: AuthContext = {
   uid: "admin",
@@ -26,84 +24,132 @@ const admin: AuthContext = {
   servedCompanies: [],
 };
 beforeEach(() => {
-  vi.clearAllMocks();
-  m.changed = false;
-  m.existing = null;
+  vi.resetAllMocks();
+  m.account = null;
+  m.warning = "";
   m.provider = {
     name: "Perito sintético",
     active: true,
     email: "expert@example.test",
     servedCompanies: ["allowed"],
   };
-  m.getUser.mockRejectedValue({ code: "auth/user-not-found" });
-  m.createUser.mockResolvedValue({ uid: "new-expert" });
-  m.updateUser.mockResolvedValue({});
   m.collection.mockImplementation((collection: string) => ({
     doc: (id = "audit") => ({
       collection,
       id,
       get: async () => ({
-        exists: collection !== "users" || !!m.existing,
-        data: () =>
-          collection === "providers"
-            ? m.provider
-            : collection === "users"
-              ? m.existing
-              : { name: "Empresa sintética" },
+        exists: true,
+        data: () => (collection === "providers" ? m.provider : { name: "Empresa sintética" }),
       }),
     }),
   }));
-  m.transaction.mockImplementation(async (fn) =>
-    fn({
-      get: async (ref: { collection: string; get: () => Promise<unknown> }) =>
-        m.changed && ref.collection === "providers"
-          ? { exists: true, data: () => ({ ...m.provider, servedCompanies: ["other"] }) }
-          : ref.get(),
-      create: m.create,
-      update: m.update,
-    })
-  );
+  m.preview.mockImplementation(async () => ({
+    name: m.provider.name,
+    email: m.provider.email,
+    companyIds: m.provider.servedCompanies,
+    accessUid: m.provider.accessUid || "",
+    active: m.provider.active,
+    revision: "current-managed-access-revision",
+    account: m.account,
+    warning: m.warning,
+  }));
+  m.manage.mockResolvedValue({ success: true, message: "Acesso atualizado." });
 });
 const input = async () => ({
   providerId: "provider",
   revision: (await previewExpertAccount(admin, "provider")).revision,
   password: "Synthetic-test-only-42",
 });
-it("creates a disabled account first and enables only after the narrow profile and audit commit", async () => {
+
+it("uses the canonical grant workflow and its current revision instead of enabling a separate identity", async () => {
   const body = await input();
-  await expect(createExpertAccount(admin, body)).resolves.toMatchObject({ created: true });
-  expect(m.createUser).toHaveBeenCalledWith(expect.objectContaining({ disabled: true }));
-  const profile = m.create.mock.calls.find(([ref]) => ref.collection === "users")![1];
-  expect(profile).toMatchObject({
+  const response = await createExpertAccount(admin, body);
+  expect(response).toEqual({ created: true, alreadyExists: false, email: "expert@example.test" });
+  expect(m.preview).toHaveBeenCalledExactlyOnceWith(admin, "provider", "provider");
+  expect(m.manage).toHaveBeenCalledExactlyOnceWith(admin, {
+    kind: "provider",
+    id: "provider",
+    action: "create",
+    revision: "current-managed-access-revision",
     role: "SCOPED_PROVIDER",
-    servedCompanies: ["allowed"],
-    permissions: [],
-    providerId: "provider",
+    companyIds: ["allowed"],
+    password: body.password,
   });
-  expect(JSON.stringify(m.create.mock.calls)).not.toContain(body.password);
-  expect(m.updateUser).toHaveBeenCalledWith("new-expert", { disabled: false });
-  expect(m.transaction.mock.invocationCallOrder[0]).toBeLessThan(
-    m.updateUser.mock.invocationCallOrder[0]
-  );
+  expect(JSON.stringify(response)).not.toContain(body.password);
 });
-it("never overwrites an existing account or resets its password", async () => {
-  m.getUser.mockResolvedValue({ uid: "existing", disabled: false });
-  m.existing = { role: "ADMIN" };
+
+it("does not bypass a current administrative revocation with the initial SUPER_ADMIN context", async () => {
+  const body = await input();
+  m.preview.mockRejectedValue(new AuthError("Acesso administrativo suspenso.", 403));
+  await expect(createExpertAccount(admin, body)).rejects.toMatchObject({ status: 403 });
+  expect(m.manage).not.toHaveBeenCalled();
+});
+
+it.each([403, 409, 503])(
+  "never reports a completed grant when the canonical operation rejects with %s",
+  async (status) => {
+    const body = await input();
+    m.manage.mockRejectedValue(new AuthError("Concessão não confirmada.", status));
+    await expect(createExpertAccount(admin, body)).rejects.toMatchObject({ status });
+    expect(m.manage).toHaveBeenCalledOnce();
+  }
+);
+
+it("rejects changed provider links before requesting a grant", async () => {
+  const body = await input();
+  m.provider.servedCompanies = ["other"];
+  await expect(createExpertAccount(admin, body)).rejects.toMatchObject({ status: 409 });
+  expect(m.manage).not.toHaveBeenCalled();
+});
+
+it("never adopts or replaces an unrelated existing email account", async () => {
+  m.warning = "Já existe conta com este e-mail.";
   await expect(createExpertAccount(admin, await input())).rejects.toMatchObject({ status: 409 });
-  expect(m.createUser).not.toHaveBeenCalled();
-  expect(m.updateUser).not.toHaveBeenCalled();
+  expect(m.manage).not.toHaveBeenCalled();
 });
-it("keeps a newly created account disabled if the association changes before commit", async () => {
-  m.changed = true;
+
+it.each([
+  { enabled: false, role: "SCOPED_PROVIDER", companyIds: ["allowed"] },
+  { enabled: true, role: "ADMIN", companyIds: ["allowed"] },
+  { enabled: true, role: "SCOPED_PROVIDER", companyIds: ["other"] },
+])("requires review of an inconsistent existing grant (%j)", async (account) => {
+  m.provider.accessUid = "existing";
+  m.account = { uid: "existing", ...account };
   await expect(createExpertAccount(admin, await input())).rejects.toMatchObject({ status: 409 });
-  expect(m.updateUser).not.toHaveBeenCalled();
-  expect(m.create).not.toHaveBeenCalled();
+  expect(m.manage).not.toHaveBeenCalled();
 });
+
+it("preserves the already-existing response only for the current narrow linked grant", async () => {
+  m.provider.accessUid = "existing";
+  m.account = {
+    uid: "existing",
+    enabled: true,
+    role: "SCOPED_PROVIDER",
+    companyIds: ["allowed"],
+  };
+  await expect(createExpertAccount(admin, await input())).resolves.toEqual({
+    created: false,
+    alreadyExists: true,
+    email: "expert@example.test",
+  });
+  expect(m.manage).not.toHaveBeenCalled();
+});
+
+it("ignores unreviewed role and company overrides from the caller", async () => {
+  const body = { ...(await input()), role: "SUPER_ADMIN", companyIds: ["other"] };
+  await createExpertAccount(admin, body);
+  expect(m.manage.mock.calls[0][1]).toMatchObject({
+    role: "SCOPED_PROVIDER",
+    companyIds: ["allowed"],
+  });
+});
+
 it("denies provider and non-security administrators before any reads", async () => {
   await expect(previewExpertAccount({ ...admin, role: "ADMIN" }, "provider")).rejects.toMatchObject(
     { status: 403 }
   );
   expect(m.collection).not.toHaveBeenCalled();
+  expect(m.preview).not.toHaveBeenCalled();
 });
 
 it("only offers valid, current providers with existing client units in the batch", async () => {
@@ -130,7 +176,7 @@ it("only offers valid, current providers with existing client units in the batch
   expect(result.providers.filter((p) => p.ready).map((p) => p.id)).toEqual(["ready"]);
   expect(result.providers.some((p) => p.id === "deleted")).toBe(false);
   expect(result.providers.filter((p) => !p.ready)).toHaveLength(4);
-  expect(m.createUser).not.toHaveBeenCalled();
+  expect(m.manage).not.toHaveBeenCalled();
 });
 
 it("does not expose the provider directory to non-security administrators", async () => {

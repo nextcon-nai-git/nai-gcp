@@ -9,8 +9,15 @@ import {
   ApiGuardError,
 } from "@/lib/developer-api-guard";
 import { replayWebhookDelivery } from "@/services/webhooks/webhook-dispatcher";
+import { AuthError } from "@/lib/auth/errors";
+import { limitedBytes, privateFailure, privateHeaders } from "@/lib/http/private-api";
 export const dynamic = "force-dynamic";
-const headers = { "Cache-Control": "private, no-store" };
+const headers = privateHeaders;
+function failure(error: unknown) {
+  const response = error instanceof AuthError ? privateFailure(error) : handleApiGuardError(error);
+  for (const [name, value] of Object.entries(headers)) response.headers.set(name, value);
+  return response;
+}
 const id = z
   .string()
   .trim()
@@ -41,17 +48,24 @@ export async function GET(req: NextRequest) {
       { headers }
     );
   } catch (error) {
-    return handleApiGuardError(error);
+    return failure(error);
   }
 }
 export async function POST(req: NextRequest) {
   try {
     const key = await requireApiKey(req);
     requireScope(key, "webhooks:manage");
-    const parsed = z.object({ deliveryId: id }).safeParse(await req.json().catch(() => null));
+    const bytes = await limitedBytes(req, 4096);
+    let body: unknown;
+    try {
+      body = JSON.parse(bytes.toString("utf8"));
+    } catch {
+      throw new ApiGuardError("ID da entrega inválido.", 400);
+    }
+    const parsed = z.object({ deliveryId: id }).safeParse(body);
     if (!parsed.success) throw new ApiGuardError("ID da entrega inválido.", 400);
     return NextResponse.json(await replayWebhookDelivery(parsed.data.deliveryId, key), { headers });
   } catch (error) {
-    return handleApiGuardError(error);
+    return failure(error);
   }
 }

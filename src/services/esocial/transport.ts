@@ -131,6 +131,24 @@ const MAX_REQUEST_BYTES = 1152 * 1024;
 const REQUEST_TIMEOUT_MS = 30_000;
 const EVENT_ID = /^ID[12][A-Z0-9]{12}\d{21}$/;
 const PROTOCOL = /^[12]\.[1-9]\.(?:\d{6}\.)?\d{19}$/;
+// Manual do Desenvolvedor 1.16, sections 7.5.10, 7.6.10 and 8.6.
+// Unknown/temporary codes never authorize changing the event or allocating another Id.
+const SUBMISSION_REJECTIONS = new Set(["401", "402", "403", "404", "405", "406", "407"]);
+const BATCH_REJECTIONS = new Set(["401", "402", "403", "404", "405"]);
+const QUERY_REJECTIONS = new Set(["501", "502", "503", "504", "505"]);
+const EVENT_REJECTIONS = new Set([
+  "401",
+  "402",
+  "403",
+  "404",
+  "405",
+  "406",
+  "407",
+  "408",
+  "409",
+  "410",
+  "411",
+]);
 
 function fail(code: string, message: string): never {
   throw new EsocialTransportError(code, message);
@@ -398,7 +416,7 @@ export function parseEsocialSubmissionResponse(
     };
   }
   return {
-    status: /^4\d{2}$/.test(status.code) ? "rejected" : "uncertain",
+    status: SUBMISSION_REJECTIONS.has(status.code) ? "rejected" : "uncertain",
     ...status,
     rawResponse,
   };
@@ -462,6 +480,16 @@ function parseEventResult(wrapper: XmlElement, input: QueryEsocialBatchInput): E
       "RESPONSE_RECEIPT_INVALID",
       "Resposta contraditória: recibo presente para um evento rejeitado."
     );
+  if (status.code === "301")
+    return fail(
+      "ESOCIAL_TEMPORARY_ERROR",
+      "O eSocial informou erro temporário no processamento do evento. Preserve o protocolo e consulte novamente."
+    );
+  if (!EVENT_REJECTIONS.has(status.code))
+    return fail(
+      "RESPONSE_UNKNOWN",
+      "Código de processamento do evento não reconhecido; nenhuma rejeição definitiva foi confirmada."
+    );
   // A duplicate error without the original receipt is not proof of acceptance.
   return { eventId, status: "rejected", ...status, processedAt };
 }
@@ -507,7 +535,12 @@ export function parseEsocialQueryResponse(
   const estimated = field(statusNode, "tempoEstimadoConclusao", false, 8);
   if (estimated !== undefined && !/^\d{1,8}$/.test(estimated))
     return fail("RESPONSE_INVALID", "Tempo de processamento inválido.");
-  if (!completed && !processing && !/^[45]\d{2}$/.test(status.code))
+  if (
+    !completed &&
+    !processing &&
+    !BATCH_REJECTIONS.has(status.code) &&
+    !QUERY_REJECTIONS.has(status.code)
+  )
     return fail(
       "RESPONSE_UNKNOWN",
       "Código de processamento eSocial não reconhecido; nenhum aceite confirmado."
@@ -519,7 +552,11 @@ export function parseEsocialQueryResponse(
     events: completed ? wrappers.map((wrapper) => parseEventResult(wrapper, input)) : [],
     ...(estimated !== undefined ? { estimatedSeconds: Number(estimated) } : {}),
     ...(!completed && !processing
-      ? { rejectionScope: status.code.startsWith("5") ? ("query" as const) : ("batch" as const) }
+      ? {
+          rejectionScope: QUERY_REJECTIONS.has(status.code)
+            ? ("query" as const)
+            : ("batch" as const),
+        }
       : {}),
     rawResponse,
   };

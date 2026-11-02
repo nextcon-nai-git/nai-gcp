@@ -76,7 +76,11 @@ export function asoMailCaseId(subject: string): string | null {
 }
 
 export function singleAsoMailSender(header: string): string | null {
-  const match = header.trim().match(/^(?:[^<>\r\n,]*<([^<>]+)>|([^<>\s,]+))$/);
+  // A comma inside a quoted display name is not a second mailbox. Keep address
+  // lists and malformed quotes rejected, while accepting common clinic names.
+  const match = header
+    .trim()
+    .match(/^(?:(?:"(?:[^"\\\r\n]|\\[^\r\n])*"[ \t]*|[^<>"\r\n,]*)<([^<>]+)>|([^<>\s,]+))$/);
   if (!match) return null;
   try {
     return asoMailAddress(match[1] || match[2]);

@@ -316,6 +316,8 @@ export async function readAsoMailCandidate(user: AuthContext, id: string, candid
   const [bytes] = await file.download();
   if (hash(bytes) !== candidate.hash)
     throw new AuthError("Integridade do anexo não confirmada.", 409);
+  // Downloads may outlive the request's initial authorization.
+  await getAsoFlowCard(user, id);
   return { candidate, bytes };
 }
 

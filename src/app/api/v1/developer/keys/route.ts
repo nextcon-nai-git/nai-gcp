@@ -6,9 +6,10 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import { AuthError, forbidden, badRequest } from "@/lib/auth/errors";
 import { generateApiKey, VALID_DEVELOPER_SCOPES } from "@/lib/developer-api-guard";
+import { limitedJson, privateHeaders } from "@/lib/http/private-api";
 
 export const dynamic = "force-dynamic";
-const headers = { "Cache-Control": "private, no-store" };
+const headers = privateHeaders;
 const id = z
   .string()
   .trim()
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireAuth(req);
     requireKeyAdmin(user, user.tenantId || undefined);
-    const parsed = input.safeParse(await req.json().catch(() => null));
+    const parsed = input.safeParse(await limitedJson(req, 16384));
     if (!parsed.success) throw badRequest("Informe empresa, nome e escopos válidos.");
     const { clientId, name, scopes } = parsed.data;
     requireKeyAdmin(user, clientId);

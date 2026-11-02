@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod/v3";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { AuthError, badRequest, handleAuthError } from "@/lib/auth/errors";
+import { AuthError } from "@/lib/auth/errors";
 import { requirePgrAppCheck } from "@/lib/auth/require-pgr-app-check";
+import { limitedJson, privateFailure, privateHeaders } from "@/lib/http/private-api";
 import {
   completeClinicalAppointmentWithAso,
   reviewClinicalAso,
@@ -41,33 +42,25 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth(request);
     await requirePgrAppCheck(request);
-    const text = await request.text();
-    if (Buffer.byteLength(text) > 4096) throw badRequest("Solicitação acima do limite.");
-    let body: unknown;
-    try {
-      body = JSON.parse(text);
-    } catch {
-      throw badRequest("Solicitação inválida.");
-    }
-    const input = Input.parse(body);
+    const input = Input.parse(await limitedJson(request, 4096));
     const result =
       input.action === "review"
         ? await reviewClinicalAso(user, input)
         : await completeClinicalAppointmentWithAso(user, input);
-    return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(result, { headers: privateHeaders });
   } catch (error) {
-    if (error instanceof AuthError) return handleAuthError(error);
+    if (error instanceof AuthError) return privateFailure(error);
     if (error instanceof z.ZodError)
       return NextResponse.json(
         { error: "Confira os dados do documento e atendimento." },
-        { status: 400 }
+        { status: 400, headers: privateHeaders }
       );
     return NextResponse.json(
       {
         error:
           "Não foi possível confirmar o vínculo. O atendimento permanece aberto para retomada.",
       },
-      { status: 503 }
+      { status: 503, headers: privateHeaders }
     );
   }
 }

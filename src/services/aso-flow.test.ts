@@ -14,6 +14,7 @@ import {
   getAsoFlowCard,
   importAsoFlowRows,
   listAsoFlowCards,
+  listAsoFlowClinics,
   previewAsoFlowImport,
   readAsoFlowDocument,
   recordAsoFlowSent,
@@ -24,6 +25,7 @@ import {
 
 type Data = Record<string, any>;
 let db: Map<string, Data>, files: Map<string, Buffer>, queue: Promise<unknown>;
+let afterQueryRead: ((path: string) => void) | undefined;
 const user = {
   uid: "operator",
   email: "operator@example.test",
@@ -102,6 +104,7 @@ function query(
         )
         .slice(0, take)
         .map(snap);
+      afterQueryRead?.(path);
       return { docs, size: docs.length };
     },
   };
@@ -111,6 +114,7 @@ beforeEach(() => {
   db = new Map();
   files = new Map();
   queue = Promise.resolve();
+  afterQueryRead = undefined;
   m.collection.mockImplementation(query);
   m.file.mockImplementation((path: string) => ({
     save: async (bytes: Buffer) => {
@@ -229,6 +233,105 @@ const nativeKit = (card: AsoFlowCard, order = "123456", bytes = pdf("native-kit"
     bytes,
     "kit.pdf"
   );
+describe("revogação durante operações da esteira", () => {
+  it.each(["preview", "cards", "clinics"] as const)(
+    "não libera %s de uma carteira revogada enquanto a consulta estava em andamento",
+    async (operation) => {
+      await create();
+      if (operation === "cards") db.get("providers/CLINIC")!.servedCompanies = [];
+      const trigger = {
+        preview: "companies",
+        cards: "clinic_portal_private/aso-flow/cases",
+        clinics: "providers",
+      }[operation];
+      afterQueryRead = (path) => {
+        if (path === trigger)
+          Object.assign(db.get("users/operator")!, {
+            role: "OPERATIONS",
+            servedCompanies: ["OTHER"],
+          });
+      };
+      const result =
+        operation === "preview"
+          ? previewAsoFlowImport(user, input())
+          : operation === "cards"
+            ? listAsoFlowCards(user)
+            : listAsoFlowClinics(user);
+      await expect(result).rejects.toMatchObject({ status: 403 });
+    }
+  );
+
+  it.each([{ isDeleted: true }, { role: "OPERATIONS", servedCompanies: ["OTHER"] }])(
+    "não importa com contexto antigo após mudança do perfil: %j",
+    async (change) => {
+      Object.assign(db.get("users/operator")!, change);
+      const before = structuredClone(db);
+      await expect(importAsoFlowRows(user, input())).rejects.toMatchObject({ status: 403 });
+      expect(db).toEqual(before);
+    }
+  );
+
+  it("não confirma revisão quando a permissão é revogada durante a leitura do original", async () => {
+    const card = await receive(await create());
+    const before = structuredClone(db.get(casePath(card.id)));
+    const file = m.file.getMockImplementation()!;
+    m.file.mockImplementation((path: string) => {
+      const stored = file(path);
+      return {
+        ...stored,
+        download: async () => {
+          const result = await stored.download();
+          db.get("users/operator")!.accessEnabled = false;
+          return result;
+        },
+      };
+    });
+    await expect(review(card)).rejects.toMatchObject({ status: 403 });
+    expect(db.get(casePath(card.id))).toEqual(before);
+    expect([...db.keys()].some((path) => path.includes("/clientArchives/"))).toBe(false);
+  });
+
+  it("não vincula upload quando o operador é excluído durante a gravação privada", async () => {
+    const card = await create();
+    const before = structuredClone(db.get(casePath(card.id)));
+    const file = m.file.getMockImplementation()!;
+    m.file.mockImplementation((path: string) => {
+      const stored = file(path);
+      return {
+        ...stored,
+        save: async (bytes: Buffer) => {
+          await stored.save(bytes);
+          db.get("users/operator")!.isDeleted = true;
+        },
+      };
+    });
+    await expect(receive(card)).rejects.toMatchObject({ status: 403 });
+    expect(db.get(casePath(card.id))).toEqual(before);
+    expect(db.has(`${casePath(card.id)}/history/${card.version + 1}`)).toBe(false);
+  });
+
+  it.each([
+    { accessEnabled: false },
+    { isDeleted: true },
+    { role: "OPERATIONS", servedCompanies: ["OTHER"] },
+  ])("não libera o PDF se o acesso muda durante o download: %j", async (change) => {
+    const card = await receive(await create());
+    const file = m.file.getMockImplementation()!;
+    m.file.mockImplementation((path: string) => {
+      const stored = file(path);
+      return {
+        ...stored,
+        download: async () => {
+          const result = await stored.download();
+          Object.assign(db.get("users/operator")!, change);
+          return result;
+        },
+      };
+    });
+    await expect(readAsoFlowDocument(user, card.id, "aso")).rejects.toMatchObject({ status: 403 });
+    expect([...db.keys()].some((path) => path.includes("/documentAccess/"))).toBe(false);
+  });
+});
 describe("resolução e importação canônica", () => {
   it("aceita retorno de afastado e demissional de desligado sem alterar o cadastro", async () => {
     db.get("companies/ONE/employees/E1")!.status = "leave";
@@ -645,6 +748,9 @@ describe("ações com evidência e concorrência", () => {
     db.get("users/operator")!.accessEnabled = false;
     await expect(reserveAsoFlowMail(user, reservation)).rejects.toMatchObject({ status: 403 });
     db.get("users/operator")!.accessEnabled = true;
+    db.get("users/operator")!.isDeleted = true;
+    await expect(reserveAsoFlowMail(user, reservation)).rejects.toMatchObject({ status: 403 });
+    db.get("users/operator")!.isDeleted = false;
     db.get("providers/CLINIC")!.servedCompanies = ["OTHER"];
     await expect(reserveAsoFlowMail(user, reservation)).rejects.toMatchObject({ status: 400 });
     db.get("providers/CLINIC")!.servedCompanies = ["ONE"];
@@ -743,6 +849,11 @@ describe("ações com evidência e concorrência", () => {
     await expect(
       recordAsoFlowSent(user, { ...sent, documentHash: "b".repeat(64) })
     ).rejects.toMatchObject({ status: 409 });
+    db.get("users/operator")!.isDeleted = true;
+    await expect(recordAsoFlowSent(user, sent)).rejects.toMatchObject({ status: 403 });
+    expect(db.get(outboxPath)?.state).toBe("sending");
+    expect(db.get(casePath(card.id))?.mailLock?.outboxId).toBe(outboxId);
+    db.get("users/operator")!.isDeleted = false;
     const next = await recordAsoFlowSent(user, sent);
     expect(next.status).toBe("delivered");
     expect(next.mailLock).toBeUndefined();

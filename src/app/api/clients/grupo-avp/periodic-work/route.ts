@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { requireAvpAccess, canAccessAvpEvidence } from "@/lib/auth/avp-access";
 import { AuthError, handleAuthError } from "@/lib/auth/errors";
+import { limitedBytes } from "@/lib/http/private-api";
 import { periodicPatchSchema, periodicWorkIdSchema } from "@/lib/avp-periodic-workflow";
 import {
   readPeriodicWork,
@@ -47,7 +48,15 @@ export async function PATCH(req: NextRequest) {
     const user = await authorized(req);
     if (Number(req.headers.get("content-length")) > 6000)
       throw new AuthError("Requisição muito grande.", 413);
-    const raw = await req.text();
+    let raw: string;
+    try {
+      // Preserve the existing character limit for multibyte JSON without trusting Content-Length.
+      raw = req.body ? new TextDecoder().decode(await limitedBytes(req, 24000)) : "";
+    } catch (error) {
+      if (error instanceof AuthError && error.status === 413)
+        throw new AuthError("Requisição muito grande.", 413);
+      throw error;
+    }
     if (raw.length > 6000) throw new AuthError("Requisição muito grande.", 413);
     let input: unknown;
     try {

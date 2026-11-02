@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { AuthError } from "@/lib/auth/errors";
 import { getClientCenter, createClientRequest } from "@/services/client-center";
+import { limitedBytes } from "@/lib/http/private-api";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 function failure(error: unknown) {
@@ -26,7 +27,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth(request);
-    const text = await request.text();
+    // Keep the existing character limit while bounding the UTF-8 stream first.
+    const text = (await limitedBytes(request, 48000)).toString("utf8");
     if (text.length > 12000) throw new AuthError("Solicitação acima do limite.", 413);
     let input: unknown;
     try {

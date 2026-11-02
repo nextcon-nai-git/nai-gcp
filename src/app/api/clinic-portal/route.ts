@@ -4,6 +4,7 @@ import { z } from "zod/v3";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { requireAuth, extractBearerToken } from "@/lib/auth/require-auth";
 import { AuthError, forbidden, badRequest } from "@/lib/auth/errors";
+import { limitedBytes } from "@/lib/http/private-api";
 import { canManageRdAso } from "@/lib/integrations/rd-aso-request";
 import {
   clinicalSchema,
@@ -35,7 +36,8 @@ export async function POST(request: NextRequest) {
       503
     );
   try {
-    const raw = await request.text();
+    // Preserve the character limit while bounding bytes before parsing untrusted input.
+    const raw = (await limitedBytes(request, 2800000)).toString("utf8");
     if (raw.length > 700000) throw badRequest("Conteúdo muito grande.");
     const body = z
       .object({
@@ -160,7 +162,7 @@ export async function POST(request: NextRequest) {
     const ref = collection().doc(body.id);
     return await adminDb.runTransaction(async (tx) => {
       const profile = await tx.get(adminDb.collection("users").doc(identity.uid));
-      if (profile.data()?.accessEnabled === false)
+      if (profile.data()?.accessEnabled === false || profile.data()?.isDeleted === true)
         throw forbidden("Acesso suspenso pelo administrador.");
       if (profile.data()?.role === "SCOPED_PROVIDER")
         throw forbidden("Este perfil possui somente consulta de CNPJs e cards.");

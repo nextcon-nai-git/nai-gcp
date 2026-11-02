@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { requireAvpAccess } from "@/lib/auth/avp-access";
 import { AuthError, handleAuthError } from "@/lib/auth/errors";
+import { limitedBytes } from "@/lib/http/private-api";
 import { getAvpSnapshot, patchAvpQueue, syncAvpSource } from "@/services/avp-sheet-sync";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,14 @@ export async function PATCH(req: NextRequest) {
         { error: "Seu perfil pode consultar, mas não editar esta fila." },
         { status: 403 }
       );
-    const text = await req.text();
+    let text: string;
+    try {
+      text = req.body ? new TextDecoder().decode(await limitedBytes(req, 500000)) : "";
+    } catch (error) {
+      if (error instanceof AuthError && error.status === 413)
+        return NextResponse.json({ error: "Alterações excedem o limite." }, { status: 413 });
+      throw error;
+    }
     if (Buffer.byteLength(text) > 500000)
       return NextResponse.json({ error: "Alterações excedem o limite." }, { status: 413 });
     const body = JSON.parse(text);

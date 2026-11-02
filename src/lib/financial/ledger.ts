@@ -1,4 +1,5 @@
 import { z } from "zod/v3";
+import { csvTextCell } from "@/lib/csv-cell";
 
 const date = z
   .string()
@@ -174,10 +175,6 @@ export function filterLedger(rows: LedgerRow[], f: LedgerFilters) {
   );
 }
 export function ledgerCsv(rows: LedgerRow[]) {
-  const cell = (s: string | number) =>
-    `"${String(s)
-      .replace(/^[=+@\-\t\r]/, "'$&")
-      .replace(/"/g, '""')}"`;
   const header = [
     "Data",
     "Lançamento",
@@ -207,7 +204,7 @@ export function ledgerCsv(rows: LedgerRow[]) {
         r.endPage,
       ]),
     ]
-      .map((row) => row.map(cell).join(";"))
+      .map((row) => row.map(csvTextCell).join(";"))
       .join("\r\n")
   );
 }

@@ -3,6 +3,7 @@ import { z } from "zod/v3";
 import { suggestExams } from "@/ai/flows/suggest-exams-flow";
 import { requireAuth, extractBearerToken } from "@/lib/auth/require-auth";
 import { AuthError, forbidden, handleAuthError } from "@/lib/auth/errors";
+import { limitedBytes } from "@/lib/http/private-api";
 
 const inputSchema = z.object({
   jobTitle: z.string().trim().min(1).max(200),
@@ -14,7 +15,9 @@ export async function POST(request: NextRequest) {
     const user = await requireAuth(request);
     if (!["SUPER_ADMIN", "ADMIN", "DOCTOR", "NURSE", "HEALTH_PROFESSIONAL"].includes(user.role))
       throw forbidden();
-    const raw = await request.text();
+    // Bound actual UTF-8 bytes even for a streamed request without Content-Length.
+    // Preserve the existing character limit and valid multibyte clinical text.
+    const raw = (await limitedBytes(request, 120000)).toString("utf8");
     if (raw.length > 30000)
       return NextResponse.json({ error: "Entrada muito extensa." }, { status: 413 });
     let body: unknown;

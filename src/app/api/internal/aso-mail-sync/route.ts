@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
     // No synthetic privileged user: recheck the configured operator's current permissions.
     const profile = (await adminDb.collection("users").doc(operator).get()).data();
-    if (!profile || profile.accessEnabled === false)
+    if (!profile || profile.accessEnabled === false || profile.isDeleted === true)
       throw new AuthError("Operador do monitor indisponível.", 403);
     const claims = parseClaims(profile);
     const user = {

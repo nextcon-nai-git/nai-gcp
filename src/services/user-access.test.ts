@@ -82,6 +82,7 @@ vi.mock("@/lib/firebase-admin", () => {
   };
 });
 import { manageUserAccess, previewUserAccess } from "./user-access";
+import { createExpertAccount, previewExpertAccount } from "./expert-accounts";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import { parseClaims } from "@/lib/auth/claims";
 import { dashboardScope } from "@/lib/auth/dashboard-access";
@@ -274,13 +275,14 @@ it("updating grants preserves suspended status", async () => {
   expect(m.rows.get("users/new")?.accessEnabled).toBe(false);
   expect(m.update).not.toHaveBeenCalledWith("new", { disabled: false });
 });
-it.each(["suspended", "demoted", "removed"])(
+it.each(["suspended", "demoted", "removed", "deleted"])(
   "rejects a stale administrator context after the actor is %s",
   async (change) => {
     const body = await input();
     if (change === "suspended") m.rows.get("users/admin")!.accessEnabled = false;
     if (change === "demoted") m.rows.get("users/admin")!.role = "OPERATIONS";
     if (change === "removed") m.rows.delete("users/admin");
+    if (change === "deleted") m.rows.get("users/admin")!.isDeleted = true;
     await expect(previewUserAccess(admin, "provider", "p")).rejects.toMatchObject({ status: 403 });
     await expect(manageUserAccess(admin, body)).rejects.toMatchObject({ status: 403 });
     expect(m.create).not.toHaveBeenCalled();
@@ -317,6 +319,82 @@ it("keeps the NAI profile suspended after admin revocation during Auth enable", 
   expect(m.rows.get("users/new")?.accessEnabled).toBe(false);
   expect([...m.rows.values()].some((d) => d.phase === "COMPLETED")).toBe(false);
   expect(m.rows.get("providers/p")?.accessOperationId).toBeUndefined();
+});
+it("keeps the NAI profile suspended after administrator deletion during Auth enable", async () => {
+  m.update.mockImplementation(async (_uid, changes) => {
+    if (changes.disabled === false) m.rows.get("users/admin")!.isDeleted = true;
+  });
+  await expect(manageUserAccess(admin, await input())).rejects.toMatchObject({ status: 403 });
+  expect(m.rows.get("users/new")?.accessEnabled).toBe(false);
+  expect([...m.rows.values()].some((d) => d.phase === "COMPLETED")).toBe(false);
+  expect(m.rows.get("providers/p")?.accessOperationId).toBeUndefined();
+});
+it.each(["update", "enable", "reset-password"])(
+  "does not %s a deleted target profile even if its access flag remains enabled",
+  async (action) => {
+    existing();
+    m.rows.get("users/new")!.isDeleted = true;
+    const preview = await previewUserAccess(admin, "provider", "p");
+    expect(preview.account?.enabled).toBe(false);
+    await expect(
+      manageUserAccess(admin, { ...(await input("provider", "p", action)) })
+    ).rejects.toMatchObject({ status: 409 });
+    expect(m.update).not.toHaveBeenCalled();
+    expect(m.reset).not.toHaveBeenCalled();
+    expect(m.rows.get("users/new")?.isDeleted).toBe(true);
+  }
+);
+it("can still suspend the Auth identity and sessions of a deleted target profile", async () => {
+  existing();
+  m.rows.get("users/new")!.isDeleted = true;
+  await manageUserAccess(admin, await input("provider", "p", "disable"));
+  expect(m.update).toHaveBeenCalledWith("new", { disabled: true });
+  expect(m.update).not.toHaveBeenCalledWith("new", { disabled: false });
+  expect(m.revoke).toHaveBeenCalledWith("new");
+  expect(m.rows.get("users/new")).toMatchObject({ isDeleted: true, accessEnabled: false });
+});
+it("does not commit a new grant after the target profile is deleted during Auth enable", async () => {
+  m.update.mockImplementation(async (_uid, changes) => {
+    if (changes.disabled === false) m.rows.get("users/new")!.isDeleted = true;
+  });
+  await expect(manageUserAccess(admin, await input())).rejects.toMatchObject({ status: 409 });
+  expect(m.rows.get("users/new")).toMatchObject({ isDeleted: true, accessEnabled: false });
+  expect([...m.rows.values()].some((d) => d.phase === "COMPLETED")).toBe(false);
+  expect(m.rows.get("providers/p")?.accessOperationId).toBeUndefined();
+});
+it("creates an expert through the real canonical grant workflow with its legacy review fingerprint", async () => {
+  const reviewed = await previewExpertAccount(admin, "p");
+  const result = await createExpertAccount(admin, {
+    providerId: "p",
+    revision: reviewed.revision,
+    password: "Synthetic-42",
+  });
+  expect(result).toEqual({ created: true, alreadyExists: false, email: "provider@example.test" });
+  expect(m.rows.get("users/new")).toMatchObject({
+    role: "SCOPED_PROVIDER",
+    providerId: "p",
+    servedCompanies: ["a"],
+    accessEnabled: true,
+    permissions: [],
+  });
+  expect(m.create).toHaveBeenCalledWith(expect.objectContaining({ disabled: true }));
+  expect([...m.rows.values()].some((d) => d.phase === "COMPLETED")).toBe(true);
+  expect(m.rows.get("providers/p")?.accessOperationId).toBeUndefined();
+});
+it("keeps a grant blocked when an administrator is deleted through the expert creation entry point", async () => {
+  const reviewed = await previewExpertAccount(admin, "p");
+  m.update.mockImplementation(async (_uid, changes) => {
+    if (changes.disabled === false) m.rows.get("users/admin")!.isDeleted = true;
+  });
+  await expect(
+    createExpertAccount(admin, {
+      providerId: "p",
+      revision: reviewed.revision,
+      password: "Synthetic-42",
+    })
+  ).rejects.toMatchObject({ status: 403 });
+  expect(m.rows.get("users/new")?.accessEnabled).toBe(false);
+  expect([...m.rows.values()].some((d) => d.phase === "COMPLETED")).toBe(false);
 });
 it("withholds a reset link if its generation overlaps administrator revocation", async () => {
   existing(false);

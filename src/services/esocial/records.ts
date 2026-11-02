@@ -32,6 +32,12 @@ import {
 export const esocialHash = (v: string | Buffer) => createHash("sha256").update(v).digest("hex");
 export const cleanRecord = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 export const stringValue = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+const companyRegistrationFingerprint = (company: Record<string, unknown>) =>
+  JSON.stringify(
+    [company.cnpj, company.cpf, company.esocialRegistration].map((value) =>
+      normalizeEsocialRegistration(stringValue(value))
+    )
+  );
 export const esocialCompany = (id: string) =>
   adminDb.collection("companies").doc(esocialDocumentId(id, "Cliente"));
 export const esocialEmployee = (companyId: string, id: string) =>
@@ -179,13 +185,45 @@ export async function saveEsocialEmployeeLink(user: AuthContext, input: unknown)
     confirmedAt: new Date().toISOString(),
     confirmedBy: current.uid,
   });
-  await esocialLinkRef(v.companyId, v.employeeId).set(record);
-  await esocialPrivateRoot().collection("audit").doc(randomUUID()).set({
-    action: "employment_link_confirmed",
-    companyId: v.companyId,
-    employeeId: v.employeeId,
-    actor: current.uid,
-    at: record.confirmedAt,
+  await adminDb.runTransaction(async (tx) => {
+    // Bind the confirmation and its audit to the same current authorization and identity.
+    // Firestore retries if a read document changes before commit; never silently rebind
+    // a confirmation to a CPF/employer that changed during that retry.
+    await currentEsocialUser(user, v.companyId, tx);
+    const [currentCompany, currentEmployee] = await Promise.all([
+      tx.get(esocialCompany(v.companyId)),
+      tx.get(esocialEmployee(v.companyId, v.employeeId)),
+    ]);
+    const companyNow = currentCompany.data(),
+      employeeNow = currentEmployee.data();
+    if (
+      !companyNow ||
+      companyNow.isDeleted === true ||
+      companyNow.active === false ||
+      companyRegistrationFingerprint(companyNow) !== companyRegistrationFingerprint(companyData)
+    )
+      throw new AuthError(
+        "O cliente mudou durante a confirmação. Atualize e confira o vínculo.",
+        409
+      );
+    if (
+      !employeeNow ||
+      employeeNow.isDeleted === true ||
+      (employeeNow.companyId && employeeNow.companyId !== v.companyId) ||
+      normalizeEsocialRegistration(stringValue(employeeNow.cpf)) !== record.cpf
+    )
+      throw new AuthError(
+        "O colaborador ou CPF mudou durante a confirmação. Atualize e confira o vínculo.",
+        409
+      );
+    tx.set(esocialLinkRef(v.companyId, v.employeeId), record);
+    tx.create(esocialPrivateRoot().collection("audit").doc(randomUUID()), {
+      action: "employment_link_confirmed",
+      companyId: v.companyId,
+      employeeId: v.employeeId,
+      actor: current.uid,
+      at: record.confirmedAt,
+    });
   });
   return record;
 }
@@ -243,16 +281,27 @@ export async function saveEsocialGrant(user: AuthContext, input: unknown) {
     confirmedBy: current.uid,
     verification: "operator_confirmed",
   };
-  await esocialGrantRef(v.companyId).set(grant);
-  await esocialPrivateRoot()
-    .collection("audit")
-    .doc(randomUUID())
-    .set({
+  await adminDb.runTransaction(async (tx) => {
+    requireEsocialAdministrator(await currentEsocialUser(user, v.companyId, tx));
+    const companyNow = (await tx.get(esocialCompany(v.companyId))).data();
+    if (
+      !companyNow ||
+      companyNow.isDeleted === true ||
+      companyNow.active === false ||
+      companyRegistrationFingerprint(companyNow) !== companyRegistrationFingerprint(company)
+    )
+      throw new AuthError(
+        "O cliente mudou durante a confirmação. Atualize e confira a procuração.",
+        409
+      );
+    tx.set(esocialGrantRef(v.companyId), grant);
+    tx.create(esocialPrivateRoot().collection("audit").doc(randomUUID()), {
       action: v.active ? "grant_confirmed" : "grant_disabled",
       companyId: v.companyId,
       actor: current.uid,
       at: grant.confirmedAt,
     });
+  });
   return grant;
 }
 /** MOS S-1.3 NO12/2026, p.18: Grupo SST 3 also covers S-2230; S-2221 uses profile 9.
@@ -356,10 +405,16 @@ export async function resolveEsocialIdentity(
     const snapshots = await Promise.all(
       values.map((cpf) =>
         reader.query(
-          esocialCompany(companyId).collection("employees").where("cpf", "==", cpf).limit(3)
+          esocialCompany(companyId).collection("employees").where("cpf", "==", cpf).limit(4)
         )
       )
     );
+    // One extra match detects truncation before filtering soft-deleted records.
+    // Otherwise tombstones could hide a second live employee beyond the query limit.
+    if (snapshots.some((snapshot) => snapshot.size >= 4))
+      throw badRequest(
+        "Há cadastros demais para confirmar um único colaborador com este CPF. Confira os vínculos."
+      );
     const matches = [
       ...new Map(snapshots.flatMap((s) => s.docs).map((d) => [d.id, d])).values(),
     ].filter((d) => d.data()?.isDeleted !== true);

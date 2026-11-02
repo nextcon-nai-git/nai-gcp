@@ -27,6 +27,7 @@ import { useSgi } from "@/contexts/sgi-context";
 import { useExecutiveDashboard } from "@/hooks/use-executive-dashboard";
 import type { DashboardClient, ExecutiveDashboard } from "@/lib/executive-dashboard";
 import { cn } from "@/lib/utils";
+import { csvTextCell } from "@/lib/csv-cell";
 
 const number = (value: number | null | undefined) =>
   value == null ? "—" : value.toLocaleString("pt-BR");
@@ -137,10 +138,6 @@ function clientSignal(client: DashboardClient) {
   return { label: "Dados disponíveis", className: "bg-teal-50 text-teal-700" };
 }
 function downloadSnapshot(data: ExecutiveDashboard) {
-  const cell = (value: unknown) => {
-    const text = String(value ?? "");
-    return `"${(/^[=+\-@\t\r]/.test(text) ? "'" + text : text).replaceAll('"', '""')}"`;
-  };
   const rows = [
     [
       "Cliente",
@@ -165,9 +162,12 @@ function downloadSnapshot(data: ExecutiveDashboard) {
       c.tasks?.truncated || data.clientsTruncated ? "Sim" : "Não",
     ]),
   ];
-  const blob = new Blob(["\uFEFF" + rows.map((row) => row.map(cell).join(";")).join("\r\n")], {
-    type: "text/csv;charset=utf-8;",
-  });
+  const blob = new Blob(
+    ["\uFEFF" + rows.map((row) => row.map(csvTextCell).join(";")).join("\r\n")],
+    {
+      type: "text/csv;charset=utf-8;",
+    }
+  );
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

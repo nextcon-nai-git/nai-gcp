@@ -6,6 +6,7 @@ import { firebaseConfig } from "@/firebase/config";
 import { extractBearerToken, requireAuth } from "@/lib/auth/require-auth";
 import { AuthError, forbidden, badRequest } from "@/lib/auth/errors";
 import { grantFor, portalId, type PortalRecord } from "@/lib/clinic-portal/schema";
+import { limitedFormData } from "@/lib/http/private-api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,7 +24,8 @@ const unconfirmedReceipt =
   "Recebimento não confirmado. Consulte o estado do convite antes de reenviar o documento.";
 
 function requireProfileAccess(profile: Record<string, unknown> | undefined) {
-  if (profile?.accessEnabled === false) throw forbidden("Acesso suspenso pelo administrador.");
+  if (profile?.accessEnabled === false || profile?.isDeleted === true)
+    throw forbidden("Acesso suspenso pelo administrador.");
   if (profile?.role === "SCOPED_PROVIDER")
     throw forbidden("Este perfil possui somente consulta de CNPJs e cards.");
 }
@@ -81,9 +83,10 @@ export async function POST(request: NextRequest) {
   let mayBeReferenced = false;
   try {
     const actor = await identity(request);
-    const length = Number(request.headers.get("content-length"));
-    if (!length || length > MAX + 20000) throw badRequest("Envie um PDF com até 5 MB.");
-    const form = await request.formData();
+    if (Number(request.headers.get("content-length")) > MAX + 20000)
+      throw new AuthError("Arquivo ou solicitação acima do limite.", 413);
+    // Bound bytes before multipart parsing; Content-Length may be absent or false.
+    const form = await limitedFormData(request, MAX + 20000);
     const parsed = portalId.safeParse(form.get("id"));
     if (!parsed.success || form.get("attestation") !== "true")
       throw badRequest("Confirme a revisão e assinatura do ASO.");

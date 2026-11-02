@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { GET, POST, DELETE } from "./route";
@@ -89,6 +90,27 @@ describe("API key administration", () => {
       { clientId: "a", name: "key", scopes: ["unknown"] },
     ])
       expect((await POST(request("POST", body))).status).toBe(400);
+    expect(mocks.add).not.toHaveBeenCalled();
+  });
+  it("cancels an oversized credential request before looking up a company or issuing a key", async () => {
+    const cancel = vi.fn();
+    const r = new NextRequest("https://example.test/api/v1/developer/keys", {
+      method: "POST",
+      headers: { "content-type": "application/json", "content-length": "1" },
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array(9000));
+          controller.enqueue(new Uint8Array(9000));
+        },
+        cancel,
+      }),
+      duplex: "half",
+    } as ConstructorParameters<typeof NextRequest>[1]);
+    const response = await POST(r);
+    expect(response.status).toBe(413);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(mocks.collection).not.toHaveBeenCalled();
     expect(mocks.add).not.toHaveBeenCalled();
   });
   it("limits tenant listing and never returns the stored hash", async () => {

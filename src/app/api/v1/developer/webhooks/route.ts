@@ -11,8 +11,15 @@ import {
   ApiGuardError,
 } from "@/lib/developer-api-guard";
 import { validateWebhookTargetUrl } from "@/lib/webhook-security-guard";
+import { AuthError } from "@/lib/auth/errors";
+import { limitedJson, privateFailure, privateHeaders } from "@/lib/http/private-api";
 export const dynamic = "force-dynamic";
-const headers = { "Cache-Control": "private, no-store" };
+const headers = privateHeaders;
+function failure(error: unknown) {
+  const response = error instanceof AuthError ? privateFailure(error) : handleApiGuardError(error);
+  for (const [name, value] of Object.entries(headers)) response.headers.set(name, value);
+  return response;
+}
 const id = z
   .string()
   .trim()
@@ -64,14 +71,14 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json({ webhooks }, { headers });
   } catch (error) {
-    return handleApiGuardError(error);
+    return failure(error);
   }
 }
 export async function POST(req: NextRequest) {
   try {
     const key = await requireApiKey(req);
     requireScope(key, "webhooks:manage");
-    const parsed = input.safeParse(await req.json().catch(() => null));
+    const parsed = input.safeParse(await limitedJson(req, 16384));
     if (!parsed.success) throw new ApiGuardError("Informe empresa, URL e eventos válidos.", 400);
     const { url, events } = parsed.data;
     const clientId = parsed.data.clientId || key.clientId;
@@ -102,7 +109,7 @@ export async function POST(req: NextRequest) {
       { status: 201, headers }
     );
   } catch (error) {
-    return handleApiGuardError(error);
+    return failure(error);
   }
 }
 export async function DELETE(req: NextRequest) {
@@ -126,6 +133,6 @@ export async function DELETE(req: NextRequest) {
     });
     return NextResponse.json({ success: true, message: "Webhook desativado." }, { headers });
   } catch (error) {
-    return handleApiGuardError(error);
+    return failure(error);
   }
 }

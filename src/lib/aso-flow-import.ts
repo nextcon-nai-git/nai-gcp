@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 import type { AsoFlowRow } from "@/lib/aso-flow";
+import { assertSafeAsoXlsx } from "@/lib/aso-flow-xlsx";
 
 export const ASO_FLOW_IMPORT_LIMIT = 5000;
 export const ASO_FLOW_BATCH_SIZE = 200;
@@ -107,7 +108,7 @@ export function parseAsoFlowTable(table: unknown[][]): AsoFlowRow[] {
       city: get("city"),
       state: get("state").toUpperCase(),
       unit: get("unit"),
-      examType: types[normalize(exam)] || exam,
+      examType: Object.hasOwn(types, normalize(exam)) ? types[normalize(exam)] : exam,
       cycle,
       roleTitle: get("roleTitle"),
       department: get("department"),
@@ -137,9 +138,11 @@ export async function readAsoFlowFile(file: File): Promise<AsoFlowRow[]> {
   if (file.size > ASO_FLOW_FILE_LIMIT) throw new Error("O arquivo deve ter até 10 MB.");
   if (/\.csv$/i.test(file.name)) return parseAsoFlowCsv(await file.text());
   if (!/\.xlsx$/i.test(file.name)) throw new Error("Selecione um arquivo CSV ou XLSX.");
+  const bytes = await file.arrayBuffer();
+  await assertSafeAsoXlsx(bytes);
   const { Workbook } = await import("exceljs");
   const workbook = new Workbook();
-  await workbook.xlsx.load(await file.arrayBuffer());
+  await workbook.xlsx.load(bytes);
   const worksheets = workbook.worksheets.filter((sheet) => sheet.actualRowCount > 0);
   if (worksheets.length !== 1)
     throw new Error(
