@@ -588,7 +588,7 @@ function ClinicalWorkspaceSession() {
         <div className="flex gap-2">
           <Button
             asChild
-            className="border-2 border-primary text-primary hover:bg-primary/5 h-11 px-6 rounded-xl font-black uppercase text-[10px] tracking-widest gap-2 bg-white shadow-sm"
+            className="border-2 border-primary text-primary hover:bg-primary/5 h-11 px-6 rounded-xl font-black uppercase text-[10px] tracking-widest gap-2 bg-white shadow-xs"
           >
             <Link
               href="/nai-importa"
@@ -755,7 +755,7 @@ function ClinicalWorkspaceSession() {
         <Search className="absolute left-4 top-3.5 size-5 text-slate-300 group-focus-within:text-primary transition-colors" />
         <Input
           placeholder="Pesquisar nos atendimentos carregados..."
-          className="pl-12 h-12 bg-white border-none shadow-sm rounded-xl font-medium"
+          className="pl-12 h-12 bg-white border-none shadow-xs rounded-xl font-medium"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -766,7 +766,7 @@ function ClinicalWorkspaceSession() {
           key={section.id}
           role="region"
           aria-label={section.title}
-          className="card-shadow border-none bg-white rounded-[2rem] overflow-hidden"
+          className="card-shadow border-none bg-white rounded-4xl overflow-hidden"
         >
           <CardHeader className="bg-slate-50 border-b py-6 px-8 flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="text-left w-full">

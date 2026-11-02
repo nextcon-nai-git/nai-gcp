@@ -347,7 +347,7 @@ function EnterpriseOpsContent() {
       <div className="min-w-0 min-h-[500px] rounded-xl border border-border p-3 md:p-4">
         {loadingTasks && operationalTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-6 py-20">
-            <div className="size-20 rounded-[2rem] bg-[#090e24] flex items-center justify-center text-white font-black text-4xl shadow-2xl animate-bounce">
+            <div className="size-20 rounded-4xl bg-[#090e24] flex items-center justify-center text-white font-black text-4xl shadow-2xl animate-bounce">
               N
             </div>
             <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary/40 animate-pulse">

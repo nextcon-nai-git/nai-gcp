@@ -16,6 +16,8 @@ import {
   getDoc,
   getDocs,
   setDoc,
+  updateDoc,
+  deleteDoc,
   type Firestore,
 } from "firebase/firestore";
 import { deleteObject, getBytes, ref, uploadBytes } from "firebase/storage";
@@ -123,6 +125,48 @@ describe("Private contract import rules and persistence", () => {
     await assertFails(
       getDocs(archiveQuery(env.unauthenticatedContext().firestore() as unknown as Firestore))
     );
+  });
+
+  it("isolates company-scoped contracts and rejects cross-company writes and profile escalation", async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      for (const [uid, profile] of Object.entries({
+        "client-a": { role: "CLIENT_ADMIN", companyId: "client-a", tenantId: "client-a" },
+        "client-b": { role: "ADMIN", companyId: "client-b", tenantId: "client-b" },
+        "tenant-ops": { role: "OPERATIONS", companyId: "nextcon", tenantId: "client-a" },
+        doctor: { role: "DOCTOR", companyId: "client-a" },
+      }))
+        await setDoc(doc(context.firestore(), `users/${uid}`), profile);
+      for (const id of ["client-a", "client-b"])
+        await setDoc(doc(context.firestore(), `companies/${id}/contracts/contract`), {
+          companyId: id,
+          createdAt: "2026-10-25T00:00:00Z",
+        });
+    });
+    for (const uid of ["client-a", "client-b"]) {
+      const other = uid === "client-a" ? "client-b" : "client-a";
+      expect(
+        (await assertSucceeds(getDocs(collection(db(uid), `companies/${uid}/contracts`)))).size
+      ).toBe(1);
+      await assertSucceeds(getDoc(doc(db(uid), `companies/${uid}/contracts/contract`)));
+      await assertFails(getDoc(doc(db(uid), `companies/${other}/contracts/contract`)));
+      await assertFails(getDocs(collection(db(uid), `companies/${other}/contracts`)));
+      await assertFails(
+        setDoc(doc(db(uid), `companies/${other}/contracts/new`), { companyId: other })
+      );
+      await assertFails(
+        updateDoc(doc(db(uid), `companies/${other}/contracts/contract`), { summary: "tampered" })
+      );
+      await assertFails(deleteDoc(doc(db(uid), `companies/${other}/contracts/contract`)));
+      await assertFails(
+        updateDoc(doc(db(uid), `users/${uid}`), { role: "SUPER_ADMIN", tenantId: "" })
+      );
+    }
+    for (const uid of ["client-a", "client-b", "tenant-ops", "doctor", "unprovisioned"])
+      await assertFails(
+        getDocs(
+          query(collectionGroup(db(uid), "contracts"), orderBy("createdAt", "desc"), limit(201))
+        )
+      );
   });
 
   it("keeps ordinary internal files writable without opening the contract source namespace", async () => {

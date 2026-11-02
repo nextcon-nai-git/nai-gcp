@@ -149,7 +149,7 @@ export default function IncidentReportPage() {
               />
             </div>
 
-            <div className="p-8 border-4 border-dashed border-slate-100 rounded-[2rem] text-center space-y-4 hover:bg-slate-50 transition-all cursor-pointer">
+            <div className="p-8 border-4 border-dashed border-slate-100 rounded-4xl text-center space-y-4 hover:bg-slate-50 transition-all cursor-pointer">
               <Camera className="size-12 text-slate-200 mx-auto" />
               <div className="space-y-1">
                 <p className="text-sm font-black text-primary uppercase">Evidência Fotográfica</p>

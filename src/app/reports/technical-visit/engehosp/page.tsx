@@ -276,7 +276,7 @@ export default function EngehospTechnicalVisitReport() {
               3. Recomendações & Plano de Medidas de Controle
             </h2>
 
-            <div className="rounded-2xl border overflow-hidden shadow-sm">
+            <div className="rounded-2xl border overflow-hidden shadow-xs">
               <Table>
                 <TableHeader className="bg-slate-100">
                   <TableRow>

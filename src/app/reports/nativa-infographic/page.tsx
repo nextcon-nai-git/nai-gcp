@@ -50,7 +50,7 @@ export default function NativaInfographicPage() {
             <span className="text-cyan-400 font-mono text-[10px] font-black tracking-[0.3em] uppercase border border-cyan-500/30 bg-cyan-500/5 px-3 py-1.5 rounded-lg">
               NAI Intelligence 2026
             </span>
-            <h1 className="text-3xl md:text-4xl font-black tracking-tighter bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent uppercase font-headline">
+            <h1 className="text-3xl md:text-4xl font-black tracking-tighter bg-linear-to-r from-white to-slate-400 bg-clip-text text-transparent uppercase font-headline">
               Infográfico Integrado: GHE ➔ PGR ➔ PCMSO
             </h1>
             <p className="text-sm text-slate-400 font-medium">
@@ -138,7 +138,7 @@ export default function NativaInfographicPage() {
 
 function InfographicCard({ ghe, roles, desc, riskLevel, riskColor, riskDetail, protocol }: any) {
   return (
-    <div className="bg-slate-950/60 border border-slate-800/60 rounded-[2rem] p-6 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 transition-all duration-300 hover:border-slate-700/60 hover:shadow-2xl hover:scale-[1.01] group">
+    <div className="bg-slate-950/60 border border-slate-800/60 rounded-4xl p-6 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 transition-all duration-300 hover:border-slate-700/60 hover:shadow-2xl hover:scale-[1.01] group">
       <div className="space-y-2 lg:w-1/3">
         <span className="text-[10px] font-mono text-slate-500 font-bold uppercase tracking-widest">
           {ghe}

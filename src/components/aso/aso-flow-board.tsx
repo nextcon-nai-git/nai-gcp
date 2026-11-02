@@ -770,7 +770,7 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
                 </div>
                 <div className="space-y-3">
                   {entries.slice(0, limit).map((card) => (
-                    <article key={card.id} className="rounded-xl border bg-card p-3 shadow-sm">
+                    <article key={card.id} className="rounded-xl border bg-card p-3 shadow-xs">
                       <div className="mb-2 flex items-start justify-between gap-2">
                         <span className="text-[11px] font-medium text-muted-foreground">
                           {examLabels[card.examType]} · {card.cycle}

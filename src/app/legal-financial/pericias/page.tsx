@@ -156,7 +156,7 @@ export default function BritaniaPericiasPage() {
           <Button
             onClick={() => window.print()}
             variant="outline"
-            className="rounded-2xl border-slate-200 text-slate-700 font-bold text-xs h-11 px-4 gap-2 shadow-sm hover:bg-slate-100"
+            className="rounded-2xl border-slate-200 text-slate-700 font-bold text-xs h-11 px-4 gap-2 shadow-xs hover:bg-slate-100"
           >
             <Printer size={15} /> Imprimir Pauta
           </Button>

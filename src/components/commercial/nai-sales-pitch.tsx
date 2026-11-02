@@ -66,9 +66,9 @@ export function NaiSalesPitch() {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-left-4 duration-700">
-      <div className="flex items-start gap-5 p-6 bg-white rounded-[2.5rem] border shadow-sm relative group">
+      <div className="flex items-start gap-5 p-6 bg-white rounded-[2.5rem] border shadow-xs relative group">
         <div className="relative shrink-0 mt-2">
-          <div className="size-20 rounded-[1.5rem] bg-[#090e24] flex items-center justify-center overflow-hidden shadow-xl border-2 border-primary/10 relative">
+          <div className="size-20 rounded-3xl bg-[#090e24] flex items-center justify-center overflow-hidden shadow-xl border-2 border-primary/10 relative">
             <Image
               src={NAI_AVATAR_URL}
               alt="Avatar NAI"
@@ -109,7 +109,7 @@ export function NaiSalesPitch() {
             <Card
               key={pilar.ordem}
               className={cn(
-                "border-none shadow-sm transition-all duration-500 cursor-pointer rounded-3xl overflow-hidden group",
+                "border-none shadow-xs transition-all duration-500 cursor-pointer rounded-3xl overflow-hidden group",
                 isExpanded
                   ? "ring-2 ring-primary bg-primary/5 shadow-xl scale-[1.02]"
                   : "bg-white hover:ring-2 ring-primary/10"

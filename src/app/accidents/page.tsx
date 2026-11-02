@@ -361,7 +361,7 @@ export default function AccidentsCAT() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pb-10">
                       {/* Coluna Esquerda: Relato e Impacto Regulatório da CAT */}
                       <div className="space-y-6">
-                        <Card className="border-none shadow-sm rounded-3xl p-6 bg-white space-y-4">
+                        <Card className="border-none shadow-xs rounded-3xl p-6 bg-white space-y-4">
                           <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
                             <FileWarning size={14} className="text-red-500" /> Relato Original do
                             Incidente
@@ -470,7 +470,7 @@ export default function AccidentsCAT() {
 
                         {/* Fatos extraídos pelo RAG */}
                         {opinion?.extractedFacts && (
-                          <Card className="border-none shadow-sm rounded-3xl p-6 bg-white space-y-3 text-left">
+                          <Card className="border-none shadow-xs rounded-3xl p-6 bg-white space-y-3 text-left">
                             <h4 className="text-[10px] font-black uppercase text-blue-600 tracking-widest flex items-center gap-2">
                               <Brain size={14} /> Informações apontadas pela IA — revisar
                             </h4>
@@ -552,7 +552,7 @@ export default function AccidentsCAT() {
                           )}
                         </Card>
 
-                        <Card className="border-none shadow-sm rounded-3xl p-6 bg-white space-y-3">
+                        <Card className="border-none shadow-xs rounded-3xl p-6 bg-white space-y-3">
                           <h4 className="text-[10px] font-black uppercase text-primary tracking-widest flex items-center gap-2">
                             <AlertCircle size={14} className="text-amber-500" /> Pendências para
                             revisão responsável

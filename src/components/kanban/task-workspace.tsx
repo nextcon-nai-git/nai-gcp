@@ -73,7 +73,7 @@ export function TaskWorkspace({ tasks }: { tasks: OpsTask[] }) {
       onClick={() => setSelected(task)}
       className="block w-full rounded-lg border border-border bg-card p-2 text-left text-sm hover:border-blue-500"
     >
-      <span className="block font-medium break-words">{task.title}</span>
+      <span className="block font-medium wrap-break-word">{task.title}</span>
       <span className="block text-xs text-muted-foreground">
         {task.companyName} · {displayTaskDate(task.dueDate)}
       </span>

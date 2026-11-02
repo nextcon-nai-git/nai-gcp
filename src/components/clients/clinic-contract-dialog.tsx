@@ -291,7 +291,7 @@ export function ClinicContractDialog({
                   Minuta para revisão — {preview.pending.length} campos ou condições entre colchetes
                   ainda precisam de conferência.
                 </p>
-                <p className="break-words text-xs">{preview.pending.join(" · ")}</p>
+                <p className="wrap-break-word text-xs">{preview.pending.join(" · ")}</p>
                 <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap rounded border p-4 font-sans text-sm">
                   {preview.text}
                 </pre>

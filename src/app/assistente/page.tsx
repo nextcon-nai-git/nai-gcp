@@ -208,7 +208,7 @@ function AssistantSession({ companyId }: { companyId: string }) {
       )}
       {notice && <p role="status">{notice}</p>}
       <details className="group rounded-xl border">
-        <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl p-4 font-semibold focus-visible:outline focus-visible:outline-2 [&::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl p-4 font-semibold focus-visible:outline-solid focus-visible:outline-2 [&::-webkit-details-marker]:hidden">
           <Sparkles aria-hidden="true" className="h-5 w-5 text-primary" /> Conversar com o NAI
           <ChevronDown
             aria-hidden="true"

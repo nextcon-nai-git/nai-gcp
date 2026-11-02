@@ -64,7 +64,7 @@ export function ProviderAssessment({
               key={star}
               aria-label={`${star} ${star === 1 ? "estrela" : "estrelas"}`}
               aria-pressed={values.rating === star}
-              className="rounded p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              className="rounded p-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-primary"
               onClick={() => setValues({ ...values, rating: star })}
             >
               <Star

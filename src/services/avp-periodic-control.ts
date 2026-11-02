@@ -3,6 +3,7 @@ import { auth as googleAuth, sheets as googleSheets } from "googleapis/build/src
 import { adminDb } from "@/lib/firebase-admin";
 import { AVP_SOURCE } from "@/lib/avp-source-config";
 import { AVP_PERIODIC_TABS, buildAvpPeriodicControl } from "@/lib/avp-periodic-control";
+import { attachPeriodicWorkSource } from "./avp-periodic-work-source";
 import {
   adaptLiveCampaign,
   adaptLiveAccreditation,
@@ -85,8 +86,9 @@ export async function readAvpPeriodicControl(sources?: PeriodicSources) {
     : null;
   const accreditation = live ? adaptLiveAccreditation(live[1], checkedAt) : null;
   const offset = sources ? 0 : 1;
+  const campaign = live ? adaptLiveCampaign(live[0]) : values[0].values || [];
   const control = buildAvpPeriodicControl(
-    live ? adaptLiveCampaign(live[0]) : values[0].values || [],
+    campaign,
     [...(values[offset].values || []), ...(accreditation?.providers.slice(1) || [])],
     [...(values[offset + 1].values || []), ...(accreditation?.prices.slice(1) || [])],
     providers.docs.map((d) => {
@@ -105,6 +107,7 @@ export async function readAvpPeriodicControl(sources?: PeriodicSources) {
     }),
     checkedAt
   );
+  control.people = attachPeriodicWorkSource(control.people, campaign);
   return sources && accreditation
     ? {
         ...control,

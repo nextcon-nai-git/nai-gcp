@@ -858,7 +858,7 @@ function PayloadFields({
         return (
           <div key={path}>
             <dt className="text-xs text-slate-500">{field.label}</dt>
-            <dd className="break-words text-sm">
+            <dd className="wrap-break-word text-sm">
               {option?.label ||
                 (typeof value === "boolean" ? (value ? "Sim" : "Não") : String(value))}
             </dd>
@@ -948,7 +948,7 @@ function EventDetails({
         </div>
         <div className="sm:col-span-2">
           <dt className="text-xs text-slate-500">Documento de origem</dt>
-          <dd className="break-words text-sm">{event.sourceReference}</dd>
+          <dd className="wrap-break-word text-sm">{event.sourceReference}</dd>
         </div>
       </dl>
       {event.protocol && !event.receipt && (

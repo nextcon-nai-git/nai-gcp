@@ -68,7 +68,7 @@ export default function EnvironmentalManagement() {
         <div className="flex gap-2">
           <Badge
             variant="outline"
-            className="h-11 border-primary text-primary font-black uppercase text-[10px] bg-white px-4 flex items-center shadow-sm"
+            className="h-11 border-primary text-primary font-black uppercase text-[10px] bg-white px-4 flex items-center shadow-xs"
           >
             <Building2 className="size-4 mr-2" />
             {activeClientId === "all" ? "GESTÃO GLOBAL" : "UNIDADE ATIVA"}
@@ -210,7 +210,7 @@ export default function EnvironmentalManagement() {
 
         <TabsContent value="waste" className="mt-8 space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="card-shadow border-none bg-white rounded-[2rem] p-8 space-y-6">
+            <Card className="card-shadow border-none bg-white rounded-4xl p-8 space-y-6">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-red-50 text-red-600 rounded-2xl">
                   <Box className="size-6" />
@@ -234,7 +234,7 @@ export default function EnvironmentalManagement() {
               </Button>
             </Card>
 
-            <Card className="card-shadow border-none bg-white rounded-[2rem] p-8 space-y-6">
+            <Card className="card-shadow border-none bg-white rounded-4xl p-8 space-y-6">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
                   <RefreshCw className="size-6" />
@@ -261,7 +261,7 @@ export default function EnvironmentalManagement() {
               </Button>
             </Card>
 
-            <Card className="card-shadow border-none bg-[#090e24] text-white rounded-[2rem] p-8 relative overflow-hidden group">
+            <Card className="card-shadow border-none bg-[#090e24] text-white rounded-4xl p-8 relative overflow-hidden group">
               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
                 <Leaf className="size-32 text-emerald-400" />
               </div>
@@ -311,7 +311,7 @@ export default function EnvironmentalManagement() {
 
 function KpiCard({ label, value, icon: Icon, color, bg }: any) {
   return (
-    <Card className="border-none shadow-sm bg-white rounded-3xl group hover:ring-2 ring-primary/5 transition-all">
+    <Card className="border-none shadow-xs bg-white rounded-3xl group hover:ring-2 ring-primary/5 transition-all">
       <CardContent className="p-6">
         <div className="flex items-center justify-between mb-4">
           <div className={cn("p-3 rounded-2xl", bg, color)}>
@@ -332,7 +332,7 @@ function KpiCard({ label, value, icon: Icon, color, bg }: any) {
 
 function ControlCard({ aspect, impact, control, icon: Icon, color }: any) {
   return (
-    <Card className="border-none shadow-sm bg-white rounded-[2rem] p-6 hover:shadow-xl transition-all group">
+    <Card className="border-none shadow-xs bg-white rounded-4xl p-6 hover:shadow-xl transition-all group">
       <div className="flex gap-4 items-start mb-4">
         <div
           className={cn(

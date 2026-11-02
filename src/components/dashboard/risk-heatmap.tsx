@@ -50,7 +50,7 @@ export function RiskHeatmap() {
                   <div
                     key={sVal}
                     className={cn(
-                      "h-10 rounded-md flex items-center justify-center text-[10px] font-bold text-white transition-all hover:scale-110 cursor-pointer shadow-sm",
+                      "h-10 rounded-md flex items-center justify-center text-[10px] font-bold text-white transition-all hover:scale-110 cursor-pointer shadow-xs",
                       score >= 15
                         ? "bg-red-600"
                         : score >= 10

@@ -258,7 +258,7 @@ export default function NonConformitiesDashboard() {
 
 function StatCard({ label, value, icon: Icon, color, bg }: any) {
   return (
-    <Card className="border-none bg-white rounded-3xl p-6 shadow-sm border group hover:ring-2 ring-primary/5 transition-all">
+    <Card className="border-none bg-white rounded-3xl p-6 shadow-xs border group hover:ring-2 ring-primary/5 transition-all">
       <div className="flex items-center gap-4">
         <div className={cn("p-3 rounded-2xl shadow-inner", bg, color)}>
           <Icon className="size-5" />

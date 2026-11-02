@@ -206,7 +206,7 @@ export default function InfobipSipatProposalPage() {
   return (
     <div className="space-y-10 animate-in fade-in duration-500 pb-24 text-slate-900">
       {/* BANNER PRINCIPAL / COVER DA PROPOSTA */}
-      <div className="relative rounded-[3rem] bg-gradient-to-br from-[#00172e] via-[#002244] to-[#0a325c] text-white p-8 sm:p-12 overflow-hidden shadow-2xl border border-white/10">
+      <div className="relative rounded-[3rem] bg-linear-to-br from-[#00172e] via-[#002244] to-[#0a325c] text-white p-8 sm:p-12 overflow-hidden shadow-2xl border border-white/10">
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-96 h-96 bg-accent/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-1/3 -mb-16 w-80 h-80 bg-orange-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -383,12 +383,12 @@ export default function InfobipSipatProposalPage() {
                 <div>
                   <div
                     className={cn(
-                      "p-6 text-white bg-gradient-to-r flex items-start justify-between gap-4",
+                      "p-6 text-white bg-linear-to-r flex items-start justify-between gap-4",
                       item.color
                     )}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="p-3 bg-white/15 backdrop-blur-sm rounded-2xl border border-white/20">
+                      <div className="p-3 bg-white/15 backdrop-blur-xs rounded-2xl border border-white/20">
                         <Icon size={22} className="text-white" />
                       </div>
                       <div>
@@ -400,7 +400,7 @@ export default function InfobipSipatProposalPage() {
                         </h3>
                       </div>
                     </div>
-                    <Badge className="bg-white text-slate-950 font-black text-xs px-3 h-7 shadow-sm shrink-0">
+                    <Badge className="bg-white text-slate-950 font-black text-xs px-3 h-7 shadow-xs shrink-0">
                       {item.value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                     </Badge>
                   </div>

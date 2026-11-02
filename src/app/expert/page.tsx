@@ -125,7 +125,7 @@ function Workspace() {
                       <span aria-label={item.checked ? "Concluído" : "Pendente"}>
                         {item.checked ? "✓" : "○"}
                       </span>
-                      <span className="whitespace-pre-wrap break-words">{item.text}</span>
+                      <span className="whitespace-pre-wrap wrap-break-word">{item.text}</span>
                     </li>
                   ))}
                 </ul>

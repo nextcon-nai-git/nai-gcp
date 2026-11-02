@@ -15,7 +15,7 @@ interface StatCardProps {
 
 export function StatCard({ label, value, icon: Icon, color, bg }: StatCardProps) {
   return (
-    <Card className="border-none shadow-sm bg-white rounded-3xl group hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300">
+    <Card className="border-none shadow-xs bg-white rounded-3xl group hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300">
       <CardContent className="p-6 relative overflow-hidden">
         <div className="absolute -right-4 -top-4 opacity-[0.03] group-hover:scale-110 transition-transform duration-500">
           <Icon className="size-24" />

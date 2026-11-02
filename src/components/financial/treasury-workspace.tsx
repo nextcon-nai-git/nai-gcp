@@ -446,7 +446,7 @@ export function TreasuryWorkspace() {
           <Link
             key={href}
             href={href}
-            className="rounded-2xl border border-white/10 bg-[#10213a] p-5 transition hover:border-cyan-300/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+            className="rounded-2xl border border-white/10 bg-[#10213a] p-5 transition hover:border-cyan-300/60 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-cyan-300"
           >
             <h2 className="font-semibold">
               {title} <span aria-hidden="true">→</span>

@@ -641,7 +641,7 @@ export function GrupoAvpQueueMap({
               className={cn(
                 "px-2.5 py-1 rounded-lg font-black uppercase transition-all flex items-center gap-1",
                 zoomLevelName === "BRASIL"
-                  ? "bg-blue-600 text-white shadow-sm"
+                  ? "bg-blue-600 text-white shadow-xs"
                   : "text-slate-400 hover:text-white hover:bg-slate-800"
               )}
             >
@@ -658,7 +658,7 @@ export function GrupoAvpQueueMap({
               className={cn(
                 "px-2.5 py-1 rounded-lg font-black uppercase transition-all flex items-center gap-1",
                 zoomLevelName === "REGIAO"
-                  ? "bg-blue-600 text-white shadow-sm"
+                  ? "bg-blue-600 text-white shadow-xs"
                   : "text-slate-400 hover:text-white hover:bg-slate-800"
               )}
             >
@@ -673,7 +673,7 @@ export function GrupoAvpQueueMap({
                   className={cn(
                     "px-2.5 py-1 rounded-lg font-black uppercase transition-all flex items-center gap-1",
                     zoomLevelName === "ESTADO"
-                      ? "bg-purple-600 text-white shadow-sm"
+                      ? "bg-purple-600 text-white shadow-xs"
                       : "text-slate-400 hover:text-white hover:bg-slate-800"
                   )}
                 >
@@ -709,7 +709,7 @@ export function GrupoAvpQueueMap({
                     handleZoomToBrasil();
                   }
                 }}
-                className="bg-transparent text-xs font-bold text-white outline-none cursor-pointer"
+                className="bg-transparent text-xs font-bold text-white outline-hidden cursor-pointer"
               >
                 <option value="" className="bg-slate-950 text-slate-300">
                   Todos os Estados (27)
@@ -740,7 +740,7 @@ export function GrupoAvpQueueMap({
                     if (match) handleZoomToCity(match);
                   }
                 }}
-                className="bg-transparent text-xs font-bold text-white outline-none cursor-pointer max-w-[160px] truncate"
+                className="bg-transparent text-xs font-bold text-white outline-hidden cursor-pointer max-w-[160px] truncate"
               >
                 <option value="" className="bg-slate-950 text-slate-300">
                   Escolher Cidade...

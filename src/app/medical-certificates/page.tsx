@@ -225,7 +225,7 @@ function MedicalCertificatesSession() {
             )}
           </Card>
 
-          <Card className="bg-[#090e24] text-white border-none p-6 rounded-[2rem] shadow-2xl">
+          <Card className="bg-[#090e24] text-white border-none p-6 rounded-4xl shadow-2xl">
             <CardHeader className="p-0 mb-4">
               <CardTitle className="text-xs font-black uppercase text-accent tracking-widest flex items-center gap-2">
                 <ShieldAlert className="size-4" /> Importante: Validação Legal
@@ -329,7 +329,7 @@ function MedicalCertificatesSession() {
                     />
                   </div>
 
-                  <div className="bg-white/50 p-6 rounded-[2rem] border-2 border-white">
+                  <div className="bg-white/50 p-6 rounded-4xl border-2 border-white">
                     <p className="text-[10px] font-black uppercase text-primary tracking-widest mb-3 flex items-center gap-2">
                       <FileSearch className="size-3" /> Diagnóstico NAI Forensic
                     </p>

@@ -286,7 +286,7 @@ export function GrupoAvpRedundancyModal({
 
               return (
                 <div key={`${city.cidade}-${city.uf}`} className="pt-3 first:pt-0">
-                  <div className="p-4 rounded-2xl bg-white border border-slate-200/80 hover:border-slate-300 transition-all shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="p-4 rounded-2xl bg-white border border-slate-200/80 hover:border-slate-300 transition-all shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
                     {/* INFO POLO */}
                     <div className="space-y-1.5 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -358,7 +358,7 @@ export function GrupoAvpRedundancyModal({
                         <Button
                           size="sm"
                           onClick={() => handleSendWhatsApp1Click(prospectClinic)}
-                          className="h-9 rounded-xl text-xs gap-1.5 font-bold bg-[#25D366] hover:bg-[#20ba59] text-white shadow-sm"
+                          className="h-9 rounded-xl text-xs gap-1.5 font-bold bg-[#25D366] hover:bg-[#20ba59] text-white shadow-xs"
                           title={`Disparar WhatsApp de Credenciamento para ${prospectClinic.nome}`}
                         >
                           <Send size={13} />
@@ -381,7 +381,7 @@ export function GrupoAvpRedundancyModal({
                       <Button
                         size="sm"
                         onClick={() => handleCopyOutreach(city, prospectClinic?.nome)}
-                        className="h-9 rounded-xl text-xs gap-1.5 font-bold bg-primary hover:bg-primary/90 text-white shadow-sm"
+                        className="h-9 rounded-xl text-xs gap-1.5 font-bold bg-primary hover:bg-primary/90 text-white shadow-xs"
                       >
                         <Copy size={13} />
                         Copiar Mensagem

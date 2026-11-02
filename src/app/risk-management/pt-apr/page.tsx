@@ -389,7 +389,7 @@ export default function PtAprDigital() {
 
 function KpiCard({ label, value, icon: Icon, color, bg }: any) {
   return (
-    <Card className="border-none shadow-sm bg-white rounded-3xl group hover:ring-2 ring-primary/5 transition-all hidden">
+    <Card className="border-none shadow-xs bg-white rounded-3xl group hover:ring-2 ring-primary/5 transition-all hidden">
       <CardContent className="p-6">
         <div className="flex items-center justify-between mb-4">
           <div className={cn("p-3 rounded-2xl", bg, color)}>
