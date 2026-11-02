@@ -81,14 +81,35 @@ function clinicResult(value: unknown, cidade: string, uf: string) {
   };
 }
 function failureMessage(status: number, code: unknown) {
-  if (status === 401 || status === 403)
-    return "Entre com uma conta autorizada para consultar as opções da fila AVP.";
+  if (status === 401)
+    return "Não foi possível validar sua sessão. Entre novamente para consultar as opções.";
+  if (status === 403)
+    return code === "CITY_NOT_ELIGIBLE"
+      ? "A busca automática atende cidades da fila AVP com custo acima de R$40."
+      : "Sua conta não tem autorização para consultar as opções da fila AVP.";
+  if (status === 400) return "Informe cidade e UF válidas para consultar as opções.";
   if (status === 429)
     return code === "DAILY_LIMIT"
       ? "Limite diário de buscas atingido. Use os contatos disponíveis ou o Maps."
-      : "A busca atingiu um limite temporário. Use os contatos disponíveis ou o Maps.";
+      : code === "PROVIDER_QUOTA"
+        ? "O provedor atingiu um limite temporário de buscas. Use os contatos disponíveis ou o Maps."
+        : "A busca atingiu um limite temporário. Use os contatos disponíveis ou o Maps.";
+  if (code === "AUTH_UNAVAILABLE")
+    return "A validação de acesso está temporariamente indisponível. Tente novamente em instantes.";
   if (code === "SNAPSHOT_UNAVAILABLE")
     return "Não foi possível conferir a fila AVP. Atualize antes de buscar clínicas.";
+  if (code === "BUDGET_UNAVAILABLE")
+    return "Não foi possível conferir o limite diário de buscas. Use os contatos disponíveis ou o Maps.";
+  if (code === "PROVIDER_CONFIGURATION")
+    return "A busca externa está indisponível por configuração ou acesso do provedor. Solicite a verificação ao administrador do NAI.";
+  if (code === "PROVIDER_AUTH_UNAVAILABLE")
+    return "Não foi possível autenticar a busca externa. Use os contatos disponíveis ou o Maps.";
+  if (code === "PROVIDER_INVALID_RESPONSE")
+    return "O provedor retornou dados inválidos. Use os contatos disponíveis ou o Maps.";
+  if (code === "PROVIDER_UNAVAILABLE")
+    return "O provedor de busca está temporariamente indisponível. Use os contatos disponíveis ou o Maps.";
+  if (code === "INVALID_RESULT")
+    return "A busca retornou dados inválidos. Use os contatos disponíveis ou o Maps.";
   return "Não foi possível consultar as opções. Use os contatos disponíveis ou a busca no Maps.";
 }
 export function AvpClinicAlternatives({ cidade, uf }: { cidade: string; uf: string }) {
@@ -121,8 +142,10 @@ export function AvpClinicAlternatives({ cidade, uf }: { cidade: string; uf: stri
     setState({ context, clinics: initial, loading: pending.current, error: "", google: false });
     if (!user || initial.length >= 3) return () => controller.abort();
     void (async () => {
+      let tokenAcquired = false;
       try {
         const token = await user.getIdToken();
+        tokenAcquired = true;
         if (controller.signal.aborted) return;
         const response = await fetch(
           `/api/clients/grupo-avp/clinics?city=${encodeURIComponent(cidade)}&uf=${encodeURIComponent(uf)}`,
@@ -150,7 +173,10 @@ export function AvpClinicAlternatives({ cidade, uf }: { cidade: string; uf: stri
           loading: false,
           error: options
             ? options.error
-            : failureMessage(response.status, record(result) ? result.code : undefined),
+            : failureMessage(
+                response.status,
+                response.ok ? "INVALID_RESULT" : record(result) ? result.code : undefined
+              ),
           google: !!options?.google && clinics.some((clinic) => !localIds.has(clinic.id)),
         });
       } catch {
@@ -159,7 +185,7 @@ export function AvpClinicAlternatives({ cidade, uf }: { cidade: string; uf: stri
             context,
             clinics: initial,
             loading: false,
-            error: failureMessage(503, undefined),
+            error: failureMessage(tokenAcquired ? 503 : 401, undefined),
             google: false,
           });
       } finally {
@@ -186,7 +212,8 @@ export function AvpClinicAlternatives({ cidade, uf }: { cidade: string; uf: stri
         </button>
       </div>
       <p className="text-xs opacity-80">
-        Custo atual acima de R$40. Confirme valores e cadastro com cada clínica.
+        Custo atual acima de R$40. Confirme preço, disponibilidade e credenciamento com cada
+        clínica.
       </p>
       {current.loading && <p>Buscando até 3 clínicas…</p>}
       {current.error && (

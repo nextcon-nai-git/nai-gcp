@@ -13,6 +13,7 @@ const m = vi.hoisted(() => ({
   set: vi.fn(),
   googleAuth: vi.fn(),
   getClient: vi.fn(),
+  getRequestHeaders: vi.fn(),
   request: vi.fn(),
 }));
 vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: m.auth }));
@@ -96,7 +97,8 @@ beforeEach(() => {
   });
   m.get.mockResolvedValue({ exists: false, data: () => undefined });
   m.transaction.mockImplementation(async (work) => work({ get: m.get, set: m.set }));
-  m.getClient.mockResolvedValue({ request: m.request });
+  m.getClient.mockResolvedValue({ getRequestHeaders: m.getRequestHeaders, request: m.request });
+  m.getRequestHeaders.mockResolvedValue({});
   m.request.mockResolvedValue({ data: { places: [place()] } });
 });
 afterEach(() => {
@@ -143,13 +145,35 @@ describe("busca de clínicas AVP com evidência de falha segura", () => {
   it("mantém respostas de entrada inválida e cidade não elegível privadas", async () => {
     const invalid = await GET(request("city=&uf=CE"));
     expect(invalid.status).toBe(400);
+    expect(await invalid.json()).toMatchObject({ code: "INVALID_INPUT" });
     assertPrivate(invalid);
     expect(m.snapshot).not.toHaveBeenCalled();
     m.snapshot.mockResolvedValue({ revision: "source:0", items: [] });
     const ineligible = await GET(request());
     expect(ineligible.status).toBe(403);
+    expect(await ineligible.json()).toMatchObject({ code: "CITY_NOT_ELIGIBLE" });
     assertPrivate(ineligible);
     expect(m.transaction).not.toHaveBeenCalled();
+  });
+  it("distingue falha ao conferir o perfil de sessão negada e falha do Places", async () => {
+    m.auth.mockRejectedValue({ code: 14, message: secret });
+    const response = await GET(request());
+    expect(response.status).toBe(503);
+    assertPrivate(response);
+    expect(await response.json()).toMatchObject({ code: "AUTH_UNAVAILABLE", clinics: [] });
+    expect(m.snapshot).not.toHaveBeenCalled();
+    expect(m.transaction).not.toHaveBeenCalled();
+    expect(m.getClient).not.toHaveBeenCalled();
+    expect(diagnostics()).toEqual([
+      {
+        event: "avp_clinic_search",
+        stage: "authorization",
+        reason: "unavailable",
+        status: 503,
+        upstreamStatus: null,
+      },
+    ]);
+    expect(JSON.stringify(vi.mocked(console.warn).mock.calls)).not.toContain(secret);
   });
   it("distingue falha do snapshot de configuração do Places sem expor o SDK", async () => {
     m.snapshot.mockRejectedValue({
@@ -174,6 +198,8 @@ describe("busca de clínicas AVP com evidência de falha segura", () => {
     expect(m.googleAuth).not.toHaveBeenCalled();
   });
   it.each([
+    null,
+    undefined,
     { revision: "", items: [] },
     { revision: "source:0", items: null },
     { revision: "source:0", items: [{ cidade: null, uf: "CE", valorAso: 80 }] },
@@ -296,6 +322,13 @@ describe("busca de clínicas AVP com evidência de falha segura", () => {
       assertPrivate(response);
       const body = await response.json();
       expect(body).toMatchObject({ clinics: [verified], provider: "SITES_OFICIAIS" });
+      expect(body.code).toBe(
+        reason === "configuration"
+          ? "PROVIDER_CONFIGURATION"
+          : reason === "quota"
+            ? "PROVIDER_QUOTA"
+            : "PROVIDER_UNAVAILABLE"
+      );
       expect(JSON.stringify(body)).not.toContain(secret);
       expect(diagnostics()).toEqual([
         {
@@ -321,6 +354,76 @@ describe("busca de clínicas AVP com evidência de falha segura", () => {
     expect(m.request).not.toHaveBeenCalled();
     expect(diagnostics()[0]).toMatchObject({ stage: "provider", reason: "configuration" });
   });
+  it("distingue indisponibilidade ao preparar a identidade de uma falha da busca Places", async () => {
+    m.getClient.mockRejectedValue(new Error(secret));
+    const response = await GET(request());
+    expect(response.status).toBe(503);
+    assertPrivate(response);
+    const body = await response.json();
+    expect(body).toMatchObject({ clinics: [verified], code: "PROVIDER_AUTH_UNAVAILABLE" });
+    expect(JSON.stringify(body)).not.toContain(secret);
+    expect(m.request).not.toHaveBeenCalled();
+    expect(diagnostics()[0]).toMatchObject({
+      stage: "provider",
+      reason: "identity_unavailable",
+      upstreamStatus: null,
+    });
+    expect(JSON.stringify(vi.mocked(console.warn).mock.calls)).not.toContain(secret);
+  });
+  it("classifica a falha lazy do Compute real antes de qualquer transporte Places", async () => {
+    const { auth } = await vi.importActual<typeof import("googleapis/build/src/apis/places")>(
+      "googleapis/build/src/apis/places"
+    );
+    class UnavailableCompute extends auth.Compute {
+      protected override async refreshTokenNoCache(): Promise<never> {
+        throw new Error(secret);
+      }
+    }
+    const client = new UnavailableCompute();
+    const transport = vi.spyOn(client.transporter, "request").mockRejectedValue(new Error(secret));
+    m.getClient.mockResolvedValue(client);
+    const response = await GET(request());
+    expect(response.status).toBe(503);
+    assertPrivate(response);
+    const body = await response.json();
+    expect(body).toMatchObject({ code: "PROVIDER_AUTH_UNAVAILABLE", clinics: [verified] });
+    expect(JSON.stringify(body)).not.toContain(secret);
+    expect(transport).not.toHaveBeenCalled();
+    expect(diagnostics()[0]).toMatchObject({ stage: "provider", reason: "identity_unavailable" });
+    expect(JSON.stringify(vi.mocked(console.warn).mock.calls)).not.toContain(secret);
+  });
+  it.each([
+    { upstream: 401, code: "PROVIDER_CONFIGURATION", reason: "configuration" },
+    { upstream: 403, code: "PROVIDER_CONFIGURATION", reason: "configuration" },
+    { upstream: 429, code: "PROVIDER_AUTH_UNAVAILABLE", reason: "identity_unavailable" },
+    { upstream: 503, code: "PROVIDER_AUTH_UNAVAILABLE", reason: "identity_unavailable" },
+  ])(
+    "não atribui erro HTTP $upstream da aquisição do token à busca Places",
+    async ({ upstream, code, reason }) => {
+      m.getRequestHeaders.mockRejectedValue({ response: { status: upstream, data: secret } });
+      const response = await GET(request());
+      expect(response.status).toBe(503);
+      assertPrivate(response);
+      const body = await response.json();
+      expect(body).toMatchObject({ code, clinics: [verified] });
+      expect(JSON.stringify(body)).not.toContain(secret);
+      expect(m.request).not.toHaveBeenCalled();
+      expect(diagnostics()[0]).toMatchObject({
+        stage: "provider",
+        reason,
+        upstreamStatus: upstream,
+      });
+      expect(JSON.stringify(vi.mocked(console.warn).mock.calls)).not.toContain(secret);
+    }
+  );
+  it("não confunde quota da aquisição do cliente com quota de consultas Places", async () => {
+    m.getClient.mockRejectedValue({ response: { status: 429, data: secret } });
+    const response = await GET(request());
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ code: "PROVIDER_AUTH_UNAVAILABLE" });
+    expect(m.request).not.toHaveBeenCalled();
+    expect(diagnostics()[0]).toMatchObject({ reason: "identity_unavailable", upstreamStatus: 429 });
+  });
   it.each([
     null,
     [],
@@ -340,6 +443,7 @@ describe("busca de clínicas AVP com evidência de falha segura", () => {
     expect(await response.json()).toMatchObject({
       clinics: [verified],
       provider: "SITES_OFICIAIS",
+      code: "PROVIDER_INVALID_RESPONSE",
     });
     expect(diagnostics()[0]).toMatchObject({ stage: "provider", reason: "invalid_response" });
     expect(JSON.stringify(vi.mocked(console.warn).mock.calls)).not.toContain(secret);
@@ -431,6 +535,44 @@ describe("busca de clínicas AVP com evidência de falha segura", () => {
     expect(body.clinics).toHaveLength(1);
     expect(body.clinics[0]).toMatchObject({ cidade: "São Luís", uf: "MA" });
     expect(body.code).toBeUndefined();
+  });
+  it.each([
+    ["Salvador", "BA"],
+    ["Gurupi", "TO"],
+    ["Vitória da Conquista", "BA"],
+  ])("valida a localidade e mantém a opção sem credenciamento em %s/%s", async (cidade, uf) => {
+    m.snapshot.mockResolvedValue({
+      revision: "source:0",
+      items: [{ cidade, uf, valorAso: "R$ 80,00" }],
+    });
+    m.verified.mockReturnValue([]);
+    m.request.mockResolvedValue({
+      data: {
+        places: [
+          { ...place("local"), addressComponents: address(cidade, uf) },
+          { ...place("fora-do-municipio"), addressComponents: address("Fortaleza", "CE") },
+        ],
+      },
+    });
+    const response = await GET(request(new URLSearchParams({ city: cidade, uf }).toString()));
+    expect(response.status).toBe(200);
+    assertPrivate(response);
+    const body = await response.json();
+    expect(body.code).toBe("LOCATION_UNCONFIRMED");
+    expect(body.provider).toBe("GOOGLE_MAPS");
+    expect(body.clinics).toEqual([
+      expect.objectContaining({
+        id: "local",
+        cidade,
+        uf,
+        verifiedAt: "",
+        whatsapp: "",
+        email: "",
+        provider: "GOOGLE_MAPS",
+      }),
+    ]);
+    expect(body.notice).toContain("não confirma WhatsApp ou credenciamento");
+    expect(m.request).toHaveBeenCalledOnce();
   });
   it("mantém somente o resultado com localidade confirmada e informa a omissão", async () => {
     m.request.mockResolvedValue({

@@ -166,6 +166,7 @@ function placesClinics(data: unknown, city: string, uf: string) {
 }
 export async function GET(req: NextRequest) {
   let stage: Stage = "authorization";
+  let acquiringProviderIdentity = false;
   let verified: VerifiedAvpClinic[] = [];
   try {
     const user = await requireAuth(req);
@@ -205,10 +206,11 @@ export async function GET(req: NextRequest) {
         "TO",
       ].includes(uf)
     )
-      return json({ error: "Informe cidade e UF." }, 400);
+      return json({ code: "INVALID_INPUT", error: "Informe cidade e UF." }, 400);
     stage = "snapshot";
     const snapshot = await getAvpSnapshot();
     if (
+      !record(snapshot) ||
       typeof snapshot.revision !== "string" ||
       !snapshot.revision.trim() ||
       !Array.isArray(snapshot.items) ||
@@ -234,7 +236,10 @@ export async function GET(req: NextRequest) {
       )
     )
       return json(
-        { error: "A busca automática atende cidades da fila AVP com custo acima de R$40." },
+        {
+          code: "CITY_NOT_ELIGIBLE",
+          error: "A busca automática atende cidades da fila AVP com custo acima de R$40.",
+        },
         403
       );
     verified = verifiedAvpClinicsForCity(city, uf);
@@ -272,10 +277,14 @@ export async function GET(req: NextRequest) {
         verified
       );
     stage = "provider";
+    acquiringProviderIdentity = true;
     const auth = new googleAuth.GoogleAuth({
       scopes: ["https://www.googleapis.com/auth/maps-platform.places.textsearch"],
     });
     const client = await auth.getClient();
+    // Compute/ADC can acquire credentials lazily. Resolve them before the Places phase.
+    await client.getRequestHeaders("https://places.googleapis.com/v1/places:searchText");
+    acquiringProviderIdentity = false;
     const response = await client.request<unknown>({
       url: "https://places.googleapis.com/v1/places:searchText",
       method: "POST",
@@ -334,6 +343,16 @@ export async function GET(req: NextRequest) {
         [],
         error.status
       );
+    if (stage === "authorization")
+      return unavailable(
+        stage,
+        "unavailable",
+        503,
+        "AUTH_UNAVAILABLE",
+        "Não foi possível conferir seu acesso à fila AVP. Tente novamente em instantes.",
+        [],
+        status
+      );
     if (stage === "snapshot")
       return unavailable(
         stage,
@@ -364,6 +383,16 @@ export async function GET(req: NextRequest) {
         verified,
         status
       );
+    if (acquiringProviderIdentity)
+      return unavailable(
+        stage,
+        "identity_unavailable",
+        503,
+        "PROVIDER_AUTH_UNAVAILABLE",
+        "Não foi possível autenticar a busca externa. Use os contatos disponíveis ou o Maps.",
+        verified,
+        status
+      );
     if (stage === "provider" && status === 429)
       return unavailable(
         stage,
@@ -378,7 +407,7 @@ export async function GET(req: NextRequest) {
       stage,
       error instanceof SearchFailure ? error.reason : "unavailable",
       error instanceof SearchFailure ? 502 : 503,
-      "SEARCH_UNAVAILABLE",
+      error instanceof SearchFailure ? "PROVIDER_INVALID_RESPONSE" : "PROVIDER_UNAVAILABLE",
       "Não foi possível consultar a busca automática. Use os contatos disponíveis ou o Maps.",
       verified,
       status

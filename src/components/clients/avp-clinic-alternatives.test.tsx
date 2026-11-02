@@ -94,6 +94,49 @@ describe("opções de clínicas sem sucesso ou evidência inventados", () => {
     expect(fetch).toHaveBeenCalledOnce();
   });
   it.each([
+    { status: 400, code: "INVALID_INPUT", expected: "cidade e UF válidas" },
+    { status: 403, code: "CITY_NOT_ELIGIBLE", expected: "custo acima de R$40" },
+    { status: 503, code: "AUTH_UNAVAILABLE", expected: "validação de acesso" },
+    { status: 503, code: "SNAPSHOT_UNAVAILABLE", expected: "conferir a fila AVP" },
+    { status: 503, code: "BUDGET_UNAVAILABLE", expected: "conferir o limite diário" },
+    { status: 503, code: "PROVIDER_CONFIGURATION", expected: "configuração ou acesso do provedor" },
+    { status: 503, code: "PROVIDER_AUTH_UNAVAILABLE", expected: "autenticar a busca externa" },
+    { status: 429, code: "DAILY_LIMIT", expected: "Limite diário de buscas atingido" },
+    { status: 429, code: "PROVIDER_QUOTA", expected: "provedor atingiu um limite temporário" },
+    {
+      status: 502,
+      code: "PROVIDER_INVALID_RESPONSE",
+      expected: "provedor retornou dados inválidos",
+    },
+    {
+      status: 503,
+      code: "PROVIDER_UNAVAILABLE",
+      expected: "provedor de busca está temporariamente",
+    },
+  ])("distingue a falha $code sem expor dados do servidor", async ({ status, code, expected }) => {
+    vi.mocked(fetch).mockResolvedValue(
+      json({ ...result(), code, error: "PRIVATE-PROVIDER-MESSAGE" }, status)
+    );
+    await render();
+    expect(view.container.querySelector('[role="alert"]')?.textContent).toContain(expected);
+    expect(view.container.textContent).toContain(contact.nome);
+    expect(view.container.textContent).not.toContain("PRIVATE-PROVIDER-MESSAGE");
+    expect(view.container.textContent).not.toContain("Opção de teste Fortaleza");
+    expect(fetch).toHaveBeenCalledOnce();
+    if (code === "CITY_NOT_ELIGIBLE")
+      expect(view.container.querySelector('[role="alert"]')?.textContent).not.toContain("conta");
+  });
+  it("distingue falha da sessão antes da busca sem expor o erro de autenticação", async () => {
+    m.token.mockRejectedValue(new Error("PRIVATE-TOKEN-ERROR"));
+    await render();
+    expect(view.container.querySelector('[role="alert"]')?.textContent).toContain(
+      "validar sua sessão"
+    );
+    expect(view.container.textContent).toContain(contact.nome);
+    expect(view.container.textContent).not.toContain("PRIVATE-TOKEN-ERROR");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it.each([
     { provider: "GOOGLE_MAPS", clinics: {} },
     { provider: ["GOOGLE_MAPS"], clinics: [suggestion()] },
     { provider: "GOOGLE_MAPS", clinics: [{ ...suggestion(), id: undefined }] },
@@ -109,6 +152,17 @@ describe("opções de clínicas sem sucesso ou evidência inventados", () => {
     expect(view.container.textContent).not.toContain("Opção de teste");
     expect(view.container.querySelector('[role="alert"]')).not.toBeNull();
     expect(view.container.querySelector('a[href^="javascript:"]')).toBeNull();
+  });
+  it("identifica dados inválidos em HTTP 200 sem declarar indisponibilidade do provedor", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      json({ ...result(), clinics: [suggestion("Recife", "PE")] })
+    );
+    await render();
+    expect(view.container.querySelector('[role="alert"]')?.textContent).toContain(
+      "busca retornou dados inválidos"
+    );
+    expect(view.container.textContent).toContain(contact.nome);
+    expect(view.container.textContent).not.toContain("Opção de teste Recife");
   });
   it("mostra uma falha segura quando o corpo não contém JSON", async () => {
     vi.mocked(fetch).mockResolvedValue(
@@ -190,6 +244,9 @@ describe("opções de clínicas sem sucesso ou evidência inventados", () => {
     expect(view.button("Atualizar opções").disabled).toBe(false);
     await view.click("Atualizar opções");
     expect(fetch).not.toHaveBeenCalled();
+    expect(view.container.textContent).toContain(
+      "Confirme preço, disponibilidade e credenciamento"
+    );
   });
   it("mantém o estado desligado explícito sem exibir a mensagem bruta do servidor", async () => {
     vi.mocked(fetch).mockResolvedValue(
