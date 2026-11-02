@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 
 export const CLINIC_CONTRACT_VERSION = "nextcon-v2-2026-10-21";
 export const CLINIC_CONTRACT_HASH =

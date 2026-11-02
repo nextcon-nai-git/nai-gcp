@@ -8,7 +8,7 @@ import { requireAiAction, DOCUMENT_AI_ROLES } from "@/lib/auth/ai-action";
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "zod";
+import { z } from "genkit";
 import { aiFailureCode } from "@/lib/ai-failure";
 import { normalizePgrText } from "@/lib/pgr-schema";
 import { hasNaiClinicalData, classifyNaiDocument } from "@/lib/nai-document-routing";

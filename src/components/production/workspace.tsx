@@ -38,7 +38,7 @@ import {
   ObligationTaskEditor,
 } from "./obligations-editor";
 import type { Extraction } from "@/lib/production/analysis";
-import type { z } from "zod";
+import type { z } from "zod/v3";
 import { Button } from "@/components/ui/button";
 import { OperatingProcedure } from "./operating-procedure";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

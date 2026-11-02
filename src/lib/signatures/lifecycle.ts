@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 const id = z.string().trim().min(1).max(180);
 const hash = z.string().regex(/^[a-f0-9]{64}$/);

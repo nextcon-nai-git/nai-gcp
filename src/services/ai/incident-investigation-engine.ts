@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { z } from "zod";
+import { z } from "genkit";
 import { ai } from "@/ai/genkit";
 import { aiFailureCode } from "@/lib/ai-failure";
 import { logger } from "@/lib/logger";

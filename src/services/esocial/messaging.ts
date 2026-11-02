@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { FieldPath, type Transaction } from "firebase-admin/firestore";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { adminDb } from "@/lib/firebase-admin";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import { parseClaims } from "@/lib/auth/claims";

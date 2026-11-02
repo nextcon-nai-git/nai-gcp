@@ -103,7 +103,7 @@ import { collection, query, orderBy, doc, serverTimestamp } from "firebase/fires
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { cn } from "@/lib/utils";
 
 import { enriquecerDadosEmpresa } from "@/actions/company-enrichment";
@@ -357,7 +357,7 @@ function ProvidersManagementSession() {
     manualProviderAttempts.current.clear();
   }, [user?.uid, companyId, role, activeClientId]);
 
-  const form = useForm<ProviderFormValues>({
+  const form = useForm<z.input<typeof providerSchema>, unknown, ProviderFormValues>({
     resolver: zodResolver(providerSchema),
     defaultValues: {
       name: "",

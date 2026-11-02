@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 
 /** Accept only an existing Google Meet room; this does not create or verify the room. */
 export function isValidMeetUrl(value: unknown): value is string {

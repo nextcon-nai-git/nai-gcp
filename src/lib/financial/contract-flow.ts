@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { isCalendarDate } from "./omie-dre";
 import type { FinanceBook } from "./operations";
 import { financialLabel } from "./labels";

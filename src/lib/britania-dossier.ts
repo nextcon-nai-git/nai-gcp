@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 import Papa from "papaparse";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { BRITANIA_CNPJS } from "./britania-group";
 
 const text = z.string().max(600);

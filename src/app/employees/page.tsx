@@ -107,7 +107,7 @@ import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/no
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { extractEmployeesFromText } from "@/ai/flows/employee-extraction-flow";

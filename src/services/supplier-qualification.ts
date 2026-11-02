@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import { AuthError, badRequest } from "@/lib/auth/errors";
 import { brazilToday } from "@/lib/financial/treasury";

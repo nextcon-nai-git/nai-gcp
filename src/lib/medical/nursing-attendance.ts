@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 
 export const NURSING_CARE_LINES = [
   "ginastica_laboral",

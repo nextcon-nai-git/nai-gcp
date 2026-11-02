@@ -6,7 +6,7 @@ import { requireAvpAccess, canAccessAvpEvidence } from "@/lib/auth/avp-access";
 import { AuthError } from "@/lib/auth/errors";
 import { limitedJson } from "@/lib/http/private-api";
 import { WorkflowSchema, workflowProblems } from "@/lib/avp-workflow";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store", Vary: "Authorization" };

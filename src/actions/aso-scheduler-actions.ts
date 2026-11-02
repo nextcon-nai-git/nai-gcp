@@ -5,7 +5,7 @@ import {
   AsoSystemOrchestratorOutput,
 } from "@/ai/flows/aso-scheduler-system-flow";
 import { AsoRequest, AsoPipelineStep, ExamType, DigitalKit } from "@/types/aso-scheduler-types";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";

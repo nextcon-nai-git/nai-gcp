@@ -8,7 +8,7 @@ import "server-only";
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "zod";
+import { z } from "genkit";
 
 const RiskMitigationPlanInputSchema = z.object({
   identifiedRisks: z.string().describe("Uma descrição detalhada dos riscos identificados."),

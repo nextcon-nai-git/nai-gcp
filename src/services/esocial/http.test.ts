@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { AuthError } from "@/lib/auth/errors";
 import { EsocialXmlValidationError } from "./events";
 import { esocialFailure } from "./http";

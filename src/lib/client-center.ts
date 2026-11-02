@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { dateOnly, saoPauloDay, type TaskSummary } from "@/lib/executive-dashboard";
 
 export const REQUEST_DEPARTMENTS = {

@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { z } from "zod";
+import { z } from "zod/v3";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import { aiFailureCode, aiFailureMessage } from "@/lib/ai-failure";
 import { getPgrAi } from "./pgr-ai-provider";
 import {
@@ -50,6 +51,12 @@ const VisualClassificationSchema = z.object({
   statusClassificacao: z.enum(["identificado", "ambiguo", "nao_identificado"]),
   contemDadosClinicosIndividuais: z.boolean(),
   evidencias: z.array(PgrEvidenceSchema).max(10).optional(),
+});
+const visualClassificationJsonSchema = zodToJsonSchema(VisualClassificationSchema, {
+  removeAdditionalStrategy: "strict",
+});
+const pgrModelOutputJsonSchema = zodToJsonSchema(PgrModelOutputSchema, {
+  removeAdditionalStrategy: "strict",
 });
 
 function validatedProviders(
@@ -157,7 +164,7 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
                 ? [{ media: { url: input.pdfDataUri } }]
                 : []),
             ],
-            output: { schema: VisualClassificationSchema },
+            output: { jsonSchema: visualClassificationJsonSchema },
             config: { temperature: 0 },
             abortSignal: controller.signal,
           }),
@@ -288,7 +295,7 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
         : content,
       // Keep the full Zod contract locally. Sending this large nested schema as a
       // Vertex constrained-output grammar rejects the request before generation.
-      output: { schema: PgrModelOutputSchema, constrained: false, instructions: true },
+      output: { jsonSchema: pgrModelOutputJsonSchema, constrained: false, instructions: true },
       config: { temperature: 0.1, maxOutputTokens: 24000 },
       abortSignal: controller.signal,
     });

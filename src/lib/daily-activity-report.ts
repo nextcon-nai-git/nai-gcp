@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 export const dailyReportSchema = z.object({
   employeeName: z.string().trim().min(3).max(120),
   contractType: z.enum(["CLT", "PJ"]),

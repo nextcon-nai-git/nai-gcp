@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import { requireFinancialAccess } from "@/lib/auth/financial-access";
 import { AuthError, badRequest } from "@/lib/auth/errors";

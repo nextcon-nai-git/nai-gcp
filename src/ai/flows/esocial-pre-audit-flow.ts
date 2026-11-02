@@ -4,7 +4,7 @@
  */
 
 import { ai } from "../genkit";
-import { z } from "zod";
+import { z } from "genkit";
 
 export const ESocialPreAuditInputSchema = z.object({
   eventType: z.enum(["S-2210", "S-2220", "S-2240"]),

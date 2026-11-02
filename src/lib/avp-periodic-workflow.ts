@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { PeriodicPerson } from "./avp-periodic-control";
 
 export const PERIODIC_STAGES = [

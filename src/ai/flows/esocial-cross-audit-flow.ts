@@ -11,7 +11,7 @@ import { requireAiAction, CLINICAL_AI_ROLES } from "@/lib/auth/ai-action";
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "zod";
+import { z } from "genkit";
 
 export const CrossAuditItemSchema = z.object({
   id: z.string(),

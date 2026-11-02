@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { AuthError, handleAuthError } from "@/lib/auth/errors";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { requirePgrAppCheck } from "@/lib/auth/require-pgr-app-check";

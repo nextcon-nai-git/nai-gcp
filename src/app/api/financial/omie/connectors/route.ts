@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { requireFinancialAccess } from "@/lib/auth/financial-access";
 import { badRequest } from "@/lib/auth/errors";

@@ -87,7 +87,7 @@ import { deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -177,7 +177,7 @@ function NcxTeamSession() {
     });
   }, [allEmployees, searchTerm, contractFilter]);
 
-  const form = useForm<NcxEmployeeFormValues>({
+  const form = useForm<z.input<typeof nxcEmployeeSchema>, unknown, NcxEmployeeFormValues>({
     resolver: zodResolver(nxcEmployeeSchema),
     defaultValues: {
       name: "",

@@ -4,7 +4,7 @@
  */
 
 import { ai } from "../genkit";
-import { z } from "zod";
+import { z } from "genkit";
 
 export const PredictiveHealthInputSchema = z.object({
   companyId: z.string(),

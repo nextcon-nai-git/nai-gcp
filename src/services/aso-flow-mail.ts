@@ -2,7 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { FieldPath, FieldValue } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { adminDb } from "@/lib/firebase-admin";
 import { firebaseConfig } from "@/firebase/config";
 import { AuthError, badRequest } from "@/lib/auth/errors";

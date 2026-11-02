@@ -4,7 +4,7 @@
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "zod";
+import { z } from "genkit";
 
 export const AsoSystemOrchestratorInputSchema = z.object({
   userPrompt: z.string().describe("Instrução ou descrição da solicitação de ASO/Exames."),

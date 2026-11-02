@@ -9,7 +9,7 @@ import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { forbidden } from "@/lib/auth/errors";
 import { ai } from "@/ai/genkit";
-import { z } from "zod";
+import { z } from "genkit";
 
 const SuggestExamsInputSchema = z.object({
   jobTitle: z.string().trim().min(1).max(200).describe("Cargo ou função do colaborador."),

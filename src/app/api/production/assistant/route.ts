@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { z } from "zod/v3";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { requireFinancialAccess } from "@/lib/auth/financial-access";
 import { badRequest } from "@/lib/auth/errors";
@@ -11,6 +12,9 @@ import { agentSystem, stages } from "@/lib/production/instructions";
 import { ai } from "@/ai/genkit";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+const extractionJsonSchema = zodToJsonSchema(ExtractionSchema, {
+  removeAdditionalStrategy: "strict",
+});
 const Input = z.discriminatedUnion("action", [
   z.object({ action: z.literal("extract"), source: SourceSchema }).strict(),
   z
@@ -43,7 +47,7 @@ export async function POST(req: NextRequest) {
             },
           },
         ],
-        output: { schema: ExtractionSchema },
+        output: { jsonSchema: extractionJsonSchema },
         config: { temperature: 0.1 },
       });
       if (!result.output) throw new Error("Missing extraction");

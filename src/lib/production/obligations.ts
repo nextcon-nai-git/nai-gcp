@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { isCalendarDate } from "@/lib/financial/omie-dre";
 
 export const MAX_OBLIGATIONS = 100;

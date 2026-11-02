@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 
 export const PGR_VERSION = "pgr-evidence-v1";
 export const PGR_MAX_FILE_BYTES = 12 * 1024 * 1024;

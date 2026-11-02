@@ -1,0 +1,1185 @@
+{
+  "baseline": {
+    "commit": "c7a0ed6a3c0e52ae65937e49bfdc0366ddefd928",
+    "zod": "3.25.76",
+    "genkit": "1.43.0",
+    "note": "Unmodified production contracts captured before the root Zod 4 compatibility migration; private PGR schemas evaluated from their original source declarations."
+  },
+  "schemas": {
+    "PgrEvidenceSchema": {
+      "type": "object",
+      "properties": {
+        "pagina": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300
+        },
+        "trecho": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 1200
+        }
+      },
+      "required": ["pagina", "trecho"],
+      "additionalProperties": true,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "PgrAnalysisOutputSchema": {
+      "type": "object",
+      "properties": {
+        "documento": {
+          "type": "object",
+          "properties": {
+            "tipo": {
+              "type": "string",
+              "enum": [
+                "PGR",
+                "LTCAT",
+                "PCMSO",
+                "ASO",
+                "PERICIA_MEDICA",
+                "AEP",
+                "AET",
+                "DADOS_ERGONOMICOS",
+                "OUTRO"
+              ]
+            },
+            "agenteResponsavel": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "engenheiro_seguranca",
+                    "tecnico_seguranca",
+                    "medico_trabalho",
+                    "enfermeiro_trabalho",
+                    "ergonomista"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "statusClassificacao": {
+              "type": "string",
+              "enum": ["identificado", "ambiguo", "nao_identificado"]
+            },
+            "evidencias": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "pagina": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 300
+                  },
+                  "trecho": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 1200
+                  }
+                },
+                "required": ["pagina", "trecho"],
+                "additionalProperties": true
+              },
+              "maxItems": 10
+            },
+            "justificativa": {
+              "type": "string",
+              "maxLength": 800
+            },
+            "acesso": {
+              "type": "string",
+              "enum": ["sst", "clinico_restrito"]
+            }
+          },
+          "required": [
+            "tipo",
+            "agenteResponsavel",
+            "statusClassificacao",
+            "evidencias",
+            "justificativa",
+            "acesso"
+          ],
+          "additionalProperties": true
+        },
+        "prestadoresIdentificados": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "nome": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 300
+              },
+              "cnpj": {
+                "type": "string",
+                "maxLength": 30
+              },
+              "registroProfissional": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "especialidade": {
+                "type": "string",
+                "maxLength": 180
+              },
+              "papelNoDocumento": {
+                "type": "string",
+                "maxLength": 180
+              },
+              "evidencias": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/properties/documento/properties/evidencias/items"
+                },
+                "minItems": 1,
+                "maxItems": 5
+              },
+              "cidadeUf": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "endereco": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "email": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "telefone": {
+                "type": "string",
+                "maxLength": 100
+              }
+            },
+            "required": [
+              "id",
+              "nome",
+              "cnpj",
+              "registroProfissional",
+              "especialidade",
+              "papelNoDocumento",
+              "evidencias",
+              "cidadeUf",
+              "endereco",
+              "email",
+              "telefone"
+            ],
+            "additionalProperties": true
+          },
+          "maxItems": 25
+        },
+        "analiseAgente": {
+          "type": "object",
+          "properties": {
+            "agente": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "engenheiro_seguranca",
+                    "tecnico_seguranca",
+                    "medico_trabalho",
+                    "enfermeiro_trabalho",
+                    "ergonomista"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "status": {
+              "type": "string",
+              "enum": ["concluida", "pendente", "indisponivel"]
+            },
+            "resumo": {
+              "type": "string",
+              "maxLength": 4000
+            }
+          },
+          "required": ["agente", "status", "resumo"],
+          "additionalProperties": true
+        },
+        "pgrCardDetalhado": {
+          "type": "object",
+          "properties": {
+            "razaoSocial": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "cnpj": {
+              "type": "string",
+              "maxLength": 30
+            },
+            "cnae": {
+              "type": "string",
+              "maxLength": 180
+            },
+            "grauDeRisco": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "enderecoCompleto": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "cidadeUf": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "dataEmissao": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "dataValidade": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "dataRevisao": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "coordenadasGps": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "totalRiscosMapeados": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "ghesIdentificados": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 350
+              },
+              "maxItems": 200
+            },
+            "esocialS2240Status": {
+              "type": "string",
+              "maxLength": 600
+            }
+          },
+          "required": [
+            "razaoSocial",
+            "cnpj",
+            "cnae",
+            "grauDeRisco",
+            "enderecoCompleto",
+            "cidadeUf",
+            "dataEmissao",
+            "dataValidade",
+            "coordenadasGps",
+            "totalRiscosMapeados",
+            "ghesIdentificados",
+            "esocialS2240Status"
+          ],
+          "additionalProperties": true
+        },
+        "identidade": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["identificada", "ambigua", "nao_identificada"]
+            },
+            "evidencias": {
+              "type": "array",
+              "items": {
+                "$ref": "#/properties/documento/properties/evidencias/items"
+              },
+              "maxItems": 15
+            },
+            "aviso": {
+              "type": "string",
+              "maxLength": 800
+            }
+          },
+          "required": ["status", "evidencias", "aviso"],
+          "additionalProperties": true
+        },
+        "riscosIdentificados": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "agente": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 180
+              },
+              "categoria": {
+                "type": "string",
+                "enum": ["fisico", "quimico", "biologico", "ergonomico", "acidente", "psicossocial"]
+              },
+              "setorGhe": {
+                "type": "string",
+                "maxLength": 350
+              },
+              "evidencia": {
+                "$ref": "#/properties/documento/properties/evidencias/items"
+              },
+              "controlesDocumentados": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                "maxItems": 12,
+                "default": []
+              },
+              "classificacaoOriginal": {
+                "type": "string",
+                "maxLength": 150,
+                "default": ""
+              }
+            },
+            "required": ["id", "agente", "categoria", "setorGhe", "evidencia"],
+            "additionalProperties": true
+          },
+          "maxItems": 100
+        },
+        "acoesCategorizadas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "tipoAcao": {
+                "type": "string",
+                "enum": [
+                  "Preventiva",
+                  "Corretiva",
+                  "Verificação",
+                  "Melhoria Contínua",
+                  "Treinamento NR"
+                ]
+              },
+              "titulo": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 180
+              },
+              "descricaoDetalhada": {
+                "type": "string",
+                "maxLength": 1600
+              },
+              "prioridade": {
+                "type": "string",
+                "enum": ["high", "critical", "medium", "low"]
+              },
+              "colunaKanban": {
+                "type": "string",
+                "const": "todo"
+              },
+              "referenciaLegal": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "responsavelSugerido": {
+                "type": "string",
+                "maxLength": 180
+              },
+              "agenteSugerido": {
+                "type": "string",
+                "enum": [
+                  "engenheiro_seguranca",
+                  "tecnico_seguranca",
+                  "medico_trabalho",
+                  "enfermeiro_trabalho",
+                  "ergonomista"
+                ]
+              },
+              "riscosRelacionados": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                "maxItems": 100
+              },
+              "evidencia": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/documento/properties/evidencias/items"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "checklist": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 350
+                },
+                "minItems": 1,
+                "maxItems": 15
+              },
+              "fundamento": {
+                "type": "string",
+                "enum": ["documento", "sugestao"]
+              },
+              "prazoDocumentado": {
+                "type": "string",
+                "maxLength": 180,
+                "default": ""
+              }
+            },
+            "required": [
+              "id",
+              "tipoAcao",
+              "titulo",
+              "descricaoDetalhada",
+              "prioridade",
+              "colunaKanban",
+              "referenciaLegal",
+              "responsavelSugerido",
+              "agenteSugerido",
+              "riscosRelacionados",
+              "evidencia",
+              "checklist",
+              "fundamento"
+            ],
+            "additionalProperties": true
+          },
+          "maxItems": 120
+        },
+        "parecerTecnicoIA": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "leitura": {
+          "type": "object",
+          "properties": {
+            "modo": {
+              "type": "string",
+              "enum": [
+                "ia_com_evidencias",
+                "extracao_documental",
+                "leitura_visual_ia",
+                "inconclusiva"
+              ]
+            },
+            "paginas": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 300
+            },
+            "paginasComTexto": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 300
+            },
+            "avisos": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 600
+              },
+              "maxItems": 25
+            },
+            "versao": {
+              "type": "string",
+              "const": "pgr-evidence-v1"
+            }
+          },
+          "required": ["modo", "paginas", "paginasComTexto", "avisos", "versao"],
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "pgrCardDetalhado",
+        "identidade",
+        "riscosIdentificados",
+        "acoesCategorizadas",
+        "parecerTecnicoIA",
+        "leitura"
+      ],
+      "additionalProperties": true,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "PgrModelOutputSchema": {
+      "type": "object",
+      "properties": {
+        "prestadoresIdentificados": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "nome": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 300
+              },
+              "cnpj": {
+                "type": "string",
+                "maxLength": 30
+              },
+              "registroProfissional": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "especialidade": {
+                "type": "string",
+                "maxLength": 180
+              },
+              "papelNoDocumento": {
+                "type": "string",
+                "maxLength": 180
+              },
+              "evidencias": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "pagina": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 300
+                    },
+                    "trecho": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 1200
+                    }
+                  },
+                  "required": ["pagina", "trecho"],
+                  "additionalProperties": true
+                },
+                "minItems": 1,
+                "maxItems": 5
+              },
+              "cidadeUf": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "endereco": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "email": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "telefone": {
+                "type": "string",
+                "maxLength": 100
+              }
+            },
+            "required": [
+              "id",
+              "nome",
+              "cnpj",
+              "registroProfissional",
+              "especialidade",
+              "papelNoDocumento",
+              "evidencias",
+              "cidadeUf",
+              "endereco",
+              "email",
+              "telefone"
+            ],
+            "additionalProperties": true
+          },
+          "maxItems": 25
+        },
+        "pgrCardDetalhado": {
+          "type": "object",
+          "properties": {
+            "razaoSocial": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "cnpj": {
+              "type": "string",
+              "maxLength": 30
+            },
+            "cnae": {
+              "type": "string",
+              "maxLength": 180
+            },
+            "grauDeRisco": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "enderecoCompleto": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "cidadeUf": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "dataEmissao": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "dataValidade": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "dataRevisao": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "coordenadasGps": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "totalRiscosMapeados": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "ghesIdentificados": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 350
+              },
+              "maxItems": 200
+            },
+            "esocialS2240Status": {
+              "type": "string",
+              "maxLength": 600
+            }
+          },
+          "required": [
+            "razaoSocial",
+            "cnpj",
+            "cnae",
+            "grauDeRisco",
+            "enderecoCompleto",
+            "cidadeUf",
+            "dataEmissao",
+            "dataValidade",
+            "coordenadasGps",
+            "totalRiscosMapeados",
+            "ghesIdentificados",
+            "esocialS2240Status"
+          ],
+          "additionalProperties": true
+        },
+        "identidade": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["identificada", "ambigua", "nao_identificada"]
+            },
+            "evidencias": {
+              "type": "array",
+              "items": {
+                "$ref": "#/properties/prestadoresIdentificados/items/properties/evidencias/items"
+              },
+              "maxItems": 15
+            },
+            "aviso": {
+              "type": "string",
+              "maxLength": 800
+            }
+          },
+          "required": ["status", "evidencias", "aviso"],
+          "additionalProperties": true
+        },
+        "riscosIdentificados": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "agente": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 180
+              },
+              "categoria": {
+                "type": "string",
+                "enum": ["fisico", "quimico", "biologico", "ergonomico", "acidente", "psicossocial"]
+              },
+              "setorGhe": {
+                "type": "string",
+                "maxLength": 350
+              },
+              "evidencia": {
+                "$ref": "#/properties/prestadoresIdentificados/items/properties/evidencias/items"
+              },
+              "controlesDocumentados": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                "maxItems": 12,
+                "default": []
+              },
+              "classificacaoOriginal": {
+                "type": "string",
+                "maxLength": 150,
+                "default": ""
+              }
+            },
+            "required": ["id", "agente", "categoria", "setorGhe", "evidencia"],
+            "additionalProperties": true
+          },
+          "maxItems": 100
+        },
+        "acoesCategorizadas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "tipoAcao": {
+                "type": "string",
+                "enum": [
+                  "Preventiva",
+                  "Corretiva",
+                  "Verificação",
+                  "Melhoria Contínua",
+                  "Treinamento NR"
+                ]
+              },
+              "titulo": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 180
+              },
+              "descricaoDetalhada": {
+                "type": "string",
+                "maxLength": 1600
+              },
+              "prioridade": {
+                "type": "string",
+                "enum": ["high", "critical", "medium", "low"]
+              },
+              "colunaKanban": {
+                "type": "string",
+                "const": "todo"
+              },
+              "referenciaLegal": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "responsavelSugerido": {
+                "type": "string",
+                "maxLength": 180
+              },
+              "agenteSugerido": {
+                "type": "string",
+                "enum": [
+                  "engenheiro_seguranca",
+                  "tecnico_seguranca",
+                  "medico_trabalho",
+                  "enfermeiro_trabalho",
+                  "ergonomista"
+                ]
+              },
+              "riscosRelacionados": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                "maxItems": 100
+              },
+              "evidencia": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/prestadoresIdentificados/items/properties/evidencias/items"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "checklist": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 350
+                },
+                "minItems": 1,
+                "maxItems": 15
+              },
+              "fundamento": {
+                "type": "string",
+                "enum": ["documento", "sugestao"]
+              },
+              "prazoDocumentado": {
+                "type": "string",
+                "maxLength": 180,
+                "default": ""
+              }
+            },
+            "required": [
+              "id",
+              "tipoAcao",
+              "titulo",
+              "descricaoDetalhada",
+              "prioridade",
+              "colunaKanban",
+              "referenciaLegal",
+              "responsavelSugerido",
+              "agenteSugerido",
+              "riscosRelacionados",
+              "evidencia",
+              "checklist",
+              "fundamento"
+            ],
+            "additionalProperties": true
+          },
+          "maxItems": 120
+        },
+        "parecerTecnicoIA": {
+          "type": "string",
+          "minLength": 60,
+          "maxLength": 4000
+        }
+      },
+      "required": [
+        "pgrCardDetalhado",
+        "identidade",
+        "riscosIdentificados",
+        "acoesCategorizadas",
+        "parecerTecnicoIA"
+      ],
+      "additionalProperties": true,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "VisualClassificationSchema": {
+      "type": "object",
+      "properties": {
+        "tipo": {
+          "type": "string",
+          "enum": [
+            "PGR",
+            "LTCAT",
+            "PCMSO",
+            "ASO",
+            "PERICIA_MEDICA",
+            "AEP",
+            "AET",
+            "DADOS_ERGONOMICOS",
+            "OUTRO"
+          ]
+        },
+        "statusClassificacao": {
+          "type": "string",
+          "enum": ["identificado", "ambiguo", "nao_identificado"]
+        },
+        "contemDadosClinicosIndividuais": {
+          "type": "boolean"
+        },
+        "evidencias": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pagina": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 300
+              },
+              "trecho": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 1200
+              }
+            },
+            "required": ["pagina", "trecho"],
+            "additionalProperties": true
+          },
+          "maxItems": 10
+        }
+      },
+      "required": ["tipo", "statusClassificacao", "contemDadosClinicosIndividuais"],
+      "additionalProperties": true,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "ExtractionSchema": {
+      "type": "object",
+      "properties": {
+        "clientName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 180
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cnpj": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 30
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "units": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deliverables": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "valueCents": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "startsOn": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 10
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "endsOn": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 10
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "paymentTerms": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recurring": {
+          "type": ["boolean", "null"]
+        },
+        "obligations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 180
+              },
+              "serviceType": {
+                "type": "string",
+                "enum": ["PGR", "PCMSO", "ASO", "LTCAT", "AET", "AEP", "PERICIA", "OUTRO"]
+              },
+              "owner": {
+                "type": "string",
+                "maxLength": 180
+              },
+              "due": {
+                "type": "string"
+              },
+              "trigger": {
+                "type": "string",
+                "maxLength": 500,
+                "default": ""
+              },
+              "deadlineRule": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "sourceReference": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 300
+              },
+              "sourceExcerpt": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 600
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "serviceType",
+              "owner",
+              "due",
+              "deadlineRule",
+              "sourceReference",
+              "sourceExcerpt"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 100,
+          "default": []
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "field": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "pageOrClause": {
+                "type": "string",
+                "maxLength": 180
+              },
+              "excerpt": {
+                "type": "string",
+                "maxLength": 300
+              }
+            },
+            "required": ["field", "pageOrClause", "excerpt"],
+            "additionalProperties": true
+          },
+          "maxItems": 20
+        },
+        "pending": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "maxItems": 20
+        }
+      },
+      "required": [
+        "clientName",
+        "cnpj",
+        "scope",
+        "units",
+        "deliverables",
+        "valueCents",
+        "startsOn",
+        "endsOn",
+        "paymentTerms",
+        "recurring",
+        "references",
+        "pending"
+      ],
+      "additionalProperties": true,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "SourceSchema": {
+      "type": "object",
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "storagePath": {
+          "type": "string"
+        },
+        "generation": {
+          "type": "string",
+          "pattern": "^\\d+$"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 10485759
+        }
+      },
+      "required": ["sha256", "storagePath", "generation", "sizeBytes"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  }
+}

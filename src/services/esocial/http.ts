@@ -1,6 +1,6 @@
 import "server-only";
 import { NextResponse } from "next/server";
-import { ZodError } from "zod";
+import { ZodError } from "zod/v3";
 import { ESOCIAL_EVENT_FORMS, type EsocialFormField } from "@/lib/esocial-events";
 import { privateFailure, privateHeaders } from "@/lib/http/private-api";
 import { EsocialXmlValidationError } from "./events";

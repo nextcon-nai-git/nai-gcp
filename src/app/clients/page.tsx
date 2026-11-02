@@ -65,7 +65,7 @@ import {
 } from "firebase/firestore";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { cn } from "@/lib/utils";
 import { useSgi } from "@/contexts/sgi-context";
 import { enriquecerDadosEmpresa } from "@/actions/company-enrichment";
@@ -185,7 +185,7 @@ function ClientsSession() {
     );
   }, [activeCompaniesList, searchTerm, showInactive, isGlobalStaff]);
 
-  const form = useForm<CompanyFormValues>({
+  const form = useForm<z.input<typeof companySchema>, unknown, CompanyFormValues>({
     resolver: zodResolver(companySchema),
     defaultValues: {
       name: "",

@@ -356,7 +356,13 @@ describe("NAI importa: análise real do especialista e controle clínico", () =>
       constrained: false,
       instructions: true,
     });
-    expect(mocks.generate.mock.calls[1][0].output.schema.safeParse({}).success).toBe(false);
+    expect(mocks.generate.mock.calls[1][0].output.jsonSchema).toMatchObject({
+      type: "object",
+      required: expect.arrayContaining(["parecerTecnicoIA"]),
+      properties: {
+        parecerTecnicoIA: { type: "string", minLength: 60, maxLength: 4000 },
+      },
+    });
     expect(result.analiseAgente?.status).toBe("concluida");
     expect(result.leitura.modo).toBe("ia_com_evidencias");
   });

@@ -7,7 +7,7 @@ import { requireAiAction, DOCUMENT_AI_ROLES } from "@/lib/auth/ai-action";
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "zod";
+import { z } from "genkit";
 import { aiFailureCode } from "@/lib/ai-failure";
 
 const ClassifierInputSchema = z.object({

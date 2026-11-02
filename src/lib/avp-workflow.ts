@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 
 const text = (max: number) => z.string().trim().max(max);
 const day = z

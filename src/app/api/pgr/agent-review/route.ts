@@ -1,6 +1,6 @@
 import { requirePgrAppCheck } from "@/lib/auth/require-pgr-app-check";
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { z } from "genkit";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { requirePgrCompany } from "@/lib/auth/require-pgr-access";

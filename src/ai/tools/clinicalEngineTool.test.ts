@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { z } from "zod";
+import type { z } from "genkit";
 
 const mocks = vi.hoisted(() => ({
   defineTool: vi.fn((_config: unknown, handler: unknown) => handler),

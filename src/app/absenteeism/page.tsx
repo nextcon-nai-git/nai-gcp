@@ -78,7 +78,7 @@ import {
 } from "@/firebase/non-blocking-updates";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { cn } from "@/lib/utils";
 import dynamic from "next/dynamic";
 import { MedicalReferralReport } from "@/components/documents/medical-referral-report";

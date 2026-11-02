@@ -6,7 +6,7 @@ import { requireAiAction, DOCUMENT_AI_ROLES } from "@/lib/auth/ai-action";
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "zod";
+import { z } from "genkit";
 
 const ReportAnalysisInputSchema = z.object({
   content: z.string().describe("Conteúdo textual ou metadados do documento."),

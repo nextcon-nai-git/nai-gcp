@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { isCalendarDate, omieAmountUnits, omieUnitsToCents } from "./omie-dre";
 
 const titleId = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);

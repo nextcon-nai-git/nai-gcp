@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { badRequest } from "@/lib/auth/errors";
 import { limitedJson, privateFailure, privateHeaders } from "@/lib/http/private-api";

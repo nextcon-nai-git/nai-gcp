@@ -71,7 +71,7 @@ import { cn } from "@/lib/utils";
 import { useSgi } from "@/contexts/sgi-context";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { useToast } from "@/hooks/use-toast";
 import { ISO_CHECKLISTS } from "@/lib/iso-checklists";
 

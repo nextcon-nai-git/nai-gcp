@@ -1,5 +1,5 @@
 import { OmieExport } from "@/lib/financial/omie-export";
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import { AuthError } from "@/lib/auth/errors";
 import { brazilToday } from "@/lib/financial/treasury";

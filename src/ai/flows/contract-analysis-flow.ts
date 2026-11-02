@@ -6,7 +6,7 @@ import { requireAiAction, FINANCIAL_AI_ROLES } from "@/lib/auth/ai-action";
  */
 
 import { ai } from "@/ai/genkit";
-import { z } from "zod";
+import { z } from "genkit";
 
 const ContractAnalysisInputSchema = z.object({
   pdfDataUri: z.string().describe("O arquivo do contrato em formato PDF codificado em Base64."),

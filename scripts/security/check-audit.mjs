@@ -3,6 +3,7 @@ import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import process from "node:process";
+import { applyDependencyPatches, reviewedDependencyPaths } from "./apply-dependency-patches.mjs";
 
 const reviewed = new Map([
   ["https://github.com/advisories/GHSA-mrhx-c7xc-m3w5", "zod"],
@@ -77,11 +78,13 @@ function validateReport(report) {
   return entries.map(([, vulnerability]) => vulnerability);
 }
 
-export function assessAudit(report) {
+export function assessAudit(report, { root } = {}) {
   const vulnerabilities = validateReport(report);
   if (report.metadata.vulnerabilities.critical)
     throw new Error("Critical dependency vulnerability");
   const high = vulnerabilities.filter((v) => ["high", "critical"].includes(v.severity));
+  const reviewedNodes = reviewedDependencyPaths();
+  let verifiedNodes;
   function origins(v, seen = new Set()) {
     if (seen.has(v.name)) return [];
     const next = new Set([...seen, v.name]);
@@ -100,8 +103,17 @@ export function assessAudit(report) {
       const name = reviewed.get(advisory.url);
       if (advisory.severity !== "high" || !name || advisory.name !== name || owner.name !== name)
         throw new Error(`Unpatched vulnerability: ${advisory.url || v.name}`);
-      if (owner.nodes.length !== 1 || owner.nodes[0] !== `node_modules/${name}`)
+      if (
+        owner.nodes.some(
+          (node) => !reviewedNodes.some((entry) => entry.name === name && entry.path === node)
+        )
+      )
         throw new Error(`Unpatched nested dependency: ${owner.name}`);
+      // A path in the manifest is not proof by itself: version, exact patched
+      // bytes and every bundled v4 tree must match before accepting its finding.
+      verifiedNodes ||= applyDependencyPatches({ root, check: true });
+      if (owner.nodes.some((node) => !verifiedNodes.get(name)?.has(node)))
+        throw new Error(`Unverified dependency installation: ${owner.name}`);
     }
   }
   return { raw: report.metadata.vulnerabilities, backportedHighPackages: high.map((v) => v.name) };

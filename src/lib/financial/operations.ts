@@ -6,7 +6,7 @@ import {
   flowReady,
 } from "./contract-flow";
 import { OmieExport } from "./omie-export";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { isCalendarDate } from "./omie-dre";
 import { ErpSchema, erpCommands, applyErpCommand } from "./erp";
 import { financialLabel } from "./labels";

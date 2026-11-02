@@ -14,7 +14,7 @@ import {
   type AvpAsoEvidence,
 } from "@/lib/avp-evidence";
 import { formatBrlCents } from "@/lib/avp-costs";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 type Stored = AvpEvidence & { uploaded?: boolean };
 export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
