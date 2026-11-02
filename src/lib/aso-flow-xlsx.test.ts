@@ -5,10 +5,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { readAsoFlowFile } from "./aso-flow-import";
 import { ASO_XLSX_ENTRY_LIMIT, ASO_XLSX_EXPANDED_LIMIT, assertSafeAsoXlsx } from "./aso-flow-xlsx";
 
-async function archive(content = "<worksheet/>", streamFiles = false): Promise<ArrayBuffer> {
+async function archive(
+  content: string | Uint8Array = "<worksheet/>",
+  streamFiles = false,
+  compressionLevel = 6
+): Promise<ArrayBuffer> {
   const zip = new JSZip();
   zip.file("xl/worksheets/sheet1.xml", content, { createFolders: false });
-  return zip.generateAsync({ type: "arraybuffer", compression: "DEFLATE", streamFiles });
+  return zip.generateAsync({
+    type: "arraybuffer",
+    compression: "DEFLATE",
+    compressionOptions: { level: compressionLevel },
+    streamFiles,
+  });
 }
 
 function directory(bytes: ArrayBuffer) {
@@ -39,7 +48,9 @@ describe("limites de descompactação da importação ASO", () => {
   });
 
   it("interrompe a saída real mesmo quando o ZIP declara um tamanho falso pequeno", async () => {
-    const bytes = await archive("x".repeat(ASO_XLSX_EXPANDED_LIMIT + 1));
+    // Avoid a large UTF-8 string conversion in the fixture while preserving the
+    // real expanded payload, the forged one-byte size and the compressed bound.
+    const bytes = await archive(new Uint8Array(ASO_XLSX_EXPANDED_LIMIT + 1).fill(120), false, 4);
     const { view, start } = directory(bytes);
     view.setUint32(start + 24, 1, true);
     view.setUint32(22, 1, true);

@@ -234,6 +234,37 @@ const nativeKit = (card: AsoFlowCard, order = "123456", bytes = pdf("native-kit"
     "kit.pdf"
   );
 describe("revogação durante operações da esteira", () => {
+  it("revalida também as clínicas quando a carteira muda na releitura final dos cards", async () => {
+    await create();
+    db.get("providers/CLINIC")!.servedCompanies = ["ONE", "TWO"];
+    let profileReads = 0;
+    m.collection.mockImplementation((path: string) => {
+      const collection = query(path);
+      if (path !== "users") return collection;
+      return {
+        ...collection,
+        doc: (id: string) => {
+          const document = collection.doc(id);
+          return {
+            ...document,
+            get: async () => {
+              const snapshot = await document.get();
+              const capturedProfile = snapshot.data();
+              if (++profileReads === 1)
+                Object.assign(db.get("users/operator")!, {
+                  role: "OPERATIONS",
+                  servedCompanies: ["ONE"],
+                });
+              return { ...snapshot, data: () => capturedProfile };
+            },
+          };
+        },
+      };
+    });
+    await expect(listAsoFlowCards(user)).rejects.toMatchObject({ status: 403 });
+    expect(profileReads).toBe(2);
+  });
+
   it.each(["preview", "cards", "clinics"] as const)(
     "não libera %s de uma carteira revogada enquanto a consulta estava em andamento",
     async (operation) => {

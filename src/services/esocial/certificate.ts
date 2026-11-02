@@ -66,6 +66,7 @@ export const ESOCIAL_XMLDSIG = {
 
 const MAX_PFX_BYTES = 256 * 1024;
 const MAX_KDF_ITERATIONS = 1_000_000;
+const MAX_TOTAL_KDF_ITERATIONS = 4_000_000;
 const MAX_EVENT_BYTES = 1024 * 1024;
 const EVENT_NAMES = new Set([
   "evtMonit",
@@ -105,8 +106,8 @@ function asnBytes(node: forge.asn1.Asn1 | undefined): string {
   return node.value;
 }
 
-function boundedIteration(node: forge.asn1.Asn1 | undefined): void {
-  if (!node) return;
+function boundedIteration(node: forge.asn1.Asn1 | undefined): number {
+  if (!node) return 1;
   const bytes = asnBytes(node);
   if (node.type !== forge.asn1.Type.INTEGER || bytes.length > 4) {
     fail("PKCS12_COST_LIMIT", "Parâmetros de proteção do A1 excedem o limite aceito.");
@@ -115,42 +116,127 @@ function boundedIteration(node: forge.asn1.Asn1 | undefined): void {
   if (!Number.isSafeInteger(value) || value < 1 || value > MAX_KDF_ITERATIONS) {
     fail("PKCS12_COST_LIMIT", "Parâmetros de proteção do A1 excedem o limite aceito.");
   }
+  return value;
 }
 
-/** Check visible KDF parameters before asking forge to perform expensive derivations. */
-function preflightPkcs12(root: forge.asn1.Asn1): void {
+/** Flatten the PKCS#7 OCTET STRING form accepted by node-forge without mutating MAC input. */
+function pkcs7Octets(node: forge.asn1.Asn1): string {
+  const chunks =
+    typeof node.value === "string"
+      ? [node.value]
+      : asnChildren(node).map((part) => {
+          if (part.type !== forge.asn1.Type.OCTETSTRING || typeof part.value !== "string")
+            return fail("INVALID_PKCS12", "Fragmentos do conteúdo protegido do A1 inválidos.");
+          return part.value;
+        });
+  const size = chunks.reduce((total, part) => total + part.length, 0);
+  if (size > MAX_PFX_BYTES || chunks.length > 10_000)
+    return fail("PKCS12_COST_LIMIT", "Estrutura do arquivo A1 excede o limite aceito.");
+  return chunks.join("");
+}
+
+/** Inspect visible and encrypted SafeContents before decoding their private-key bags. */
+function preflightPkcs12(root: forge.asn1.Asn1, password: string): void {
   const entries = asnChildren(root);
-  if (entries.length !== 3) {
+  if (entries.length !== 3)
     fail("PKCS12_MAC_REQUIRED", "O arquivo A1 deve possuir proteção de integridade (MAC).");
-  }
-  boundedIteration(asnChildren(entries[2])[2]);
+  // This is a sum of iteration counts, not an elapsed-time guarantee. Derivation
+  // algorithms perform a bounded number of blocks per iteration.
+  let totalIterations = boundedIteration(asnChildren(entries[2])[2]);
+  const charge = (iterations: number) => {
+    totalIterations += iterations;
+    if (totalIterations > MAX_TOTAL_KDF_ITERATIONS)
+      fail("PKCS12_COST_LIMIT", "O custo total de proteção do A1 excede o limite aceito.");
+  };
   let visited = 0;
   const visit = (node: forge.asn1.Asn1, depth: number): void => {
-    if (++visited > 10_000 || depth > 48) {
+    if (++visited > 10_000 || depth > 48)
       fail("PKCS12_COST_LIMIT", "Estrutura do arquivo A1 excede o limite aceito.");
-    }
     const children = asnChildren(node);
     if (children[0]?.type === forge.asn1.Type.OID) {
       const oid = forge.asn1.derToOid(asnBytes(children[0]));
-      if (oid === "1.2.840.113549.1.5.12" || oid.startsWith("1.2.840.113549.1.12.1.")) {
-        boundedIteration(children[1] && asnChildren(children[1])[1]);
-      }
+      if (oid === "1.2.840.113549.1.5.12" || oid.startsWith("1.2.840.113549.1.12.1."))
+        charge(boundedIteration(children[1] && asnChildren(children[1])[1]));
     }
-    children.forEach((child) => visit(child, depth + 1));
-    // PKCS#7 data wraps the authenticated safe and clear safe-bag sequences in OCTET STRINGs.
-    if (node.type === forge.asn1.Type.OCTETSTRING && typeof node.value === "string") {
-      if (node.value.charCodeAt(0) === 0x30) {
+    // Scan the reconstructed DER once. Scanning fragments separately can both
+    // miss a split KDF and count a coincidental complete DER fragment twice.
+    if (node.type === forge.asn1.Type.OCTETSTRING) {
+      visited += children.length;
+      if (visited > 10_000)
+        fail("PKCS12_COST_LIMIT", "Estrutura do arquivo A1 excede o limite aceito.");
+      const bytes = pkcs7Octets(node);
+      if (bytes.charCodeAt(0) === 0x30) {
         let inner: forge.asn1.Asn1 | undefined;
         try {
-          inner = strictDer(node.value);
+          inner = strictDer(bytes);
         } catch {
           // Ciphertext and binary certificate extension values need not themselves be DER.
         }
         if (inner) visit(inner, depth + 1);
       }
+      return;
     }
+    children.forEach((child) => visit(child, depth + 1));
   };
   visit(root, 0);
+
+  // RFC7292 4.1: only real ContentInfo entries in AuthenticatedSafe may trigger
+  // this decryption, never a coincidental OID in a certificate extension.
+  const [safeType, safeWrapper] = asnChildren(entries[1]);
+  const safeData = safeWrapper && asnChildren(safeWrapper)[0];
+  if (
+    !safeType ||
+    safeType.type !== forge.asn1.Type.OID ||
+    forge.asn1.derToOid(asnBytes(safeType)) !== "1.2.840.113549.1.7.1" ||
+    !safeData ||
+    safeData.type !== forge.asn1.Type.OCTETSTRING
+  )
+    fail("INVALID_PKCS12", "Estrutura do conteúdo protegido do A1 inválida.");
+  const safe = strictDer(pkcs7Octets(safeData));
+  for (const info of asnChildren(safe)) {
+    const [infoType, wrapper] = asnChildren(info);
+    if (!infoType || infoType.type !== forge.asn1.Type.OID)
+      fail("INVALID_PKCS12", "Estrutura do conteúdo protegido do A1 inválida.");
+    if (forge.asn1.derToOid(asnBytes(infoType)) !== "1.2.840.113549.1.7.6") continue;
+    const data = wrapper && asnChildren(wrapper)[0];
+    const encryptedInfo = data && asnChildren(data)[1];
+    const [contentType, algorithm, encrypted] = encryptedInfo ? asnChildren(encryptedInfo) : [];
+    const [algorithmOid, parameters] = algorithm ? asnChildren(algorithm) : [];
+    if (
+      !contentType ||
+      contentType.type !== forge.asn1.Type.OID ||
+      forge.asn1.derToOid(asnBytes(contentType)) !== "1.2.840.113549.1.7.1" ||
+      !algorithmOid ||
+      algorithmOid.type !== forge.asn1.Type.OID ||
+      !parameters ||
+      !encrypted ||
+      encrypted.tagClass !== forge.asn1.Class.CONTEXT_SPECIFIC ||
+      encrypted.type !== 0
+    )
+      fail("INVALID_PKCS12", "Conteúdo protegido do A1 inválido.");
+    const cipherOid = forge.asn1.derToOid(asnBytes(algorithmOid));
+    if (
+      !["1.2.840.113549.1.5.13", "1.2.840.113549.1.12.1.3", "1.2.840.113549.1.12.1.6"].includes(
+        cipherOid
+      )
+    )
+      fail("INVALID_PKCS12", "Proteção do A1 não suportada.");
+    // Charge the extra bounded decryption used for preflight as well as the
+    // parser's original derivation. Cipher parameters were already visited above.
+    visit(algorithm, 1);
+    const pbe = (
+      forge.pki as unknown as {
+        pbe: {
+          getCipher(oid: string, params: forge.asn1.Asn1, secret: string): forge.cipher.BlockCipher;
+        };
+      }
+    ).pbe;
+    const cipher = pbe.getCipher(cipherOid, parameters, password);
+    cipher.update(forge.util.createBuffer(pkcs7Octets(encrypted)));
+    if (!cipher.finish())
+      fail("PKCS12_OPEN_FAILED", "Confira o arquivo e a senha do certificado A1.");
+    visit(strictDer(cipher.output.getBytes()), 1);
+  }
 }
 
 function extensionValue(cert: forge.pki.Certificate, id: string): string | undefined {
@@ -271,7 +357,7 @@ export async function inspectPkcs12(
   }
   try {
     const asn = strictDer(Buffer.from(bytes).toString("binary"));
-    preflightPkcs12(asn);
+    preflightPkcs12(asn, password);
     const pfx = forge.pkcs12.pkcs12FromAsn1(asn, true, password);
     const bags = pfx.safeContents.flatMap((content) => content.safeBags);
     const keys = bags.flatMap((bag) => (bag.key ? [bag.key] : []));

@@ -454,6 +454,8 @@ export async function listAsoFlowCards(
   const clinics = await listAsoFlowClinics(user, options.companyId);
   const current = await currentAsoFlowUser(user, options.companyId);
   for (const card of cards) requireAsoFlowAccess(current, card.companyId);
+  for (const clinic of clinics)
+    for (const id of clinic.companyIds) requireAsoFlowAccess(current, id);
   return {
     cards,
     nextCursor: snapshot.size > 200 ? cards.at(-1)!.id : null,
