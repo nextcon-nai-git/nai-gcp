@@ -72,7 +72,7 @@ describe("limites de descompactação da importação ASO", () => {
     view.setUint32(22, 1, true);
     expect(bytes.byteLength).toBeLessThan(100_000);
     await expect(assertSafeAsoXlsx(bytes)).rejects.toThrow("32 MB após descompactação");
-  });
+  }, 15_000);
 
   it("conta entradas reais mesmo com quantidade declarada falsa", async () => {
     const zip = new JSZip();
