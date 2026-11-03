@@ -17,6 +17,10 @@ export type PeriodicCityGroup = {
   cancelled: number;
   completed: number;
   pending: number;
+  kitSent: number | null;
+  appointmentsConfirmed: number;
+  examsPerformed: number;
+  asoReceived: number;
   blocked: number;
   sourceChanged: number;
   overdue: number;
@@ -53,6 +57,24 @@ function summarizeGroup(
   const sourceChanged = active.filter((card) => card.sourceChanged).length;
   const overdue = pending.filter((card) => card.overdue).length;
   const complete = active.length > 0 && pending.length === 0;
+  const stageIndex = (stage: PeriodicStage) => PERIODIC_STAGES.indexOf(stage);
+  const atLeast = (card: PeriodicWorkCard, stage: PeriodicStage) =>
+    stageIndex(card.stage) >= stageIndex(stage) && !card.blocked && !card.sourceChanged;
+  const kitEvidence = active.filter((card) =>
+    /\bkit\s+enviado\b/i.test(
+      [card.person.status, card.person.reviewDetail || ""].filter(Boolean).join(" ")
+    )
+  );
+  const kitSignalAvailable = active.some((card) =>
+    /\bkit\b/i.test([card.person.status, card.person.reviewDetail || ""].filter(Boolean).join(" "))
+  );
+  const appointmentsConfirmed = active.filter((card) =>
+    atLeast(card, "confirmar_realizacao")
+  ).length;
+  const examsPerformed = active.filter((card) => atLeast(card, "resgatar_aso")).length;
+  const asoReceived = active.filter(
+    (card) => atLeast(card, "conferir_esocial") || Boolean(card.person.asoReceivedAt)
+  ).length;
   const stageCounts = Object.fromEntries(PERIODIC_STAGES.map((stage) => [stage, 0])) as Record<
     PeriodicStage,
     number
@@ -100,6 +122,10 @@ function summarizeGroup(
     cancelled: cards.length - active.length,
     completed: active.length - pending.length,
     pending: pending.length,
+    kitSent: kitSignalAvailable ? kitEvidence.length : null,
+    appointmentsConfirmed,
+    examsPerformed,
+    asoReceived,
     blocked,
     sourceChanged,
     overdue,

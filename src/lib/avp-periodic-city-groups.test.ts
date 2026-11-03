@@ -79,7 +79,16 @@ describe("agrupamento dos vínculos periódicos por cidade", () => {
       (group) => group.owners.includes("Ana") && group.stageCounts.resgatar_aso > 0
     );
     expect(selected).toHaveLength(1);
-    expect(selected[0]).toMatchObject({ total: 4, active: 3, cancelled: 1, pending: 3 });
+    expect(selected[0]).toMatchObject({
+      total: 4,
+      active: 3,
+      cancelled: 1,
+      pending: 3,
+      kitSent: null,
+      appointmentsConfirmed: 1,
+      examsPerformed: 1,
+      asoReceived: 0,
+    });
     expect(selected[0].cards).toHaveLength(4);
     expect(selected[0].owners).toEqual(["Ana", "Bruno"]);
     expect(selected[0].units).toEqual(["Unidade sintética A", "Unidade sintética B"]);
@@ -92,6 +101,26 @@ describe("agrupamento dos vínculos periódicos por cidade", () => {
       concluido: 0,
     });
     expect(selected[0].priority.label).toBe("Validar convocação");
+  });
+
+  it("projeta indicadores municipais sem inventar kit enviado", () => {
+    const group = groupPeriodicWorkByCity([
+      card("validar"),
+      card("agenda", { stage: "confirmar_realizacao" }),
+      card("realizado", { stage: "resgatar_aso" }),
+      card("aso", { stage: "conferir_esocial" }),
+      card("kit", {}, { status: "Kit enviado" }),
+      card("aso-fonte", {}, { asoReceivedAt: "03/11/2026" }),
+      card("bloqueado", { stage: "conferir_esocial", blocked: true }),
+    ])[0];
+    expect(group).toMatchObject({
+      total: 7,
+      kitSent: 1,
+      appointmentsConfirmed: 3,
+      examsPerformed: 2,
+      asoReceived: 2,
+    });
+    expect(groupPeriodicWorkByCity([card("sem-sinal")])[0].kitSent).toBeNull();
   });
 
   it("conclui somente os ativos aplicáveis e não inclui cancelados no progresso", () => {
