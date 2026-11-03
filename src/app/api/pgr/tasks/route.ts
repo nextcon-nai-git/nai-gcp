@@ -6,6 +6,7 @@ import { adminDb } from "@/lib/firebase-admin";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { canAccessClinicalImport, requirePgrCompany } from "@/lib/auth/require-pgr-access";
 import { AuthError, handleAuthError, badRequest, forbidden } from "@/lib/auth/errors";
+import { limitedBytes } from "@/lib/http/private-api";
 const Patch = z
   .object({
     title: z.string().min(3).max(180).optional(),
@@ -55,8 +56,7 @@ export async function PATCH(request: NextRequest) {
   try {
     const user = await requireAuth(request);
     await requirePgrAppCheck(request);
-    const text = await request.text();
-    if (Buffer.byteLength(text) > 30000) throw badRequest("Alteração acima do limite.");
+    const text = (await limitedBytes(request, 30000)).toString("utf8");
     const data = JSON.parse(text);
     requirePgrCompany(user, data.companyId);
     if (typeof data.taskId !== "string" || !/^pgr_[a-f0-9_]+$/.test(data.taskId))

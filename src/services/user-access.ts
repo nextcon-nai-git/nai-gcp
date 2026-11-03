@@ -17,7 +17,12 @@ async function requireCurrentAdmin(actor: AuthContext, tx?: Transaction) {
   const ref = adminDb.collection("users").doc(actor.uid);
   const snapshot = tx ? await tx.get(ref) : await ref.get();
   const profile = snapshot.data();
-  if (!profile || profile.role !== "SUPER_ADMIN" || profile.accessEnabled === false)
+  if (
+    !profile ||
+    profile.role !== "SUPER_ADMIN" ||
+    profile.accessEnabled === false ||
+    profile.isDeleted === true
+  )
     throw forbidden("O acesso administrativo foi suspenso ou alterado. Entre novamente.");
 }
 function identity(kind: unknown, id: unknown) {
@@ -69,9 +74,15 @@ function eligible(s: ReturnType<typeof source>) {
   )
     throw badRequest("Confirme nome, e-mail real e situação ativa no cadastro.");
 }
-function linked(profile: Record<string, unknown> | undefined, kind: AccessSubjectKind, id: string) {
+function linked(
+  profile: Record<string, unknown> | undefined,
+  kind: AccessSubjectKind,
+  id: string,
+  includeDeleted = false
+) {
   return (
     !!profile &&
+    (includeDeleted || profile.isDeleted !== true) &&
     (kind === "provider"
       ? profile.providerId === id && profile.role === "SCOPED_PROVIDER"
       : profile.employeeId === id && STAFF_ACCESS_ROLES.includes(profile.role as never))
@@ -104,7 +115,7 @@ export async function previewUserAccess(actor: AuthContext, kind: unknown, id: u
       adminDb.collection("users").doc(s.accessUid).get(),
     ]);
     if (
-      !linked(profile.data(), target.kind, target.id) ||
+      !linked(profile.data(), target.kind, target.id, true) ||
       auth.email?.toLowerCase() !== s.email ||
       s.accessUid === actor.uid
     )
@@ -113,7 +124,10 @@ export async function previewUserAccess(actor: AuthContext, kind: unknown, id: u
       );
     account = {
       uid: auth.uid,
-      enabled: !auth.disabled && profile.data()?.accessEnabled !== false,
+      enabled:
+        !auth.disabled &&
+        profile.data()?.accessEnabled !== false &&
+        profile.data()?.isDeleted !== true,
       role: String(profile.data()?.role),
       companyIds: expertCompanyIds(profile.data()?.servedCompanies),
       emailVerified: auth.emailVerified,
@@ -180,7 +194,7 @@ export async function manageUserAccess(actor: AuthContext, raw: unknown) {
       if (uid) {
         const profile = (await tx.get(adminDb.collection("users").doc(uid))).data();
         previouslyEnabled = profile?.accessEnabled !== false;
-        if (!linked(profile, target.kind, target.id))
+        if (!linked(profile, target.kind, target.id, action === "disable"))
           throw conflict("Vínculo de identidade inconsistente. Nenhum acesso foi alterado.");
       }
       if (action === "create" || action === "update") {
@@ -260,7 +274,11 @@ export async function manageUserAccess(actor: AuthContext, raw: unknown) {
         throw conflict("O cadastro mudou durante a operação.");
       const profileRef = adminDb.collection("users").doc(uid);
       const profile = await tx.get(profileRef);
-      if (action === "create" ? profile.exists : !linked(profile.data(), target.kind, target.id))
+      if (
+        action === "create"
+          ? profile.exists
+          : !linked(profile.data(), target.kind, target.id, action === "disable")
+      )
         throw conflict("Perfil inconsistente.");
       tx.set(
         profileRef,
@@ -324,7 +342,7 @@ export async function manageUserAccess(actor: AuthContext, raw: unknown) {
       )
         throw conflict("Vínculos revogados durante a operação.");
       const profileRef = adminDb.collection("users").doc(uid);
-      if (!linked((await tx.get(profileRef)).data(), target.kind, target.id))
+      if (!linked((await tx.get(profileRef)).data(), target.kind, target.id, action === "disable"))
         throw conflict("Vínculo de acesso alterado.");
       const changes: Record<string, unknown> = { accessEnabled: false, updatedAt: stamp() };
       if (action === "update")
@@ -355,7 +373,8 @@ export async function manageUserAccess(actor: AuthContext, raw: unknown) {
           throw conflict("Cadastro alterado; acesso mantido bloqueado no NAI.");
         const profileRef = adminDb.collection("users").doc(uid);
         const profile = (await tx.get(profileRef)).data();
-        if (!linked(profile, target.kind, target.id)) throw conflict("Vínculo de acesso alterado.");
+        if (!linked(profile, target.kind, target.id, action === "disable"))
+          throw conflict("Vínculo de acesso alterado.");
         if (
           shouldEnable &&
           target.kind === "provider" &&

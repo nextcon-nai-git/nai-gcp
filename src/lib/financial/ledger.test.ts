@@ -91,6 +91,15 @@ describe("ledger accounting integrity", () => {
     expect(csv).toContain('"\'=CMD(""x"")"');
     expect(csv).toContain("Página final");
   });
+  it("escapes formulas hidden after whitespace in imported account names and history", () => {
+    const csv = ledgerCsv([
+      row("x", "D", 12345, { accountName: "  =1+1", history: "\n@SUM(1)", costCenter: 'A;"B"' }),
+    ]);
+    expect(csv).toContain('"\'  =1+1"');
+    expect(csv).toContain('"\'\n@SUM(1)"');
+    expect(csv).toContain('"A;""B"""');
+    expect(csv).toContain('"123,45"');
+  });
 });
 describe("corporate ledger authorization", () => {
   const user = (role: AuthContext["role"], tenantId: string | null = null): AuthContext => ({

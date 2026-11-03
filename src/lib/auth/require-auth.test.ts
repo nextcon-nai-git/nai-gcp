@@ -65,3 +65,16 @@ it.each(["OPERATIONS", "DOCTOR", "SUPER_ADMIN"])("denies a suspended %s profile"
     status: 403,
   });
 });
+it.each(["OPERATIONS", "DOCTOR", "SUPER_ADMIN", "SCOPED_PROVIDER"])(
+  "denies a deleted %s profile even while its Firebase session remains valid",
+  async (role) => {
+    mocks.get.mockResolvedValue({
+      exists: true,
+      data: () => ({ role, accessEnabled: true, isDeleted: true, companyId: "nextcon" }),
+    });
+    await expect(requireAuth(request("/api/expert/workspace"))).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(mocks.verify).toHaveBeenCalledWith("synthetic", true);
+  }
+);

@@ -31,8 +31,11 @@ export async function POST(request: NextRequest) {
   } catch (e) {
     if (e instanceof AuthError) return handleAuthError(e);
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Não foi possível analisar o documento." },
-      { status: 422 }
+      {
+        error:
+          "Não foi possível analisar o documento. Tente novamente ou divida o arquivo por unidade.",
+      },
+      { status: 422, headers: { "Cache-Control": "private, no-store" } }
     );
   }
 }

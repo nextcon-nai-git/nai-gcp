@@ -201,11 +201,22 @@ describe("endereços, identificador do caso e anexos recebidos", () => {
       "A <a@example.test>, B <b@example.test>",
       "A <a@example.test> <b@example.test>",
       "A <a@example.test>\r\nCc: b@example.test",
+      '"Clínica, Centro" <a@example.test>, B <b@example.test>',
+      '"Clínica sem fechamento <a@example.test>',
+      'Clínica sem abertura" <a@example.test>',
       "<a@example.test,b@example.test>",
       "group: a@example.test;",
       "",
     ])
       expect(singleAsoMailSender(header)).toBeNull();
+  });
+  it("reconhece uma única clínica cujo nome entre aspas contém vírgula ou aspas escapadas", () => {
+    expect(singleAsoMailSender('"Clínica, Unidade Centro" <CLINIC@example.test>')).toBe(
+      "clinic@example.test"
+    );
+    expect(singleAsoMailSender('"Clínica \\"Centro\\", Atendimento" <clinic@example.test>')).toBe(
+      "clinic@example.test"
+    );
   });
   it("trata cabeçalhos duplicados como ambíguos mesmo com capitalização diferente", () => {
     expect(

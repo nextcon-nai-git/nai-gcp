@@ -253,6 +253,14 @@ describe("batch protocol is separate from event acceptance", () => {
       ).status
     ).toBe("rejected");
   });
+  it("does not classify an undocumented submission code as a definitive rejection", () => {
+    expect(
+      parseEsocialSubmissionResponse(
+        submission.replace("<cdResposta>201", "<cdResposta>499"),
+        sendInput
+      )
+    ).toMatchObject({ status: "uncertain", code: "499" });
+  });
   it("returns processing with the government recommended consultation delay", () => {
     expect(parseEsocialQueryResponse(processing, queryInput)).toMatchObject({
       status: "processing",
@@ -291,6 +299,25 @@ describe("batch protocol is separate from event acceptance", () => {
       issues: [{ code: "106", type: "error" }],
     });
     expect(result.events[0]).not.toHaveProperty("receipt");
+  });
+  it.each(["101", "203", "302", "499", "999"])(
+    "does not turn undocumented event result %s into a definitive rejection",
+    (code) => {
+      const response = rejected
+        .replace("<cdResposta>401", `<cdResposta>${code}`)
+        .replace(/<ocorrencias>[\s\S]*?<\/ocorrencias>/g, "");
+      expect(() => parseEsocialQueryResponse(response, queryInput)).toThrowError(
+        expect.objectContaining({ code: "RESPONSE_UNKNOWN" })
+      );
+    }
+  );
+  it("preserves a temporary event-level 301 as an unconfirmed result instead of allowing a replacement", () => {
+    const response = rejected
+      .replace("<cdResposta>401", "<cdResposta>301")
+      .replace(/<ocorrencias>[\s\S]*?<\/ocorrencias>/g, "");
+    expect(() => parseEsocialQueryResponse(response, queryInput)).toThrowError(
+      expect.objectContaining({ code: "ESOCIAL_TEMPORARY_ERROR" })
+    );
   });
   it("rejects a different signed-content hash even with matching ID, employer and a duplicate receipt", () => {
     const duplicate = completed.replace(
@@ -358,6 +385,14 @@ describe("batch protocol is separate from event acceptance", () => {
         queryInput
       )
     ).toThrow("erro temporário");
+  });
+  it.each(["499", "599"])("refuses an undocumented batch/query result %s", (code) => {
+    expect(() =>
+      parseEsocialQueryResponse(
+        processing.replace("<cdResposta>101", `<cdResposta>${code}`),
+        queryInput
+      )
+    ).toThrowError(expect.objectContaining({ code: "RESPONSE_UNKNOWN" }));
   });
   it("rejects SOAP 1.2, unrelated namespaces, duplicate bodies, DTD and faults", () => {
     expect(() =>

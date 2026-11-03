@@ -380,6 +380,17 @@ describe("ASO email evidence and delivery", () => {
 });
 
 describe("incoming PDFs remain candidates until reviewed", () => {
+  it("does not release attachment bytes after permission is revoked during download", async () => {
+    seedCandidate();
+    m.getCard.mockResolvedValueOnce(structuredClone(card));
+    m.getCard.mockRejectedValueOnce(new AuthError("Acesso revogado.", 403));
+    await expect(readAsoMailCandidate(user, id, candidateId)).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(m.file).toHaveBeenCalled();
+    expect(m.upload).not.toHaveBeenCalled();
+    expect(db.get(`${root}/inbox/${candidateId}`)?.acceptedAt).toBeUndefined();
+  });
   it("can reach pending attachments after a full page of previously accepted candidates", async () => {
     for (let number = 1; number <= 201; number++) {
       const key = number.toString(16).padStart(64, "0");

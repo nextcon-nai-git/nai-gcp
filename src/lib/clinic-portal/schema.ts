@@ -95,10 +95,13 @@ export function grantFor(
   identity: { uid: string; email?: string; email_verified?: boolean },
   now = Date.now()
 ) {
+  const expiresAt = Date.parse(record.expiresAt);
   if (
-    record.revoked ||
-    Date.parse(record.expiresAt) <= now ||
-    !identity.email_verified ||
+    record.revoked !== false ||
+    !Number.isFinite(expiresAt) ||
+    !Number.isFinite(now) ||
+    expiresAt <= now ||
+    identity.email_verified !== true ||
     !identity.email
   )
     return null;

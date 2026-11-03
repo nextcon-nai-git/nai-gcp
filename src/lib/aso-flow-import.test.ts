@@ -70,6 +70,11 @@ describe("importação de solicitações de ASO", () => {
       cycle: "",
     });
   });
+  it("preserva nomes de propriedades de objeto como texto para a validação do servidor", () => {
+    const unknownType = [...row];
+    unknownType[6] = "constructor";
+    expect(parseAsoFlowTable([headers, unknownType])[0].examType).toBe("constructor");
+  });
   it("não presume que CNPJ de clínica seja o empregador e rejeita colunas ambíguas", () => {
     expect(() => parseAsoFlowTable([["CNPJ clínica", ...headers.slice(1)], row])).toThrow(
       "CNPJ empregador"

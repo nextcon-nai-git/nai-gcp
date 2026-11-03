@@ -57,6 +57,27 @@ describe("clinic portal isolation", () => {
     expect(grantFor({ ...record, revoked: true }, doctor)).toBeNull();
     expect(grantFor(record, doctor, Date.parse(record.expiresAt))).toBeNull();
   });
+  it.each([undefined, null, "", "not-a-timestamp"])(
+    "rejects an invitation whose expiration cannot be established (%s)",
+    (expiresAt) => {
+      expect(grantFor({ ...record, expiresAt } as PortalRecord, doctor)).toBeNull();
+    }
+  );
+  it.each([NaN, Infinity, -Infinity])("rejects a non-finite clock (%s)", (now) => {
+    expect(grantFor(record, doctor, now)).toBeNull();
+  });
+  it("allows access only before the exact expiration boundary", () => {
+    const expiresAt = Date.parse(record.expiresAt);
+    expect(grantFor(record, doctor, expiresAt - 1)).toMatchObject({ role: "doctor" });
+    expect(grantFor(record, doctor, expiresAt)).toBeNull();
+    expect(grantFor(record, doctor, expiresAt + 1)).toBeNull();
+  });
+  it.each([undefined, null, 0, "false"])(
+    "does not treat an invalid revocation state as a current invitation (%s)",
+    (revoked) => {
+      expect(grantFor({ ...record, revoked } as unknown as PortalRecord, doctor)).toBeNull();
+    }
+  );
   it("does not expose any clinical data or grants to reception", () => {
     const view = portalView(record, "reception");
     for (const key of ["clinical", "risks", "exams", "grants", "audit", "sourcePath", "ownerUid"])

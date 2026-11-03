@@ -116,16 +116,17 @@ describe("monitor interno de ASOs por e-mail", () => {
     expect(mocks.profile).not.toHaveBeenCalled();
     expect(mocks.sync).not.toHaveBeenCalled();
   });
-  it.each([undefined, { role: "ADMIN", accessEnabled: false }])(
-    "não usa perfil ausente ou suspenso: %j",
-    async (profile) => {
-      mocks.profile.mockResolvedValue({ data: () => profile });
-      privateResponse(await POST(request()), 403);
-      expect(mocks.collection).toHaveBeenCalledWith("users");
-      expect(mocks.doc).toHaveBeenCalledWith(operator);
-      expect(mocks.sync).not.toHaveBeenCalled();
-    }
-  );
+  it.each([
+    undefined,
+    { role: "ADMIN", accessEnabled: false },
+    { role: "SUPER_ADMIN", accessEnabled: true, isDeleted: true },
+  ])("não usa perfil ausente, suspenso ou excluído: %j", async (profile) => {
+    mocks.profile.mockResolvedValue({ data: () => profile });
+    privateResponse(await POST(request()), 403);
+    expect(mocks.collection).toHaveBeenCalledWith("users");
+    expect(mocks.doc).toHaveBeenCalledWith(operator);
+    expect(mocks.sync).not.toHaveBeenCalled();
+  });
   it.each([
     { role: "SCOPED_PROVIDER", accessEnabled: true, servedCompanies: ["company-a"] },
     { role: "PROVIDER", accessEnabled: true },

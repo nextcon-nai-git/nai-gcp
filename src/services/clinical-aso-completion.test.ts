@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
   storageExists: true,
   storageMetadataReads: 0,
   replaceDuringRead: false,
+  suspendDoctorDuringRead: false,
 }));
 
 vi.mock("firebase-admin/firestore", () => ({
@@ -40,6 +41,11 @@ vi.mock("firebase-admin/storage", () => ({
               (options?.generation && options.generation !== state.storageGeneration)
             )
               throw new Error("generation not found");
+            if (state.suspendDoctorDuringRead)
+              state.records.set("users/synthetic-doctor", {
+                ...state.records.get("users/synthetic-doctor"),
+                accessEnabled: false,
+              });
             return [Buffer.from(state.storageBytes)];
           },
         };
@@ -165,6 +171,7 @@ function seed() {
   state.storageExists = true;
   state.storageMetadataReads = 0;
   state.replaceDuringRead = false;
+  state.suspendDoctorDuringRead = false;
   state.transactionQueue = Promise.resolve();
   state.records.set("users/synthetic-doctor", {
     role: "DOCTOR",
@@ -307,6 +314,49 @@ describe("vínculo clínico de ASO à fila", () => {
     await expect(reviewClinicalAso(user, reviewInput)).rejects.toThrow("atualmente autorizado");
     expect(state.records.get(clinicalPath)?.clinicalReview).toBeUndefined();
   });
+
+  it.each([
+    ["accessEnabled", false],
+    ["isDeleted", true],
+  ] as const)(
+    "recusa perfil clínico indisponível por %s antes de ler o original",
+    async (field, value) => {
+      state.records.set("users/synthetic-doctor", {
+        ...state.records.get("users/synthetic-doctor"),
+        [field]: value,
+      });
+      await expect(readClinicalAsoOriginal(user, { companyId, cardId })).rejects.toMatchObject({
+        status: 403,
+      });
+      await expect(reviewClinicalAso(user, reviewInput)).rejects.toMatchObject({ status: 403 });
+      await expect(completeClinicalAppointmentWithAso(user, completeInput)).rejects.toMatchObject({
+        status: 403,
+      });
+      expect(state.storageMetadataReads).toBe(0);
+      expect(state.records.get(clinicalPath)?.clinicalReview).toBeUndefined();
+      expect(state.records.has(auditPath)).toBe(false);
+    }
+  );
+
+  it.each(["original", "review", "complete"] as const)(
+    "respeita suspensão durante a leitura do PDF em %s sem liberar bytes ou concluir atendimento",
+    async (operation) => {
+      if (operation === "complete") await reviewClinicalAso(user, reviewInput);
+      state.suspendDoctorDuringRead = true;
+      const result =
+        operation === "original"
+          ? readClinicalAsoOriginal(user, { companyId, cardId })
+          : operation === "review"
+            ? reviewClinicalAso(user, reviewInput)
+            : completeClinicalAppointmentWithAso(user, completeInput);
+      await expect(result).rejects.toMatchObject({ status: 403 });
+      expect(state.records.get(appointmentPath)?.status).toBe("Em Atendimento");
+      expect(state.records.get(clinicalPath)?.linkedAppointmentId).toBeUndefined();
+      expect(state.records.has(auditPath)).toBe(false);
+      if (operation !== "complete")
+        expect(state.records.get(clinicalPath)?.clinicalReview).toBeUndefined();
+    }
+  );
 
   it("autoriza médico externo apenas pela empresa explicitamente servida", async () => {
     state.records.set("users/synthetic-doctor", {

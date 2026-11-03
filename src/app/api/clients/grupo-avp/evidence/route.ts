@@ -50,10 +50,19 @@ export async function GET(req: NextRequest) {
       const record = (await collection().doc(id).get()).data();
       if (!record || record.kind !== "aso" || !record.uploaded)
         throw new AuthError("ASO ainda não anexado.", 404);
+      if (typeof record.fileHash !== "string" || !/^[a-f0-9]{64}$/.test(record.fileHash))
+        throw new AuthError("Referência do ASO inválida. Confira o documento de origem.", 409);
       const [bytes] = await getStorage()
         .bucket(firebaseConfig.storageBucket)
         .file(filePath(record.fileHash))
         .download();
+      // The Storage read may outlive an account or AVP-scope revocation.
+      await access(req);
+      if (createHash("sha256").update(bytes).digest("hex") !== record.fileHash)
+        throw new AuthError(
+          "Integridade do ASO não confirmada. Confira o documento de origem.",
+          409
+        );
       return new NextResponse(new Uint8Array(bytes), {
         headers: {
           ...headers,

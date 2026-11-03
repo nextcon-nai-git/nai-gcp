@@ -63,6 +63,8 @@ function requireCurrentDoctor(
 ) {
   const servedCompanies = Array.isArray(profile?.servedCompanies) ? profile.servedCompanies : [];
   if (
+    profile?.accessEnabled === false ||
+    profile?.isDeleted === true ||
     user.role !== "DOCTOR" ||
     profile?.role !== "DOCTOR" ||
     !(
@@ -369,6 +371,13 @@ export async function readClinicalAsoOriginal(user: AuthContext, input: AsoDocum
   }[extension];
   if (!mime) throw badRequest("Formato do original do ASO inválido.");
   const { bytes } = await verifyAsoOriginal(clinical.data()!, input.cardId);
+  // Storage reads may outlive an access revocation. Do not return clinical bytes
+  // using only the profile that was read before the download started.
+  requireCurrentDoctor(
+    (await adminDb.collection("users").doc(user.uid).get()).data(),
+    user,
+    input.companyId
+  );
   return { bytes, mime };
 }
 

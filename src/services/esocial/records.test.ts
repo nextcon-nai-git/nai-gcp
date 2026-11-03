@@ -6,13 +6,18 @@ const state = vi.hoisted(() => ({
   docs: new Map<string, any>(),
   reads: [] as string[],
   writes: [] as { path: string; data: any }[],
+  afterRead: undefined as ((path: string) => void) | undefined,
+  failAuditWrites: false,
 }));
 vi.mock("@/lib/firebase-admin", () => {
-  const snapshot = (path: string) => ({
-    id: path.split("/").at(-1)!,
-    exists: state.docs.has(path),
-    data: () => state.docs.get(path),
-  });
+  const snapshot = (path: string) => {
+    const value = state.docs.has(path) ? structuredClone(state.docs.get(path)) : undefined;
+    return {
+      id: path.split("/").at(-1)!,
+      exists: value !== undefined,
+      data: () => value,
+    };
+  };
   function document(path: string): any {
     return {
       path,
@@ -20,9 +25,12 @@ vi.mock("@/lib/firebase-admin", () => {
       collection: (name: string) => collection(`${path}/${name}`),
       get: async () => {
         state.reads.push(path);
-        return snapshot(path);
+        const value = snapshot(path);
+        state.afterRead?.(path);
+        return value;
       },
       set: async (data: any) => {
+        if (state.failAuditWrites && path.includes("/audit/")) throw Error("Audit unavailable");
         state.writes.push({ path, data });
         state.docs.set(path, data);
       },
@@ -56,6 +64,39 @@ vi.mock("@/lib/firebase-admin", () => {
     adminDb: {
       collection: (path: string) => collection(path),
       getAll: async (...refs: any[]) => Promise.all(refs.filter((r) => r.path).map((r) => r.get())),
+      runTransaction: async (run: (transaction: any) => Promise<any>) => {
+        // Model optimistic read conflicts, rollback, atomic audit and Firestore's read-before-write rule.
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const reads = new Map<string, string | undefined>();
+          const writes: { path: string; data: any; create: boolean }[] = [];
+          let writing = false;
+          const write = (ref: any, data: any, create: boolean) => {
+            writing = true;
+            if (state.failAuditWrites && ref.path.includes("/audit/"))
+              throw Error("Audit unavailable");
+            writes.push({ path: ref.path, data: structuredClone(data), create });
+          };
+          const result = await run({
+            get: async (ref: any) => {
+              if (writing) throw Error("Read after write");
+              reads.set(ref.path, JSON.stringify(state.docs.get(ref.path)));
+              return ref.get();
+            },
+            set: (ref: any, data: any) => write(ref, data, false),
+            create: (ref: any, data: any) => write(ref, data, true),
+          });
+          if ([...reads].some(([path, value]) => JSON.stringify(state.docs.get(path)) !== value))
+            continue;
+          if (writes.some((entry) => entry.create && state.docs.has(entry.path)))
+            throw Error("Already exists");
+          for (const { path, data } of writes) {
+            state.docs.set(path, data);
+            state.writes.push({ path, data });
+          }
+          return result;
+        }
+        throw Error("Transaction contention");
+      },
     },
   };
 });
@@ -91,6 +132,16 @@ const inputLink = {
   reference: "Folha revisada pelo empregador",
   confirmed: true,
 };
+const inputGrant = {
+  companyId: "company-a",
+  granteeRegistration: "11.222.333/0001-81",
+  profiles: ["sst"],
+  validFrom: "2026-01-01",
+  validUntil: "2026-12-31",
+  reference: "Procuração conferida",
+  active: true,
+  confirmed: true,
+};
 function grant(patch: Partial<EsocialGrant> = {}): EsocialGrant {
   return {
     companyId: "company-a",
@@ -115,6 +166,8 @@ beforeEach(() => {
   state.docs.clear();
   state.reads.length = 0;
   state.writes.length = 0;
+  state.afterRead = undefined;
+  state.failAuditWrites = false;
   state.docs.set("users/operator-a", {
     role: "OPERATIONS",
     accessEnabled: true,
@@ -191,6 +244,7 @@ describe("carteira, cadastro atual e confirmação do vínculo", () => {
   });
   it.each([
     { accessEnabled: false, role: "OPERATIONS", servedCompanies: ["company-a"] },
+    { accessEnabled: true, isDeleted: true, role: "ADMIN", servedCompanies: ["company-a"] },
     { accessEnabled: true, role: "OPERATIONS", servedCompanies: [] },
     { accessEnabled: true, role: "ADMIN", tenantId: "company-a" },
     { accessEnabled: true, role: "GUEST", servedCompanies: ["company-a"] },
@@ -214,6 +268,53 @@ describe("carteira, cadastro atual e confirmação do vínculo", () => {
     await expect(saveEsocialEmployeeLink(operator, inputLink)).rejects.toMatchObject({
       status: 400,
     });
+    expect(state.writes).toHaveLength(0);
+  });
+  it("não confirma vínculo quando o acesso é revogado depois da leitura inicial do cadastro", async () => {
+    const previous = structuredClone(state.docs.get(linkPath));
+    state.afterRead = (path) => {
+      if (path !== "companies/company-a/employees/employee-a") return;
+      state.afterRead = undefined;
+      state.docs.get("users/operator-a").accessEnabled = false;
+    };
+    await expect(saveEsocialEmployeeLink(operator, inputLink)).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(state.docs.get(linkPath)).toEqual(previous);
+    expect(state.writes).toHaveLength(0);
+  });
+  it("não reaproveita a confirmação se o CPF muda durante a operação", async () => {
+    const previous = structuredClone(state.docs.get(linkPath));
+    state.afterRead = (path) => {
+      if (path !== "companies/company-a/employees/employee-a") return;
+      state.afterRead = undefined;
+      state.docs.get(path).cpf = "529.982.247-25";
+    };
+    await expect(saveEsocialEmployeeLink(operator, inputLink)).rejects.toMatchObject({
+      status: 409,
+    });
+    expect(state.docs.get(linkPath)).toEqual(previous);
+    expect(state.writes).toHaveLength(0);
+  });
+  it("revalida autorização quando o Firestore repete uma transação que perdeu a corrida", async () => {
+    let profileReads = 0;
+    state.afterRead = (path) => {
+      if (path !== "users/operator-a" || ++profileReads !== 2) return;
+      state.afterRead = undefined;
+      state.docs.get(path).servedCompanies = [];
+    };
+    await expect(saveEsocialEmployeeLink(operator, inputLink)).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(state.writes).toHaveLength(0);
+  });
+  it("falha na auditoria não aplica a alteração da matrícula", async () => {
+    const previous = structuredClone(state.docs.get(linkPath));
+    state.failAuditWrites = true;
+    await expect(
+      saveEsocialEmployeeLink(operator, { ...inputLink, matricula: "CHANGED-002" })
+    ).rejects.toThrow("Audit unavailable");
+    expect(state.docs.get(linkPath)).toEqual(previous);
     expect(state.writes).toHaveLength(0);
   });
 });
@@ -289,6 +390,20 @@ describe("resolução exata empregador/CPF/matrícula antes da assinatura", () =
     state.docs.set("companies/company-a/employees/duplicate", {
       cpf: "12345678909",
       name: "Duplicado",
+    });
+    await expect(
+      resolveEsocialIdentity(esocialReader, "company-a", employer, worker)
+    ).rejects.toThrow("único");
+  });
+  it("não declara CPF único quando registros excluídos ocultam outro colaborador além do limite", async () => {
+    for (let index = 0; index < 3; index++)
+      state.docs.set(`companies/company-a/employees/deleted-${index}`, {
+        cpf: "12345678909",
+        isDeleted: true,
+      });
+    state.docs.set("companies/company-a/employees/hidden-duplicate", {
+      cpf: "12345678909",
+      name: "Outro colaborador ativo",
     });
     await expect(
       resolveEsocialIdentity(esocialReader, "company-a", employer, worker)
@@ -421,5 +536,42 @@ describe("procuração confirmada: cliente, titular, vigência e perfil do event
           confirmed: true,
         })
       ).rejects.toMatchObject({ status: 400 });
+  });
+  it("não confirma procuração após perda concorrente do papel de administrador", async () => {
+    const previous = structuredClone(state.docs.get(grantPath));
+    state.docs.get("users/operator-a").role = "ADMIN";
+    state.afterRead = (path) => {
+      if (path !== "companies/company-a") return;
+      state.afterRead = undefined;
+      state.docs.get("users/operator-a").role = "OPERATIONS";
+    };
+    await expect(saveEsocialGrant(admin, inputGrant)).rejects.toMatchObject({ status: 403 });
+    expect(state.docs.get(grantPath)).toEqual(previous);
+    expect(state.writes).toHaveLength(0);
+  });
+  it.each([saveEsocialEmployeeLink, saveEsocialGrant])(
+    "não vincula uma confirmação a outro empregador após mudança concorrente do CNPJ %#",
+    async (save) => {
+      state.docs.get("users/operator-a").role = "ADMIN";
+      state.afterRead = (path) => {
+        if (path !== "companies/company-a") return;
+        state.afterRead = undefined;
+        state.docs.get(path).cnpj = "11.222.333/0001-81";
+      };
+      await expect(
+        save(admin, save === saveEsocialGrant ? inputGrant : inputLink)
+      ).rejects.toMatchObject({ status: 409 });
+      expect(state.writes).toHaveLength(0);
+    }
+  );
+  it("falha na auditoria preserva a procuração anterior", async () => {
+    const previous = structuredClone(state.docs.get(grantPath));
+    state.docs.get("users/operator-a").role = "ADMIN";
+    state.failAuditWrites = true;
+    await expect(saveEsocialGrant(admin, { ...inputGrant, active: false })).rejects.toThrow(
+      "Audit unavailable"
+    );
+    expect(state.docs.get(grantPath)).toEqual(previous);
+    expect(state.writes).toHaveLength(0);
   });
 });

@@ -537,12 +537,15 @@ describe("mensageria: revisão, isolamento e idempotência", () => {
     ).rejects.toMatchObject({ status: 403 });
     expect(m.send).not.toHaveBeenCalled();
   });
-  it("recusa operador suspenso na transação, mesmo com token previamente aceito", async () => {
-    const draft = await prepare();
-    db.get("users/operator")!.accessEnabled = false;
-    await expect(approve(draft)).rejects.toMatchObject({ status: 403 });
-    expect(m.send).not.toHaveBeenCalled();
-  });
+  it.each([{ accessEnabled: false }, { isDeleted: true }])(
+    "recusa operador suspenso/excluído na transação, mesmo com token previamente aceito (%j)",
+    async (revocation) => {
+      const draft = await prepare();
+      Object.assign(db.get("users/operator")!, revocation);
+      await expect(approve(draft)).rejects.toMatchObject({ status: 403 });
+      expect(m.send).not.toHaveBeenCalled();
+    }
+  );
   it("aprovação exige identidade e documento conferidos", async () => {
     const draft = await prepare();
     await expect(
@@ -634,6 +637,41 @@ describe("mensageria: revisão, isolamento e idempotência", () => {
     });
     expect((await downloadEsocialDocument(user, event.id, "signed")).xml).toContain("Signature");
   });
+  it("não abre XML para um perfil revogado mesmo quando a requisição começou com claims válidos", async () => {
+    const event = await prepare();
+    db.get("users/operator")!.accessEnabled = false;
+    m.file.mockClear();
+    await expect(downloadEsocialDocument(user, event.id, "unsigned")).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(m.file).not.toHaveBeenCalled();
+    expect([...db.keys()].filter((key) => key.includes("/documentAccess/"))).toHaveLength(0);
+  });
+  it.each(["suspension", "scope"])(
+    "não devolve XML se o operador perde acesso durante o download (%s)",
+    async (revocation) => {
+      const event = await prepare();
+      m.file.mockImplementation((filePath: string) => ({
+        getMetadata: async () => [{ size: files.get(filePath)?.length }],
+        download: async () => {
+          if (revocation === "suspension") db.get("users/operator")!.accessEnabled = false;
+          else
+            db.set("users/operator", {
+              role: "OPERATIONS",
+              accessEnabled: true,
+              servedCompanies: ["TWO"],
+            });
+          return [Buffer.from(files.get(filePath)!)];
+        },
+      }));
+      await expect(downloadEsocialDocument(user, event.id, "unsigned")).rejects.toMatchObject({
+        status: 403,
+      });
+      expect([...db.keys()].filter((key) => key.includes("/documentAccess/"))).toHaveLength(0);
+      expect(m.send).not.toHaveBeenCalled();
+      expect(m.query).not.toHaveBeenCalled();
+    }
+  );
   it("verifica o hash do XML aprovado antes de assinar", async () => {
     const event = await approve(await prepare()),
       object = db.get(path(event.id))!.artifacts.unsigned;

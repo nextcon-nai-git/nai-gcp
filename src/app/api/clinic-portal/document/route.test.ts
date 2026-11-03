@@ -182,6 +182,15 @@ describe("signed ASO isolation", () => {
     expect((await GET(req("GET"))).status).toBe(200);
   });
 
+  it("denies deleted profiles even if accessEnabled remains true", async () => {
+    m.profileData = { role: "DOCTOR", accessEnabled: true, isDeleted: true };
+    expect((await GET(req("GET"))).status).toBe(403);
+    expect((await POST(uploadRequest())).status).toBe(403);
+    expect(m.download).not.toHaveBeenCalled();
+    expect(m.save).not.toHaveBeenCalled();
+    expect(m.transaction).not.toHaveBeenCalled();
+  });
+
   it("blocks downloads without login and when disabled", async () => {
     expect((await GET(req("GET", false))).status).toBe(401);
     vi.stubEnv("CLINIC_PORTAL_ENABLED", "false");
@@ -288,9 +297,37 @@ describe("signed ASO isolation", () => {
       headers: { authorization: "token", "content-length": "9999999" },
       body: "invalid",
     });
-    expect((await POST(r)).status).toBe(400);
+    expect((await POST(r)).status).toBe(413);
     expect(m.save).not.toHaveBeenCalled();
   });
+
+  it.each([undefined, "1"])(
+    "bounds the actual upload stream when Content-Length is %s",
+    async (length) => {
+      const cancel = vi.fn();
+      const request = new NextRequest("https://nai.test/api/clinic-portal/document", {
+        method: "POST",
+        headers: {
+          authorization: "token",
+          "content-type": "multipart/form-data; boundary=synthetic",
+          ...(length ? { "content-length": length } : {}),
+        },
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(new Uint8Array(3 * 1024 * 1024));
+            controller.enqueue(new Uint8Array(3 * 1024 * 1024));
+          },
+          cancel,
+        }),
+        duplex: "half",
+      } as ConstructorParameters<typeof NextRequest>[1]);
+      const response = await POST(request);
+      expect(response.status).toBe(413);
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(m.save).not.toHaveBeenCalled();
+      expect(m.transaction).not.toHaveBeenCalled();
+    }
+  );
 
   it("rejects PDFs without the doctor review attestation", async () => {
     const data = new FormData();
@@ -303,6 +340,13 @@ describe("signed ASO isolation", () => {
 
 describe("signed ASO upload receipt and recovery", () => {
   beforeEach(pendingDocument);
+
+  it("accepts a bounded multipart upload without a Content-Length header", async () => {
+    const request = uploadRequest();
+    request.headers.delete("content-length");
+    expect((await POST(request)).status).toBe(200);
+    expect(m.save).toHaveBeenCalledOnce();
+  });
 
   it("confirms the persisted receipt without claiming validation of the signature", async () => {
     const response = await POST(uploadRequest());

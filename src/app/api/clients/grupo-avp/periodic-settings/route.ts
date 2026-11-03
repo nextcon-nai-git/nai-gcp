@@ -3,6 +3,7 @@ import { z } from "zod/v3";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { requireAvpAccess } from "@/lib/auth/avp-access";
 import { AuthError, handleAuthError } from "@/lib/auth/errors";
+import { limitedBytes } from "@/lib/http/private-api";
 import { spreadsheetIdFromUrl } from "@/lib/avp-periodic-live";
 import { configureAvpPeriodicSources, getAvpPeriodicSettings } from "@/services/avp-periodic-sync";
 export const dynamic = "force-dynamic";
@@ -41,7 +42,17 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await authorize(req);
-    const raw = await req.text();
+    let raw: string;
+    try {
+      raw = req.body ? new TextDecoder().decode(await limitedBytes(req, 4096)) : "";
+    } catch (error) {
+      if (error instanceof AuthError && error.status === 413)
+        return NextResponse.json(
+          { error: "Configuração excede o limite." },
+          { status: 413, headers }
+        );
+      throw error;
+    }
     if (Buffer.byteLength(raw) > 4096)
       return NextResponse.json(
         { error: "Configuração excede o limite." },

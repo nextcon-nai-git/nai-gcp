@@ -52,7 +52,7 @@ export async function currentEsocialUser(
   const reference = adminDb.collection("users").doc(user.uid);
   const snapshot = transaction ? await transaction.get(reference) : await reference.get();
   const profile = snapshot.data();
-  if (!snapshot.exists || !profile || profile.accessEnabled === false)
+  if (!snapshot.exists || !profile || profile.accessEnabled === false || profile.isDeleted === true)
     throw forbidden("O acesso do operador foi suspenso ou removido.");
   const claims = parseClaims(profile);
   const current: AuthContext = {

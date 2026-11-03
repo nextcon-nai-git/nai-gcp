@@ -68,3 +68,37 @@ describe("Daily reports write boundary", () => {
     expect(mock.create).not.toHaveBeenCalled();
   });
 });
+
+it.each([undefined, "1"])(
+  "cancels oversized streaming input before persistence when Content-Length is %s",
+  async (length) => {
+    const cancel = vi.fn();
+    const request = new NextRequest("https://nai.test/api/bounded-input", {
+      method: "POST",
+      headers: length ? { "content-length": length } : {},
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array(131072));
+          controller.enqueue(new Uint8Array(1));
+        },
+        cancel,
+      }),
+      duplex: "half",
+    } as ConstructorParameters<typeof NextRequest>[1]);
+    expect((await POST(request)).status).toBe(413);
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(mock.transaction).not.toHaveBeenCalled();
+  }
+);
+
+it("rejects malformed JSON without writing or returning request content", async () => {
+  const response = await POST(
+    new NextRequest("https://nai.test/api/bounded-input", {
+      method: "POST",
+      body: "synthetic-private-input",
+    })
+  );
+  expect(response.status).toBe(400);
+  expect(await response.text()).not.toContain("synthetic-private-input");
+  expect(mock.transaction).not.toHaveBeenCalled();
+});

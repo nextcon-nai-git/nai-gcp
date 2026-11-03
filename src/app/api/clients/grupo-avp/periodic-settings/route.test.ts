@@ -74,3 +74,27 @@ it("não divulga detalhes de credenciais e informa conflito sem sobrescrever", a
   m.configure.mockRejectedValueOnce(new Error("CONFLICT"));
   expect((await POST(request())).status).toBe(409);
 });
+it.each([undefined, "1"])(
+  "interrompe corpo acima do limite com Content-Length %s sem consultar fontes",
+  async (length) => {
+    const cancel = vi.fn();
+    const streamed = new NextRequest("https://example.test/periodic-settings", {
+      method: "POST",
+      headers: length ? { "content-length": length } : {},
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array(2048));
+          controller.enqueue(new Uint8Array(2049));
+        },
+        cancel,
+      }),
+      duplex: "half",
+    } as ConstructorParameters<typeof NextRequest>[1]);
+    const response = await POST(streamed);
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: "Configuração excede o limite." });
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(m.configure).not.toHaveBeenCalled();
+  }
+);

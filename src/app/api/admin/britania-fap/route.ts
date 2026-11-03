@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase-admin";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { AuthError, forbidden } from "@/lib/auth/errors";
+import { limitedBytes } from "@/lib/http/private-api";
 import { fapDossierSchema } from "@/lib/britania-dossier";
 import { isBritaniaFapAdmin } from "@/lib/auth/britania-fap-access";
 import { BRITANIA_ANCHOR, BRITANIA_GROUP_NAME, isBritaniaSite } from "@/lib/britania-group";
@@ -43,9 +44,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await authorize(request);
-    const raw = await request.text();
-    if (Buffer.byteLength(raw) > 850000)
-      throw new AuthError("Dossiê excede o limite. Divida a revisão em lotes.", 413);
+    const raw = (await limitedBytes(request, 850000)).toString("utf8");
     let parsed;
     try {
       parsed = fapDossierSchema.safeParse(JSON.parse(raw));

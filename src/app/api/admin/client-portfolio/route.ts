@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase-admin";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { AuthError, forbidden, handleAuthError } from "@/lib/auth/errors";
+import { limitedBytes } from "@/lib/http/private-api";
 import { APPROVED_PORTFOLIO, SANTANDER_RECORD, portfolioGroup } from "@/lib/client-portfolio";
 export const dynamic = "force-dynamic";
 const migrationId = "client-portfolio-approved-2026-10-07";
@@ -51,8 +52,14 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await authorize(request);
-    const body = await request.json();
-    if (typeof body.revision !== "string")
+    const bytes = await limitedBytes(request, 4096);
+    let body: { revision?: unknown } | null;
+    try {
+      body = JSON.parse(bytes.toString("utf8"));
+    } catch {
+      throw new AuthError("JSON inválido.", 400);
+    }
+    if (!body || typeof body !== "object" || typeof body.revision !== "string")
       return NextResponse.json(
         { error: "Revise a carteira antes de aplicar." },
         { status: 400, headers }

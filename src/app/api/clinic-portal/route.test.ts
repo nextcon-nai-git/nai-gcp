@@ -86,6 +86,46 @@ beforeEach(() => {
   });
 });
 describe("portal server authorization and persistence", () => {
+  it.each([undefined, "1"])(
+    "bounds the actual request stream when Content-Length is %s",
+    async (contentLength) => {
+      const cancel = vi.fn();
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(1500000));
+          controller.enqueue(new Uint8Array(1500000));
+        },
+        cancel,
+      });
+      const response = await POST(
+        new NextRequest("https://nai.test/api/clinic-portal", {
+          method: "POST",
+          headers: contentLength ? { "content-length": contentLength } : {},
+          body,
+          duplex: "half",
+        } as ConstructorParameters<typeof NextRequest>[1])
+      );
+      expect(response.status).toBe(413);
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(mocks.verify).not.toHaveBeenCalled();
+      expect(mocks.tx.get).not.toHaveBeenCalled();
+      expect(mocks.tx.update).not.toHaveBeenCalled();
+    }
+  );
+  it.each(["read", "confirm", "save", "submit"])(
+    "blocks %s for a deleted profile even if accessEnabled remains true",
+    async (action) => {
+      mocks.profileData = { role: "DOCTOR", accessEnabled: true, isDeleted: true };
+      const response = await POST(
+        request({ action, id, version: 0, payload: clinical, reviewed: true })
+      );
+      expect(response.status).toBe(403);
+      expect(await response.text()).not.toContain("secret history");
+      expect(mocks.tx.get).toHaveBeenCalledTimes(1);
+      expect(mocks.tx.update).not.toHaveBeenCalled();
+      expect(mocks.tx.create).not.toHaveBeenCalled();
+    }
+  );
   it.each(["read", "confirm", "save", "submit"])(
     "blocks %s for a suspended profile before reading the clinical record",
     async (action) => {
