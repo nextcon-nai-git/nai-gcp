@@ -111,6 +111,16 @@ describe("painel de periódicos AVP", () => {
     expect(vi.mocked(fetch).mock.calls.at(-1)?.[0]).toBe("/api/clients/grupo-avp/periodic-control");
     expect(host.querySelector('[aria-label="Fortaleza/CE: 1 agendados"]')).not.toBeNull();
   });
+  it("compacta a campanha em cards por cidade e expande os colaboradores sob demanda", async () => {
+    await render();
+    await click("Cards por cidade");
+    expect(host.textContent).toContain("Fortaleza/CE");
+    expect(host.textContent).toContain("1 colaboradores");
+    expect(host.textContent).not.toContain("Pessoa autorizada");
+    await click("Fortaleza/CE");
+    expect(host.textContent).toContain("Pessoa autorizada");
+    expect(host.textContent).toContain("Não iniciado");
+  });
   it("filtra estritamente acima de 40 e mantém a ressalva de preço histórico", async () => {
     await render();
     await click("Clínicas e valores");
