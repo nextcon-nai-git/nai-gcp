@@ -5,6 +5,7 @@ import { getStorage } from "firebase-admin/storage";
 import { adminDb } from "@/lib/firebase-admin";
 import { firebaseConfig } from "@/firebase/config";
 import { requireAuth } from "@/lib/auth/require-auth";
+import type { AuthContext } from "@/lib/auth/auth-context";
 import { requirePgrCompany, isPgrGlobalAdmin } from "@/lib/auth/require-pgr-access";
 import { AuthError, badRequest, forbidden } from "@/lib/auth/errors";
 import { ClientActions } from "@/lib/client-documents";
@@ -18,6 +19,15 @@ type Context = { params: Promise<{ id: string }> };
 const bucket = () => getStorage().bucket(firebaseConfig.storageBucket);
 const pdfPath = (id: string, hash: string) =>
   `client-dossiers/v1/${encodeURIComponent(id)}/${hash}/source.pdf`;
+function requireDocumentAccess(user: AuthContext, id: string, write = false) {
+  // Consolidated HR sources require internal access even for a site-scoped admin.
+  if (id === BRITANIA_ANCHOR) {
+    if (!isBritaniaFapAdmin(user))
+      throw forbidden("O acervo consolidado exige administração interna.");
+  } else requirePgrCompany(user, id);
+  if (write && !(id === BRITANIA_ANCHOR ? isBritaniaFapAdmin(user) : isPgrGlobalAdmin(user)))
+    throw forbidden("Somente a administração pode importar documentos e ações.");
+}
 function requireDocumentCompany(data: Record<string, unknown> | undefined, id: string) {
   if (data?.companyId !== id)
     throw new AuthError("O vínculo do documento exige revisão administrativa.", 409);
@@ -75,12 +85,7 @@ export async function GET(request: NextRequest, context: Context) {
   try {
     const user = await requireAuth(request);
     const { id } = await context.params;
-    // This archive contains the consolidated group's HR sources. Site-only
-    // grants cannot expose other establishments through the original PDFs.
-    if (id === BRITANIA_ANCHOR) {
-      if (!isBritaniaFapAdmin(user))
-        throw forbidden("O acervo consolidado exige administração interna.");
-    } else requirePgrCompany(user, id);
+    requireDocumentAccess(user, id);
     const documents = adminDb.collection("companies").doc(id).collection("sourceDocuments");
     const pdf = request.nextUrl.searchParams.get("pdf");
     if (pdf) {
@@ -89,6 +94,7 @@ export async function GET(request: NextRequest, context: Context) {
       if (!document.exists) throw new AuthError("Documento não encontrado.", 404);
       requireDocumentCompany(document.data(), id);
       const bytes = await verifiedPdf(id, pdf, request.signal);
+      requireDocumentAccess(await requireAuth(request), id);
       return new NextResponse(new Uint8Array(bytes), {
         headers: {
           ...headers,
@@ -99,6 +105,7 @@ export async function GET(request: NextRequest, context: Context) {
       });
     }
     const snapshot = await documents.orderBy("createdAt", "desc").limit(100).get();
+    requireDocumentAccess(await requireAuth(request), id);
     return NextResponse.json(
       { documents: snapshot.docs.map((d) => ({ ...d.data(), id: d.id })) },
       { headers }
@@ -111,12 +118,7 @@ export async function POST(request: NextRequest, context: Context) {
   try {
     const user = await requireAuth(request);
     const { id } = await context.params;
-    if (id === BRITANIA_ANCHOR) {
-      if (!isBritaniaFapAdmin(user))
-        throw forbidden("O acervo consolidado exige administração interna.");
-    } else requirePgrCompany(user, id);
-    if (!(id === BRITANIA_ANCHOR ? isBritaniaFapAdmin(user) : isPgrGlobalAdmin(user)))
-      throw forbidden("Somente a administração pode importar documentos e ações.");
+    requireDocumentAccess(user, id, true);
     if (Number(request.headers.get("content-length") || "0") > 16 * 1024 * 1024)
       throw badRequest("Limite de upload excedido.");
     const companyRef = adminDb.collection("companies").doc(id);
@@ -156,6 +158,7 @@ export async function POST(request: NextRequest, context: Context) {
         throw error;
       await verifiedPdf(id, hash, request.signal);
     }
+    requireDocumentAccess(await requireAuth(request), id, true);
     const result = await adminDb.runTransaction(async (tx) => {
       const existing = await tx.get(sourceRef);
       if (existing.exists) {

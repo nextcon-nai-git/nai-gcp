@@ -14,6 +14,17 @@ service cloud.firestore {
         : null;
     }
 
+    // Match parseClaims: an explicit tenant takes precedence over the legacy
+    // company field; a blank tenant falls back to that field, not global access.
+    function profileTenantId(profile) {
+      return profile != null && 'tenantId' in profile && profile.tenantId is string &&
+          profile.tenantId.trim() != ''
+        ? profile.tenantId
+        : profile != null && 'companyId' in profile && profile.companyId is string
+          ? profile.companyId
+          : '';
+    }
+
     function isInternalStaff(profile) {
       return profile != null && (
         profile.role == 'SUPER_ADMIN' ||
@@ -30,22 +41,21 @@ service cloud.firestore {
     function belongsToCompany(companyId) {
       let profile = getUserProfile();
       return isSignedIn() && profile != null &&
-        !(profile.role in ['PROVIDER', 'SCOPED_PROVIDER']) && profile.companyId == companyId;
+        !(profile.role in ['PROVIDER', 'SCOPED_PROVIDER']) && profileTenantId(profile) == companyId;
     }
 
     function isOperationalProvider(companyId, name) {
       let profile = getUserProfile();
       return isSignedIn() && profile != null && profile.role == 'PROVIDER' &&
         name in ['tasks', 'risks', 'pgr_cards'] &&
-        (('companyId' in profile && profile.companyId == companyId) ||
+        (profileTenantId(profile) == companyId ||
           ('servedCompanies' in profile && profile.servedCompanies is list && companyId in profile.servedCompanies));
     }
 
     function isAuthorizedDoctorForCompany(companyId) {
       let profile = getUserProfile();
       return isSignedIn() && profile != null && profile.role == 'DOCTOR' && (
-        profile.companyId == companyId ||
-        ('tenantId' in profile && profile.tenantId == companyId) ||
+        profileTenantId(profile) == companyId ||
         ('servedCompanies' in profile && profile.servedCompanies is list &&
           companyId in profile.servedCompanies)
       );
@@ -53,12 +63,12 @@ service cloud.firestore {
 
     function isCompanyAdmin(companyId) {
       let profile = getUserProfile();
-      return isSignedIn() && profile != null && profile.companyId == companyId && profile.role in ['SUPER_ADMIN', 'ADMIN', 'CLIENT_ADMIN'];
+      return isSignedIn() && profile != null && profileTenantId(profile) == companyId && profile.role in ['SUPER_ADMIN', 'ADMIN', 'CLIENT_ADMIN'];
     }
 
     function isHealthProfessionalForCompany(companyId) {
       let profile = getUserProfile();
-      return isSignedIn() && profile != null && profile.companyId == companyId && profile.role in ['DOCTOR', 'HEALTH_PROFESSIONAL', 'PROVIDER', 'ENGINEER'];
+      return isSignedIn() && profile != null && profileTenantId(profile) == companyId && profile.role in ['DOCTOR', 'HEALTH_PROFESSIONAL', 'PROVIDER', 'ENGINEER'];
     }
 
     function isSelf(userId) {
@@ -75,11 +85,7 @@ service cloud.firestore {
 
     function hasClinicalAccess(companyId) {
       let profile = getUserProfile();
-      let ownCompany = profile != null && (
-        ('tenantId' in profile && profile.tenantId == companyId) ||
-        ((!('tenantId' in profile) || profile.tenantId == null || profile.tenantId == '') &&
-          'companyId' in profile && profile.companyId == companyId)
-      );
+      let ownCompany = profileTenantId(profile) == companyId;
       return isSignedIn() && profile != null && (
         profile.role == 'SUPER_ADMIN' ||
         (profile.role == 'ADMIN' && isInternalStaff(profile)) ||
@@ -120,11 +126,7 @@ service cloud.firestore {
 
     function hasClinicalImportAccess(companyId) {
       let profile = getUserProfile();
-      let tenantId = profile != null && 'tenantId' in profile && profile.tenantId is string
-        ? profile.tenantId
-        : profile != null && 'companyId' in profile && profile.companyId is string
-          ? profile.companyId
-          : '';
+      let tenantId = profileTenantId(profile);
       return isSignedIn() && profile != null && (
         profile.role == 'SUPER_ADMIN' ||
         (profile.role == 'ADMIN' && tenantId == '') ||

@@ -56,6 +56,7 @@ vi.mock("@/lib/firebase-admin", () => {
           )
           .slice(0, limit)
           .map(snapshot);
+        state.afterRead?.(`${path}/*`);
         return { docs, size: docs.length, empty: docs.length === 0 };
       },
     };
@@ -217,11 +218,33 @@ describe("carteira, cadastro atual e confirmação do vínculo", () => {
     expect(state.reads).not.toContain("companies/company-b/employees/*");
   });
   it("administrador interno lista carteira, tenant externo não acessa mensageria", async () => {
+    state.docs.set("users/operator-a", { ...state.docs.get("users/operator-a"), role: "ADMIN" });
     expect(await listEsocialCompanies(admin)).toHaveLength(2);
     await expect(listEsocialCompanies({ ...admin, tenantId: "company-a" })).rejects.toMatchObject({
       status: 403,
     });
   });
+  it.each(["companies", "links", "grant"] as const)(
+    "recusa retorno se a carteira é revogada durante a leitura de %s",
+    async (resource) => {
+      state.afterRead = (path) => {
+        if (!path.startsWith("users/"))
+          state.docs.set("users/operator-a", {
+            role: "OPERATIONS",
+            accessEnabled: true,
+            servedCompanies: ["company-b"],
+          });
+      };
+      const response =
+        resource === "companies"
+          ? listEsocialCompanies(operator)
+          : resource === "links"
+            ? listEsocialEmployeeLinks(operator, "company-a")
+            : getEsocialGrant(operator, "company-a");
+      await expect(response).rejects.toMatchObject({ status: 403 });
+      expect(state.writes).toHaveLength(0);
+    }
+  );
   it("salva CPF do cadastro e a matrícula confirmada, com evidência e auditoria", async () => {
     const saved = await saveEsocialEmployeeLink(operator, inputLink);
     expect(saved).toMatchObject({

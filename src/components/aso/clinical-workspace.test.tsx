@@ -119,6 +119,26 @@ async function original() {
   await v.click("Carregar ASO original");
   await act(async () => document.querySelector<HTMLButtonElement>('[role="checkbox"]')!.click());
 }
+function matchingReview() {
+  return {
+    status: "reviewed",
+    companyId: m.scope,
+    employeeId: "employee",
+    sourceHash: "a".repeat(64),
+    appointmentId: "appointment",
+    storageGeneration: "1",
+    identityConfirmedFromOriginal: true,
+    appointmentSnapshot: {
+      appointmentId: "appointment",
+      companyId: m.scope,
+      companyName: "Empresa sintética",
+      employeeId: "employee",
+      employeeName: "Pessoa sintética",
+      type: "Periódico",
+      dateTime: "2026-10-18T08:00:00",
+    },
+  };
+}
 describe("clinical confirmation workflow", () => {
   it("requires original inspection and a persisted review before completion", async () => {
     await selectAso();
@@ -211,6 +231,30 @@ describe("clinical confirmation workflow", () => {
     await selectAso();
     expect(document.body.textContent).toContain("revisado para outro vínculo");
     expect(document.body.textContent).not.toContain("Vincular ASO e concluir");
+  });
+  it("requires original reinspection for a legacy review of the same attendance", async () => {
+    m.review = matchingReview();
+    await selectAso();
+    expect(document.body.textContent).not.toContain("Vincular ASO e concluir");
+    expect(document.body.textContent).toContain("revisão anterior será preservada");
+    expect(v.button("Registrar revisão clínica").disabled).toBe(true);
+    await v.click("Carregar ASO original");
+    await act(async () => document.querySelector<HTMLButtonElement>('[role="checkbox"]')!.click());
+    m.fetch.mockResolvedValueOnce(json({ status: "reviewed" }));
+    await v.click("Registrar revisão clínica");
+    expect(v.button("Vincular ASO e concluir").disabled).toBe(false);
+  });
+  it("offers explicit reinspection when a previously bound identity changes before completion", async () => {
+    m.review = { ...matchingReview(), identityFingerprint: "b".repeat(64) };
+    await selectAso();
+    m.fetch.mockResolvedValueOnce(
+      json({ error: "Identidade alterada. Reconfira o original." }, 409)
+    );
+    await v.click("Vincular ASO e concluir");
+    expect(document.body.textContent).not.toContain("Vincular ASO e concluir");
+    expect(v.button("Registrar revisão clínica").disabled).toBe(true);
+    expect(v.button("Carregar ASO original")).toBeTruthy();
+    expect(m.fetch).toHaveBeenCalledOnce();
   });
   it("requires a doctor for document review", async () => {
     m.role = "OPERATIONS";

@@ -62,6 +62,7 @@ let db: Map<string, Data>,
   files: Map<string, Buffer>,
   queue: Promise<unknown>,
   material: CertificateMaterial;
+let afterRead: ((documentPath: string) => void) | undefined;
 const user: AuthContext = {
   uid: "operator",
   email: "operator@example.test",
@@ -86,7 +87,11 @@ function ref(p: string): any {
     path: p,
     id: p.split("/").at(-1),
     collection: (n: string) => query(`${p}/${n}`),
-    get: async () => snap(p),
+    get: async () => {
+      const result = snap(p);
+      afterRead?.(p);
+      return result;
+    },
     set: async (d: Data, options?: { merge?: boolean }) => {
       db.set(p, structuredClone(options?.merge ? { ...db.get(p), ...d } : d));
     },
@@ -149,6 +154,7 @@ beforeEach(() => {
   db = new Map();
   files = new Map();
   queue = Promise.resolve();
+  afterRead = undefined;
   vi.stubEnv("ESOCIAL_SYNC_ENABLED", "true");
   vi.stubEnv("ESOCIAL_TRANSMISSION_ENABLED", "true");
   m.collection.mockImplementation(query);
@@ -646,6 +652,49 @@ describe("mensageria: revisão, isolamento e idempotência", () => {
     });
     expect(m.file).not.toHaveBeenCalled();
     expect([...db.keys()].filter((key) => key.includes("/documentAccess/"))).toHaveLength(0);
+  });
+  it.each(["detail", "company", "portfolio"] as const)(
+    "não libera dados do evento se a carteira muda durante a consulta (%s)",
+    async (view) => {
+      const event = await prepare();
+      afterRead = (documentPath) => {
+        if (documentPath === path(event.id) || documentPath === `${base}/settings/queryMonitor`)
+          db.set("users/operator", {
+            role: "OPERATIONS",
+            accessEnabled: true,
+            servedCompanies: ["TWO"],
+          });
+      };
+      const query =
+        view === "detail" ? { id: event.id } : view === "company" ? { companyId: "ONE" } : {};
+      await expect(getEsocialWorkspace(user, query)).rejects.toMatchObject({ status: 403 });
+      expect(m.send).not.toHaveBeenCalled();
+      expect(m.query).not.toHaveBeenCalled();
+    }
+  );
+  it("não libera configuração da lista vazia se o operador é suspenso durante a consulta", async () => {
+    afterRead = (documentPath) => {
+      if (documentPath === `${base}/settings/queryMonitor`)
+        db.get("users/operator")!.accessEnabled = false;
+    };
+    await expect(getEsocialWorkspace(user)).rejects.toMatchObject({ status: 403 });
+  });
+  it("atualiza capacidades após redução de papel sem retirar acesso ao cliente", async () => {
+    await prepare();
+    afterRead = (documentPath) => {
+      if (documentPath === `${base}/settings/queryMonitor`)
+        db.set("users/operator", {
+          role: "OPERATIONS",
+          accessEnabled: true,
+          servedCompanies: ["ONE"],
+        });
+    };
+    const workspace = await getEsocialWorkspace(user, { companyId: "ONE" });
+    expect(workspace.events).toHaveLength(1);
+    expect(workspace.capabilities).toMatchObject({
+      canManageCertificates: false,
+      canManageGrants: false,
+    });
   });
   it.each(["suspension", "scope"])(
     "não devolve XML se o operador perde acesso durante o download (%s)",

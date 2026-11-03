@@ -1,7 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthContext } from "@/lib/auth/auth-context";
 const storage = vi.hoisted(() => ({ data: null as string | null, calls: 0 }));
-vi.mock("@/lib/firebase-admin", () => ({}));
+const access = vi.hoisted(() => ({
+  profile: { role: "SUPER_ADMIN", accessEnabled: true } as Record<string, unknown> | undefined,
+}));
+vi.mock("@/lib/firebase-admin", () => ({
+  adminDb: {
+    collection: () => ({
+      doc: () => ({
+        get: async () => ({ exists: !!access.profile, data: () => access.profile }),
+      }),
+    }),
+  },
+}));
 vi.mock("firebase-admin/storage", () => ({
   getStorage: () => ({
     bucket: () => ({
@@ -42,6 +53,7 @@ const saved = {
 };
 const fetchMock = vi.fn();
 beforeEach(() => {
+  access.profile = { role: "SUPER_ADMIN", accessEnabled: true };
   storage.calls = 0;
   storage.data = null;
   fetchMock.mockReset();
@@ -417,6 +429,28 @@ const dreRow = {
   cnpjEmpresa: saved.cnpj,
 };
 describe("Omie official DRE boundary", () => {
+  it("stops a multi-period DRE when financial access is suspended during a provider read", async () => {
+    storage.data = JSON.stringify(saved);
+    fetchMock.mockImplementation(async () => {
+      access.profile = { role: "SUPER_ADMIN", accessEnabled: false };
+      return response({ listaDRE: [] });
+    });
+    await expect(
+      listOmieDre(admin, { start: "2026-09-01", end: "2026-10-31" })
+    ).rejects.toMatchObject({ status: 403 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it("does not release a completed DRE after the operator loses corporate finance access", async () => {
+    storage.data = JSON.stringify(saved);
+    fetchMock.mockImplementation(async () => {
+      access.profile = { role: "ADMIN", tenantId: "customer", accessEnabled: true };
+      return response({ listaDRE: [] });
+    });
+    await expect(
+      listOmieDre(admin, { start: "2026-09-01", end: "2026-09-30" })
+    ).rejects.toMatchObject({ status: 403 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it("accepts the real ListarDRE shape without a company field on each row", async () => {
     storage.data = JSON.stringify(saved);
     const row = { ...dreRow, cnpjEmpresa: undefined };

@@ -6,6 +6,7 @@ import { AuthError } from "@/lib/auth/errors";
 const m = vi.hoisted(() => ({
   auth: vi.fn(),
   access: vi.fn(),
+  current: vi.fn(),
   collection: vi.fn(),
   get: vi.fn(),
   getAll: vi.fn(),
@@ -14,7 +15,10 @@ const m = vi.hoisted(() => ({
   doc: vi.fn(),
 }));
 vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: m.auth }));
-vi.mock("@/services/aso-flow", () => ({ requireAsoFlowAccess: m.access }));
+vi.mock("@/services/aso-flow", () => ({
+  requireAsoFlowAccess: m.access,
+  currentAsoFlowUser: m.current,
+}));
 vi.mock("@/lib/firebase-admin", () => ({
   adminDb: { collection: m.collection, getAll: m.getAll },
 }));
@@ -34,6 +38,7 @@ beforeEach(() => {
     servedCompanies: [],
   });
   m.access.mockReturnValue(undefined);
+  m.current.mockImplementation(async () => m.auth());
   const query = { select: m.select, limit: m.limit, get: m.get, doc: m.doc };
   m.collection.mockReturnValue(query);
   m.select.mockReturnValue(query);
@@ -96,4 +101,13 @@ it("não consulta uma coleção inteira quando não há clientes autorizados", a
   expect(await response.json()).toEqual({ companies: [], requiresSelection: false });
   expect(m.collection).not.toHaveBeenCalled();
   expect(m.getAll).not.toHaveBeenCalled();
+});
+it("não libera o diretório após revogação durante a consulta de clientes", async () => {
+  m.get.mockImplementation(async () => {
+    m.current.mockRejectedValue(new AuthError("Acesso revogado", 403));
+    return { size: 1, docs: [company("company-test", "PRIVATE_COMPANY_NAME")] };
+  });
+  const response = await GET(request());
+  expect(response.status).toBe(403);
+  expect(await response.text()).not.toContain("PRIVATE_COMPANY_NAME");
 });

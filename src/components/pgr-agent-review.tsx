@@ -12,32 +12,53 @@ type Review = {
   encaminhamentos: string[];
   limites: string;
 };
-export function PgrAgentReview({
-  companyId,
-  cardId,
-  role,
-}: {
+type Props = {
   companyId: string;
   cardId: string;
   role: (typeof PGR_AGENT_ROLES)[number];
-}) {
+};
+export function PgrAgentReview(props: Props) {
+  const profile = useUser();
+  const enabled = !!profile.user && !profile.isUserLoading && !profile.userError;
+  const sessionKey = JSON.stringify([
+    profile.user?.uid,
+    profile.role,
+    profile.companyId,
+    profile.tenantId,
+    [...new Set(profile.servedCompanies || [])].sort(),
+    enabled,
+    props.companyId,
+    props.cardId,
+    props.role,
+  ]);
+  return <PgrAgentReviewSession key={sessionKey} {...props} enabled={enabled} />;
+}
+function PgrAgentReviewSession({ companyId, cardId, role, enabled }: Props & { enabled: boolean }) {
   const { user } = useUser();
   const [review, setReview] = React.useState<Review | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
   const serial = React.useRef(0);
+  const active = React.useRef(true);
+  const pending = React.useRef(false);
+  const readController = React.useRef<AbortController | null>(null);
+  const writeController = React.useRef<AbortController | null>(null);
   React.useEffect(() => {
+    active.current = true;
     const run = ++serial.current;
     const controller = new AbortController();
+    readController.current = controller;
     setReview(null);
     setBusy(false);
     setError("");
-    if (user)
+    if (user && enabled)
       void (async () => {
         try {
+          const headers = await pgrRequestHeaders(user);
+          if (!active.current || run !== serial.current) return;
           const response = await fetch(
             "/api/pgr/agent-review?" + new URLSearchParams({ companyId, cardId, role }),
-            { headers: await pgrRequestHeaders(user), cache: "no-store", signal: controller.signal }
+            { headers, cache: "no-store", signal: controller.signal }
           );
           const data = await response.json();
           if (!response.ok) throw new Error(data.error || "Revisão indisponível.");
@@ -48,27 +69,41 @@ export function PgrAgentReview({
         }
       })();
     return () => {
+      active.current = false;
       serial.current++;
       controller.abort();
+      writeController.current?.abort();
     };
-  }, [user?.uid, companyId, cardId, role]);
+  }, [user, companyId, cardId, role, enabled]);
   async function run() {
-    if (!user) return;
+    if (!user || !enabled || pending.current || !active.current) return;
+    pending.current = true;
     const run = ++serial.current;
+    readController.current?.abort();
+    const controller = new AbortController();
+    writeController.current = controller;
     setBusy(true);
     setError("");
     try {
+      const headers = await pgrRequestHeaders(user, true);
+      if (!active.current || run !== serial.current) return;
       const response = await fetch("/api/pgr/agent-review", {
         method: "POST",
-        headers: await pgrRequestHeaders(user, true),
+        headers,
         body: JSON.stringify({ companyId, cardId, role }),
+        signal: controller.signal,
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Revisão indisponível.");
       if (run === serial.current) setReview(data.review);
     } catch (e) {
-      if (run === serial.current) setError(e instanceof Error ? e.message : "Falha na revisão.");
+      if (run === serial.current) {
+        setReview(null);
+        setError(e instanceof Error ? e.message : "Falha na revisão.");
+      }
     } finally {
+      pending.current = false;
+      if (writeController.current === controller) writeController.current = null;
       if (run === serial.current) setBusy(false);
     }
   }
@@ -76,7 +111,7 @@ export function PgrAgentReview({
     <div className="space-y-3 rounded-xl border bg-slate-50 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm font-bold">{PGR_AGENT_NAMES[role]}</p>
-        <Button size="sm" variant="outline" onClick={run} disabled={busy || !user}>
+        <Button size="sm" variant="outline" onClick={run} disabled={busy || !user || !enabled}>
           {busy ? (
             <Loader2 className="mr-2 size-4 animate-spin" />
           ) : (

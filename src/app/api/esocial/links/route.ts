@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { badRequest } from "@/lib/auth/errors";
 import { limitedJson, privateHeaders } from "@/lib/http/private-api";
-import { requireEsocialMessagingAccess } from "@/services/esocial/access";
+import { currentEsocialUser, requireEsocialMessagingAccess } from "@/services/esocial/access";
 import {
   esocialCompany,
   listEsocialEmployeeLinks,
@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
       .replace(/[.\-/\s]/g, "")
       .toUpperCase();
     const registration = explicit || (document.length === 14 ? document.slice(0, 8) : document);
+    await currentEsocialUser(user, companyId);
     return NextResponse.json(
       {
         employees,

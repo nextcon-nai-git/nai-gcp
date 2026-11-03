@@ -5,6 +5,7 @@ import { badRequest } from "@/lib/auth/errors";
 import { limitedFormData, limitedJson, privateHeaders } from "@/lib/http/private-api";
 import {
   canManageEsocialConnection,
+  currentEsocialUser,
   requireEsocialAdministrator,
   requireEsocialMessagingAccess,
 } from "@/services/esocial/access";
@@ -21,10 +22,12 @@ export async function GET(request: NextRequest) {
   try {
     const user = await requireAuth(request);
     requireEsocialMessagingAccess(user);
+    const certificate = await esocialCertificateStatus();
+    const current = await currentEsocialUser(user);
     return NextResponse.json(
       {
-        certificate: await esocialCertificateStatus(),
-        canManage: canManageEsocialConnection(user),
+        certificate,
+        canManage: canManageEsocialConnection(current),
       },
       { headers: privateHeaders }
     );

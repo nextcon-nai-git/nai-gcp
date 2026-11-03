@@ -161,6 +161,37 @@ describe("session lifecycle", () => {
     );
   });
 
+  it.each([true, undefined])(
+    "clears the role and company grants when a profile is soft-deleted (accessEnabled %s)",
+    async (accessEnabled) => {
+      const account = user();
+      vi.mocked(account.getIdTokenResult).mockRejectedValue(new Error("offline"));
+      const publish = vi.fn();
+      subscribeToUserSession(auth, db, publish);
+      await authChange()(account);
+      const granted = {
+        role: "DOCTOR",
+        companyId: "clinic",
+        tenantId: "clinic",
+        servedCompanies: ["clinic", "other-clinic"],
+        accessEnabled,
+      };
+      profileChange()(profile(granted));
+      profileChange()(profile({ ...granted, isDeleted: true }));
+      await Promise.resolve();
+      const state = publish.mock.lastCall![0] as UserAuthState;
+      expect(state).toMatchObject({
+        user: account,
+        role: null,
+        companyId: null,
+        isUserLoading: false,
+        userError: expect.any(Error),
+      });
+      expect(state.tenantId ?? null).toBeNull();
+      expect(state.servedCompanies ?? []).toEqual([]);
+    }
+  );
+
   it("fails closed when the profile listener or bootstrap fails", async () => {
     const publish = vi.fn();
     subscribeToUserSession(auth, db, publish);

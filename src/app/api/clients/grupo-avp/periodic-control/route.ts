@@ -23,6 +23,11 @@ export async function GET(req: NextRequest) {
     ]);
     if (cases.size > 10000)
       throw new AuthError("Esteira excede o limite de consulta. Contate o suporte.", 503);
+    // Recheck the current profile after source/network reads, before releasing personal data.
+    const current = await requireAuth(req);
+    requireAvpAccess(current);
+    if (!canAccessAvpEvidence(current))
+      throw new AuthError("Controle disponível à equipe interna da operação AVP.", 403);
     return NextResponse.json(
       {
         ...snapshot,

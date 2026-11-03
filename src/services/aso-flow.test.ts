@@ -364,6 +364,39 @@ describe("revogação durante operações da esteira", () => {
   });
 });
 describe("resolução e importação canônica", () => {
+  it("preserva letras do CNPJ ao importar, reimportar e conferir a identidade do cliente", async () => {
+    db.get("companies/ONE")!.cnpj = "12.ABC.345/01DE-35";
+    const alphaRow = { ...row, companyCnpj: "12abc34501de35" };
+    const preview = await previewAsoFlowImport(user, input([alphaRow]));
+    expect(preview).toMatchObject({ ready: 1, blocked: 0 });
+    const imported = await importAsoFlowRows(user, input([alphaRow]));
+    expect(imported.cards[0].cnpj).toBe("12ABC34501DE35");
+    expect(
+      await importAsoFlowRows(user, input([{ ...alphaRow, companyCnpj: "12.ABC.345/01DE-35" }]))
+    ).toMatchObject({ created: 0, unchanged: 1 });
+    const scheduled = await schedule(imported.cards[0]);
+    db.get("companies/ONE")!.cnpj = "12.ABD.345/01DE-35";
+    await expect(receive(scheduled)).rejects.toMatchObject({ status: 409 });
+    expect(db.get(casePath(scheduled.id))!.status).toBe("scheduled");
+  });
+
+  it.each(["ABC11222333000181", "11.222.333/0001-81!"])(
+    "não remove caracteres para transformar CNPJ inválido em outro documento: %s",
+    async (companyCnpj) => {
+      const preview = await previewAsoFlowImport(user, input([{ ...row, companyCnpj }]));
+      expect(preview).toMatchObject({ ready: 0, blocked: 1 });
+      expect(preview.rows[0].errors).toContain("CNPJ do cliente ausente ou inválido.");
+      await expect(importAsoFlowRows(user, input([{ ...row, companyCnpj }]))).rejects.toMatchObject(
+        {
+          status: 409,
+        }
+      );
+      expect(
+        [...db.keys()].some((path) => path.startsWith("clinic_portal_private/aso-flow/cases/"))
+      ).toBe(false);
+    }
+  );
+
   it("aceita retorno de afastado e demissional de desligado sem alterar o cadastro", async () => {
     db.get("companies/ONE/employees/E1")!.status = "leave";
     const returning = (

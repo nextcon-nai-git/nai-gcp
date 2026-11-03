@@ -77,7 +77,7 @@ export function subscribeToUserSession(
           (snapshot) => {
             if (!isCurrent()) return;
             const profile = snapshot.exists() ? snapshot.data() : null;
-            if (profile?.accessEnabled === false) {
+            if (profile?.accessEnabled === false || profile?.isDeleted === true) {
               publish({
                 ...signedOut,
                 user,

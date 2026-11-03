@@ -4,9 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
   user: { uid: "account-a" } as { uid: string } | null,
+  profile: {
+    role: "ENGINEER",
+    tenantId: null as string | null,
+    companyId: null as string | null,
+    servedCompanies: ["one"],
+    isUserLoading: false,
+    userError: null as Error | null,
+  },
   headers: vi.fn(),
 }));
-vi.mock("@/firebase", () => ({ useUser: () => ({ user: state.user }) }));
+vi.mock("@/firebase", () => ({ useUser: () => ({ user: state.user, ...state.profile }) }));
 vi.mock("@/lib/pgr-request-headers", () => ({ pgrRequestHeaders: state.headers }));
 import { usePgrCollection, usePgrCompanies, updatePgrTask } from "./use-pgr-workspace";
 
@@ -40,6 +48,14 @@ beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.useFakeTimers();
   state.user = { uid: "account-a" };
+  state.profile = {
+    role: "ENGINEER",
+    tenantId: null,
+    companyId: null,
+    servedCompanies: ["one"],
+    isUserLoading: false,
+    userError: null,
+  };
   state.headers.mockReset().mockResolvedValue({ Authorization: "Bearer example" });
   requests = [];
   commits = [];
@@ -62,6 +78,45 @@ afterEach(async () => {
 });
 
 describe("PGR subscription boundaries", () => {
+  it.each(["role", "tenant", "company", "portfolio"])(
+    "clears cached companies and requests current data after %s changes for the same account",
+    async (change) => {
+      await render();
+      await reply(0, { companies: [{ id: "private-a" }] });
+      const previousCommits = commits.length;
+      if (change === "role") state.profile.role = "OPERATIONS";
+      if (change === "tenant") state.profile.tenantId = "other";
+      if (change === "company") state.profile.companyId = "other";
+      if (change === "portfolio") state.profile.servedCompanies = ["other"];
+      await render();
+      expect(commits.slice(previousCommits).every((c) => c.data.length === 0)).toBe(true);
+      expect(requests).toHaveLength(2);
+      expect(requests[0].init.signal?.aborted).toBe(true);
+    }
+  );
+  it.each(["loading", "error"])(
+    "hides data and stops polling while the current profile is %s",
+    async (condition) => {
+      await render({ company: "one" });
+      await reply(0, { tasks: [{ id: "private-task" }] });
+      if (condition === "loading") state.profile.isUserLoading = true;
+      else state.profile.userError = new Error("Perfil suspenso");
+      await render({ company: "one" });
+      expect(last()).toMatchObject({ data: [], loading: false });
+      await act(async () => vi.advanceTimersByTime(60000));
+      expect(requests).toHaveLength(1);
+      expect(requests[0].init.signal?.aborted).toBe(true);
+    }
+  );
+  it("does not restart a query for an equivalent portfolio array", async () => {
+    state.profile.servedCompanies = ["one", "two"];
+    await render();
+    await reply(0, { companies: [{ id: "one" }] });
+    state.profile.servedCompanies = ["two", "one", "one"];
+    await render();
+    expect(requests).toHaveLength(1);
+    expect(last().data).toEqual([{ id: "one" }]);
+  });
   it("hides companies in every render after switching accounts", async () => {
     await render();
     await reply(0, { companies: [{ id: "private-a" }] });

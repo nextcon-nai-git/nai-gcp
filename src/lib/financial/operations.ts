@@ -7,6 +7,7 @@ import {
 } from "./contract-flow";
 import { OmieExport } from "./omie-export";
 import { z } from "zod/v3";
+import { csvTextCell } from "@/lib/csv-cell";
 import { isCalendarDate } from "./omie-dre";
 import { ErpSchema, erpCommands, applyErpCommand } from "./erp";
 import { financialLabel } from "./labels";
@@ -61,6 +62,7 @@ const Title = z.object({
   evidence: note,
   status: z.enum(["draft", "submitted", "approved", "rejected", "cancelled"]),
   createdBy: text,
+  lastEditedBy: text.optional(),
   approvedBy: text.nullable(),
 });
 const Settlement = z.object({
@@ -187,7 +189,14 @@ export const FinanceCommandSchema = z.discriminatedUnion("action", [
       ...common,
       action: z.literal("installments"),
       count: z.number().int().min(2).max(36),
-      data: Title.omit({ id: true, source: true, status: true, createdBy: true, approvedBy: true }),
+      data: Title.omit({
+        id: true,
+        source: true,
+        status: true,
+        createdBy: true,
+        lastEditedBy: true,
+        approvedBy: true,
+      }),
     })
     .strict(),
 
@@ -227,7 +236,14 @@ export const FinanceCommandSchema = z.discriminatedUnion("action", [
     .object({
       ...common,
       action: z.literal("title"),
-      data: Title.omit({ id: true, source: true, status: true, createdBy: true, approvedBy: true }),
+      data: Title.omit({
+        id: true,
+        source: true,
+        status: true,
+        createdBy: true,
+        lastEditedBy: true,
+        approvedBy: true,
+      }),
     })
     .strict(),
   z
@@ -281,6 +297,39 @@ export const FinanceCommandSchema = z.discriminatedUnion("action", [
     .strict(),
 ]);
 export type FinanceCommand = z.infer<typeof FinanceCommandSchema>;
+/** Recover legacy editors only from server-recorded commands, without rewriting stored history. */
+export function latestTitleEditors(book: FinanceBook): Map<string, string> {
+  const editors = new Map<string, string>();
+  const legacyIds = new Set<string>();
+  for (const title of book.titles) {
+    if (title.lastEditedBy) editors.set(title.id, title.lastEditedBy);
+    else legacyIds.add(title.id);
+  }
+  if (!legacyIds.size) return editors;
+  const versions = new Map<string, number>();
+  for (const entry of book.audit) {
+    if (entry.action !== "editTitle" || entry.version > book.version) continue;
+    let details: unknown;
+    try {
+      details = JSON.parse(entry.details);
+    } catch {
+      continue;
+    }
+    const parsed = FinanceCommandSchema.safeParse(details);
+    if (!parsed.success || parsed.data.action !== "editTitle") continue;
+    const command = parsed.data;
+    if (
+      !legacyIds.has(command.id) ||
+      command.requestId !== entry.id ||
+      command.expectedVersion + 1 !== entry.version ||
+      entry.version <= (versions.get(command.id) ?? -1)
+    )
+      continue;
+    editors.set(command.id, entry.actor);
+    versions.set(command.id, entry.version);
+  }
+  return editors;
+}
 export class FinanceConflict extends Error {
   status = 409;
 }
@@ -759,6 +808,7 @@ export function applyFinanceCommand(
       unlocked(book, command.data.competence);
       if (command.data.contractId) one(book.contracts, command.data.contractId);
       Object.assign(t, command.data);
+      t.lastEditedBy = actor;
       break;
     }
     case "installments": {
@@ -804,8 +854,13 @@ export function applyFinanceCommand(
         cancelled: [],
       };
       if (!allowed[t.status].includes(command.status)) fail("Transição de aprovação inválida.");
-      if (["approved", "rejected"].includes(command.status) && t.createdBy === actor)
-        fail("A revisão exige outro administrador financeiro, diferente do criador.");
+      if (
+        ["approved", "rejected"].includes(command.status) &&
+        (t.createdBy === actor || latestTitleEditors(book).get(t.id) === actor)
+      )
+        fail(
+          "A revisão exige outro administrador financeiro, diferente do criador e de quem fez a última correção."
+        );
       if (
         command.status === "cancelled" &&
         book.settlements.some((s) => s.titleId === t.id && !s.reversed)
@@ -1095,10 +1150,6 @@ export function financeSummary(book: FinanceBook, period: string, today: string)
 }
 export function financeCsv(book: FinanceBook) {
   const principal = principalByTitle(book);
-  const cell = (v: unknown) => {
-    const t = String(v ?? "");
-    return `"${(/^[\s]*[=+@-]/.test(t) ? "'" + t : t).replaceAll('"', '""')}"`;
-  };
   return (
     "\uFEFF" +
     [
@@ -1133,7 +1184,7 @@ export function financeCsv(book: FinanceBook) {
         t.externalReference,
       ]),
     ]
-      .map((row) => row.map(cell).join(";"))
+      .map((row) => row.map(csvTextCell).join(";"))
       .join("\r\n")
   );
 }

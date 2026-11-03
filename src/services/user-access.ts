@@ -12,7 +12,7 @@ const stamp = () => FieldValue.serverTimestamp();
 function requireAdmin(actor: AuthContext) {
   if (actor.role !== "SUPER_ADMIN") throw forbidden();
 }
-async function requireCurrentAdmin(actor: AuthContext, tx?: Transaction) {
+export async function requireCurrentAdmin(actor: AuthContext, tx?: Transaction) {
   requireAdmin(actor);
   const ref = adminDb.collection("users").doc(actor.uid);
   const snapshot = tx ? await tx.get(ref) : await ref.get();
@@ -142,6 +142,7 @@ export async function previewUserAccess(actor: AuthContext, kind: unknown, id: u
       if ((e as { code?: string }).code !== "auth/user-not-found") throw e;
     }
   }
+  await requireCurrentAdmin(actor);
   return {
     ...s,
     kind: target.kind,

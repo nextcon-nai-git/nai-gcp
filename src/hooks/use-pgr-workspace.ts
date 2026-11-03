@@ -10,12 +10,19 @@ function usePgrQuery<T>(
   enabled: boolean,
   refresh: boolean
 ) {
-  const { user } = useUser();
+  const { user, role, companyId, tenantId, servedCompanies, isUserLoading, userError } = useUser();
+  const scopeKey = JSON.stringify([
+    role,
+    companyId,
+    tenantId,
+    [...new Set(servedCompanies || [])].sort(),
+  ]);
+  const profileReady = !isUserLoading && !userError;
   const target = React.useMemo(
-    () => ({ user, url, field, enabled, refresh }),
-    [user, url, field, enabled, refresh]
+    () => ({ user, url, field, enabled, refresh, scopeKey, profileReady }),
+    [user, url, field, enabled, refresh, scopeKey, profileReady]
   );
-  const ready = !!target.user && !!target.url && target.enabled;
+  const ready = !!target.user && !!target.url && target.enabled && target.profileReady;
   const [state, setState] = React.useState<{
     target: typeof target;
     data: T[];
@@ -23,7 +30,7 @@ function usePgrQuery<T>(
     error: string;
   } | null>(null);
   React.useEffect(() => {
-    if (!target.user || !target.url || !target.enabled) return;
+    if (!target.user || !target.url || !target.enabled || !target.profileReady) return;
     const { user, url, field } = target;
     let stopped = false;
     let sequence = 0;

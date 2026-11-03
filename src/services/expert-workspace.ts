@@ -17,6 +17,7 @@ export async function readExpertWorkspace(user: AuthContext, requested: string |
   if (
     profile?.role !== EXPERT_ROLE ||
     profile.accessEnabled !== true ||
+    profile.isDeleted === true ||
     typeof profile.providerId !== "string"
   )
     throw forbidden();
@@ -63,6 +64,7 @@ export async function readExpertWorkspace(user: AuthContext, requested: string |
   if (
     current?.role !== EXPERT_ROLE ||
     current.accessEnabled !== true ||
+    current.isDeleted === true ||
     current.providerId !== profile.providerId ||
     JSON.stringify(expertCompanyIds(current.servedCompanies)) !==
       JSON.stringify(expertCompanyIds(profile.servedCompanies)) ||

@@ -164,6 +164,56 @@ describe("financial forms and confirmed writes", () => {
     expect(book.titles[0].status).toBe("submitted");
     expect(v.button("Aprovar").disabled).toBe(true);
   });
+  it("allows third-party corrections but disables that editor's approval and rejection", async () => {
+    book = withTitle(book);
+    m.user.uid = "editor";
+    await open();
+    await v.click("Corrigir rascunho");
+    await confirm({ amount: "222,22", reason: "Documento corrigido" });
+    expect(book.titles[0]).toMatchObject({
+      amountCents: 22222,
+      createdBy: "author",
+      lastEditedBy: "editor",
+    });
+    await v.click("Enviar para aprovação");
+    await confirm({ reason: "Conferido" });
+    expect(v.button("Aprovar").disabled).toBe(true);
+    expect(v.button("Solicitar revisão").disabled).toBe(true);
+  });
+  it("also disables review for the last editor recorded in a legacy title's audit trail", async () => {
+    book = withTitle(book);
+    const title = book.titles[0];
+    book = command(
+      book,
+      {
+        action: "editTitle",
+        id: title.id,
+        data: {
+          description: title.description,
+          amountCents: 22222,
+          competence: title.competence,
+          dueDate: title.dueDate,
+          category: title.category,
+          center: title.center,
+          contractId: title.contractId,
+          evidence: title.evidence,
+        },
+        reason: "Correção anterior ao novo controle",
+      },
+      "legacy-editor"
+    );
+    delete book.titles[0].lastEditedBy;
+    book = command(book, {
+      action: "review",
+      id: title.id,
+      status: "submitted",
+      reason: "Conferência independente",
+    });
+    m.user.uid = "legacy-editor";
+    await open();
+    expect(v.button("Aprovar").disabled).toBe(true);
+    expect(v.button("Solicitar revisão").disabled).toBe(true);
+  });
   it.each([
     ["Aprovar", "approved"],
     ["Solicitar revisão", "rejected"],

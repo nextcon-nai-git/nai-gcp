@@ -367,6 +367,49 @@ describe("vínculo clínico de ASO à fila", () => {
     await expect(reviewClinicalAso(user, reviewInput)).resolves.toEqual({ status: "reviewed" });
   });
 
+  it.each(["original", "review", "complete"] as const)(
+    "não usa companyId legado contra o tenant explícito atual em %s",
+    async (operation) => {
+      if (operation === "complete") await reviewClinicalAso(user, reviewInput);
+      const readsBefore = state.storageMetadataReads;
+      state.records.set("users/synthetic-doctor", {
+        role: "DOCTOR",
+        tenantId: "company-new",
+        companyId,
+        servedCompanies: [],
+      });
+      const result =
+        operation === "original"
+          ? readClinicalAsoOriginal(user, { companyId, cardId })
+          : operation === "review"
+            ? reviewClinicalAso(user, reviewInput)
+            : completeClinicalAppointmentWithAso(user, completeInput);
+      await expect(result).rejects.toMatchObject({ status: 403 });
+      expect(state.storageMetadataReads).toBe(readsBefore);
+      expect(state.records.get(appointmentPath)?.status).toBe("Em Atendimento");
+      expect(state.records.has(auditPath)).toBe(false);
+    }
+  );
+
+  it.each(["tenant", "served"] as const)(
+    "autoriza acesso clínico pela empresa explícita em %s mesmo com companyId legado",
+    async (source) => {
+      state.records.set("users/synthetic-doctor", {
+        role: "DOCTOR",
+        tenantId: source === "tenant" ? companyId : "company-new",
+        companyId: "company-old",
+        servedCompanies: source === "served" ? [companyId] : [],
+      });
+      await expect(readClinicalAsoOriginal(user, { companyId, cardId })).resolves.toMatchObject({
+        mime: "application/pdf",
+      });
+      await expect(reviewClinicalAso(user, reviewInput)).resolves.toEqual({ status: "reviewed" });
+      await expect(completeClinicalAppointmentWithAso(user, completeInput)).resolves.toEqual({
+        status: "completed",
+      });
+    }
+  );
+
   it("recusa documento associado a outra empresa", async () => {
     state.records.set(cardPath, {
       ...state.records.get(cardPath),
@@ -477,6 +520,146 @@ describe("vínculo clínico de ASO à fila", () => {
     );
     expect(state.records.get(appointmentPath)?.status).toBe("Em Atendimento");
     expect(state.records.has(auditPath)).toBe(false);
+  });
+
+  it.each(["cpf", "cnpj"] as const)(
+    "não reutiliza identidade revisada se %s muda mantendo os mesmos IDs e nomes",
+    async (field) => {
+      state.records.set(companyPath, {
+        ...state.records.get(companyPath),
+        cnpj: "11.222.333/0001-81",
+      });
+      state.records.set(employeePath, {
+        ...state.records.get(employeePath),
+        cpf: "529.982.247-25",
+      });
+      await reviewClinicalAso(user, reviewInput);
+      const previousReview = structuredClone(state.records.get(clinicalPath)!.clinicalReview);
+      const changedPath = field === "cpf" ? employeePath : companyPath;
+      state.records.set(changedPath, {
+        ...state.records.get(changedPath),
+        [field]: field === "cpf" ? "123.456.789-09" : "12.345.678/0001-95",
+      });
+      await expect(completeClinicalAppointmentWithAso(user, completeInput)).rejects.toMatchObject({
+        status: 409,
+      });
+      expect(state.records.get(appointmentPath)?.status).toBe("Em Atendimento");
+      expect(state.records.has(auditPath)).toBe(false);
+      await reviewClinicalAso(user, reviewInput);
+      const history = [...state.records.entries()].filter(([path]) =>
+        path.startsWith(`${clinicalPath}/review_history/`)
+      );
+      expect(history).toHaveLength(1);
+      expect(history[0][1]).toMatchObject(previousReview as Record<string, unknown>);
+      await expect(completeClinicalAppointmentWithAso(user, completeInput)).resolves.toEqual({
+        status: "completed",
+      });
+    }
+  );
+
+  it("exige reconferência explícita de revisão legada e preserva a autoria anterior", async () => {
+    await reviewClinicalAso(user, reviewInput);
+    const previousReview = state.records.get(clinicalPath)!.clinicalReview as Record<
+      string,
+      unknown
+    >;
+    delete previousReview.identityFingerprint;
+    await expect(completeClinicalAppointmentWithAso(user, completeInput)).rejects.toMatchObject({
+      status: 409,
+    });
+    const secondDoctor = { ...user, uid: "second-doctor" };
+    state.records.set("users/second-doctor", { role: "DOCTOR", companyId });
+    await reviewClinicalAso(secondDoctor, reviewInput);
+    const currentReview = state.records.get(clinicalPath)!.clinicalReview as Record<
+      string,
+      unknown
+    >;
+    expect(currentReview).toMatchObject({
+      reviewerUid: secondDoctor.uid,
+      identityFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+    });
+    const history = [...state.records.entries()].filter(([path]) =>
+      path.startsWith(`${clinicalPath}/review_history/`)
+    );
+    expect(history).toHaveLength(1);
+    expect(history[0][1]).toMatchObject({ ...previousReview, supersededBy: secondDoctor.uid });
+    await completeClinicalAppointmentWithAso(secondDoctor, completeInput);
+    expect(state.records.get(auditPath)).toMatchObject({
+      reviewerUid: secondDoctor.uid,
+      identityFingerprint: currentReview.identityFingerprint,
+    });
+  });
+
+  it("mantém retry de conclusão histórica sem reabrir ou migrar revisão legada", async () => {
+    await reviewClinicalAso(user, reviewInput);
+    await completeClinicalAppointmentWithAso(user, completeInput);
+    const historicalReview = state.records.get(clinicalPath)!.clinicalReview as Record<
+      string,
+      unknown
+    >;
+    delete historicalReview.identityFingerprint;
+    state.records.set(employeePath, { ...state.records.get(employeePath), cpf: "12345678909" });
+    const savedAudit = structuredClone(state.records.get(auditPath));
+    await expect(completeClinicalAppointmentWithAso(user, completeInput)).resolves.toEqual({
+      status: "completed",
+    });
+    expect(state.records.get(auditPath)).toEqual(savedAudit);
+    expect(state.records.get(clinicalPath)!.clinicalReview).toEqual(historicalReview);
+    expect([...state.records.keys()].some((path) => path.includes("/review_history/"))).toBe(false);
+  });
+
+  it("não invalida conferência por mudança apenas de máscara nos documentos", async () => {
+    state.records.set(companyPath, {
+      ...state.records.get(companyPath),
+      cnpj: "12.ABC.345/01DE-35",
+    });
+    state.records.set(employeePath, { ...state.records.get(employeePath), cpf: "529.982.247-25" });
+    await reviewClinicalAso(user, reviewInput);
+    state.records.set(companyPath, { ...state.records.get(companyPath), cnpj: "12abc34501de35" });
+    state.records.set(employeePath, { ...state.records.get(employeePath), cpf: "52998224725" });
+    await expect(completeClinicalAppointmentWithAso(user, completeInput)).resolves.toEqual({
+      status: "completed",
+    });
+  });
+
+  it("não usa reconferência de legado para trocar o vínculo imutável do colaborador", async () => {
+    await reviewClinicalAso(user, reviewInput);
+    delete (state.records.get(clinicalPath)!.clinicalReview as Record<string, unknown>)
+      .identityFingerprint;
+    state.records.set(`${companyPath}/employees/employee-b`, {
+      name: "Pessoa sintética",
+      companyId,
+    });
+    state.records.set(appointmentPath, {
+      ...state.records.get(appointmentPath),
+      colaborador_id: "employee-b",
+    });
+    await expect(
+      reviewClinicalAso(user, {
+        ...reviewInput,
+        employeeId: "employee-b",
+        appointmentSnapshot: { ...reviewInput.appointmentSnapshot, employeeId: "employee-b" },
+      })
+    ).rejects.toMatchObject({ status: 409 });
+    expect([...state.records.keys()].some((path) => path.includes("/review_history/"))).toBe(false);
+    expect(state.records.get(clinicalPath)!.clinicalReview).toMatchObject({ employeeId });
+  });
+
+  it("grava reconferência e histórico juntos ou preserva ambos após falha de commit", async () => {
+    await reviewClinicalAso(user, reviewInput);
+    const previousReview = state.records.get(clinicalPath)!.clinicalReview as Record<
+      string,
+      unknown
+    >;
+    delete previousReview.identityFingerprint;
+    state.failBeforeCommit = true;
+    await expect(reviewClinicalAso(user, reviewInput)).rejects.toThrow("commit failed");
+    expect(state.records.get(clinicalPath)!.clinicalReview).toEqual(previousReview);
+    expect([...state.records.keys()].some((path) => path.includes("/review_history/"))).toBe(false);
+    await reviewClinicalAso(user, reviewInput);
+    expect(
+      [...state.records.keys()].filter((path) => path.includes("/review_history/"))
+    ).toHaveLength(1);
   });
 
   it("recusa original ausente ou com bytes diferentes do sourceHash", async () => {

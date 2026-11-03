@@ -14,16 +14,20 @@ const reply = (body: unknown, status = 200) =>
 export async function GET(req: NextRequest) {
   try {
     requireSocAccess(await requireAuth(req));
+    const authorizedReply = async (body: unknown) => {
+      requireSocAccess(await requireAuth(req));
+      return reply(body);
+    };
     const q = req.nextUrl.searchParams;
     const resource = q.get("resource") || "status";
-    if (resource === "status") return reply(socConfiguration());
+    if (resource === "status") return await authorizedReply(socConfiguration());
     if (resource === "runs") {
       const snapshot = await socRuns().orderBy("startedAt", "desc").limit(50).get();
-      return reply({ data: snapshot.docs.map((d) => d.data()) });
+      return await authorizedReply({ data: snapshot.docs.map((d) => d.data()) });
     }
     if (!["companies", "employees", "asos"].includes(resource))
       return reply({ error: "Recurso SOC inválido." }, 400);
-    return reply(
+    return await authorizedReply(
       await monitoredSocRead(
         resource as "companies" | "employees" | "asos",
         {

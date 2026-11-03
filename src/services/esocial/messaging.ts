@@ -398,6 +398,23 @@ async function capabilities(
   };
 }
 
+async function workspaceCapabilities(
+  user: AuthContext,
+  companyId?: string,
+  companyIds: string[] = []
+) {
+  const available = await capabilities(user, companyId);
+  // Querying events and connection state can outlive a role/scope change. Check
+  // every company in the response after the last read, including unfiltered pages.
+  const current = await currentEsocialUser(user, companyId);
+  for (const id of new Set(companyIds)) requireEsocialMessagingAccess(current, id);
+  return {
+    ...available,
+    canManageCertificates: canManageEsocialConnection(current),
+    canManageGrants: canManageEsocialConnection(current),
+  };
+}
+
 export async function getEsocialWorkspace(
   user: AuthContext,
   query: {
@@ -409,7 +426,11 @@ export async function getEsocialWorkspace(
   } = {}
 ) {
   requireEsocialMessagingAccess(user, query.companyId);
-  if (query.id) return { event: publicEvent(await load(user, query.id), true) };
+  if (query.id) {
+    const event = await load(user, query.id);
+    await currentEsocialUser(user, event.companyId);
+    return { event: publicEvent(event, true) };
+  }
   if (query.asoCaseId && !query.summary) {
     if (!query.companyId) throw badRequest("Selecione o cliente.");
     const card = (await asoRef(query.asoCaseId).get()).data() as AsoFlowCard | undefined;
@@ -451,7 +472,7 @@ export async function getEsocialWorkspace(
             : []),
         ],
       },
-      capabilities: await capabilities(user, query.companyId),
+      capabilities: await workspaceCapabilities(user, query.companyId),
     };
   }
   let q: FirebaseFirestore.Query = events();
@@ -459,7 +480,7 @@ export async function getEsocialWorkspace(
   else if (!isPgrGlobalAdmin(user)) {
     const companies = [...new Set(user.servedCompanies)];
     if (!companies.length)
-      return { events: [], nextCursor: null, capabilities: await capabilities(user) };
+      return { events: [], nextCursor: null, capabilities: await workspaceCapabilities(user) };
     if (companies.length > 30) throw badRequest("Selecione um cliente para consultar os eventos.");
     q = q.where("companyId", "in", companies);
   }
@@ -471,10 +492,15 @@ export async function getEsocialWorkspace(
   q = q.orderBy(FieldPath.documentId());
   if (query.cursor) q = q.startAfter(esocialDocumentId(query.cursor));
   const result = await q.limit(101).get();
+  const page = result.docs.slice(0, 100).map((d) => publicEvent(d.data() as StoredEvent));
   return {
-    events: result.docs.slice(0, 100).map((d) => publicEvent(d.data() as StoredEvent)),
+    events: page,
     nextCursor: result.size > 100 ? result.docs[99].id : null,
-    capabilities: await capabilities(user, query.companyId),
+    capabilities: await workspaceCapabilities(
+      user,
+      query.companyId,
+      page.map((event) => event.companyId)
+    ),
   };
 }
 

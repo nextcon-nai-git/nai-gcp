@@ -92,7 +92,7 @@ export async function listEsocialCompanies(user: AuthContext) {
         }))
       );
   }
-  return docs
+  const companies = docs
     .flatMap((d) =>
       d.exists && d.data()?.isDeleted !== true
         ? [
@@ -105,6 +105,9 @@ export async function listEsocialCompanies(user: AuthContext) {
         : []
     )
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  const current = await currentEsocialUser(user);
+  for (const company of companies) requireEsocialMessagingAccess(current, company.id);
+  return companies;
 }
 export async function listEsocialEmployeeLinks(user: AuthContext, companyId: string) {
   requireEsocialMessagingAccess(user, companyId);
@@ -122,6 +125,7 @@ export async function listEsocialEmployeeLinks(user: AuthContext, companyId: str
   const byEmployee = new Map(
     links.docs.map((d) => [d.data().employeeId as string, d.data() as EsocialEmployeeLink])
   );
+  await currentEsocialUser(user, companyId);
   return employees.docs.flatMap((d) =>
     d.data().isDeleted === true
       ? []
@@ -250,6 +254,7 @@ export async function getEsocialGrant(
   const d = (await esocialGrantRef(companyId).get()).data();
   if (d && d.companyId !== companyId)
     throw badRequest("Procuração divergente do cliente selecionado.");
+  await currentEsocialUser(user, companyId);
   return d ? (d as EsocialGrant) : null;
 }
 export async function saveEsocialGrant(user: AuthContext, input: unknown) {

@@ -5,7 +5,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { AuthError } from "@/lib/auth/errors";
 import { isPgrGlobalAdmin } from "@/lib/auth/require-pgr-access";
 import { privateFailure, privateHeaders } from "@/lib/http/private-api";
-import { requireAsoFlowAccess } from "@/services/aso-flow";
+import { currentAsoFlowUser, requireAsoFlowAccess } from "@/services/aso-flow";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -68,10 +68,14 @@ export async function GET(request: NextRequest) {
         ];
       })
       .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    const current = await currentAsoFlowUser(user, companyId || undefined);
+    for (const company of companies) requireAsoFlowAccess(current, company.id);
     return NextResponse.json(
       {
         companies,
-        requiresSelection: companies.length > 30 || (!global && authorizedIds.length > 30),
+        requiresSelection:
+          companies.length > 30 ||
+          (!isPgrGlobalAdmin(current) && current.servedCompanies.length > 30),
       },
       { headers: privateHeaders }
     );

@@ -77,8 +77,7 @@ const states = new Set(
 );
 export function asoFlowRowProblems(row: AsoFlowRow): string[] {
   const errors: string[] = [];
-  if (!isValidCnpj(asoFlowDigits(row.companyCnpj)))
-    errors.push("CNPJ do cliente ausente ou inválido.");
+  if (!isValidCnpj(row.companyCnpj)) errors.push("CNPJ do cliente ausente ou inválido.");
   if (!isValidCpf(asoFlowDigits(row.employeeCpf)))
     errors.push("CPF do colaborador ausente ou inválido.");
   if (row.employeeName.length < 2) errors.push("Informe o nome do colaborador.");

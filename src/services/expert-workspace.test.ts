@@ -6,6 +6,7 @@ const m = vi.hoisted(() => ({
   gets: [] as string[],
   profiles: 0,
   revoke: false,
+  onTasksRead: vi.fn(),
 }));
 vi.mock("@/lib/firebase-admin", () => ({ adminDb: { collection: m.collection } }));
 import { readExpertWorkspace } from "./expert-workspace";
@@ -22,6 +23,7 @@ beforeEach(() => {
   m.gets = [];
   m.profiles = 0;
   m.revoke = false;
+  m.onTasksRead.mockReset();
   m.profile = {
     role: "SCOPED_PROVIDER",
     accessEnabled: true,
@@ -45,20 +47,23 @@ beforeEach(() => {
       },
       collection: () => ({
         limit: () => ({
-          get: async () => ({
-            size: 1,
-            docs: [
-              {
-                id: "task",
-                data: () => ({
-                  companyId: "allowed",
-                  title: "Card sintético",
-                  status: "todo",
-                  contract: "private",
-                }),
-              },
-            ],
-          }),
+          get: async () => {
+            m.onTasksRead();
+            return {
+              size: 1,
+              docs: [
+                {
+                  id: "task",
+                  data: () => ({
+                    companyId: "allowed",
+                    title: "Card sintético",
+                    status: "todo",
+                    contract: "private",
+                  }),
+                },
+              ],
+            };
+          },
         }),
       }),
     }),
@@ -83,4 +88,18 @@ it("rejects revocation during a read and a provider linked to someone else", asy
   await expect(readExpertWorkspace(actor, "allowed")).rejects.toMatchObject({ status: 403 });
   m.provider.accessUid = "other";
   await expect(readExpertWorkspace(actor, "allowed")).rejects.toMatchObject({ status: 403 });
+});
+
+it("rejects a deleted profile before reading company data", async () => {
+  m.profile.isDeleted = true;
+  await expect(readExpertWorkspace(actor, "allowed")).rejects.toMatchObject({ status: 403 });
+  expect(m.gets.some((path) => path.startsWith("companies/"))).toBe(false);
+});
+
+it("withholds the workspace if the profile is deleted during the task query", async () => {
+  m.onTasksRead.mockImplementation(() => {
+    m.profile.isDeleted = true;
+  });
+  await expect(readExpertWorkspace(actor, "allowed")).rejects.toMatchObject({ status: 403 });
+  expect(m.onTasksRead).toHaveBeenCalledOnce();
 });

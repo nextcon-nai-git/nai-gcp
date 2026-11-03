@@ -3,7 +3,9 @@ import { randomUUID } from "node:crypto";
 import {
   applyFinanceCommand,
   emptyFinanceBook,
+  FinanceBookSchema,
   FinanceCommandSchema,
+  latestTitleEditors,
   closingIssues,
   financeSummary,
   outstanding,
@@ -76,6 +78,99 @@ describe("financial controls", () => {
       run(b, { action: "review", id: t.id, status: "approved", reason: "Conferido" })
     ).toThrow("outro administrador");
     expect(b.titles[0].status).toBe("submitted");
+  });
+  it.each(["draft", "rejected"] as const)(
+    "allows a third party to correct a %s title but requires independent review of the correction",
+    (status) => {
+      let b = run(emptyFinanceBook(), { action: "title", data });
+      const id = b.titles[0].id;
+      if (status === "rejected") {
+        b = run(b, { action: "review", id, status: "submitted", reason: "Conferido" });
+        b = run(
+          b,
+          { action: "review", id, status: "rejected", reason: "Corrigir o valor" },
+          "reviewer"
+        );
+      }
+      const correction = {
+        action: "editTitle",
+        id,
+        data: {
+          description: data.description,
+          amountCents: 12345,
+          competence: data.competence,
+          dueDate: data.dueDate,
+          category: data.category,
+          center: data.center,
+          contractId: data.contractId,
+          evidence: "Documento corrigido pelo responsável",
+        },
+        reason: "Correção do valor original",
+      };
+      b = run(b, correction, "reviewer");
+      expect(b.titles[0]).toMatchObject({
+        amountCents: 12345,
+        createdBy: "creator",
+        lastEditedBy: "reviewer",
+      });
+      b = run(b, { action: "review", id, status: "submitted", reason: "Valor conferido" });
+      for (const review of ["approved", "rejected"]) {
+        expect(() =>
+          run(b, { action: "review", id, status: review, reason: "Conferência" }, "reviewer")
+        ).toThrow("última correção");
+        expect(() =>
+          run(b, { action: "review", id, status: review, reason: "Conferência" })
+        ).toThrow("criador");
+      }
+      expect(b.titles[0].status).toBe("submitted");
+      b = run(
+        b,
+        { action: "review", id, status: "approved", reason: "Revisão independente" },
+        "independent-reviewer"
+      );
+      expect(b.titles[0]).toMatchObject({ amountCents: 12345, approvedBy: "independent-reviewer" });
+    }
+  );
+  it("recovers the latest legacy editor from authenticated audit entries without mutating history", () => {
+    let b = run(emptyFinanceBook(), { action: "title", data });
+    const id = b.titles[0].id;
+    const correction = {
+      action: "editTitle",
+      id,
+      data: {
+        description: data.description,
+        amountCents: 12345,
+        competence: data.competence,
+        dueDate: data.dueDate,
+        category: data.category,
+        center: data.center,
+        contractId: data.contractId,
+        evidence: data.evidence,
+      },
+      reason: "Correção sintética",
+    };
+    b = run(b, correction, "first-editor");
+    b = run(b, correction, "latest-editor");
+    delete b.titles[0].lastEditedBy;
+    b = FinanceBookSchema.parse(b);
+    b.audit.reverse();
+    const before = JSON.stringify(b);
+    expect(latestTitleEditors(b).get(id)).toBe("latest-editor");
+    expect(JSON.stringify(b)).toBe(before);
+    b = run(b, { action: "review", id, status: "submitted", reason: "Conferido" });
+    expect(() =>
+      run(b, { action: "review", id, status: "approved", reason: "Conferido" }, "latest-editor")
+    ).toThrow("última correção");
+    b = run(b, { action: "review", id, status: "approved", reason: "Conferido" }, "independent");
+    expect(b.titles[0].approvedBy).toBe("independent");
+  });
+  it("does not accept editor identity from input or invent it for an unedited legacy title", () => {
+    const b = run(emptyFinanceBook(), {
+      action: "title",
+      data: { ...data, lastEditedBy: "forged-editor" },
+    });
+    expect(b.titles[0].lastEditedBy).toBeUndefined();
+    expect(latestTitleEditors(b).size).toBe(0);
   });
   it("liquidates principal separately from cash and separates September competence / October cash", () => {
     const b = settle(base());
@@ -361,6 +456,13 @@ describe("financial controls", () => {
     });
     expect(financeCsv(b)).toContain("'=HYPERLINK(test)");
   });
+  it.each(["\u0000 =1+1", "\u001f+1+1", "＝1+1", "＠SUM(1)"])(
+    "exports formula-like title text as a literal even after controls: %j",
+    (party) => {
+      const b = run(emptyFinanceBook(), { action: "title", data: { ...data, party } });
+      expect(financeCsv(b)).toContain(`"'${party}"`);
+    }
+  );
   it("requires a separate Omie reference for each installment", () => {
     const b = emptyFinanceBook();
     expect(() =>

@@ -55,6 +55,81 @@ beforeEach(() => {
   mock.transaction.mockImplementation((fn) => fn({ get: mock.document, create: mock.create }));
 });
 describe("private client documents and action import", () => {
+  it.each(["company", "session"])(
+    "does not return the PDF after losing %s access during its download",
+    async (change) => {
+      mock.document.mockResolvedValue({ exists: true, data: () => ({ companyId: "CETESB" }) });
+      mock.readStream.mockImplementation(() => {
+        if (change === "session")
+          mock.auth.mockRejectedValue(new AuthError("Access suspended", 403));
+        else
+          mock.auth.mockResolvedValue({
+            role: "CLIENT_ADMIN",
+            tenantId: "OTHER",
+            servedCompanies: [],
+          });
+        return Readable.from([pdfBytes]);
+      });
+      const response = await GET(new NextRequest(`${url}?pdf=${pdfHash}`), context);
+      expect(response.status).toBe(403);
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      expect(await response.text()).not.toContain("%PDF-");
+    }
+  );
+  it("rechecks consolidated archive privileges after reading the original", async () => {
+    mock.document.mockResolvedValue({
+      exists: true,
+      data: () => ({ companyId: "BRITANIA_JOINVILLE" }),
+    });
+    mock.readStream.mockImplementation(() => {
+      mock.auth.mockResolvedValue({
+        role: "ADMIN",
+        tenantId: "BRITANIA_JOINVILLE",
+        servedCompanies: [],
+      });
+      return Readable.from([pdfBytes]);
+    });
+    const response = await GET(
+      new NextRequest(`https://test/api/clients/BRITANIA_JOINVILLE/documents?pdf=${pdfHash}`),
+      { params: Promise.resolve({ id: "BRITANIA_JOINVILLE" }) }
+    );
+    expect(response.status).toBe(403);
+    expect(await response.text()).not.toContain("%PDF-");
+  });
+  it("does not release the index if its company access changes during the query", async () => {
+    mock.collection.mockReturnValue({
+      doc: () => ({
+        collection: () => ({
+          orderBy: () => ({
+            limit: () => ({
+              get: async () => {
+                mock.auth.mockResolvedValue({
+                  role: "CLIENT_ADMIN",
+                  tenantId: "OTHER",
+                  servedCompanies: [],
+                });
+                return {
+                  docs: [{ id: pdfHash, data: () => ({ name: "Private synthetic source" }) }],
+                };
+              },
+            }),
+          }),
+        }),
+      }),
+    });
+    const response = await GET(new NextRequest(url), context);
+    expect(response.status).toBe(403);
+    expect(await response.text()).not.toContain("Private synthetic source");
+  });
+  it("does not create cards if administration is revoked while uploading the original", async () => {
+    mock.save.mockImplementation(async () => {
+      mock.auth.mockResolvedValue({ role: "ENGINEER", tenantId: "CETESB", servedCompanies: [] });
+    });
+    const response = await POST(upload(), context);
+    expect(response.status).toBe(403);
+    expect(mock.transaction).not.toHaveBeenCalled();
+    expect(mock.create).not.toHaveBeenCalled();
+  });
   it.each(["DOCTOR", "PROVIDER", "CLIENT_ADMIN", "ENGINEER", "OPERATIONS"])(
     "denies consolidated Britânia PDFs to a site-scoped %s",
     async (role) => {

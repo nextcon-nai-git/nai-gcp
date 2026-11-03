@@ -13,6 +13,8 @@ const m = vi.hoisted(() => ({
   ask: vi.fn(),
   configured: vi.fn(),
   set: vi.fn(),
+  records: vi.fn(),
+  prepare: vi.fn(),
 }));
 vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: m.auth }));
 vi.mock("@/lib/firebase-admin", () => ({
@@ -22,6 +24,7 @@ vi.mock("@/services/work-assistant-openai", () => ({
   askWorkAssistant: m.ask,
   workAssistantConfigured: m.configured,
 }));
+vi.mock("@/services/operational-kits", () => ({ prepareKitBatch: m.prepare }));
 import { GET, POST } from "./route";
 const id = "11111111-1111-4111-8111-111111111111";
 const action = {
@@ -43,6 +46,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   m.auth.mockResolvedValue({ uid: "u1", role: "SUPER_ADMIN", tenantId: null, servedCompanies: [] });
   m.configured.mockReturnValue(true);
+  m.records.mockResolvedValue({ docs: [], size: 0 });
   m.company.mockResolvedValue({ exists: true, data: () => ({ name: "Cliente" }) });
   m.proposal.mockResolvedValue({
     data: () => ({ uid: "u1", companyId: "ONE", expiresAt: Date.now() + 60000, actions: [action] }),
@@ -50,14 +54,103 @@ beforeEach(() => {
   m.collection.mockImplementation((name) => ({
     doc: (docId: string) =>
       name === "companies"
-        ? { get: m.company, collection: () => ({ doc: () => ({ id: "task" }) }) }
-        : { id: docId, set: m.set },
+        ? {
+            get: m.company,
+            collection: () => ({
+              doc: () => ({ id: "task" }),
+              orderBy: () => ({ limit: () => ({ get: m.records }) }),
+            }),
+          }
+        : { id: docId, set: m.set, create: m.create },
   }));
   m.transaction.mockImplementation((fn) =>
     fn({ get: m.proposal, create: m.create, update: m.update, set: m.set })
   );
 });
 describe("work assistant authorization and confirmation", () => {
+  it.each(["suspension", "role", "tenant"])(
+    "does not save or return an AI proposal after %s during generation",
+    async (change) => {
+      m.ask.mockImplementation(async () => {
+        if (change === "suspension")
+          m.auth.mockRejectedValue(new AuthError("Access suspended", 403));
+        else
+          m.auth.mockResolvedValue({
+            uid: "u1",
+            role: change === "role" ? "ENGINEER" : "ADMIN",
+            tenantId: change === "tenant" ? "OTHER" : null,
+            servedCompanies: [],
+          });
+        return { answer: "Private synthetic answer", actions: [action] };
+      });
+      const response = await POST(
+        request({
+          action: "chat",
+          companyId: "ONE",
+          messages: [{ role: "user", content: "Organize as tarefas" }],
+        })
+      );
+      expect(response.status).toBe(403);
+      expect(await response.text()).not.toContain("Private synthetic answer");
+      expect(m.create).not.toHaveBeenCalled();
+    }
+  );
+  it("does not prepare selected kits with the grant captured before an AI call", async () => {
+    m.ask.mockImplementation(async (_messages, _context, prepare) => {
+      m.auth.mockRejectedValue(new AuthError("Access suspended", 403));
+      await prepare();
+      return { answer: "Private synthetic answer", actions: [] };
+    });
+    const response = await POST(
+      request({
+        action: "chat",
+        companyId: "ONE",
+        messages: [{ role: "user", content: "Prepare os kits selecionados" }],
+        kitSelection: {
+          employeeIds: ["synthetic-person"],
+          clinicId: "synthetic-clinic",
+          cycle: "2026-11",
+          examType: "periodico",
+          pcmsoDocumentId: "a".repeat(64),
+          pgrDocumentId: "b".repeat(64),
+          exams: ["Exame clínico"],
+          risks: ["Risco sintético"],
+          pcmsoDoctor: "Médico sintético",
+          pcmsoCrm: "123/SP",
+        },
+      })
+    );
+    expect(response.status).toBe(403);
+    expect(m.prepare).not.toHaveBeenCalled();
+  });
+  it("does not record a probe confirmation after the account is suspended", async () => {
+    m.ask.mockImplementation(async () => {
+      m.auth.mockRejectedValue(new AuthError("Access suspended", 403));
+      return { answer: "Conexão verificada", actions: [] };
+    });
+    const response = await POST(request({ action: "probe", companyId: "ONE" }));
+    expect(response.status).toBe(403);
+    expect(m.set.mock.calls.some(([data]) => data.lastVerifiedAt)).toBe(false);
+  });
+  it("stores a proposal for an operator who remains authorized without applying tasks", async () => {
+    m.ask.mockResolvedValue({ answer: "Proposta sintética", actions: [action] });
+    const response = await POST(
+      request({
+        action: "chat",
+        companyId: "ONE",
+        messages: [{ role: "user", content: "Organize as tarefas" }],
+      })
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      answer: "Proposta sintética",
+      proposalId: expect.any(String),
+    });
+    expect(m.create).toHaveBeenCalledWith(
+      expect.objectContaining({ uid: "u1", companyId: "ONE", actions: [action] })
+    );
+    expect(m.update).not.toHaveBeenCalled();
+  });
   it("probes the server configuration without sending company records or secrets", async () => {
     m.ask.mockResolvedValue({ answer: "Conexão verificada", actions: [] });
     const r = await POST(request({ action: "probe", companyId: "ONE" }));

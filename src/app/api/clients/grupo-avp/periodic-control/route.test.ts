@@ -108,7 +108,58 @@ describe("autorização do controle de periódicos AVP", () => {
     expect(r.status).toBe(200);
     expect(r.headers.get("cache-control")).toBe("private, no-store");
     expect(mocks.read).toHaveBeenCalledOnce();
+    expect(mocks.auth).toHaveBeenCalledTimes(2);
   });
+  it.each(["suspended", "role", "scope"])(
+    "não libera a campanha quando o acesso muda durante a leitura: %s",
+    async (change) => {
+      mocks.auth.mockResolvedValue({
+        uid: "operator",
+        role: "OPERATIONS",
+        tenantId: null,
+        servedCompanies: ["GRUPO_AVP"],
+      });
+      mocks.read.mockImplementationOnce(async () => {
+        if (change === "suspended")
+          mocks.auth.mockRejectedValue(new AuthError("Perfil suspenso.", 403));
+        else
+          mocks.auth.mockResolvedValue({
+            uid: "operator",
+            role: change === "role" ? "CLIENT_ADMIN" : "OPERATIONS",
+            tenantId: change === "role" ? "GRUPO_AVP" : null,
+            servedCompanies: [],
+          });
+        return {
+          people: [
+            {
+              id: "synthetic-person",
+              name: "synthetic-private-person",
+              unit: "synthetic-unit",
+              admission: "2025-01-01",
+              city: "São Paulo",
+              uf: "SP",
+              cityKey: "SAO PAULO|SP",
+              status: "Não iniciado",
+              progress: "pending",
+              classification: "listed",
+              duplicateRows: 0,
+              sourceRows: [2],
+              phone: "",
+              email: "",
+              review: "OK",
+            },
+          ],
+          summary: { uniquePeople: 1 },
+        };
+      });
+      const response = await GET(request());
+      expect(response.status).toBe(403);
+      expect(await response.text()).not.toContain("synthetic-private-person");
+      expect(mocks.auth).toHaveBeenCalledTimes(2);
+      expect(mocks.read).toHaveBeenCalledOnce();
+      expect(mocks.cases).toHaveBeenCalledOnce();
+    }
+  );
   it("não retorna credenciais nem dados parciais quando a fonte falha", async () => {
     mocks.read.mockRejectedValue(new Error("private-service-account-content"));
     const r = await GET(request());

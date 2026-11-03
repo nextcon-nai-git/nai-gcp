@@ -67,6 +67,7 @@ let card: AsoFlowCard,
   db: Map<string, Record<string, any>>,
   files: Map<string, Buffer>,
   client: any;
+let afterInboxQuery: (() => void) | undefined;
 function snapshot(path: string) {
   return {
     exists: db.has(path),
@@ -108,7 +109,9 @@ function collection(path: string, field?: string, value?: any, max = Infinity, c
             (!field || db.get(p)?.[field] === value)
         )
         .slice(0, max);
-      return { size: paths.length, docs: paths.map(snapshot) };
+      const result = { size: paths.length, docs: paths.map(snapshot) };
+      if (path === `${root}/inbox`) afterInboxQuery?.();
+      return result;
     },
   };
 }
@@ -135,6 +138,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   db = new Map();
   files = new Map();
+  afterInboxQuery = undefined;
   card = {
     id,
     version: 3,
@@ -380,6 +384,14 @@ describe("ASO email evidence and delivery", () => {
 });
 
 describe("incoming PDFs remain candidates until reviewed", () => {
+  it("does not release candidate metadata after access is revoked during the inbox query", async () => {
+    seedCandidate();
+    afterInboxQuery = () => {
+      m.getCard.mockRejectedValue(new AuthError("access revoked", 403));
+    };
+    await expect(asoFlowMailbox(user, id)).rejects.toMatchObject({ status: 403 });
+  });
+
   it("does not release attachment bytes after permission is revoked during download", async () => {
     seedCandidate();
     m.getCard.mockResolvedValueOnce(structuredClone(card));

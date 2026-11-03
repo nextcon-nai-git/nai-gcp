@@ -6,9 +6,12 @@ const m = vi.hoisted(() => ({
   provider: {} as Record<string, unknown>,
   account: null as Record<string, unknown> | null,
   warning: "",
+  adminProfile: undefined as Record<string, unknown> | undefined,
+  onDataRead: vi.fn(),
 }));
 vi.mock("@/lib/firebase-admin", () => ({ adminDb: { collection: m.collection } }));
-vi.mock("./user-access", () => ({
+vi.mock("./user-access", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./user-access")>()),
   previewUserAccess: m.preview,
   manageUserAccess: m.manage,
 }));
@@ -27,6 +30,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   m.account = null;
   m.warning = "";
+  m.adminProfile = { role: "SUPER_ADMIN", accessEnabled: true };
   m.provider = {
     name: "Perito sintético",
     active: true,
@@ -37,10 +41,30 @@ beforeEach(() => {
     doc: (id = "audit") => ({
       collection,
       id,
-      get: async () => ({
-        exists: true,
-        data: () => (collection === "providers" ? m.provider : { name: "Empresa sintética" }),
-      }),
+      get: async () => {
+        if (collection !== "users") m.onDataRead();
+        return {
+          exists: collection !== "users" || m.adminProfile !== undefined,
+          data: () =>
+            collection === "users"
+              ? m.adminProfile
+              : collection === "providers"
+                ? m.provider
+                : { name: "Empresa sintética" },
+        };
+      },
+    }),
+    limit: () => ({
+      get: async () => {
+        m.onDataRead();
+        return {
+          size: 1,
+          docs:
+            collection === "providers"
+              ? [{ id: "provider", data: () => m.provider }]
+              : [{ id: "allowed", data: () => ({ name: "Empresa sintética" }) }],
+        };
+      },
     }),
   }));
   m.preview.mockImplementation(async () => ({
@@ -162,6 +186,7 @@ it("only offers valid, current providers with existing client units in the batch
     { id: "deleted", data: { ...m.provider, active: true, isDeleted: true } },
   ];
   m.collection.mockImplementation((name: string) => ({
+    doc: () => ({ get: async () => ({ data: () => m.adminProfile }) }),
     limit: () => ({
       get: async () => ({
         size: name === "providers" ? entries.length : 1,
@@ -185,3 +210,25 @@ it("does not expose the provider directory to non-security administrators", asyn
   });
   expect(m.collection).not.toHaveBeenCalled();
 });
+
+for (const mode of ["preview", "list"]) {
+  it.each(["suspended", "deleted", "missing", "demoted"])(
+    `withholds expert account ${mode} data if the administrator is %s during the query`,
+    async (change) => {
+      m.onDataRead.mockImplementation(() => {
+        if (change === "missing") m.adminProfile = undefined;
+        else
+          m.adminProfile = {
+            ...m.adminProfile,
+            ...(change === "suspended" ? { accessEnabled: false } : {}),
+            ...(change === "deleted" ? { isDeleted: true } : {}),
+            ...(change === "demoted" ? { role: "ADMIN" } : {}),
+          };
+      });
+      await expect(
+        mode === "preview" ? previewExpertAccount(admin, "provider") : listExpertAccounts(admin)
+      ).rejects.toMatchObject({ status: 403 });
+      expect(m.manage).not.toHaveBeenCalled();
+    }
+  );
+}

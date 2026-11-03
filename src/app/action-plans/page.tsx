@@ -35,19 +35,30 @@ import {
 } from "@/components/ui/select";
 import { OpsTask } from "@/types/schema";
 import { TaskWorkspace } from "@/components/kanban/task-workspace";
+import { parseClaims } from "@/lib/auth/claims";
 
 export default function EnterpriseOpsHub() {
-  const { user, role, companyId, tenantId } = useUser();
+  const { user, role, companyId, tenantId, servedCompanies, isUserLoading, userError } = useUser();
   return (
     <React.Suspense fallback={<div className="p-6">Carregando cards…</div>}>
-      <EnterpriseOpsContent key={JSON.stringify([user?.uid, role, companyId, tenantId])} />
+      <EnterpriseOpsContent
+        key={JSON.stringify([
+          user?.uid,
+          role,
+          companyId,
+          tenantId,
+          [...new Set(servedCompanies || [])].sort(),
+          !isUserLoading && !userError,
+        ])}
+      />
     </React.Suspense>
   );
 }
 function EnterpriseOpsContent() {
   const params = useSearchParams();
   const pgrSource = params.get("source") === "pgr";
-  const { user } = useUser();
+  const { user, isUserLoading, userError } = useUser();
+  const profileReady = !!user && !isUserLoading && !userError;
   const db = useFirestore();
   const { toast } = useToast();
 
@@ -82,13 +93,14 @@ function EnterpriseOpsContent() {
   });
 
   const profileRef = useMemoFirebase(() => {
-    if (!db || !user) return null;
+    if (!db || !user || !profileReady) return null;
     return doc(db, "users", user.uid);
-  }, [db, user]);
+  }, [db, user, profileReady]);
   const { data: profile, error: profileError } = useDoc(profileRef);
+  const ownCompanyId = profile ? parseClaims(profile).tenantId : undefined;
 
   const isGlobalAdmin = React.useMemo(() => {
-    if (!profile) return false;
+    if (!profileReady || !profile) return false;
     const role = (profile.role || "").toUpperCase();
     return (
       role === "SUPER_ADMIN" ||
@@ -96,16 +108,16 @@ function EnterpriseOpsContent() {
         !profile.tenantId &&
         (!profile.companyId || profile.companyId === "nextcon"))
     );
-  }, [profile]);
+  }, [profile, profileReady]);
 
   const isProvider = React.useMemo(() => {
-    if (!profile) return false;
+    if (!profileReady || !profile) return false;
     const role = (profile.role || "").toUpperCase();
     return ["PROVIDER", "ENGINEER", "DOCTOR"].includes(role);
-  }, [profile]);
+  }, [profile, profileReady]);
 
   const companiesQuery = useMemoFirebase(() => {
-    if (!db || !profile || pgrSource) return null;
+    if (!profileReady || !db || !profile || pgrSource) return null;
     if (isGlobalAdmin) {
       return query(collection(db, "companies"), orderBy("name", "asc"));
     }
@@ -115,21 +127,22 @@ function EnterpriseOpsContent() {
         where("__name__", "in", profile.servedCompanies.slice(0, 10))
       );
     }
-    if (profile.companyId) {
-      return query(collection(db, "companies"), where("__name__", "==", profile.companyId));
+    if (ownCompanyId) {
+      return query(collection(db, "companies"), where("__name__", "==", ownCompanyId));
     }
     return null;
-  }, [db, profile, isGlobalAdmin, isProvider, pgrSource]);
+  }, [db, profile, isGlobalAdmin, isProvider, pgrSource, ownCompanyId, profileReady]);
   const {
     data: legacyCompanies,
     isLoading: legacyLoadingCompanies,
     error: companiesError,
   } = useCollection(companiesQuery);
-  const companies = pgrSource ? pgrCompanies.data : legacyCompanies;
-  const loadingCompanies = pgrSource ? pgrCompanies.loading : legacyLoadingCompanies;
+  const companies = profileReady ? (pgrSource ? pgrCompanies.data : legacyCompanies) : [];
+  const loadingCompanies =
+    isUserLoading || (pgrSource ? pgrCompanies.loading : legacyLoadingCompanies);
 
   const tasksQuery = useMemoFirebase(() => {
-    if (!db || !profile || pgrSource) return null;
+    if (!profileReady || !db || !profile || pgrSource) return null;
 
     if (selectedCompanyId === "all" && isGlobalAdmin) {
       return query(collectionGroup(db, "tasks"), orderBy("dueDate", "asc"));
@@ -150,23 +163,29 @@ function EnterpriseOpsContent() {
       );
     }
 
-    if (profile.companyId) {
-      return query(
-        collection(db, "companies", profile.companyId, "tasks"),
-        orderBy("dueDate", "asc")
-      );
+    if (ownCompanyId) {
+      return query(collection(db, "companies", ownCompanyId, "tasks"), orderBy("dueDate", "asc"));
     }
 
     return null;
-  }, [db, profile, selectedCompanyId, isGlobalAdmin, isProvider, pgrSource]);
+  }, [
+    db,
+    profile,
+    selectedCompanyId,
+    isGlobalAdmin,
+    isProvider,
+    pgrSource,
+    ownCompanyId,
+    profileReady,
+  ]);
 
   const {
     data: legacyTasks,
     isLoading: legacyLoadingTasks,
     error: tasksError,
   } = useCollection<OpsTask>(tasksQuery);
-  const tasks = pgrSource ? pgrTasks.data : legacyTasks;
-  const loadingTasks = pgrSource ? pgrTasks.loading : legacyLoadingTasks;
+  const tasks = profileReady ? (pgrSource ? pgrTasks.data : legacyTasks) : null;
+  const loadingTasks = isUserLoading || (pgrSource ? pgrTasks.loading : legacyLoadingTasks);
 
   const operationalTasks = React.useMemo(() => {
     if (!tasks) return [];
@@ -330,7 +349,7 @@ function EnterpriseOpsContent() {
         </div>
       </header>
 
-      {!pgrSource && (profileError || companiesError || tasksError) && (
+      {(userError || (!pgrSource && (profileError || companiesError || tasksError))) && (
         <p role="alert" className="rounded border border-destructive p-4 text-sm">
           Não foi possível consultar a operação. Verifique sua permissão e atualize antes de
           continuar.
@@ -354,7 +373,7 @@ function EnterpriseOpsContent() {
               Sincronizando Operações...
             </p>
           </div>
-        ) : !pgrSource && (profileError || tasksError) ? (
+        ) : userError || (!pgrSource && (profileError || tasksError)) ? (
           <p>O quadro está indisponível enquanto a consulta não for confirmada.</p>
         ) : operationalTasks.length > 0 ? (
           <div className="w-full h-full">

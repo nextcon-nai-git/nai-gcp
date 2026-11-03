@@ -116,6 +116,7 @@ export async function POST(request: NextRequest) {
         ],
         { diagnostic: true }
       );
+      await administrator(request);
       const checkedAt = new Date().toISOString();
       await quotaRef.set({ lastVerifiedAt: checkedAt }, { merge: true });
       return NextResponse.json({ verified: true, checkedAt }, { headers: privateHeaders });
@@ -151,8 +152,14 @@ export async function POST(request: NextRequest) {
           ? { count: data.kitSelection.employeeIds.length, available: true }
           : null,
       },
-      data.kitSelection ? () => prepareKitBatch(user, data.companyId, data.kitSelection) : undefined
+      data.kitSelection
+        ? async () =>
+            prepareKitBatch(await administrator(request), data.companyId, data.kitSelection)
+        : undefined
     );
+    // Model processing may outlive an administrative access change.
+    const currentUser = await administrator(request);
+    requirePgrCompany(currentUser, data.companyId);
     const proposalId = answer.actions.length ? randomUUID() : null;
     if (proposalId)
       await adminDb

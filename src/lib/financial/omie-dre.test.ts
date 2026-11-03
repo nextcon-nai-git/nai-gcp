@@ -47,6 +47,15 @@ const report = (rows: OmieDreRow[]): OmieDreReport => {
 };
 
 describe("Omie DRE analysis", () => {
+  it.each(["＝1+1", "\uFEFF＝1+1", "＋1+1", "＠SUM(1)", "\ttexto comum"])(
+    "protects unusual provider text prefixes and retains signed numeric values: %j",
+    (partyName) => {
+      const csv = exportOmieDreCsv(report([row({ partyName })]));
+      expect(csv.startsWith("\uFEFF")).toBe(true);
+      expect(csv).toContain(`"'${partyName}"`);
+      expect(csv).toContain(";-100,10;");
+    }
+  );
   it("sums fixed-point allocations before rounding totals, accounts, months and suppliers", () => {
     const rows = ["-0.3333", "-0.3333", "-0.3334", "0.0101"].map((amountDecimal) =>
       row({

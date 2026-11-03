@@ -185,6 +185,12 @@ it.each(["{", "null", "[]"])(
 );
 
 it("resposta clínica autorizada não permite cache nem consulta de CID simulada", async () => {
+  mock.auth.mockResolvedValue({
+    uid: "doctor",
+    role: "DOCTOR",
+    tenantId: "c1",
+    servedCompanies: [],
+  });
   mock.history.mockResolvedValue({ records: [] });
   mock.generate.mockReturnValue({
     stream: (async function* () {
@@ -200,6 +206,12 @@ it("resposta clínica autorizada não permite cache nem consulta de CID simulada
   expect(mock.generate.mock.calls[0][0]).not.toHaveProperty("tools");
 });
 it("encerra streaming com erro genérico, sem expor erro do provedor", async () => {
+  mock.auth.mockResolvedValue({
+    uid: "doctor",
+    role: "DOCTOR",
+    tenantId: "c1",
+    servedCompanies: [],
+  });
   mock.history.mockResolvedValue({ records: [] });
   mock.generate.mockReturnValue({
     stream: (async function* () {

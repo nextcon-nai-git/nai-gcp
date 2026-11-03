@@ -11,7 +11,10 @@ export async function GET(req: NextRequest) {
     const user = await requireAuth(req);
     requireAvpAccess(user);
     await syncAvpSource(req.nextUrl.searchParams.get("force") === "1", user.uid);
-    return NextResponse.json(await getAvpSnapshot(), {
+    const snapshot = await getAvpSnapshot();
+    // The source refresh can outlive suspension or removal from the AVP portfolio.
+    requireAvpAccess(await requireAuth(req));
+    return NextResponse.json(snapshot, {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (error) {
