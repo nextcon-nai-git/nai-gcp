@@ -11,6 +11,10 @@ import {
   MapPin,
   Search,
   Users,
+  Send,
+  Activity,
+  FileText,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -526,16 +530,54 @@ export function AvpPeriodicCityBrowser({ cards, busy, onEdit, onHistory, onNavig
                       {group.total} registros · {group.units.length} unidades
                       {group.cancelled > 0 ? ` · ${group.cancelled} cancelados na fonte` : ""}
                     </p>
-                    <p className="text-sm font-medium">{group.priority.label}</p>
-                    <div className="flex flex-wrap gap-1.5" aria-label="Etapas da cidade inteira">
-                      {PERIODIC_STAGES.filter((stage) => group.stageCounts[stage] > 0).map(
-                        (stage) => (
-                          <span key={stage} className="rounded bg-muted px-2 py-1 text-xs">
-                            {PERIODIC_STAGE_LABELS[stage]}: {group.stageCounts[stage]}
-                          </span>
-                        )
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium">{group.priority.label}</p>
+                      {(group.blocked > 0 || group.sourceChanged > 0 || group.overdue > 0) && (
+                        <AlertTriangle className="size-4 shrink-0" aria-label="Cidade com pendências críticas" />
                       )}
                     </div>
+                    <div
+                      className="grid grid-cols-3 gap-2 rounded-md bg-muted/40 p-2"
+                      aria-label="Indicadores operacionais da cidade"
+                    >
+                      <span className="flex items-center gap-1 text-xs" title="Colaboradores/vínculos ativos">
+                        <Users className="size-3.5" aria-hidden="true" /> {group.active}
+                      </span>
+                      <span
+                        className="flex items-center gap-1 text-xs"
+                        title={
+                          group.kitSent === null
+                            ? "A fonte atual não possui evidência estruturada de kit enviado."
+                            : "Kits enviados com sinal explícito na fonte."
+                        }
+                      >
+                        <Send className="size-3.5" aria-hidden="true" /> {group.kitSent ?? "—"}
+                      </span>
+                      <span className="flex items-center gap-1 text-xs" title="Agendamentos confirmados na esteira">
+                        <CalendarDays className="size-3.5" aria-hidden="true" /> {group.appointmentsConfirmed}
+                      </span>
+                      <span className="flex items-center gap-1 text-xs" title="Exames com realização registrada">
+                        <Activity className="size-3.5" aria-hidden="true" /> {group.examsPerformed}
+                      </span>
+                      <span className="flex items-center gap-1 text-xs" title="ASOs recebidos">
+                        <FileText className="size-3.5" aria-hidden="true" /> {group.asoReceived}
+                      </span>
+                      <span className="flex items-center gap-1 text-xs" title="Pendências ativas">
+                        <AlertTriangle className="size-3.5" aria-hidden="true" /> {group.pending}
+                      </span>
+                    </div>
+                    <details className="text-xs text-muted-foreground">
+                      <summary className="cursor-pointer">Etapas</summary>
+                      <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Etapas da cidade inteira">
+                        {PERIODIC_STAGES.filter((stage) => group.stageCounts[stage] > 0).map(
+                          (stage) => (
+                            <span key={stage} className="rounded bg-muted px-2 py-1">
+                              {PERIODIC_STAGE_LABELS[stage]}: {group.stageCounts[stage]}
+                            </span>
+                          )
+                        )}
+                      </div>
+                    </details>
                     {group.active > 0 && (
                       <div className="space-y-1">
                         <p className="text-xs">
