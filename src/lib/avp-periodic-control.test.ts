@@ -58,6 +58,74 @@ const build = (people = [person()], providers = [provider()], prices: unknown[][
     [PRICE_HEADERS, ...prices]
   );
 describe("controle da campanha periódica e rede AVP", () => {
+  it("projeta uma única agenda da fonte aparada, ignorando repetições e linhas sem agenda", () => {
+    const first = person();
+    first.splice(
+      7,
+      5,
+      " 04/11/2026 ",
+      " 08:30 ",
+      " Clínica de teste ",
+      " Cidade de teste ",
+      " CE "
+    );
+    const repeated = person("2");
+    repeated.splice(7, 5, "04/11/2026", "08:30", "Clínica de teste", "Cidade de teste", "CE");
+    const empty = person("3");
+    const baseline = build([person(), person("2"), empty]).people[0];
+
+    expect(build([first, repeated, empty]).people[0]).toEqual({
+      ...baseline,
+      sourceAppointment: {
+        date: "04/11/2026",
+        time: "08:30",
+        clinic: "Clínica de teste",
+        city: "Cidade de teste",
+        uf: "CE",
+      },
+    });
+  });
+  it("preserva a agenda parcial sem inventar horário ou local nem avançar o status", () => {
+    const partial = person();
+    partial[7] = " 2026-11-04 ";
+    partial[8] = " ";
+    partial[9] = " Clínica parcial ";
+    const baseline = build().people[0];
+
+    expect(build([partial]).people[0]).toEqual({
+      ...baseline,
+      sourceAppointment: {
+        date: "2026-11-04",
+        time: "",
+        clinic: "Clínica parcial",
+        city: "",
+        uf: "",
+      },
+    });
+  });
+  it("sinaliza agendas divergentes no mesmo vínculo sem escolher uma delas", () => {
+    const first = person();
+    first.splice(7, 5, "04/11/2026", "08:30", "Clínica de teste", "Cidade de teste", "CE");
+    const conflicting = person("2");
+    conflicting.splice(7, 5, "04/11/2026", "09:00", "Clínica de teste", "Cidade de teste", "CE");
+    const baseline = build([person(), person("2")]).people[0];
+
+    expect(build([first, conflicting]).people[0]).toEqual({
+      ...baseline,
+      sourceAppointmentConflict: true,
+    });
+    expect(build([conflicting, first]).people[0].sourceAppointment).toBeUndefined();
+  });
+  it("não cria referência de agenda quando a fonte não informa seus campos", () => {
+    const withoutAppointment = person();
+    withoutAppointment[6] = "Agendado";
+    withoutAppointment.splice(7, 5, " ", "", " ", "", " ");
+    const result = build([withoutAppointment]).people[0];
+
+    expect(result.status).toBe("Agendado");
+    expect(result).not.toHaveProperty("sourceAppointment");
+    expect(result).not.toHaveProperty("sourceAppointmentConflict");
+  });
   it.each([
     ["Sim", ""],
     ["", "Sim"],
