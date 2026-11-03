@@ -58,6 +58,7 @@ export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => v
   const [search, setSearch] = useState("");
   const [city, setCity] = useState("");
   const [view, setView] = useState("map");
+  const [expandedCities, setExpandedCities] = useState<Set<string>>(new Set());
   const [coverage, setCoverage] = useState("all");
   const [priceFilter, setPriceFilter] = useState("all");
   const [peopleFilter, setPeopleFilter] = useState("all");
@@ -302,6 +303,7 @@ export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => v
           <div className="flex flex-wrap gap-2">
             {[
               ["map", "Mapa de periódicos"],
+              ["city-cards", "Cards por cidade"],
               ["cities", "Cobertura por cidade"],
               ["clinics", "Clínicas e valores"],
               ["people", "Lista de periódicos"],
@@ -378,6 +380,82 @@ export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => v
                 setView("people");
               }}
             />
+          )}
+          {view === "city-cards" && (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {cities.map((c) => {
+                const cityPeople = (data.people || []).filter((p) => p.cityKey === c.key);
+                const expanded = expandedCities.has(c.key);
+                const progress = cityPeople.reduce<Record<string, number>>((acc, person) => {
+                  const key = person.progress || periodicProgress(person.status);
+                  acc[key] = (acc[key] || 0) + 1;
+                  return acc;
+                }, {});
+                return (
+                  <Card key={c.key} className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <button
+                          type="button"
+                          className="font-bold underline text-left"
+                          aria-expanded={expanded}
+                          onClick={() =>
+                            setExpandedCities((current) => {
+                              const next = new Set(current);
+                              if (next.has(c.key)) next.delete(c.key);
+                              else next.add(c.key);
+                              return next;
+                            })
+                          }
+                        >
+                          {c.city || "Local a confirmar"}/{c.uf || "UF a confirmar"}
+                        </button>
+                        <p className="text-xs text-muted-foreground">
+                          {c.total} colaboradores · {c.contracted} clínica(s) com contrato informado
+                        </p>
+                      </div>
+                      <span className="rounded bg-muted px-2 py-1 text-xs font-bold">
+                        {c.minClinicalCents === null
+                          ? "Preço a confirmar"
+                          : formatBrlCents(c.minClinicalCents)}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {Object.entries(AVP_PERIODIC_PROGRESS).map(([key, item]) => (
+                        <span key={key} className="rounded border px-2 py-1">
+                          {item.label}: {progress[key] || 0}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-xs">{c.action}</p>
+                    {expanded && (
+                      <div className="max-h-80 overflow-auto rounded border">
+                        {cityPeople.map((p) => (
+                          <button
+                            type="button"
+                            key={p.id}
+                            className="block w-full border-b p-3 text-left last:border-0 hover:bg-muted/50"
+                            onClick={() => {
+                              setCity(c.key);
+                              setSearch(p.name);
+                              setView("people");
+                            }}
+                          >
+                            <strong className="text-sm">{p.name}</strong>
+                            <p className="text-xs text-muted-foreground">
+                              {p.unit} · {p.status}
+                            </p>
+                            <p className="text-xs">
+                              {p.review || "Conferência não informada"}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
           )}
           {view === "cities" && (
             <>
