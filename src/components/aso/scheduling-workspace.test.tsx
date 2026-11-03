@@ -150,6 +150,8 @@ describe("scheduling persistence and session boundaries", () => {
 
     expect(v.container.textContent).toContain("Periódicos · ILHÉUS/BA");
     expect(v.container.textContent).toContain("2 colaboradores");
+    expect(v.container.textContent).toContain("Sem clínica: 2");
+    expect(v.container.textContent).toContain("Kit pendente: 2");
     expect(v.container.textContent).toContain("Periódicos · SALVADOR/BA");
     expect(v.container.textContent).not.toContain("Pessoa Ilhéus 1");
 
