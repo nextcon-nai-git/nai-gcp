@@ -391,7 +391,10 @@ export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => v
                   acc[key] = (acc[key] || 0) + 1;
                   return acc;
                 }, {});
-                const needsClinic = c.contracted === 0 ? cityPeople.filter((p) => p.classification !== "cancelled").length : 0;
+                const needsClinic =
+                  c.contracted === 0
+                    ? cityPeople.filter((p) => p.classification !== "cancelled").length
+                    : 0;
                 const scheduled = progress.scheduled || 0;
                 const received = progress.received || 0;
                 const pending = progress.pending || 0;
@@ -469,9 +472,7 @@ export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => v
                             <p className="text-xs text-muted-foreground">
                               {p.unit} · {p.status}
                             </p>
-                            <p className="text-xs">
-                              {p.review || "Conferência não informada"}
-                            </p>
+                            <p className="text-xs">{p.review || "Conferência não informada"}</p>
                           </button>
                         ))}
                       </div>
