@@ -299,12 +299,12 @@ describe("periódicos por cidade", () => {
     expect(metrics).not.toBeNull();
     expect(metrics.textContent).toContain("1");
     expect(metrics.querySelector('[title^="Kits enviados"]')?.textContent).toContain("1");
-    expect(metrics.querySelector('[title="Agendamentos confirmados na esteira"]')?.textContent).toContain(
-      "3"
-    );
-    expect(metrics.querySelector('[title="Exames com realização registrada"]')?.textContent).toContain(
-      "2"
-    );
+    expect(
+      metrics.querySelector('[title="Agendamentos confirmados na esteira"]')?.textContent
+    ).toContain("3");
+    expect(
+      metrics.querySelector('[title="Exames com realização registrada"]')?.textContent
+    ).toContain("2");
     expect(metrics.querySelector('[title="ASOs recebidos"]')?.textContent).toContain("2");
 
     const noKit = fetchMock().mockImplementation(async () => response(snapshot([card(7)])));
