@@ -68,7 +68,9 @@ function summarizeGroup(
   const kitSignalAvailable = active.some((card) =>
     /\bkit\b/i.test([card.person.status, card.person.reviewDetail || ""].filter(Boolean).join(" "))
   );
-  const appointmentsConfirmed = active.filter((card) => atLeast(card, "confirmar_realizacao")).length;
+  const appointmentsConfirmed = active.filter((card) =>
+    atLeast(card, "confirmar_realizacao")
+  ).length;
   const examsPerformed = active.filter((card) => atLeast(card, "resgatar_aso")).length;
   const asoReceived = active.filter(
     (card) => atLeast(card, "conferir_esocial") || Boolean(card.person.asoReceivedAt)
