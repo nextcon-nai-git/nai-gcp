@@ -533,15 +533,22 @@ export function AvpPeriodicCityBrowser({ cards, busy, onEdit, onHistory, onNavig
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-medium">{group.priority.label}</p>
                       {(group.blocked > 0 || group.sourceChanged > 0 || group.overdue > 0) && (
-                        <AlertTriangle className="size-4 shrink-0" aria-label="Cidade com pendências críticas" />
+                        <AlertTriangle
+                          className="size-4 shrink-0"
+                          aria-label="Cidade com pendências críticas"
+                        />
                       )}
                     </div>
                     <div
                       className="grid grid-cols-3 gap-2 rounded-md bg-muted/40 p-2"
                       aria-label="Indicadores operacionais da cidade"
                     >
-                      <span className="flex items-center gap-1 text-xs" title="Colaboradores/vínculos ativos">
-                        <Users className="size-3.5" aria-hidden="true" /> <strong>{group.active}</strong> pessoas
+                      <span
+                        className="flex items-center gap-1 text-xs"
+                        title="Colaboradores/vínculos ativos"
+                      >
+                        <Users className="size-3.5" aria-hidden="true" />{" "}
+                        <strong>{group.active}</strong> pessoas
                       </span>
                       <span
                         className="flex items-center gap-1 text-xs"
@@ -551,24 +558,38 @@ export function AvpPeriodicCityBrowser({ cards, busy, onEdit, onHistory, onNavig
                             : "Kits enviados com sinal explícito na fonte."
                         }
                       >
-                        <Send className="size-3.5" aria-hidden="true" /> <strong>{group.kitSent ?? "—"}</strong> kits
+                        <Send className="size-3.5" aria-hidden="true" />{" "}
+                        <strong>{group.kitSent ?? "—"}</strong> kits
                       </span>
-                      <span className="flex items-center gap-1 text-xs" title="Agendamentos confirmados na esteira">
-                        <CalendarDays className="size-3.5" aria-hidden="true" /> <strong>{group.appointmentsConfirmed}</strong> agenda
+                      <span
+                        className="flex items-center gap-1 text-xs"
+                        title="Agendamentos confirmados na esteira"
+                      >
+                        <CalendarDays className="size-3.5" aria-hidden="true" />{" "}
+                        <strong>{group.appointmentsConfirmed}</strong> agenda
                       </span>
-                      <span className="flex items-center gap-1 text-xs" title="Exames com realização registrada">
-                        <Activity className="size-3.5" aria-hidden="true" /> <strong>{group.examsPerformed}</strong> exames
+                      <span
+                        className="flex items-center gap-1 text-xs"
+                        title="Exames com realização registrada"
+                      >
+                        <Activity className="size-3.5" aria-hidden="true" />{" "}
+                        <strong>{group.examsPerformed}</strong> exames
                       </span>
                       <span className="flex items-center gap-1 text-xs" title="ASOs recebidos">
-                        <FileText className="size-3.5" aria-hidden="true" /> <strong>{group.asoReceived}</strong> ASOs
+                        <FileText className="size-3.5" aria-hidden="true" />{" "}
+                        <strong>{group.asoReceived}</strong> ASOs
                       </span>
                       <span className="flex items-center gap-1 text-xs" title="Pendências ativas">
-                        <AlertTriangle className="size-3.5" aria-hidden="true" /> <strong>{group.pending}</strong> pend.
+                        <AlertTriangle className="size-3.5" aria-hidden="true" />{" "}
+                        <strong>{group.pending}</strong> pend.
                       </span>
                     </div>
                     <details className="text-xs text-muted-foreground">
                       <summary className="cursor-pointer">Etapas</summary>
-                      <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Etapas da cidade inteira">
+                      <div
+                        className="mt-2 flex flex-wrap gap-1.5"
+                        aria-label="Etapas da cidade inteira"
+                      >
                         {PERIODIC_STAGES.filter((stage) => group.stageCounts[stage] > 0).map(
                           (stage) => (
                             <span key={stage} className="rounded bg-muted px-2 py-1">
