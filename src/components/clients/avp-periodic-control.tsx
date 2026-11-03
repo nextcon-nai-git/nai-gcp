@@ -391,6 +391,10 @@ export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => v
                   acc[key] = (acc[key] || 0) + 1;
                   return acc;
                 }, {});
+                const needsClinic = c.contracted === 0 ? cityPeople.filter((p) => p.classification !== "cancelled").length : 0;
+                const scheduled = progress.scheduled || 0;
+                const received = progress.received || 0;
+                const pending = progress.pending || 0;
                 return (
                   <Card key={c.key} className="p-4 space-y-3">
                     <div className="flex items-start justify-between gap-3">
@@ -421,11 +425,31 @@ export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => v
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs">
-                      {Object.entries(AVP_PERIODIC_PROGRESS).map(([key, item]) => (
-                        <span key={key} className="rounded border px-2 py-1">
-                          {item.label}: {progress[key] || 0}
+                      {needsClinic > 0 && (
+                        <span className="rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1">
+                          Sem clínica: {needsClinic}
                         </span>
-                      ))}
+                      )}
+                      {pending > 0 && (
+                        <span className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1">
+                          Não iniciados: {pending}
+                        </span>
+                      )}
+                      {scheduled > 0 && (
+                        <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1">
+                          Agendados: {scheduled}
+                        </span>
+                      )}
+                      {received > 0 && (
+                        <span className="rounded border border-blue-500/30 bg-blue-500/10 px-2 py-1">
+                          ASOs recebidos: {received}
+                        </span>
+                      )}
+                      {(progress.cancelled || 0) > 0 && (
+                        <span className="rounded border px-2 py-1">
+                          Cancelados/faltas: {progress.cancelled}
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs">{c.action}</p>
                     {expanded && (
