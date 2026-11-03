@@ -541,6 +541,17 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                               const groupKey = `${stepKey}:${city}`;
                               const expanded = expandedCityGroups.has(groupKey);
                               const clinics = [...new Set(cityRequests.map((req) => req.clinicName).filter(Boolean))];
+                              const withoutClinic = cityRequests.filter((req) => !req.clinicName).length;
+                              const kitPending = cityRequests.filter((req) =>
+                                ["solicitado", "validando", "exames_definidos", "clinica_selecionada", "agendado"].includes(req.status)
+                              ).length;
+                              const kitSent = cityRequests.filter((req) =>
+                                ["kit_enviado", "clinica_confirmou", "exame_realizado", "aso_concluido"].includes(req.status)
+                              ).length;
+                              const scheduled = cityRequests.filter((req) =>
+                                ["agendado", "kit_montado", "kit_enviado", "clinica_confirmou", "exame_realizado", "aso_concluido"].includes(req.status)
+                              ).length;
+                              const completed = cityRequests.filter((req) => req.status === "aso_concluido").length;
 
                               return (
                                 <div
@@ -566,6 +577,33 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                                           <ChevronRight className="w-3.5 h-3.5" />
                                         )}
                                       </span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5 text-[9px]">
+                                      {withoutClinic > 0 && (
+                                        <span className="rounded bg-rose-500/15 px-2 py-0.5 text-rose-300">
+                                          Sem clínica: {withoutClinic}
+                                        </span>
+                                      )}
+                                      {kitPending > 0 && (
+                                        <span className="rounded bg-amber-500/15 px-2 py-0.5 text-amber-300">
+                                          Kit pendente: {kitPending}
+                                        </span>
+                                      )}
+                                      {kitSent > 0 && (
+                                        <span className="rounded bg-cyan-500/15 px-2 py-0.5 text-cyan-300">
+                                          Kit enviado: {kitSent}
+                                        </span>
+                                      )}
+                                      {scheduled > 0 && (
+                                        <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-emerald-300">
+                                          Agendado+: {scheduled}
+                                        </span>
+                                      )}
+                                      {completed > 0 && (
+                                        <span className="rounded bg-blue-500/15 px-2 py-0.5 text-blue-300">
+                                          ASO concluído: {completed}
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="flex items-center justify-between text-[10px] text-slate-500">
                                       <span>{cityRequests.reduce((sum, req) => sum + req.exams.length, 0)} exames</span>
