@@ -541,7 +541,7 @@ export function AvpPeriodicCityBrowser({ cards, busy, onEdit, onHistory, onNavig
                       aria-label="Indicadores operacionais da cidade"
                     >
                       <span className="flex items-center gap-1 text-xs" title="Colaboradores/vínculos ativos">
-                        <Users className="size-3.5" aria-hidden="true" /> {group.active}
+                        <Users className="size-3.5" aria-hidden="true" /> <strong>{group.active}</strong> pessoas
                       </span>
                       <span
                         className="flex items-center gap-1 text-xs"
@@ -551,19 +551,19 @@ export function AvpPeriodicCityBrowser({ cards, busy, onEdit, onHistory, onNavig
                             : "Kits enviados com sinal explícito na fonte."
                         }
                       >
-                        <Send className="size-3.5" aria-hidden="true" /> {group.kitSent ?? "—"}
+                        <Send className="size-3.5" aria-hidden="true" /> <strong>{group.kitSent ?? "—"}</strong> kits
                       </span>
                       <span className="flex items-center gap-1 text-xs" title="Agendamentos confirmados na esteira">
-                        <CalendarDays className="size-3.5" aria-hidden="true" /> {group.appointmentsConfirmed}
+                        <CalendarDays className="size-3.5" aria-hidden="true" /> <strong>{group.appointmentsConfirmed}</strong> agenda
                       </span>
                       <span className="flex items-center gap-1 text-xs" title="Exames com realização registrada">
-                        <Activity className="size-3.5" aria-hidden="true" /> {group.examsPerformed}
+                        <Activity className="size-3.5" aria-hidden="true" /> <strong>{group.examsPerformed}</strong> exames
                       </span>
                       <span className="flex items-center gap-1 text-xs" title="ASOs recebidos">
-                        <FileText className="size-3.5" aria-hidden="true" /> {group.asoReceived}
+                        <FileText className="size-3.5" aria-hidden="true" /> <strong>{group.asoReceived}</strong> ASOs
                       </span>
                       <span className="flex items-center gap-1 text-xs" title="Pendências ativas">
-                        <AlertTriangle className="size-3.5" aria-hidden="true" /> {group.pending}
+                        <AlertTriangle className="size-3.5" aria-hidden="true" /> <strong>{group.pending}</strong> pend.
                       </span>
                     </div>
                     <details className="text-xs text-muted-foreground">
