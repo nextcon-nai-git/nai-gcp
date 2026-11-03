@@ -116,6 +116,52 @@ describe("scheduling persistence and session boundaries", () => {
         .every((x) => x === "")
     ).toBe(true);
   });
+  it("groups periodic requests by city while preserving individual actions", async () => {
+    m.list.mockResolvedValueOnce({
+      success: true,
+      data: [
+        {
+          ...request,
+          id: "ilh-1",
+          employeeName: "Pessoa Ilhéus 1",
+          examType: "periodico",
+          requestedCity: "Ilhéus/BA",
+          exams: [{ name: "Clínico" }],
+        },
+        {
+          ...request,
+          id: "ilh-2",
+          employeeName: "Pessoa Ilhéus 2",
+          examType: "periodico",
+          requestedCity: "Ilhéus/BA",
+          exams: [{ name: "Clínico" }, { name: "Audiometria" }],
+        },
+        {
+          ...request,
+          id: "sal-1",
+          employeeName: "Pessoa Salvador",
+          examType: "periodico",
+          requestedCity: "Salvador/BA",
+          exams: [],
+        },
+      ],
+    });
+    await v.render(<Page />);
+
+    expect(v.container.textContent).toContain("Periódicos · ILHÉUS/BA");
+    expect(v.container.textContent).toContain("2 colaboradores");
+    expect(v.container.textContent).toContain("Periódicos · SALVADOR/BA");
+    expect(v.container.textContent).not.toContain("Pessoa Ilhéus 1");
+
+    await v.click("Periódicos · ILHÉUS/BA");
+    expect(v.container.textContent).toContain("Pessoa Ilhéus 1");
+    expect(v.container.textContent).toContain("Pessoa Ilhéus 2");
+
+    const group = [...v.container.querySelectorAll("div")].find((node) =>
+      node.textContent?.includes("Pessoa Ilhéus 1")
+    );
+    expect(group).toBeTruthy();
+  });
   it("creates with reviewed input, splits risks and waits for save", async () => {
     await v.render(<Page />);
     await v.click("Nova Solicitação de ASO");
