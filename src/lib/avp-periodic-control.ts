@@ -123,6 +123,15 @@ export type PeriodicPerson = {
   lastExam?: string;
   periodicityMonths?: string;
   reviewDetail?: string;
+  /** Spreadsheet reference only; does not confirm an appointment or advance the workflow. */
+  sourceAppointment?: {
+    date: string;
+    time: string;
+    clinic: string;
+    city: string;
+    uf: string;
+  };
+  sourceAppointmentConflict?: boolean;
   /** Opaque server-generated binding; raw identity fields are never returned. */
   workId?: string;
   workSourceVersion?: string;
@@ -253,6 +262,12 @@ export function buildAvpPeriodicControl(
         (r) => taxId(r[4]).length !== 11 || !r[22] || !normalizeAvpText(r[28]).startsWith("OK ")
       );
     const classification = cancelled ? "cancelled" : needsReview ? "review" : "listed";
+    const sourceAppointments = new Map(
+      rows
+        .map((r) => ({ date: r[7], time: r[8], clinic: r[9], city: r[10], uf: r[11] }))
+        .filter((appointment) => Object.values(appointment).some(Boolean))
+        .map((appointment) => [JSON.stringify(appointment), appointment])
+    );
     return {
       id: `periodico-2026-${row[0]}`,
       name: row[3],
@@ -279,6 +294,11 @@ export function buildAvpPeriodicControl(
         .map((r) => r[29])
         .filter(Boolean)
         .join(" / "),
+      ...(sourceAppointments.size === 1
+        ? { sourceAppointment: [...sourceAppointments.values()][0] }
+        : sourceAppointments.size > 1
+          ? { sourceAppointmentConflict: true }
+          : {}),
     };
   });
   const clinicMap = new Map<string, PeriodicClinic>();
