@@ -14,7 +14,13 @@ vi.mock("./occupational-kit-pdf", () => ({
   generateOccupationalKitPdf: m.pdf,
   occupationalKitFilename: () => "Kit-NAI-Teste.pdf",
 }));
-import { prepareKitBatch, confirmKitBatch, downloadKit, kitOperationId } from "./operational-kits";
+import {
+  prepareKitBatch,
+  confirmKitBatch,
+  downloadKit,
+  getKitCatalog,
+  kitOperationId,
+} from "./operational-kits";
 import { KitSelection, type KitSelectionData } from "@/lib/operational-kits";
 
 const user = {
@@ -37,6 +43,7 @@ const input: KitSelectionData = {
 };
 type Data = Record<string, any>;
 let db: Map<string, Data>, version: number, queue: Promise<unknown>;
+let afterRead: ((path: string) => void) | undefined;
 const put = (path: string, value: Data) => {
   db.set(path, { value: structuredClone(value), version: ++version });
 };
@@ -45,22 +52,44 @@ function reference(path: string): any {
     path,
     id: path.split("/").at(-1),
     collection: (name: string) => collection(`${path}/${name}`),
-    get: async () => snapshot(path),
+    get: async () => {
+      const result = snapshot(path);
+      afterRead?.(path);
+      return result;
+    },
     create: async (value: Data) => {
       if (db.has(path)) throw Error("exists");
       put(path, value);
     },
   };
 }
-function collection(path: string): any {
+function collection(path: string, field = "", value = "", limit = Infinity): any {
   return {
     doc: (id: string) => reference(`${path}/${id}`),
     add: async (value: Data) => put(`${path}/audit-${version}`, value),
+    orderBy: () => collection(path, field, value, limit),
+    limit: (count: number) => collection(path, field, value, count),
+    where: (name: string, _operator: string, expected: string) =>
+      collection(path, name, expected, limit),
+    get: async () => {
+      const docs = [...db.keys()]
+        .filter(
+          (key) =>
+            key.startsWith(`${path}/`) &&
+            key.split("/").length === path.split("/").length + 1 &&
+            (!field || db.get(key)!.value[field]?.includes(value))
+        )
+        .slice(0, limit)
+        .map(snapshot);
+      afterRead?.(path);
+      return { docs, size: docs.length };
+    },
   };
 }
 function snapshot(path: string): any {
   const saved = db.get(path);
   return {
+    id: path.split("/").at(-1),
     exists: !!saved,
     ref: reference(path),
     updateTime: { seconds: 0, nanoseconds: saved?.version || 0 },
@@ -70,6 +99,7 @@ function snapshot(path: string): any {
 const issued = () => [...db.values()].filter((x) => x.value.kind === "kit-issued");
 beforeEach(() => {
   vi.clearAllMocks();
+  afterRead = undefined;
   db = new Map();
   version = 0;
   queue = Promise.resolve();
@@ -95,6 +125,8 @@ beforeEach(() => {
     return run;
   });
   m.pdf.mockReturnValue({ output: () => Buffer.from("%PDF-1.7 test") });
+  put("users/admin", { role: "SUPER_ADMIN", accessEnabled: true });
+  put("users/other", { role: "ADMIN", accessEnabled: true });
   put("companies/ONE", {
     name: "Empresa Teste",
     cnpj: "11.222.333/0001-81",
@@ -128,6 +160,80 @@ beforeEach(() => {
   });
 });
 describe("operational kit transactions", () => {
+  it("blocks issuance when access is suspended during PDF generation without partial records", async () => {
+    const preview = await prepareKitBatch(user, "ONE", input);
+    m.pdf.mockImplementationOnce(() => {
+      put("users/admin", { role: "SUPER_ADMIN", accessEnabled: false });
+      return { output: () => Buffer.from("%PDF-1.7 synthetic denied") };
+    });
+    await expect(confirmKitBatch(user, "ONE", preview.proposalId)).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(issued()).toHaveLength(0);
+    expect([...db.keys()].some((path) => path.includes("/asoRequests/"))).toBe(false);
+    expect(
+      db.get(`workAssistantProposals/${preview.proposalId}`)?.value.confirmedAt
+    ).toBeUndefined();
+  });
+  it("does not release an archived PDF after suspension during its read", async () => {
+    const preview = await prepareKitBatch(user, "ONE", input);
+    const [kit] = await confirmKitBatch(user, "ONE", preview.proposalId);
+    afterRead = (path) => {
+      if (path === `workAssistantProposals/${kit.id}`)
+        put("users/admin", { role: "SUPER_ADMIN", accessEnabled: false });
+    };
+    await expect(downloadKit(user, "ONE", kit.id)).rejects.toMatchObject({ status: 403 });
+    expect([...db.keys()].some((path) => path.includes(`${kit.id}/audit/`))).toBe(false);
+  });
+  it("does not release the catalog after the administrator becomes scoped to a tenant", async () => {
+    afterRead = (path) => {
+      if (path === "companies/ONE")
+        put("users/admin", { role: "ADMIN", tenantId: "ONE", accessEnabled: true });
+    };
+    await expect(getKitCatalog(user, "ONE")).rejects.toMatchObject({ status: 403 });
+  });
+  it("does not persist or return a preview after access is removed while sources are read", async () => {
+    m.getAll.mockImplementationOnce(async (...refs) => {
+      const docs = refs.map((ref) => snapshot(ref.path));
+      db.delete("users/admin");
+      return docs;
+    });
+    await expect(prepareKitBatch(user, "ONE", input)).rejects.toMatchObject({ status: 403 });
+    expect([...db.values()].some((record) => record.value.kind === "kit-preview")).toBe(false);
+  });
+  it("checks current access on idempotent confirmation without changing the issued kit", async () => {
+    const preview = await prepareKitBatch(user, "ONE", input);
+    const results = await confirmKitBatch(user, "ONE", preview.proposalId);
+    const existing = structuredClone(issued());
+    put("users/admin", { role: "SUPER_ADMIN", accessEnabled: false });
+    await expect(confirmKitBatch(user, "ONE", preview.proposalId)).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(issued()).toEqual(existing);
+    put("users/admin", { role: "ADMIN", accessEnabled: true });
+    await expect(confirmKitBatch(user, "ONE", preview.proposalId)).resolves.toEqual(
+      results.map((item) => ({ ...item, reused: true }))
+    );
+    expect(issued()).toEqual(existing);
+    expect(m.pdf).toHaveBeenCalledOnce();
+  });
+  it("keeps catalog, preview and download available to the currently authorized internal admin", async () => {
+    put("users/admin", { role: "ADMIN", accessEnabled: true });
+    const catalog = await getKitCatalog(user, "ONE");
+    expect(catalog.employees).toEqual([
+      {
+        id: "e1",
+        name: "Colaborador Teste",
+        role: "Assistente",
+        department: "Administrativo",
+      },
+    ]);
+    const preview = await prepareKitBatch(user, "ONE", input);
+    const [kit] = await confirmKitBatch(user, "ONE", preview.proposalId);
+    await expect(downloadKit(user, "ONE", kit.id)).resolves.toMatchObject({
+      filename: kit.filename,
+    });
+  });
   it("renders and archives a real PDF in the Node server runtime", async () => {
     const actual =
       await vi.importActual<typeof import("./occupational-kit-pdf")>("./occupational-kit-pdf");

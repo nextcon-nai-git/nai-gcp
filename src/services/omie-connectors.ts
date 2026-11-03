@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod/v3";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import { requireFinancialAccess } from "@/lib/auth/financial-access";
+import { requireCurrentFinancialAccess } from "./financial-access";
 import { AuthError, badRequest } from "@/lib/auth/errors";
 import { FinanceBookSchema, emptyFinanceBook } from "@/lib/financial/operations";
 import { SupplierBook, qualificationCurrent } from "@/lib/suppliers/qualification";
@@ -270,6 +271,7 @@ export async function executeConnectorExport(u: AuthContext, input: unknown) {
     .parse(input);
   const p = await prepare(u, req.selection);
   if (p.hash !== req.hash) conflict("Dados alterados desde a prévia. Gere uma nova prévia.");
+  await requireCurrentFinancialAccess(u);
   const record = OmieExport.parse({
     sourceId: p.selection.sourceId,
     kind: p.selection.kind,
@@ -294,6 +296,8 @@ export async function executeConnectorExport(u: AuthContext, input: unknown) {
     state.value,
     state.generation
   );
+  // A suspension during reservation must stop the first POST. Preserve the reservation on failure.
+  await requireCurrentFinancialAccess(u);
   // Never repeat this POST. A crash, timeout or provider fault leaves an inspectable reservation.
   try {
     await p.session.call(

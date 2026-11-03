@@ -289,6 +289,8 @@ export async function asoFlowMailbox(user: AuthContext, id: string, cursor?: str
     .map((record) => record.data() as Candidate)
     .filter((c) => !c.acceptedAt)
     .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
+  // Subjects and filenames can identify patients; recheck before releasing the page.
+  await getAsoFlowCard(user, id);
   return {
     status: asoGmailConfiguration(),
     candidates: candidates.map(({ id, fileName, from, subject, receivedAt }) => ({

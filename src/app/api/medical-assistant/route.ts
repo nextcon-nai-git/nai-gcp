@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ai } from "@/ai/genkit";
 
 import { requireAuth } from "@/lib/auth/require-auth";
+import { requireClinicalAccess } from "@/lib/auth/require-clinical-access";
 import { limitedBytes } from "@/lib/http/private-api";
 import { AuthError, handleAuthError } from "@/lib/auth/errors";
 import { getAuthorizedMedicalHistory } from "@/services/medical-history";
@@ -46,6 +47,7 @@ export async function POST(request: NextRequest) {
       patientId: body.pacienteId,
       action: "MEDICAL_ASSISTANT_USED",
     });
+    requireClinicalAccess(await requireAuth(request), body.companyId);
 
     // Inicia geração em stream via Genkit 1.x
     const { stream } = ai.generateStream({

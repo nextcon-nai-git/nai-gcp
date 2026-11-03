@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   tx: { get: vi.fn(), update: vi.fn(), create: vi.fn() },
   record: {} as Record<string, unknown>,
   profileData: undefined as Record<string, unknown> | undefined,
+  ownerProfile: undefined as Record<string, unknown> | undefined,
+  onTransactionStart: vi.fn(),
 }));
 vi.mock("@/lib/auth/require-auth", () => ({
   requireAuth: mocks.auth,
@@ -26,7 +28,10 @@ vi.mock("@/lib/firebase-admin", () => {
     adminDb: {
       collection: (name: string) => ({ doc: (id: string) => ref(`${name}/${id}`) }),
       doc: ref,
-      runTransaction: (fn: (tx: unknown) => unknown) => fn(mocks.tx),
+      runTransaction: (fn: (tx: unknown) => unknown) => {
+        mocks.onTransactionStart();
+        return fn(mocks.tx);
+      },
     },
   };
 });
@@ -54,6 +59,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("CLINIC_PORTAL_ENABLED", "true");
   mocks.profileData = undefined;
+  mocks.ownerProfile = { role: "OPERATIONS", accessEnabled: true };
+  mocks.onTransactionStart.mockReset();
   mocks.record = {
     ownerUid: "owner",
     sourcePath: "users/owner/asoRequests/request",
@@ -78,11 +85,78 @@ beforeEach(() => {
   mocks.auth.mockResolvedValue({ uid: "owner", role: "OPERATIONS" });
   mocks.tx.get.mockImplementation(async (reference: Reference) => {
     const data = /^users\/[^/]+$/.test(reference.path)
-      ? mocks.profileData
+      ? reference.path === "users/owner"
+        ? mocks.ownerProfile
+        : mocks.profileData
       : reference.path === `clinic_portal_private/${id}`
         ? mocks.record
-        : undefined;
+        : reference.path === "users/owner/asoRequests/request" ||
+            reference.path === "integrations/rd-conversas-avp/asoRequests/rd-request"
+          ? {
+              employeeName: "Colaborador sintético",
+              companyName: "Empresa sintética",
+              cpf: "synthetic-cpf",
+              cnpj: "synthetic-cnpj",
+              roleTitle: "Técnico",
+              examType: "Admissional",
+              exams: [{ code: "synthetic", name: "Exame sintético" }],
+            }
+          : undefined;
     return { exists: data !== undefined, data: () => data };
+  });
+});
+
+describe("current authorization for invitation administration", () => {
+  const invite = (requestId = "request") => ({
+    requestId,
+    clinicName: "Clínica sintética",
+    receptionEmail: "",
+    doctorEmail: "doctor@example.test",
+    doctorName: "Médico sintético",
+    crm: "12345",
+    uf: "SP",
+    days: 7,
+    reviewed: true,
+  });
+
+  it.each(["invite", "status", "revoke"])("preserves an authorized owner's %s", async (action) => {
+    const response = await POST(request({ action, id, payload: invite() }));
+    expect(response.status).toBe(200);
+  });
+
+  for (const action of ["invite", "status", "revoke"]) {
+    it.each(["suspended", "deleted", "missing", "role changed"])(
+      `blocks ${action} when the owner is %s after request authentication`,
+      async (change) => {
+        mocks.onTransactionStart.mockImplementation(() => {
+          if (change === "missing") mocks.ownerProfile = undefined;
+          else
+            mocks.ownerProfile = {
+              ...mocks.ownerProfile,
+              ...(change === "suspended" ? { accessEnabled: false } : {}),
+              ...(change === "deleted" ? { isDeleted: true } : {}),
+              ...(change === "role changed" ? { role: "SCOPED_PROVIDER" } : {}),
+            };
+        });
+        const response = await POST(request({ action, id, payload: invite() }));
+        expect(response.status).toBe(403);
+        expect(mocks.tx.update).not.toHaveBeenCalled();
+        expect(mocks.tx.create).not.toHaveBeenCalled();
+      }
+    );
+  }
+
+  it.each([
+    { role: "OPERATIONS", tenantId: "tenant-a" },
+    { role: "DOCTOR", tenantId: null },
+  ])("rechecks the RD invitation scope during the transaction (%j)", async (current) => {
+    mocks.onTransactionStart.mockImplementation(() => {
+      mocks.ownerProfile = { accessEnabled: true, ...current };
+    });
+    const response = await POST(request({ action: "invite", payload: invite("rd-request") }));
+    expect(response.status).toBe(403);
+    expect(mocks.tx.update).not.toHaveBeenCalled();
+    expect(mocks.tx.create).not.toHaveBeenCalled();
   });
 });
 describe("portal server authorization and persistence", () => {

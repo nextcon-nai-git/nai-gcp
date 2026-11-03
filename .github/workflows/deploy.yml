@@ -98,7 +98,6 @@ jobs:
           NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
           NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
           NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
   # The website is released by the connected App Hosting backend from main.
   # Rules/indexes are a separate, explicitly requested deployment.

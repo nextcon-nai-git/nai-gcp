@@ -2,8 +2,8 @@
 
 ## Workflows
 
-- `.github/workflows/ci.yml` (push e pull_request): `npm ci`, Prettier (check), ESLint, `tsc --noEmit`, testes com cobertura, build e upload do relatório de cobertura (artefato `coverage-report`).
-- `.github/workflows/security.yml` (PR, push na `main`, semanal): CodeQL (JS/TS), relatório `npm audit --audit-level=high` com `continue-on-error: true` e dependency review em PRs, bloqueando novas dependências críticas.
+- `.github/workflows/ci.yml` (push e pull_request): `npm ci`, Prettier (check), ESLint, `tsc --noEmit`, testes com cobertura, regressões de dependências, infraestrutura e recuperação offline, build e upload do relatório de cobertura (artefato `coverage-report`).
+- `.github/workflows/security.yml` (PR, push na `main`, semanal): CodeQL (JS/TS), regressões dos patches de dependências, auditoria bloqueante por `scripts/security/check-audit.mjs` e dependency review em PRs. O gate recusa avisos altos sem correção verificada, críticos, falhas de consulta e relatórios inválidos; preserva o JSON bruto como artefato `dependency-audit`. A revisão de dependências bloqueia novas dependências críticas.
 - `.github/dependabot.yml`: atualizações semanais de npm e GitHub Actions.
 - `.github/workflows/deploy.yml` (Firebase validation): auditoria de dependências de produção com bloqueio de críticos, lint, TypeScript, testes, emuladores de Firestore/Storage e build. O deploy de regras e índices é separado, por `workflow_dispatch`, na `main`, com `deploy_firestore=true` e credencial configurada.
 - `.github/workflows/firebase-deploy.yml`: aviso de descontinuação; não publica o site.
@@ -13,14 +13,15 @@ Antes do merge, conferir o check **Code scanning results / CodeQL** do SHA final
 além do job **Security / CodeQL**. O job pode concluir a análise e o envio do SARIF
 com sucesso enquanto o check separado reprova pelos alertas encontrados. Na revisão
 do PR #100, essa diferença revelou quatro alertas que exigiram diagnóstico antes
-da integração. O `npm audit` não bloqueante também precisa ser lido pelo resultado
-do comando, não apenas pela cor do job.
+da integração. Na auditoria de dependências, conferir o relatório bruto junto com
+o resultado do gate: avisos por versão podem permanecer quando os patches locais
+foram verificados. Avisos moderados não são declarados corrigidos por um job verde.
 
 ## Rodar localmente
 
 Usar Node 24, conforme `engines.node` e o ambiente de execução do backend `nai`.
-Vitest e `@vitest/coverage-v8` usam a mesma versão 4.1.11 para manter
-compatibilidade entre os testes locais e os workflows.
+Vitest e `@vitest/coverage-v8` devem usar a mesma versão do lockfile (5.0.5
+na revisão de 03/11/2026) para manter compatibilidade entre os testes locais e os workflows.
 
 ```bash
 npm ci
@@ -29,9 +30,16 @@ npm run lint
 npm run type-check
 npm run test:coverage
 npm run test:rules      # requer Java 21 no CI; projeto local demo-nai-security
-npm run build
-npm run ci             # formato, lint, tipos, cobertura e build; regras são executadas à parte
+npm run test:dependency-security
+node scripts/security/check-audit.mjs dependency-audit.json
+node --test scripts/setup-esocial-infrastructure.test.mjs scripts/recovery-kit.test.mjs
 ```
+
+Conforme `SECURITY.md`, o build de produção deve ocorrer em ambiente isolado,
+como o runner do CI. Nesse ambiente, `npm run build` gera o aplicativo e
+`npm run ci` encadeia formato, lint, tipos, cobertura e build. Regras,
+dependências, infraestrutura e recuperação são etapas adicionais dos workflows;
+o comando `ci` sozinho não substitui todas elas.
 
 ## Cobertura
 
@@ -59,16 +67,17 @@ está no relatório citado acima.
 
 ### Compatibilidade das dependências de lint
 
-A recuperação de 19/10/2026 restaura o conjunto de dependências anterior ao
+A recuperação de 19/10/2026 restaurou o conjunto de dependências anterior ao
 [PR #144](https://github.com/nextcon-nai-git/nai-gcp/pull/144), preservando as demais
-atualizações da aplicação:
+atualizações da aplicação. A tabela registra aquele marco histórico; o
+`package-lock.json` é a referência das versões instaladas na revisão atual:
 
-| Dependência                 | Versão no lockfile |
-| --------------------------- | ------------------ |
-| `eslint`                    | 9.39.4             |
-| `eslint-config-next`        | 16.2.3             |
-| `eslint-plugin-react`       | 7.37.5             |
-| `eslint-plugin-react-hooks` | 7.0.1              |
+| Dependência                 | Versão em 19/10/2026 |
+| --------------------------- | -------------------- |
+| `eslint`                    | 9.39.4               |
+| `eslint-config-next`        | 16.2.3               |
+| `eslint-plugin-react`       | 7.37.5               |
+| `eslint-plugin-react-hooks` | 7.0.1                |
 
 O PR #144 elevou o ESLint para 10.12.0, mas o `eslint-plugin-react` 7.37.5 declara
 suporte a ESLint até `^9.7`. O

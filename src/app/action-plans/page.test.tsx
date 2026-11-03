@@ -8,10 +8,11 @@ const state = vi.hoisted(() => ({
   add: vi.fn(),
   toast: vi.fn(),
   error: null as Error | null,
+  session: { isUserLoading: false, userError: null as Error | null },
 }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
 vi.mock("@/firebase", () => ({
-  useUser: () => ({ user: state.user, ...state.profile }),
+  useUser: () => ({ user: state.user, ...state.profile, ...state.session }),
   useFirestore: () => ({}),
   useMemoFirebase: (factory: () => unknown) => factory(),
   useDoc: () => ({ data: state.profile }),
@@ -29,7 +30,7 @@ vi.mock("firebase/firestore", () => ({
     state.query(source, constraints);
     return source;
   },
-  where: () => ({}),
+  where: (field: string, operator: string, value: unknown) => ({ field, operator, value }),
   orderBy: () => ({}),
   addDoc: state.add,
   serverTimestamp: () => "server-time",
@@ -103,6 +104,7 @@ beforeEach(() => {
   state.user = { uid: "operator" };
   state.profile = { role: "ADMIN", companyId: "nextcon", tenantId: null };
   state.error = null;
+  state.session = { isUserLoading: false, userError: null };
   state.add.mockReset().mockResolvedValue({ id: "task" });
   host = document.createElement("div");
   document.body.append(host);
@@ -114,6 +116,44 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 describe("operational handoff", () => {
+  it.each(["loading", "error"])(
+    "does not query or allow writes from a cached profile while session is %s",
+    async (condition) => {
+      await render();
+      state.query.mockClear();
+      if (condition === "loading") state.session.isUserLoading = true;
+      else state.session.userError = new Error("Access suspended");
+      await render();
+      expect(state.query).not.toHaveBeenCalled();
+      expect(host.textContent).not.toContain("Designar OS");
+      if (condition === "error")
+        expect(host.textContent).toContain("Não foi possível consultar a operação");
+      else expect(host.textContent).toContain("Sincronizando Operações");
+    }
+  );
+  it.each([
+    { tenantId: "current-company", companyId: "legacy-company" },
+    { tenantId: "current-company" },
+    { tenantId: "   ", companyId: "current-company" },
+  ])("queries the current company resolved from %j", async (binding) => {
+    state.profile = { role: "CLIENT_ADMIN", ...binding };
+    await render();
+    expect(state.query).toHaveBeenCalledWith(
+      expect.objectContaining({ path: "companies/current-company/tasks" }),
+      expect.any(Array)
+    );
+    expect(state.query).toHaveBeenCalledWith(
+      expect.objectContaining({ path: "companies" }),
+      expect.arrayContaining([{ field: "__name__", operator: "==", value: "current-company" }])
+    );
+    expect(
+      state.query.mock.calls.some(
+        ([source, constraints]) =>
+          source.path.includes("legacy-company") ||
+          constraints.some((item: { value?: unknown }) => item.value === "legacy-company")
+      )
+    ).toBe(false);
+  });
   it.each(["SUPER_ADMIN", "ADMIN", "OPERATIONS"])(
     "shows global tasks to internal %s even with Nextcon company binding",
     async (role) => {

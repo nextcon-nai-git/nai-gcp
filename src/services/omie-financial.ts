@@ -5,6 +5,7 @@ import "@/lib/firebase-admin";
 import { firebaseConfig } from "@/firebase/config";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import { requireFinancialAccess } from "@/lib/auth/financial-access";
+import { requireCurrentFinancialAccess } from "./financial-access";
 import { AuthError, badRequest } from "@/lib/auth/errors";
 import {
   OmieCredentialsSchema,
@@ -198,6 +199,7 @@ export async function listOmieDre(user: AuthContext, input: unknown): Promise<Om
   let totalBytes = 0;
   // Sequential, disjoint periods respect the provider limit. Never return partial finances.
   for (const period of splitOmieDreQuery(query)) {
+    await requireCurrentFinancialAccess(user);
     if (deadline.aborted) throw omieTransportError(deadline.reason);
     const params = {
       dPeriodoInicial: toOmieDate(period.start),
@@ -319,6 +321,7 @@ export async function listOmieDre(user: AuthContext, input: unknown): Promise<Om
   };
   const actions = FinancialActionImportSchema.safeParse(suggestOmieDreActions(report));
   if (!actions.success) throw invalidDre();
+  await requireCurrentFinancialAccess(user);
   return { ...report, suggestedActions: actions.data };
 }
 async function read(): Promise<Saved | null> {

@@ -16,6 +16,31 @@ beforeEach(() => {
   mocks.auth.mockResolvedValue({ role: "OPERATIONS", tenantId: null });
 });
 describe("SOC API authorization boundary", () => {
+  it.each(["suspended", "scope"])(
+    "does not release employees after access changes during the provider read: %s",
+    async (change) => {
+      mocks.read.mockImplementationOnce(async () => {
+        if (change === "suspended")
+          mocks.auth.mockRejectedValue(new AuthError("Perfil suspenso.", 403));
+        else mocks.auth.mockResolvedValue({ role: "OPERATIONS", tenantId: "client" });
+        return { data: [{ name: "synthetic-private-person" }], recorded: true };
+      });
+      const response = await GET(req("?resource=employees&companyId=101"));
+      expect(response.status).toBe(403);
+      expect(await response.text()).not.toContain("synthetic-private-person");
+      expect(mocks.auth).toHaveBeenCalledTimes(2);
+      expect(mocks.read).toHaveBeenCalledOnce();
+    }
+  );
+  it("returns employees while the current profile retains internal access", async () => {
+    const result = { data: [{ name: "synthetic-person" }], recorded: true };
+    mocks.read.mockResolvedValue(result);
+    const response = await GET(req("?resource=employees&companyId=101"));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(result);
+    expect(mocks.auth).toHaveBeenCalledTimes(2);
+    expect(mocks.read).toHaveBeenCalledOnce();
+  });
   it("denies unauthenticated requests before reading data", async () => {
     mocks.auth.mockRejectedValue(new AuthError("Entre novamente.", 401));
     expect((await GET(req("?resource=employees"))).status).toBe(401);

@@ -89,6 +89,49 @@ describe("medical assistant audit", () => {
     expect(mocks.audit).not.toHaveBeenCalled();
     expect(mocks.generate).not.toHaveBeenCalled();
   });
+
+  it("does not forward history if the session is suspended during its lookup", async () => {
+    mocks.history.mockImplementationOnce(async () => {
+      mocks.auth.mockRejectedValue(new AuthError("Acesso suspenso.", 403));
+      return { statusConsulta: "CONSULTADO", restricoes: ["Dado clínico sintético"] };
+    });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(403);
+    expect(mocks.generate).not.toHaveBeenCalled();
+    expect(await response.text()).not.toContain("Dado clínico sintético");
+  });
+
+  it.each([
+    { ...user, role: "RH" },
+    { ...user, tenantId: "company-b" },
+  ])("rechecks current clinical scope after audit persistence: %o", async (currentUser) => {
+    mocks.audit.mockImplementationOnce(async () => {
+      mocks.auth.mockResolvedValue(currentUser);
+    });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(403);
+    expect(mocks.generate).not.toHaveBeenCalled();
+  });
+
+  it("preserves an explicit clinical portfolio when rechecking the current session", async () => {
+    mocks.audit.mockImplementationOnce(async () => {
+      mocks.auth.mockResolvedValue({
+        ...user,
+        tenantId: "company-b",
+        servedCompanies: ["company-a"],
+      });
+    });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    expect(mocks.generate).toHaveBeenCalledOnce();
+    expect(await response.text()).toContain("Resposta validada pelo médico.");
+  });
 });
 
 describe("medical assistant request bounds", () => {

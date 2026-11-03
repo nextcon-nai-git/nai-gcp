@@ -1,13 +1,17 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { AuthError } from "@/lib/auth/errors";
 const state = vi.hoisted(() => ({
   user: { uid: "staff", role: "OPERATIONS", tenantId: null as string | null },
   draft: null as Record<string, unknown> | null,
   send: vi.fn(),
+  auth: vi.fn(),
+  afterReservation: vi.fn(),
+  links: vi.fn(),
   queries: [] as string[],
 }));
-vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: vi.fn(async () => state.user) }));
+vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: state.auth }));
 vi.mock("@/lib/firebase-admin", () => {
   const ref = {
     collection: (name: string) => {
@@ -32,11 +36,15 @@ vi.mock("@/lib/firebase-admin", () => {
   return {
     adminDb: {
       collection: () => ref,
-      runTransaction: async (fn: (tx: unknown) => unknown) =>
-        fn({
+      getAll: (...args: unknown[]) => state.links(...args),
+      runTransaction: async (fn: (tx: unknown) => unknown) => {
+        const result = await fn({
           get: async () => ({ data: () => state.draft }),
           update: (_r: unknown, d: Record<string, unknown>) => Object.assign(state.draft!, d),
-        }),
+        });
+        state.afterReservation();
+        return result;
+      },
     },
   };
 });
@@ -55,6 +63,9 @@ beforeEach(() => {
   state.user = { uid: "staff", role: "OPERATIONS", tenantId: null };
   state.draft = null;
   state.queries = [];
+  state.auth.mockReset().mockImplementation(async () => ({ ...state.user }));
+  state.afterReservation.mockReset();
+  state.links.mockReset().mockResolvedValue([]);
   vi.unstubAllEnvs();
   state.send.mockReset().mockResolvedValue({ data: {}, total: null, pages: null });
 });
@@ -157,6 +168,56 @@ describe("Reviewed Tallos messages", () => {
     expect((await POST(request(body))).status).toBe(409);
     expect(state.send).toHaveBeenCalledTimes(1);
   });
+  it.each(["suspended", "scope"])(
+    "preserves the reservation without sending after access changes: %s",
+    async (change) => {
+      state.draft = {
+        contactId: "contact",
+        operatorId: "operator",
+        message: "Sintético",
+        createdBy: "staff",
+        status: "REVIEW_REQUIRED",
+        expiresAt: Date.now() + 60000,
+      };
+      state.afterReservation.mockImplementationOnce(() => {
+        if (change === "suspended")
+          state.auth.mockRejectedValue(new AuthError("Perfil suspenso.", 403));
+        else state.user.tenantId = "client";
+      });
+      const body = { action: "send", draftId: "draft-id", confirmation: "AUTORIZAR ENVIO" };
+      expect((await POST(request(body))).status).toBe(403);
+      expect(state.send).not.toHaveBeenCalled();
+      expect(state.draft).toMatchObject({ status: "SENDING", authorizedBy: "staff" });
+      expect(state.auth).toHaveBeenCalledTimes(2);
+      state.auth.mockResolvedValue({ ...state.user, tenantId: null });
+      expect((await POST(request(body))).status).toBe(409);
+      expect(state.send).not.toHaveBeenCalled();
+    }
+  );
+  it("persists an authorized provider acceptance after revocation during dispatch", async () => {
+    state.draft = {
+      contactId: "contact",
+      operatorId: "operator",
+      message: "Sintético",
+      createdBy: "staff",
+      status: "REVIEW_REQUIRED",
+      expiresAt: Date.now() + 60000,
+    };
+    state.send.mockImplementationOnce(async () => {
+      state.auth.mockRejectedValue(new AuthError("Perfil suspenso.", 403));
+      return { data: {}, total: null, pages: null };
+    });
+    const body = { action: "send", draftId: "draft-id", confirmation: "AUTORIZAR ENVIO" };
+    const response = await POST(request(body));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ success: true, status: "ACCEPTED" });
+    expect(state.draft).toMatchObject({ status: "ACCEPTED", authorizedBy: "staff" });
+    expect(state.draft.completedAt).toEqual(expect.any(String));
+    expect(state.send).toHaveBeenCalledTimes(1);
+    expect((await POST(request(body))).status).toBe(403);
+    expect(state.draft.status).toBe("ACCEPTED");
+    expect(state.send).toHaveBeenCalledTimes(1);
+  });
   it("blocks tenant scoped staff before provider access", async () => {
     state.user.tenantId = "client";
     const response = await GET(
@@ -168,6 +229,42 @@ describe("Reviewed Tallos messages", () => {
 });
 
 describe("Tallos read-only operation without remote history", () => {
+  it.each(["suspended", "scope"])(
+    "does not release contacts after access changes during the provider read: %s",
+    async (change) => {
+      state.send.mockImplementationOnce(async () => {
+        if (change === "suspended")
+          state.auth.mockRejectedValue(new AuthError("Perfil suspenso.", 403));
+        else state.user.tenantId = "client";
+        return { data: [{ _id: "contact", full_name: "synthetic-private-person" }] };
+      });
+      const response = await GET(
+        new NextRequest("https://nai.local/api/integrations/rd-conversas?resource=contacts")
+      );
+      expect(response.status).toBe(403);
+      expect(await response.text()).not.toContain("synthetic-private-person");
+      expect(state.auth).toHaveBeenCalledTimes(2);
+      expect(state.send).toHaveBeenCalledOnce();
+      expect(state.links).toHaveBeenCalledOnce();
+    }
+  );
+  it("returns contacts when the current profile retains internal access", async () => {
+    state.send.mockResolvedValue({
+      data: [{ _id: "contact", full_name: "synthetic-person" }],
+      total: 1,
+      pages: 1,
+    });
+    const response = await GET(
+      new NextRequest("https://nai.local/api/integrations/rd-conversas?resource=contacts")
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      data: [{ id: "contact", name: "synthetic-person" }],
+      total: 1,
+    });
+    expect(state.auth).toHaveBeenCalledTimes(2);
+    expect(state.send).toHaveBeenCalledOnce();
+  });
   it("reads the AVP queue without any Tallos credentials or provider calls", async () => {
     vi.stubEnv("TALLOS_API_TOKEN", "");
     vi.stubEnv("TALLOS_HISTORY_PRIVATE_KEY", "");

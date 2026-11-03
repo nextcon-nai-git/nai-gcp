@@ -321,4 +321,13 @@ describe("ERP financeiro integrado", () => {
     expect(csv).toContain('"-123"');
     expect(csv).toContain('quote""test');
   });
+  it.each(["\u0000 =1+1", "\uFEFF\u0000=1+1", "\u001f+1+1", "＝1+1", "\ttexto comum"])(
+    "protects report text prefixes while retaining negative numeric cells: %j",
+    (text) => {
+      const csv = reportCsv([[text, -123, 0, 'Clínica "A"; detalhe\nsegunda linha']]);
+      expect(csv.startsWith("\uFEFF")).toBe(true);
+      expect(csv).toContain(`"'${text}";"-123";"0"`);
+      expect(csv).toContain('"Clínica ""A""; detalhe\nsegunda linha"');
+    }
+  );
 });

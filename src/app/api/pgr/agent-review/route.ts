@@ -34,6 +34,20 @@ const Review = z.object({
   encaminhamentos: z.array(z.string().max(600)).max(10),
   limites: z.string().max(1500),
 });
+async function requireCurrentSource(
+  request: NextRequest,
+  input: z.infer<typeof Input>,
+  previousPath: string
+) {
+  const currentUser = await requireAuth(request);
+  const source = await loadNaiImportForReview(currentUser, input);
+  if (source.ref.path !== previousPath)
+    throw new AuthError(
+      "O acesso ao documento mudou. Atualize a página e solicite nova revisão.",
+      409
+    );
+  return source;
+}
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuth(request);
@@ -43,6 +57,7 @@ export async function GET(request: NextRequest) {
     const { ref } = await loadNaiImportForReview(user, input);
     const snap = await ref.collection("agent_reviews").doc(input.role).get();
     const parsed = Review.safeParse(snap.data()?.review);
+    await requireCurrentSource(request, input, ref.path);
     return NextResponse.json(
       { review: parsed.success ? parsed.data : null, status: "draft" },
       { headers: { "Cache-Control": "no-store" } }
@@ -120,6 +135,17 @@ export async function POST(request: NextRequest) {
           "O agente não concluiu a revisão. Nenhuma tarefa foi marcada como executada.",
           503
         );
+      // Generation can take up to a minute. Recheck both the current operator
+      // and the document boundary before persisting or returning its contents.
+      const currentSource = await requireCurrentSource(request, input, ref.path);
+      const currentCompany = await currentSource.companyRef.get();
+      if (!currentCompany.exists)
+        throw badRequest("Cliente não encontrado para a revisão do documento.");
+      assertPgrClientBinding(currentSource.analysis, {
+        id: input.companyId,
+        name: String(currentCompany.data()?.name || ""),
+        cnpj: String(currentCompany.data()?.cnpj || ""),
+      });
       const batch = adminDb.batch();
       batch.set(reviewRef, {
         review: review.data,

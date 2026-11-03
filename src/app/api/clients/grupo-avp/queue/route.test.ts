@@ -10,7 +10,7 @@ vi.mock("@/services/avp-sheet-sync", () => ({
   getAvpSnapshot: m.snapshot,
   syncAvpSource: m.sync,
 }));
-import { PATCH } from "./route";
+import { GET, PATCH } from "./route";
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -21,6 +21,44 @@ beforeEach(() => {
     servedCompanies: ["GRUPO_AVP"],
   });
   m.patch.mockResolvedValue("next-revision");
+});
+
+it.each(["suspended", "scope"])(
+  "does not release the queue after access changes during synchronization: %s",
+  async (change) => {
+    m.sync.mockImplementationOnce(async () => {
+      if (change === "suspended") m.auth.mockRejectedValue(new AuthError("Perfil suspenso.", 403));
+      else
+        m.auth.mockResolvedValue({
+          uid: "operator",
+          role: "OPERATIONS",
+          tenantId: null,
+          servedCompanies: [],
+        });
+      return { started: true };
+    });
+    m.snapshot.mockResolvedValue({ items: [{ colaborador: "synthetic-private-person" }] });
+    const response = await GET(
+      new NextRequest("https://nai.test/api/clients/grupo-avp/queue?force=1")
+    );
+    expect(response.status).toBe(403);
+    expect(await response.text()).not.toContain("synthetic-private-person");
+    expect(m.auth).toHaveBeenCalledTimes(2);
+    expect(m.sync).toHaveBeenCalledExactlyOnceWith(true, "operator");
+    expect(m.snapshot).toHaveBeenCalledOnce();
+  }
+);
+
+it("returns the synchronized queue while the current profile retains AVP access", async () => {
+  const snapshot = { items: [{ colaborador: "synthetic-person" }], revision: "current" };
+  m.sync.mockResolvedValue({ started: true });
+  m.snapshot.mockResolvedValue(snapshot);
+  const response = await GET(new NextRequest("https://nai.test/api/clients/grupo-avp/queue"));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual(snapshot);
+  expect(response.headers.get("cache-control")).toBe("private, no-store");
+  expect(m.auth).toHaveBeenCalledTimes(2);
+  expect(m.sync).toHaveBeenCalledExactlyOnceWith(false, "operator");
 });
 
 it.each([undefined, "1"])(

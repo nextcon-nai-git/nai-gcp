@@ -21,6 +21,7 @@ import {
   financeCsv,
   outstanding,
   principalByTitle,
+  latestTitleEditors,
   parseBrl,
   settlementCash,
   type FinanceBook,
@@ -202,6 +203,10 @@ export function FinanceOperationsWorkspace() {
   const today = brazilToday();
   const principal = useMemo(
     () => (book ? principalByTitle(book) : new Map<string, number>()),
+    [book]
+  );
+  const titleEditors = useMemo(
+    () => (book ? latestTitleEditors(book) : new Map<string, string>()),
     [book]
   );
   const summary = useMemo(
@@ -744,7 +749,11 @@ export function FinanceOperationsWorkspace() {
                       {t.status === "submitted" && (
                         <>
                           <Button
-                            disabled={busy || t.createdBy === user.uid}
+                            disabled={
+                              busy ||
+                              t.createdBy === user.uid ||
+                              titleEditors.get(t.id) === user.uid
+                            }
                             onClick={() =>
                               reason("Aprovar título", {
                                 action: "review",
@@ -756,7 +765,11 @@ export function FinanceOperationsWorkspace() {
                             Aprovar
                           </Button>
                           <Button
-                            disabled={busy || t.createdBy === user.uid}
+                            disabled={
+                              busy ||
+                              t.createdBy === user.uid ||
+                              titleEditors.get(t.id) === user.uid
+                            }
                             variant="secondary"
                             onClick={() =>
                               reason("Solicitar revisão", {

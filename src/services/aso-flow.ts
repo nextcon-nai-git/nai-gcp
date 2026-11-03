@@ -16,6 +16,7 @@ import type { AuthContext } from "@/lib/auth/auth-context";
 import { AuthError, badRequest, forbidden } from "@/lib/auth/errors";
 import { isPgrGlobalAdmin, requirePgrCompany } from "@/lib/auth/require-pgr-access";
 import { parseClaims } from "@/lib/auth/claims";
+import { isValidCnpj, normalizeCnpj } from "@/lib/cnpj";
 import { socWebAccess } from "@/lib/integrations/soc-access";
 import { asoGmailConfiguration } from "@/lib/integrations/aso-gmail";
 import { asoClientEmailSendingEnabled } from "@/lib/aso-email-policy";
@@ -61,7 +62,7 @@ export function requireAsoFlowAccess(user: AuthContext, companyId?: string) {
     throw forbidden("Esteira de ASOs disponível somente à equipe interna autorizada.");
   if (companyId) requirePgrCompany(user, companyId);
 }
-async function currentAsoFlowUser(user: AuthContext, companyId?: string, tx?: Transaction) {
+export async function currentAsoFlowUser(user: AuthContext, companyId?: string, tx?: Transaction) {
   requireAsoFlowAccess(user, companyId);
   const ref = adminDb.collection("users").doc(user.uid);
   const profile = (tx ? await tx.get(ref) : await ref.get()).data();
@@ -121,7 +122,7 @@ const transactionReader = (tx: Transaction): Reader => ({
   doc: (ref) => tx.get(ref),
 });
 const formattedCnpj = (v: string) =>
-  v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+  v.replace(/^([A-Z0-9]{2})([A-Z0-9]{3})([A-Z0-9]{3})([A-Z0-9]{4})(\d{2})$/, "$1.$2.$3/$4-$5");
 const formattedCpf = (v: string) => v.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
 const uniqueDocs = (snapshots: QuerySnapshot[]) => {
   if (snapshots.some((snapshot) => snapshot.size >= 4))
@@ -171,11 +172,11 @@ async function resolveRows(
     ...new Map(
       resolved
         .filter((r) => !r.preview.errors.length)
-        .map((r) => [asoFlowDigits(r.preview.row.companyCnpj), r.preview.row])
+        .map((r) => [normalizeCnpj(r.preview.row.companyCnpj), r.preview.row])
     ).values(),
   ];
   await inBatches(companyRows, async (row) => {
-    const cnpj = asoFlowDigits(row.companyCnpj);
+    const cnpj = normalizeCnpj(row.companyCnpj);
     companyCache.set(
       cnpj,
       uniqueDocs(
@@ -183,7 +184,15 @@ async function resolveRows(
           reader.query(
             adminDb
               .collection("companies")
-              .where("cnpj", "in", [...new Set([cnpj, formattedCnpj(cnpj), row.companyCnpj])])
+              .where("cnpj", "in", [
+                ...new Set([
+                  cnpj,
+                  formattedCnpj(cnpj),
+                  cnpj.toLowerCase(),
+                  formattedCnpj(cnpj).toLowerCase(),
+                  row.companyCnpj,
+                ]),
+              ])
               .limit(4)
           ),
           reader.query(
@@ -198,7 +207,7 @@ async function resolveRows(
       { row } = preview;
     if (preview.errors.length) continue;
     const companies = companyCache
-      .get(asoFlowDigits(row.companyCnpj))!
+      .get(normalizeCnpj(row.companyCnpj))!
       .filter((doc) => doc.data()?.isDeleted !== true && doc.data()?.active === true);
     if (companies.length !== 1 || !allowed(user, companies[0].id)) {
       preview.errors.push(
@@ -241,7 +250,7 @@ async function resolveRows(
       { row } = preview;
     if (!company || preview.errors.length) continue;
     const companyData = company.data()!,
-      cnpj = asoFlowDigits(row.companyCnpj),
+      cnpj = normalizeCnpj(row.companyCnpj),
       cpf = asoFlowDigits(row.employeeCpf);
     const employees = employeeCache
       .get(`${company.id}:${cpf}`)!
@@ -261,7 +270,8 @@ async function resolveRows(
     if (
       employeeData.companyId !== company.id ||
       asoFlowDigits(value(employeeData.cpf)) !== cpf ||
-      asoFlowDigits(value(companyData.cnpj)) !== cnpj
+      !isValidCnpj(value(companyData.cnpj)) ||
+      normalizeCnpj(value(companyData.cnpj)) !== cnpj
     ) {
       preview.errors.push(
         "CPF/CNPJ ou vínculo cadastral divergente. Corrija a identificação antes de importar."
@@ -311,7 +321,7 @@ async function resolveRows(
         card.id !== item.preview.id ||
         card.companyId !== companyId ||
         card.employeeId !== employeeId ||
-        card.cnpj !== asoFlowDigits(row.companyCnpj) ||
+        card.cnpj !== normalizeCnpj(row.companyCnpj) ||
         card.employeeIdentityHash !==
           employeeIdentityHash(companyId, employeeId, row.employeeCpf) ||
         asoFlowText(value(card.employeeName)) !== asoFlowText(row.employeeName) ||
@@ -393,7 +403,7 @@ export async function importAsoFlowRows(user: AuthContext, input: unknown) {
         version: 1,
         companyId: item.company!.id,
         companyName: value(company.name),
-        cnpj: asoFlowDigits(value(company.cnpj)),
+        cnpj: normalizeCnpj(value(company.cnpj)),
         employeeId: item.employee!.id,
         employeeName: value(employee.name),
         employeeIdentityHash: employeeIdentityHash(
@@ -559,7 +569,8 @@ async function currentIdentity(tx: Transaction, card: AsoFlowCard) {
     e.companyId !== card.companyId ||
     card.employeeIdentityHash !==
       employeeIdentityHash(card.companyId, card.employeeId, value(e.cpf)) ||
-    asoFlowDigits(value(c.cnpj)) !== card.cnpj ||
+    !isValidCnpj(value(c.cnpj)) ||
+    normalizeCnpj(value(c.cnpj)) !== card.cnpj ||
     asoFlowText(value(e.name)) !== asoFlowText(card.employeeName)
   )
     throw conflict(

@@ -54,12 +54,16 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuth(req);
     requireTallosAccess(user);
+    const authorizedReply = async (body: unknown) => {
+      requireTallosAccess(await requireAuth(req));
+      return reply(body);
+    };
     const q = req.nextUrl.searchParams;
     const resource = q.get("resource") || "status";
     const page = pageNumber(q.get("page"));
     if (resource === "status") {
       await tallosRequest("/v2/employees");
-      return reply({
+      return await authorizedReply({
         connected: true,
         checkedAt: new Date().toISOString(),
         historyKeyConfigured: !!process.env.TALLOS_HISTORY_PRIVATE_KEY,
@@ -73,7 +77,7 @@ export async function GET(req: NextRequest) {
       const links = rows.length
         ? await adminDb.getAll(...rows.map((c) => root().collection("links").doc(c.id)))
         : [];
-      return reply({
+      return await authorizedReply({
         data: rows.map((c, i) => {
           const link = links[i]?.data();
           return {
@@ -95,7 +99,7 @@ export async function GET(req: NextRequest) {
     }
     if (resource === "operators") {
       const result = await tallosRequest("/v2/employees");
-      return reply({
+      return await authorizedReply({
         data: items(result.data).map((r) => ({
           id: providerId(r._id ?? r.id),
           name:
@@ -121,7 +125,7 @@ export async function GET(req: NextRequest) {
         ...(status ? { status } : {}),
       });
       const data = items(result.data).map(normalizeReport);
-      return reply({
+      return await authorizedReply({
         data,
         page,
         total: result.total,
@@ -157,7 +161,7 @@ export async function GET(req: NextRequest) {
           type: string(r.type),
         })
       );
-      return reply({ data, page, total: result.total, pages: result.pages });
+      return await authorizedReply({ data, page, total: result.total, pages: result.pages });
     }
     if (resource === "operation") {
       const [messages, requests, diagnostics] = await Promise.all([
@@ -172,7 +176,7 @@ export async function GET(req: NextRequest) {
           .get()
           .catch(() => null),
       ]);
-      return reply({
+      return await authorizedReply({
         webhookDiagnostics:
           diagnostics?.docs.map((d) => {
             const r = d.data();
@@ -224,7 +228,7 @@ export async function GET(req: NextRequest) {
       let query = collection.orderBy("__name__").limit(100);
       if (after) query = query.startAfter(docId.parse(after));
       const snapshot = await query.get();
-      return reply({
+      return await authorizedReply({
         data: snapshot.docs.map((d) => ({
           id: d.id,
           name: string(d.data().name ?? d.data().razaoSocial ?? d.data().companyName) || d.id,
@@ -336,6 +340,9 @@ export async function POST(req: NextRequest) {
       });
       return data;
     });
+    // Observe revocation after reservation, before the first remote effect. Keep
+    // this outside the transport catch so denied access preserves the reservation.
+    requireTallosAccess(await requireAuth(req));
     try {
       await tallosRequest(
         `/v2/messages/${providerId(draft.contactId)}/send`,

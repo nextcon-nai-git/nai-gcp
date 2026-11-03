@@ -114,6 +114,12 @@ async function upload(
 }
 async function reviewed() {
   await upload();
+  await vi.waitFor(async () => {
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(host.querySelector<HTMLSelectElement>("select")).not.toBeNull();
+  });
   await act(async () => {
     const select = host.querySelector<HTMLSelectElement>("select")!;
     select.value = "client1";

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
+import type { Transaction } from "firebase-admin/firestore";
 import { z } from "zod/v3";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { requireAuth, extractBearerToken } from "@/lib/auth/require-auth";
 import { AuthError, forbidden, badRequest } from "@/lib/auth/errors";
+import { parseClaims } from "@/lib/auth/claims";
 import { limitedBytes } from "@/lib/http/private-api";
 import { canManageRdAso } from "@/lib/integrations/rd-aso-request";
 import {
@@ -25,6 +27,19 @@ const headers = {
 };
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers });
 const collection = () => adminDb.collection("clinic_portal_private");
+const ownerRoles = ["SUPER_ADMIN", "ADMIN", "OPERATIONS", "DOCTOR", "HR", "RH"];
+
+async function requireCurrentOwner(tx: Transaction, uid: string) {
+  const profile = (await tx.get(adminDb.collection("users").doc(uid))).data();
+  if (
+    !profile ||
+    profile.accessEnabled === false ||
+    profile.isDeleted === true ||
+    !ownerRoles.includes(profile.role)
+  )
+    throw forbidden("Acesso ao portal alterado. Atualize sua sessão.");
+  return parseClaims(profile);
+}
 
 export async function POST(request: NextRequest) {
   if (process.env.CLINIC_PORTAL_ENABLED !== "true")
@@ -53,8 +68,7 @@ export async function POST(request: NextRequest) {
       throw badRequest("Confirme a revisão médica antes de enviar para assinatura.");
     if (["invite", "status", "revoke"].includes(body.action)) {
       const user = await requireAuth(request);
-      if (!["SUPER_ADMIN", "ADMIN", "OPERATIONS", "DOCTOR", "HR", "RH"].includes(user.role))
-        throw forbidden();
+      if (!ownerRoles.includes(user.role)) throw forbidden();
       if (body.action === "invite") {
         const input = inviteSchema.parse(body.payload);
         const source = input.requestId.startsWith("rd-")
@@ -73,6 +87,12 @@ export async function POST(request: NextRequest) {
         const id = randomBytes(24).toString("hex");
         const at = new Date().toISOString();
         await adminDb.runTransaction(async (tx) => {
+          const currentOwner = await requireCurrentOwner(tx, user.uid);
+          if (
+            input.requestId.startsWith("rd-") &&
+            (!canManageRdAso(currentOwner.role) || currentOwner.tenantId)
+          )
+            throw forbidden();
           const snapshot = await tx.get(source);
           if (!snapshot.exists) throw badRequest("Pedido não encontrado.");
           const aso = snapshot.data() as AsoRequest & { clinicPortalId?: string };
@@ -134,6 +154,7 @@ export async function POST(request: NextRequest) {
       if (!body.id) throw badRequest();
       const ref = collection().doc(body.id);
       return await adminDb.runTransaction(async (tx) => {
+        await requireCurrentOwner(tx, user.uid);
         const snap = await tx.get(ref);
         const record = snap.data() as PortalRecord | undefined;
         if (!record || record.ownerUid !== user.uid) throw forbidden();

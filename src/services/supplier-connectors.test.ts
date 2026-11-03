@@ -13,7 +13,18 @@ const storage = vi.hoisted(() => ({
   beforeWrite: null as (() => void) | null,
   failRead: false,
 }));
-vi.mock("@/lib/firebase-admin", () => ({}));
+const access = vi.hoisted(() => ({
+  profile: { role: "SUPER_ADMIN", accessEnabled: true } as Record<string, unknown> | undefined,
+}));
+vi.mock("@/lib/firebase-admin", () => ({
+  adminDb: {
+    collection: () => ({
+      doc: () => ({
+        get: async () => ({ exists: !!access.profile, data: () => access.profile }),
+      }),
+    }),
+  },
+}));
 vi.mock("firebase-admin/storage", () => ({
   getStorage: () => ({
     bucket: () => {
@@ -210,6 +221,7 @@ function seedTitle() {
   };
 }
 beforeEach(() => {
+  access.profile = { role: "SUPER_ADMIN", accessEnabled: true };
   storage.files.clear();
   storage.calls = 0;
   storage.sequence = 0;
@@ -526,6 +538,63 @@ describe("Omie controlled exports", () => {
     expect(remote.call.mock.calls.filter((c) => c[0] === "createSupplier")).toHaveLength(1);
     await expect(reconcileConnectorExport(admin, reference(selection))).rejects.toThrow("timeout");
     expect(remote.call.mock.calls.filter((c) => c[0] === "createSupplier")).toHaveLength(1);
+  });
+  it("does not dispatch an Omie write after suspension while reserving the source", async () => {
+    const a = seedSupplier();
+    const selection = supplierSelection(a.id);
+    const p = await previewConnectorExport(admin, selection);
+    storage.beforeWrite = () => {
+      access.profile = { role: "SUPER_ADMIN", accessEnabled: false };
+    };
+    await expect(executeConnectorExport(admin, { selection, hash: p.hash })).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(remote.call).not.toHaveBeenCalled();
+    const stored = JSON.parse(storage.files.get(sp)!.bytes.toString());
+    expect(stored.omieExports).toHaveLength(1);
+    expect(stored.omieExports[0].status).toBe("reserved");
+  });
+  it("does not reserve or dispatch if the operator is suspended during preparation", async () => {
+    const selection = seedTitle();
+    const p = await previewConnectorExport(admin, selection);
+    remote.call.mockClear();
+    remote.call.mockImplementation(async (kind: string, param: Record<string, unknown>) => {
+      if (kind === "partyDetail")
+        return { codigo_cliente_omie: 123, razao_social: "Fornecedor sintético" };
+      if (kind === "categoryDetail") return { codigo: param.codigo };
+      if (kind === "accountDetail") {
+        access.profile = { role: "SUPER_ADMIN", accessEnabled: false };
+        return { nCodCC: param.nCodCC };
+      }
+      throw new Error("Unexpected external write");
+    });
+    await expect(executeConnectorExport(admin, { selection, hash: p.hash })).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(storage.writes).toHaveLength(0);
+    expect(remote.call.mock.calls.map((call) => call[0])).toEqual([
+      "partyDetail",
+      "categoryDetail",
+      "accountDetail",
+    ]);
+  });
+  it("preserves a confirmed remote result when suspension occurs after dispatch", async () => {
+    const a = seedSupplier();
+    const selection = supplierSelection(a.id);
+    const p = await previewConnectorExport(admin, selection);
+    remote.call.mockImplementation(async (kind: string) => {
+      if (kind === "createSupplier") {
+        access.profile = { role: "SUPER_ADMIN", accessEnabled: false };
+        return { codigo_cliente_omie: 456 };
+      }
+      return { ...p.payload, codigo_cliente_omie: 456 };
+    });
+    expect((await executeConnectorExport(admin, { selection, hash: p.hash })).status).toBe(
+      "confirmed"
+    );
+    const stored = JSON.parse(storage.files.get(sp)!.bytes.toString());
+    expect(stored.omieExports[0]).toMatchObject({ status: "confirmed", remoteId: 456 });
+    expect(remote.call.mock.calls.filter((call) => call[0] === "createSupplier")).toHaveLength(1);
   });
   it("confirms through readback and preserves audit", async () => {
     const a = seedSupplier(),

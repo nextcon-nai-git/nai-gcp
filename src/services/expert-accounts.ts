@@ -4,7 +4,7 @@ import { adminDb } from "@/lib/firebase-admin";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import { AuthError, badRequest, forbidden } from "@/lib/auth/errors";
 import { EXPERT_ROLE, expertCompanyIds, projectExpertCompany } from "@/lib/expert-workspace";
-import { manageUserAccess, previewUserAccess } from "./user-access";
+import { manageUserAccess, previewUserAccess, requireCurrentAdmin } from "./user-access";
 
 function requireAdmin(user: AuthContext) {
   if (user.role !== "SUPER_ADMIN") throw forbidden();
@@ -33,7 +33,7 @@ function validateId(id: string) {
   if (!id || id.length > 128 || /[\/\u0000]/.test(id)) throw badRequest("Prestador inválido.");
 }
 export async function listExpertAccounts(user: AuthContext) {
-  requireAdmin(user);
+  await requireCurrentAdmin(user);
   const [providers, companies] = await Promise.all([
     adminDb.collection("providers").limit(1001).get(),
     adminDb.collection("companies").limit(1001).get(),
@@ -48,6 +48,7 @@ export async function listExpertAccounts(user: AuthContext) {
       .filter((d) => d.data().isDeleted !== true)
       .map((d) => [d.id, projectExpertCompany(d.id, d.data())])
   );
+  await requireCurrentAdmin(user);
   return {
     providers: providers.docs
       .filter((d) => d.data().isDeleted !== true)
@@ -80,7 +81,7 @@ export async function listExpertAccounts(user: AuthContext) {
   };
 }
 export async function previewExpertAccount(user: AuthContext, providerId: string) {
-  requireAdmin(user);
+  await requireCurrentAdmin(user);
   validateId(providerId);
   const data = (await adminDb.collection("providers").doc(providerId).get()).data();
   if (!data) throw new AuthError("Cadastro não encontrado.", 404);
@@ -93,6 +94,7 @@ export async function previewExpertAccount(user: AuthContext, providerId: string
       return projectExpertCompany(d.id, d.data()!);
     })
   );
+  await requireCurrentAdmin(user);
   return { ...source, companies };
 }
 export async function createExpertAccount(

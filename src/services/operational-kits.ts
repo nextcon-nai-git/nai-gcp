@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { DocumentSnapshot, Transaction } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase-admin";
 import type { AuthContext } from "@/lib/auth/auth-context";
+import { parseClaims } from "@/lib/auth/claims";
 import { isPgrGlobalAdmin, requirePgrCompany } from "@/lib/auth/require-pgr-access";
 import { AuthError, badRequest, forbidden } from "@/lib/auth/errors";
 import { isValidCpf } from "@/lib/cpf";
@@ -42,6 +43,24 @@ export function requireKitAccess(user: AuthContext, companyId: string) {
     throw forbidden("Kits disponíveis à administração interna autorizada.");
   if (!KitId.safeParse(companyId).success) throw badRequest("Selecione uma empresa válida.");
   requirePgrCompany(user, companyId);
+}
+async function requireCurrentKitAccess(user: AuthContext, companyId: string, tx?: Transaction) {
+  requireKitAccess(user, companyId);
+  const ref = adminDb.collection("users").doc(user.uid);
+  const profile = (tx ? await tx.get(ref) : await ref.get()).data();
+  if (!profile || profile.accessEnabled === false || profile.isDeleted === true)
+    throw forbidden("O acesso do operador foi suspenso ou removido.");
+  const claims = parseClaims(profile);
+  requireKitAccess(
+    {
+      ...user,
+      role: claims.role,
+      tenantId: claims.tenantId || null,
+      permissions: claims.permissions || [],
+      servedCompanies: claims.servedCompanies || [],
+    },
+    companyId
+  );
 }
 function parseSelection(input: unknown) {
   const parsed = KitSelection.safeParse(input);
@@ -170,6 +189,7 @@ export async function getKitCatalog(user: AuthContext, companyId: string): Promi
       catalog.campaignWarning = "Não foi possível atualizar o resumo da campanha AVP.";
     }
   }
+  await requireCurrentKitAccess(user, companyId);
   return catalog;
 }
 export async function prepareKitBatch(
@@ -206,9 +226,9 @@ export async function prepareKitBatch(
     pcmsoDoctor: input.pcmsoDoctor,
     pcmsoCrm: input.pcmsoCrm,
   };
-  await records()
-    .doc(proposalId)
-    .create({
+  await adminDb.runTransaction(async (tx) => {
+    await requireCurrentKitAccess(user, companyId, tx);
+    tx.create(records().doc(proposalId), {
       kind: "kit-preview",
       uid: user.uid,
       companyId,
@@ -217,6 +237,8 @@ export async function prepareKitBatch(
       createdAt: new Date().toISOString(),
       expiresAt,
     });
+  });
+  await requireCurrentKitAccess(user, companyId);
   return preview;
 }
 export function kitOperationId(companyId: string, cpf: string, cycle: string, examType: string) {
@@ -294,8 +316,10 @@ async function confirmTransaction(
     saved.companyId !== companyId
   )
     throw forbidden("Prévia indisponível nesta sessão.");
-  if (saved.confirmedAt)
+  if (saved.confirmedAt) {
+    await requireCurrentKitAccess(user, companyId, tx);
     return (saved.results as KitResult[]).map((item) => ({ ...item, reused: true }));
+  }
   if (!Number.isFinite(saved.expiresAt) || saved.expiresAt < Date.now())
     throw badRequest("A prévia expirou. Prepare novamente.");
   const input = parseSelection(saved.input);
@@ -386,6 +410,9 @@ async function confirmTransaction(
       },
     };
   });
+  // PDF generation can outlive a suspension. Reading the current profile in
+  // this transaction also makes a concurrent revocation conflict with its commit.
+  await requireCurrentKitAccess(user, companyId, tx);
   for (const item of items)
     if (item.record) {
       tx.create(records().doc(item.result.id), item.record);
@@ -407,7 +434,11 @@ async function confirmTransaction(
 export async function confirmKitBatch(user: AuthContext, companyId: string, proposalId: string) {
   requireKitAccess(user, companyId);
   if (!/^[a-f0-9-]{36}$/.test(proposalId)) throw badRequest("Prévia inválida.");
-  return adminDb.runTransaction((tx) => confirmTransaction(tx, user, companyId, proposalId));
+  const results = await adminDb.runTransaction((tx) =>
+    confirmTransaction(tx, user, companyId, proposalId)
+  );
+  await requireCurrentKitAccess(user, companyId);
+  return results;
 }
 export async function downloadKit(user: AuthContext, companyId: string, id: string) {
   requireKitAccess(user, companyId);
@@ -419,8 +450,14 @@ export async function downloadKit(user: AuthContext, companyId: string, id: stri
   const bytes = Buffer.from(record.pdfBase64, "base64");
   if (createHash("sha256").update(bytes).digest("hex") !== record.pdfSha256)
     throw new AuthError("Não foi possível validar o PDF arquivado.", 503);
-  await ref
-    .collection("audit")
-    .add({ action: "download", uid: user.uid, at: new Date().toISOString() });
+  await adminDb.runTransaction(async (tx) => {
+    await requireCurrentKitAccess(user, companyId, tx);
+    tx.create(ref.collection("audit").doc(randomUUID()), {
+      action: "download",
+      uid: user.uid,
+      at: new Date().toISOString(),
+    });
+  });
+  await requireCurrentKitAccess(user, companyId);
   return { bytes, filename: record.filename as string };
 }

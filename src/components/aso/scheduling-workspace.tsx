@@ -37,6 +37,7 @@ import {
   Plus,
   ArrowRight,
   ChevronRight,
+  ChevronDown,
   ShieldCheck,
   Stethoscope,
   Activity,
@@ -80,6 +81,7 @@ function SchedulingSession() {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [selectedRequest, setSelectedRequest] = useState<AsoRequest | null>(null);
+  const [expandedCityGroups, setExpandedCityGroups] = useState<Set<string>>(new Set());
   const [copiedKit, setCopiedKit] = useState(false);
 
   // Form State
@@ -219,6 +221,15 @@ function SchedulingSession() {
       setNotice(
         `Solicitação de ASO ${res.data.id} registrada. Confira os dados e as sugestões antes de prosseguir.`
       );
+    });
+  };
+
+  const toggleCityGroup = (key: string) => {
+    setExpandedCityGroups((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
     });
   };
 
@@ -457,62 +468,220 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
 
                       <div className="space-y-3">
                         {stepRequests.length > 0 ? (
-                          stepRequests.map((req) => (
-                            <div
-                              key={req.id}
-                              onClick={() => setSelectedRequest(req)}
-                              className={`p-3.5 rounded-xl border transition-all cursor-pointer space-y-2 ${
-                                selectedRequest?.id === req.id
-                                  ? "bg-slate-800 border-cyan-500 shadow-lg shadow-cyan-500/10"
-                                  : "bg-slate-950/80 border-slate-800 hover:border-slate-700"
-                              }`}
-                            >
-                              <div className="flex items-center justify-between text-[11px]">
-                                <span className="font-mono font-bold text-cyan-400">{req.id}</span>
-                                <span className="uppercase text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                                  {req.examType}
-                                </span>
-                              </div>
-
-                              <div>
-                                <h4 className="text-xs font-bold text-white line-clamp-1">
-                                  {req.employeeName}
-                                </h4>
-                                <p className="text-[11px] text-slate-400 line-clamp-1">
-                                  {req.roleTitle}
-                                </p>
-                                <p className="text-[10px] text-slate-500">{req.companyName}</p>
-                                {req.source === "rd-conversas" && (
-                                  <p className="text-[10px] text-cyan-300">
-                                    RD Conversas · {req.requestedCity}
-                                  </p>
-                                )}
-                              </div>
-
-                              {req.clinicName && (
-                                <div className="text-[10px] text-cyan-300 bg-cyan-500/10 p-1.5 rounded border border-cyan-500/20 line-clamp-1">
-                                  🏥 {req.clinicName}
-                                </div>
-                              )}
-
-                              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
-                                <span className="text-[10px] text-slate-500">
-                                  {req.exams.length} exames PCMSO
-                                </span>
-
-                                <button
-                                  disabled={advancing !== null || req.status === "aso_concluido"}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleAdvanceStep(req.id, req.status);
-                                  }}
-                                  className="text-[10px] bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-white px-2 py-1 rounded transition-all font-semibold flex items-center gap-1"
+                          <>
+                            {stepRequests
+                              .filter((req) => req.examType !== "periodico" || !req.requestedCity)
+                              .map((req) => (
+                                <div
+                                  key={req.id}
+                                  onClick={() => setSelectedRequest(req)}
+                                  className={`p-3.5 rounded-xl border transition-all cursor-pointer space-y-2 ${
+                                    selectedRequest?.id === req.id
+                                      ? "bg-slate-800 border-cyan-500 shadow-lg shadow-cyan-500/10"
+                                      : "bg-slate-950/80 border-slate-800 hover:border-slate-700"
+                                  }`}
                                 >
-                                  Avançar <ChevronRight className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-                          ))
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="font-mono font-bold text-cyan-400">{req.id}</span>
+                                    <span className="uppercase text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                                      {req.examType}
+                                    </span>
+                                  </div>
+
+                                  <div>
+                                    <h4 className="text-xs font-bold text-white line-clamp-1">
+                                      {req.employeeName}
+                                    </h4>
+                                    <p className="text-[11px] text-slate-400 line-clamp-1">
+                                      {req.roleTitle}
+                                    </p>
+                                    <p className="text-[10px] text-slate-500">{req.companyName}</p>
+                                    {req.source === "rd-conversas" && (
+                                      <p className="text-[10px] text-cyan-300">
+                                        RD Conversas · {req.requestedCity}
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  {req.clinicName && (
+                                    <div className="text-[10px] text-cyan-300 bg-cyan-500/10 p-1.5 rounded border border-cyan-500/20 line-clamp-1">
+                                      🏥 {req.clinicName}
+                                    </div>
+                                  )}
+
+                                  <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
+                                    <span className="text-[10px] text-slate-500">
+                                      {req.exams.length} exames PCMSO
+                                    </span>
+
+                                    <button
+                                      disabled={advancing !== null || req.status === "aso_concluido"}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAdvanceStep(req.id, req.status);
+                                      }}
+                                      className="text-[10px] bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-white px-2 py-1 rounded transition-all font-semibold flex items-center gap-1"
+                                    >
+                                      Avançar <ChevronRight className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+
+                            {[...new Map(
+                              stepRequests
+                                .filter((req) => req.examType === "periodico" && req.requestedCity)
+                                .map((req) => [req.requestedCity!.trim().toLocaleUpperCase("pt-BR"), [] as AsoRequest[]])
+                            ).keys()].map((city) => {
+                              const cityRequests = stepRequests.filter(
+                                (req) =>
+                                  req.examType === "periodico" &&
+                                  req.requestedCity?.trim().toLocaleUpperCase("pt-BR") === city
+                              );
+                              const groupKey = `${stepKey}:${city}`;
+                              const expanded = expandedCityGroups.has(groupKey);
+                              const clinics = [...new Set(cityRequests.map((req) => req.clinicName).filter(Boolean))];
+                              const withoutClinic = cityRequests.filter((req) => !req.clinicName).length;
+                              const kitPending = cityRequests.filter((req) =>
+                                ["solicitado", "validando", "exames_definidos", "clinica_selecionada", "agendado"].includes(req.status)
+                              ).length;
+                              const kitSent = cityRequests.filter((req) =>
+                                [
+                                  "kit_enviado",
+                                  "clinica_confirmou",
+                                  "exame_realizado",
+                                  "aso_concluido",
+                                ].includes(req.status)
+                              ).length;
+                              const scheduled = cityRequests.filter((req) =>
+                                [
+                                  "agendado",
+                                  "kit_montado",
+                                  "kit_enviado",
+                                  "clinica_confirmou",
+                                  "exame_realizado",
+                                  "aso_concluido",
+                                ].includes(req.status)
+                              ).length;
+                              const completed = cityRequests.filter(
+                                (req) => req.status === "aso_concluido"
+                              ).length;
+
+                              return (
+                                <div
+                                  key={groupKey}
+                                  className="rounded-xl border border-cyan-500/25 bg-slate-950/80 overflow-hidden"
+                                >
+                                  <button
+                                    type="button"
+                                    aria-expanded={expanded}
+                                    onClick={() => toggleCityGroup(groupKey)}
+                                    className="w-full p-3.5 text-left space-y-2 hover:bg-slate-900/80 transition-colors"
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="flex items-center gap-1.5 text-xs font-bold text-white">
+                                        <MapPin className="w-3.5 h-3.5 text-cyan-400" />
+                                        Periódicos · {city}
+                                      </span>
+                                      <span className="flex items-center gap-1 text-[10px] font-bold text-cyan-300">
+                                        {cityRequests.length} colaboradores
+                                        {expanded ? (
+                                          <ChevronDown className="w-3.5 h-3.5" />
+                                        ) : (
+                                          <ChevronRight className="w-3.5 h-3.5" />
+                                        )}
+                                      </span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5 text-[9px]">
+                                      {withoutClinic > 0 && (
+                                        <span className="rounded bg-rose-500/15 px-2 py-0.5 text-rose-300">
+                                          Sem clínica: {withoutClinic}
+                                        </span>
+                                      )}
+                                      {kitPending > 0 && (
+                                        <span className="rounded bg-amber-500/15 px-2 py-0.5 text-amber-300">
+                                          Kit pendente: {kitPending}
+                                        </span>
+                                      )}
+                                      {kitSent > 0 && (
+                                        <span className="rounded bg-cyan-500/15 px-2 py-0.5 text-cyan-300">
+                                          Kit enviado: {kitSent}
+                                        </span>
+                                      )}
+                                      {scheduled > 0 && (
+                                        <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-emerald-300">
+                                          Agendado+: {scheduled}
+                                        </span>
+                                      )}
+                                      {completed > 0 && (
+                                        <span className="rounded bg-blue-500/15 px-2 py-0.5 text-blue-300">
+                                          ASO concluído: {completed}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center justify-between text-[10px] text-slate-500">
+                                      <span>
+                                        {cityRequests.reduce(
+                                          (sum, req) => sum + req.exams.length,
+                                          0
+                                        )}{" "}
+                                        exames
+                                      </span>
+                                      <span className="truncate max-w-[150px]">
+                                        {clinics.length > 0
+                                          ? clinics.join(", ")
+                                          : "Clínica ainda não definida"}
+                                      </span>
+                                    </div>
+                                  </button>
+
+                                  {expanded && (
+                                    <div className="border-t border-slate-800 divide-y divide-slate-800">
+                                      {cityRequests.map((req) => (
+                                        <div
+                                          key={req.id}
+                                          onClick={() => setSelectedRequest(req)}
+                                          className={`p-3 cursor-pointer ${
+                                            selectedRequest?.id === req.id
+                                              ? "bg-cyan-500/10"
+                                              : "hover:bg-slate-900/70"
+                                          }`}
+                                        >
+                                          <div className="flex items-start justify-between gap-2">
+                                            <div className="min-w-0">
+                                              <p className="text-[11px] font-bold text-white truncate">
+                                                {req.employeeName}
+                                              </p>
+                                              <p className="text-[10px] text-slate-400 truncate">
+                                                {req.roleTitle} · {req.exams.length} exames
+                                              </p>
+                                              {req.clinicName && (
+                                                <p className="text-[10px] text-cyan-300 truncate">
+                                                  {req.clinicName}
+                                                </p>
+                                              )}
+                                            </div>
+                                            <button
+                                              disabled={
+                                                advancing !== null || req.status === "aso_concluido"
+                                              }
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleAdvanceStep(req.id, req.status);
+                                              }}
+                                              className="shrink-0 text-[10px] bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-white px-2 py-1 rounded transition-all font-semibold"
+                                            >
+                                              Avançar
+                                            </button>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </>
                         ) : (
                           <div className="text-xs text-slate-600 italic py-6 text-center border border-dashed border-slate-800 rounded-xl">
                             Nenhum pedido nesta etapa

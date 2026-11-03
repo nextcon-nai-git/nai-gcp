@@ -1,5 +1,6 @@
 import type { OmiePage } from "./omie";
 import { isCalendarDate } from "./omie-dre";
+import { csvTextCell } from "@/lib/csv-cell";
 
 export type Title = OmiePage["rows"][number];
 export type Portfolio = {
@@ -93,11 +94,6 @@ export async function collectTitles(
 }
 
 export function titlesCsv(rows: Title[], kind: string) {
-  const cell = (value: string | number) => {
-    const text = String(value);
-    const safe = /^[\s]*[=+@-]/.test(text) ? `'${text}` : text;
-    return `"${safe.replaceAll('"', '""')}"`;
-  };
   return (
     "\uFEFF" +
     [
@@ -124,7 +120,7 @@ export function titlesCsv(rows: Title[], kind: string) {
         r.amount.toFixed(2).replace(".", ","),
       ]),
     ]
-      .map((row) => row.map(cell).join(";"))
+      .map((row) => row.map(csvTextCell).join(";"))
       .join("\r\n")
   );
 }

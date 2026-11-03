@@ -169,6 +169,21 @@ it.each(["ADMIN", "OPERATIONS", "SCOPED_PROVIDER", "GUEST"])(
     expect(m.create).not.toHaveBeenCalled();
   }
 );
+it.each(["suspended", "deleted", "demoted"])(
+  "withholds an access preview if its administrator is %s during identity lookup",
+  async (change) => {
+    m.byEmail.mockImplementation(async () => {
+      if (change === "suspended") m.rows.get("users/admin")!.accessEnabled = false;
+      if (change === "deleted") m.rows.get("users/admin")!.isDeleted = true;
+      if (change === "demoted") m.rows.get("users/admin")!.role = "OPERATIONS";
+      throw { code: "auth/user-not-found" };
+    });
+    await expect(previewUserAccess(admin, "provider", "p")).rejects.toMatchObject({ status: 403 });
+    expect(m.create).not.toHaveBeenCalled();
+    expect(m.update).not.toHaveBeenCalled();
+    expect(m.revoke).not.toHaveBeenCalled();
+  }
+);
 it("creates a disabled provider first, narrow profile and audit without secrets", async () => {
   const body = await input();
   await manageUserAccess(admin, body);

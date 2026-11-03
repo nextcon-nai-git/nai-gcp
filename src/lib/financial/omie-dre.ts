@@ -1,4 +1,5 @@
 import { z } from "zod/v3";
+import { csvTextCell } from "@/lib/csv-cell";
 import type { FinancialAction, FinancialActionImport } from "./actions";
 
 export function isCalendarDate(value: string): boolean {
@@ -414,8 +415,7 @@ export function exportOmieDreCsv(report: OmieDreReport): string {
   // Spreadsheet formula injection applies to every untrusted text cell, including after whitespace.
   const cell = (value: string) => {
     const cleaned = value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
-    const safe = /^[\s]*[=+\-@]/.test(cleaned) ? `'${cleaned}` : cleaned;
-    return `"${safe.replace(/"/g, '""')}"`;
+    return csvTextCell(cleaned);
   };
   const header = [
     "Data",

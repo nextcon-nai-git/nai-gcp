@@ -112,4 +112,13 @@ describe("agenda financeira com cobertura explícita", () => {
     expect(csv).toContain("'=");
     expect(csv).toContain('""example""');
   });
+  it.each(["\u0000 =1+1", "\uFEFF\u0000=1+1", "\u001f+1+1", "＝1+1", "\ttexto comum"])(
+    "protege prefixos especiais vindos do provedor sem alterar os centavos: %j",
+    (document) => {
+      const csv = titlesCsv([{ ...title("1"), document }], "Receber");
+      expect(csv.startsWith("\uFEFF")).toBe(true);
+      expect(csv).toContain(`"'${document}"`);
+      expect(csv).toContain('"10,01"');
+    }
+  );
 });

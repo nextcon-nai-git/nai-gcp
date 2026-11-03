@@ -6,6 +6,7 @@ import {
   type FinanceBook,
 } from "./operations";
 import { isCalendarDate } from "./omie-dre";
+import { csvTextCell } from "@/lib/csv-cell";
 
 /** Current residual snapshot, not a retroactive balance. Dates are UTC calendar dates only. */
 export function erpReports(book: FinanceBook, month: string, today: string) {
@@ -79,11 +80,7 @@ export function reportCsv(rows: (string | number)[][]) {
     rows
       .map((row) =>
         row
-          .map((value) => {
-            const raw = String(value);
-            const safe = /^[\s]*[=+@-]/.test(raw) && typeof value === "string" ? `'${raw}` : raw;
-            return `"${safe.replace(/"/g, '""')}"`;
-          })
+          .map((value) => (typeof value === "number" ? `"${value}"` : csvTextCell(value)))
           .join(";")
       )
       .join("\r\n")

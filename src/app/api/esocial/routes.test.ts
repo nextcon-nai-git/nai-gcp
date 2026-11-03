@@ -6,6 +6,7 @@ import { AuthError } from "@/lib/auth/errors";
 const m = vi.hoisted(() => ({
   auth: vi.fn(),
   access: vi.fn(),
+  current: vi.fn(),
   admin: vi.fn(),
   canManage: vi.fn(),
   workspace: vi.fn(),
@@ -24,6 +25,7 @@ const m = vi.hoisted(() => ({
 vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: m.auth }));
 vi.mock("@/services/esocial/access", () => ({
   requireEsocialMessagingAccess: m.access,
+  currentEsocialUser: m.current,
   requireEsocialAdministrator: m.admin,
   canManageEsocialConnection: m.canManage,
 }));
@@ -87,6 +89,7 @@ const user = { uid: "synthetic-operator", role: "ADMIN", tenantId: null, servedC
 beforeEach(() => {
   vi.resetAllMocks();
   m.auth.mockResolvedValue(user);
+  m.current.mockResolvedValue(user);
   m.access.mockReturnValue(undefined);
   m.admin.mockReturnValue(undefined);
   m.canManage.mockReturnValue(true);
@@ -205,6 +208,23 @@ describe("fronteiras HTTP da mensageria", () => {
     expect(result).not.toContain("privateKey");
     expect(m.mutate).not.toHaveBeenCalled();
   });
+  it("recusa dados do A1 quando o operador é suspenso durante a consulta do cofre", async () => {
+    m.status.mockImplementation(async () => {
+      m.current.mockRejectedValue(new AuthError("Acesso suspenso", 403));
+      return { holder: "SYNTHETIC_PRIVATE_HOLDER", configured: true };
+    });
+    const response = await certificatesGet(get("certificates"));
+    expect(response.status).toBe(403);
+    expect(await response.text()).not.toContain("SYNTHETIC_PRIVATE_HOLDER");
+  });
+  it("calcula gestão do A1 com o papel atual após a leitura do cofre", async () => {
+    const current = { ...user, role: "OPERATIONS", servedCompanies: ["company-test"] };
+    m.current.mockResolvedValue(current);
+    m.canManage.mockImplementation((operator) => operator.role === "ADMIN");
+    const response = await certificatesGet(get("certificates"));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ canManage: false });
+  });
   it("desativar certificado exige confirmação independente", async () => {
     const request = new NextRequest("https://nai.example.test/api/esocial/certificates", {
       method: "DELETE",
@@ -221,6 +241,21 @@ describe("fronteiras HTTP da mensageria", () => {
       employees: [],
       company: { registration: "00000001", tpInsc: 1 },
     });
+  });
+  it("recusa vínculos se a autorização é revogada enquanto termina a leitura paralela do cliente", async () => {
+    m.links.mockResolvedValue([{ id: "employee-synthetic", cpf: "synthetic-private-cpf" }]);
+    m.company.mockReturnValue({
+      get: async () => {
+        m.current.mockRejectedValue(new AuthError("Acesso revogado", 403));
+        return {
+          exists: true,
+          data: () => ({ name: "Empresa fictícia", cnpj: "00000001000100" }),
+        };
+      },
+    });
+    const response = await linksGet(get("links?companyId=company-test"));
+    expect(response.status).toBe(403);
+    expect(await response.text()).not.toContain("synthetic-private-cpf");
   });
   it("baixa XML privado por tipo explícito como anexo", async () => {
     m.document.mockResolvedValue({ xml: "<synthetic/>", filename: "recibo-teste.xml" });

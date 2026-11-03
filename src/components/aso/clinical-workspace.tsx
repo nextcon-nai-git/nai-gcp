@@ -67,6 +67,7 @@ type ImportedAso = {
     identityConfirmedFromOriginal?: boolean;
     appointmentId?: string;
     storageGeneration?: string;
+    identityFingerprint?: string;
     appointmentSnapshot?: {
       appointmentId?: string;
       companyId?: string;
@@ -155,6 +156,7 @@ function ClinicalWorkspaceSession() {
   const [confirmedOriginalGeneration, setConfirmedOriginalGeneration] = React.useState(-1);
   const [reviewedAsoCardId, setReviewedAsoCardId] = React.useState("");
   const [reviewedAsoGeneration, setReviewedAsoGeneration] = React.useState(-1);
+  const [requiresAsoRecheck, setRequiresAsoRecheck] = React.useState(false);
   const [asoMutation, setAsoMutation] = React.useState<"review" | "complete" | null>(null);
   const [asoOriginalUrl, setAsoOriginalUrl] = React.useState("");
   const [asoOriginalScope, setAsoOriginalScope] = React.useState("");
@@ -210,6 +212,7 @@ function ClinicalWorkspaceSession() {
     setConfirmedOriginalGeneration(-1);
     setReviewedAsoCardId("");
     setReviewedAsoGeneration(-1);
+    setRequiresAsoRecheck(false);
     setAsoMutation(null);
     setAsoOriginalUrl("");
     setAsoOriginalScope("");
@@ -373,6 +376,7 @@ function ClinicalWorkspaceSession() {
     setSelectedAsoCardId("");
     setConfirmedOriginal(false);
     setReviewedAsoCardId("");
+    setRequiresAsoRecheck(false);
     setAsoOriginalUrl("");
     setLoadingAsoOriginal(false);
     setIsAsoFormOpen(true);
@@ -400,9 +404,15 @@ function ClinicalWorkspaceSession() {
     selectedAso.clinicalReview.identityConfirmedFromOriginal === true;
   const hasConfirmedAsoReview =
     !!selectedAsoCardId &&
-    (asoReviewMatchesAppointment ||
+    !requiresAsoRecheck &&
+    ((asoReviewMatchesAppointment &&
+      /^[a-f0-9]{64}$/.test(selectedAso?.clinicalReview?.identityFingerprint || "")) ||
       (reviewedAsoCardId === selectedAsoCardId &&
         reviewedAsoGeneration === currentScopeGeneration));
+  const canRecheckAsoReview =
+    asoReviewMatchesAppointment &&
+    (requiresAsoRecheck ||
+      !/^[a-f0-9]{64}$/.test(selectedAso?.clinicalReview?.identityFingerprint || ""));
 
   const loadAsoOriginal = async () => {
     if (!user || !selectedApptForSign?.companyId || !selectedAsoCardId || loadingAsoOriginal)
@@ -494,10 +504,22 @@ function ClinicalWorkspaceSession() {
       if (!isCurrentRequest() || controller.signal.aborted) return;
       const result = await response.json();
       if (!isCurrentRequest() || controller.signal.aborted) return;
-      if (!response.ok) throw new Error(result.error || "Não foi possível confirmar o vínculo.");
+      if (!response.ok) {
+        if (action === "complete" && response.status === 409) {
+          setRequiresAsoRecheck(true);
+          setReviewedAsoCardId("");
+          setReviewedAsoGeneration(-1);
+          setConfirmedOriginal(false);
+          setConfirmedOriginalGeneration(-1);
+          setAsoOriginalUrl("");
+          setAsoOriginalScope("");
+        }
+        throw new Error(result.error || "Não foi possível confirmar o vínculo.");
+      }
       if (result.status !== (action === "review" ? "reviewed" : "completed"))
         throw new Error("A persistência do vínculo não foi confirmada.");
       if (action === "review") {
+        setRequiresAsoRecheck(false);
         setReviewedAsoCardId(selectedAsoCardId);
         setReviewedAsoGeneration(requestGeneration);
         toast({
@@ -970,6 +992,7 @@ function ClinicalWorkspaceSession() {
                     setConfirmedOriginalGeneration(-1);
                     setReviewedAsoCardId("");
                     setReviewedAsoGeneration(-1);
+                    setRequiresAsoRecheck(false);
                     setAsoOriginalUrl("");
                     setAsoOriginalScope("");
                     setLoadingAsoOriginal(false);
@@ -1016,13 +1039,20 @@ function ClinicalWorkspaceSession() {
               )}
               {selectedAso && !hasConfirmedAsoReview && (
                 <>
-                  {selectedAso.clinicalReview?.status === "reviewed" ? (
+                  {selectedAso.clinicalReview?.status === "reviewed" && !canRecheckAsoReview ? (
                     <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900">
                       Este ASO já foi revisado para outro vínculo. Não é possível reutilizá-lo neste
                       atendimento; confira a identidade e selecione o documento correto.
                     </p>
                   ) : (
                     <>
+                      {canRecheckAsoReview && (
+                        <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900">
+                          Confira novamente o original contra a identificação atual da empresa e do
+                          colaborador antes de concluir este atendimento. A revisão anterior será
+                          preservada no histórico.
+                        </p>
+                      )}
                       <div className="flex flex-wrap items-center gap-3">
                         <Button
                           variant="outline"

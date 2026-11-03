@@ -1,11 +1,13 @@
 import "server-only";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { FieldValue, type DocumentData } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { firebaseConfig } from "@/firebase/config";
 import { adminDb } from "@/lib/firebase-admin";
 import type { AuthContext } from "@/lib/auth/auth-context";
+import { parseClaims } from "@/lib/auth/claims";
 import { AuthError, badRequest, forbidden } from "@/lib/auth/errors";
+import { normalizeCnpj } from "@/lib/cnpj";
 import { PGR_MAX_FILE_BYTES, PgrAnalysisOutputSchema } from "@/lib/pgr-schema";
 
 type AsoDocumentInput = {
@@ -61,17 +63,13 @@ function requireCurrentDoctor(
   user: AuthContext,
   companyId: string
 ) {
-  const servedCompanies = Array.isArray(profile?.servedCompanies) ? profile.servedCompanies : [];
+  const claims = parseClaims(profile || {});
   if (
     profile?.accessEnabled === false ||
     profile?.isDeleted === true ||
     user.role !== "DOCTOR" ||
     profile?.role !== "DOCTOR" ||
-    !(
-      profile.companyId === companyId ||
-      profile.tenantId === companyId ||
-      servedCompanies.includes(companyId)
-    )
+    !(claims.tenantId === companyId || claims.servedCompanies?.includes(companyId))
   )
     throw forbidden("A revisão clínica exige um médico atualmente autorizado para esta empresa.");
 }
@@ -232,6 +230,27 @@ function sameAppointmentSnapshot(
   );
 }
 
+function clinicalIdentityFingerprint(
+  company: DocumentData,
+  employee: DocumentData,
+  input: AsoLinkInput
+) {
+  const normalized = (value: unknown) => normalizeCnpj(typeof value === "string" ? value : "");
+  // Preserve the identity confirmed at review, including absent registry fields.
+  // This detects a later change; it does not replace the physician's original check.
+  return createHash("sha256")
+    .update(
+      JSON.stringify([
+        input.companyId,
+        input.employeeId,
+        normalized(company.cnpj),
+        normalized(company.cpf),
+        normalized(employee.cpf),
+      ])
+    )
+    .digest("hex");
+}
+
 export async function reviewClinicalAso(user: AuthContext, input: AsoReviewInput) {
   if (input.confirmedOriginal !== true)
     throw badRequest("Confirme a conferência da identidade no ASO original.");
@@ -243,6 +262,7 @@ export async function reviewClinicalAso(user: AuthContext, input: AsoReviewInput
   );
   const { companyRef, employeeRef, cardRef, clinicalRef } = refs(input);
   const appointmentRef = companyRef.collection("agendamentos").doc(input.appointmentId);
+  const reviewHistoryRef = clinicalRef.collection("review_history").doc(randomUUID());
   const [initialCard, initialClinical] = await Promise.all([cardRef.get(), clinicalRef.get()]);
   if (!initialClinical.exists || !initialClinical.data())
     throw new AuthError("ASO original não encontrado nesta empresa. A fila permanece aberta.", 409);
@@ -252,6 +272,7 @@ export async function reviewClinicalAso(user: AuthContext, input: AsoReviewInput
     input.cardId
   );
   let reviewedSnapshot: AppointmentReviewSnapshot | undefined;
+  let reviewedIdentityFingerprint: string | undefined;
   await adminDb.runTransaction(async (tx) => {
     const profile = await tx.get(adminDb.collection("users").doc(user.uid));
     requireCurrentDoctor(profile.data(), user, input.companyId);
@@ -285,16 +306,19 @@ export async function reviewClinicalAso(user: AuthContext, input: AsoReviewInput
         409
       );
     reviewedSnapshot = snapshot;
+    const identityFingerprint = clinicalIdentityFingerprint(companyData!, employeeData!, input);
+    reviewedIdentityFingerprint = identityFingerprint;
     if (
       clinical.data()?.storageGeneration &&
       clinical.data()?.storageGeneration !== storageGeneration
     )
       throw new AuthError("A geração do original mudou durante a revisão.", 409);
     const priorReview = clinical.data()?.clinicalReview;
+    if (clinical.data()?.linkedAppointmentId)
+      throw new AuthError("Este ASO já está vinculado a um atendimento.", 409);
     if (priorReview) {
       if (
         priorReview.status === "reviewed" &&
-        priorReview.reviewerUid === user.uid &&
         priorReview.companyId === input.companyId &&
         priorReview.employeeId === input.employeeId &&
         priorReview.sourceHash === input.cardId &&
@@ -302,12 +326,20 @@ export async function reviewClinicalAso(user: AuthContext, input: AsoReviewInput
         priorReview.appointmentId === input.appointmentId &&
         priorReview.storageGeneration === storageGeneration &&
         sameAppointmentSnapshot(priorReview.appointmentSnapshot, snapshot)
-      )
-        return;
-      throw new AuthError("Este ASO já possui uma revisão clínica vinculada.", 409);
+      ) {
+        if (priorReview.identityFingerprint === identityFingerprint) {
+          if (priorReview.reviewerUid === user.uid) return;
+          throw new AuthError("Este ASO já possui uma revisão clínica vinculada.", 409);
+        }
+        // Only an explicit review of this same attendance can bind a legacy or
+        // changed registry identity. Keep the prior professional attestation private.
+        tx.create(reviewHistoryRef, {
+          ...priorReview,
+          supersededAt: FieldValue.serverTimestamp(),
+          supersededBy: user.uid,
+        });
+      } else throw new AuthError("Este ASO já possui uma revisão clínica vinculada.", 409);
     }
-    if (clinical.data()?.linkedAppointmentId)
-      throw new AuthError("Este ASO já está vinculado a um atendimento.", 409);
     tx.update(clinicalRef, {
       storageGeneration,
       storageSha256: input.cardId,
@@ -320,6 +352,7 @@ export async function reviewClinicalAso(user: AuthContext, input: AsoReviewInput
         sourceHash: input.cardId,
         appointmentId: input.appointmentId,
         appointmentSnapshot: snapshot,
+        identityFingerprint,
         storageGeneration,
         identityConfirmedFromOriginal: input.confirmedOriginal,
       },
@@ -340,6 +373,7 @@ export async function reviewClinicalAso(user: AuthContext, input: AsoReviewInput
     !review.appointmentSnapshot ||
     !reviewedSnapshot ||
     !sameAppointmentSnapshot(review.appointmentSnapshot, reviewedSnapshot) ||
+    review.identityFingerprint !== reviewedIdentityFingerprint ||
     review.identityConfirmedFromOriginal !== true ||
     !review.reviewedAt
   )
@@ -484,6 +518,13 @@ export async function completeClinicalAppointmentWithAso(
         409
       );
 
+    const identityFingerprint = clinicalIdentityFingerprint(companyData!, employeeData!, input);
+    if (review.identityFingerprint !== identityFingerprint)
+      throw new AuthError(
+        "A identidade cadastral não corresponde à revisão atual. Reconfira o ASO original e registre nova revisão clínica antes de concluir.",
+        409
+      );
+
     const event = {
       type: "ASO_LINKED_AND_ATTENDANCE_COMPLETED",
       companyId: input.companyId,
@@ -491,6 +532,7 @@ export async function completeClinicalAppointmentWithAso(
       appointmentId: input.appointmentId,
       clinicalRecordId: clinicalRef.id,
       sourceHash: input.cardId,
+      identityFingerprint,
       reviewerUid: review.reviewerUid,
       reviewedAt: review.reviewedAt,
       completedBy: user.uid,
