@@ -546,12 +546,26 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                                 ["solicitado", "validando", "exames_definidos", "clinica_selecionada", "agendado"].includes(req.status)
                               ).length;
                               const kitSent = cityRequests.filter((req) =>
-                                ["kit_enviado", "clinica_confirmou", "exame_realizado", "aso_concluido"].includes(req.status)
+                                [
+                                  "kit_enviado",
+                                  "clinica_confirmou",
+                                  "exame_realizado",
+                                  "aso_concluido",
+                                ].includes(req.status)
                               ).length;
                               const scheduled = cityRequests.filter((req) =>
-                                ["agendado", "kit_montado", "kit_enviado", "clinica_confirmou", "exame_realizado", "aso_concluido"].includes(req.status)
+                                [
+                                  "agendado",
+                                  "kit_montado",
+                                  "kit_enviado",
+                                  "clinica_confirmou",
+                                  "exame_realizado",
+                                  "aso_concluido",
+                                ].includes(req.status)
                               ).length;
-                              const completed = cityRequests.filter((req) => req.status === "aso_concluido").length;
+                              const completed = cityRequests.filter(
+                                (req) => req.status === "aso_concluido"
+                              ).length;
 
                               return (
                                 <div
@@ -606,7 +620,13 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                                       )}
                                     </div>
                                     <div className="flex items-center justify-between text-[10px] text-slate-500">
-                                      <span>{cityRequests.reduce((sum, req) => sum + req.exams.length, 0)} exames</span>
+                                      <span>
+                                        {cityRequests.reduce(
+                                          (sum, req) => sum + req.exams.length,
+                                          0
+                                        )}{" "}
+                                        exames
+                                      </span>
                                       <span className="truncate max-w-[150px]">
                                         {clinics.length > 0
                                           ? clinics.join(", ")
@@ -642,7 +662,9 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                                               )}
                                             </div>
                                             <button
-                                              disabled={advancing !== null || req.status === "aso_concluido"}
+                                              disabled={
+                                                advancing !== null || req.status === "aso_concluido"
+                                              }
                                               onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleAdvanceStep(req.id, req.status);
