@@ -85,8 +85,8 @@ describe("agrupamento dos vínculos periódicos por cidade", () => {
       cancelled: 1,
       pending: 3,
       kitSent: null,
-      appointmentsConfirmed: 0,
-      examsPerformed: 0,
+      appointmentsConfirmed: 1,
+      examsPerformed: 1,
       asoReceived: 0,
     });
     expect(selected[0].cards).toHaveLength(4);
