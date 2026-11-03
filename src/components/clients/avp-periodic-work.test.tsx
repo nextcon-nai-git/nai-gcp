@@ -282,6 +282,39 @@ describe("periódicos por cidade", () => {
     expect(patches(mock)).toHaveLength(0);
   });
 
+  it("mostra os indicadores municipais sem inferir kit enviado quando a fonte não comprova", async () => {
+    const cards = [
+      card(1),
+      savedCard(2, "confirmar_realizacao", "Equipe sintética"),
+      savedCard(3, "resgatar_aso", "Equipe sintética"),
+      savedCard(4, "conferir_esocial", "Equipe sintética"),
+      card(5, { person: { status: "Kit enviado" } }),
+      card(6, { person: { asoReceivedAt: "03/11/2026" } }),
+    ];
+    const mock = fetchMock().mockImplementation(async () => response(snapshot(cards)));
+    vi.stubGlobal("fetch", mock);
+    await render();
+    const summary = cityArticle();
+    const metrics = summary.querySelector('[aria-label="Indicadores operacionais da cidade"]')!;
+    expect(metrics).not.toBeNull();
+    expect(metrics.textContent).toContain("1");
+    expect(metrics.querySelector('[title^="Kits enviados"]')?.textContent).toContain("1");
+    expect(metrics.querySelector('[title="Agendamentos confirmados na esteira"]')?.textContent).toContain(
+      "3"
+    );
+    expect(metrics.querySelector('[title="Exames com realização registrada"]')?.textContent).toContain(
+      "2"
+    );
+    expect(metrics.querySelector('[title="ASOs recebidos"]')?.textContent).toContain("2");
+
+    const noKit = fetchMock().mockImplementation(async () => response(snapshot([card(7)])));
+    vi.stubGlobal("fetch", noKit);
+    await click("Atualizar cards");
+    expect(
+      cityArticle().querySelector('[title^="A fonte atual não possui evidência"]')?.textContent
+    ).toContain("—");
+  });
+
   it("mantém validação e responsável ausente mesmo com agenda informada na fonte", async () => {
     const item = card(1, {
       person: {
