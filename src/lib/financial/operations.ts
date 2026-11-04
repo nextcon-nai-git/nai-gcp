@@ -815,6 +815,8 @@ export function applyFinanceCommand(
     }
     case "editTitle": {
       const t = titleFor(book, command.id);
+      if (book.clinicPaymentBatches.some((batch) => batch.titleId === t.id))
+        fail("Título de lote de ASOs não pode ser editado. Cancele e gere o lote novamente.");
       if (t.source === "order")
         fail("Título originado de pedido: cancele e registre um novo pedido corrigido.");
       if (
@@ -867,6 +869,17 @@ export function applyFinanceCommand(
     }
     case "review": {
       const t = titleFor(book, command.id);
+      const clinicBatch = book.clinicPaymentBatches.find((batch) => batch.titleId === t.id);
+      if (clinicBatch && command.status === "approved") {
+        const batchTotal = sumCents(clinicBatch.items.map((item) => item.amountCents));
+        if (
+          batchTotal !== clinicBatch.amountCents ||
+          clinicBatch.amountCents !== t.amountCents ||
+          clinicBatch.competence !== t.competence ||
+          clinicBatch.dueDate !== t.dueDate
+        )
+          fail("Lote de ASOs divergente do título. Cancele e gere o lote novamente.");
+      }
       const allowed: Record<FinanceTitle["status"], string[]> = {
         draft: ["submitted", "cancelled"],
         submitted: ["approved", "rejected", "cancelled"],
