@@ -18,6 +18,7 @@ const headers = {
 
 const WINDOW_MS = 10 * 60 * 1000;
 const MAX_REPORTS = 20;
+const MAX_BUCKETS = 5000;
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
 function clientKey(request: NextRequest) {
@@ -31,9 +32,11 @@ function rateLimit(request: NextRequest) {
   const key = clientKey(request);
   if (!key) return;
   const now = Date.now();
-  if (buckets.size > 5000)
+  if (buckets.size >= MAX_BUCKETS)
     for (const [entry, value] of buckets) if (value.resetAt <= now) buckets.delete(entry);
   const bucket = buckets.get(key);
+  if ((!bucket || bucket.resetAt <= now) && buckets.size >= MAX_BUCKETS)
+    throw new AuthError("Canal temporariamente com alto volume. Tente novamente em alguns minutos.", 429);
   if (!bucket || bucket.resetAt <= now) {
     buckets.set(key, { count: 1, resetAt: now + WINDOW_MS });
     return;
