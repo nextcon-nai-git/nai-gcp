@@ -76,6 +76,15 @@ describe("clinic ASO payment batches", () => {
     expect(preview.totals.asos).toBe(1);
   });
 
+  it("blocks a well-formed clinic CNPJ when its check digits are invalid", () => {
+    const preview = buildClinicPaymentPreview(
+      [aso({ cnpjClinica: "12.ABC.345/01DE-36" })],
+      emptyFinanceBook()
+    );
+    expect(preview.batches).toHaveLength(0);
+    expect(preview.blocked[0]?.code).toBe("INVALID_DOCUMENT");
+  });
+
   it("splits a clinic backlog into batches of at most 500 ASOs", () => {
     const rows = Array.from({ length: 501 }, (_, index) =>
       aso({
