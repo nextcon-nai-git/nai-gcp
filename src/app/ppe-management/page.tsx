@@ -76,7 +76,7 @@ function PpeManagementSession() {
   const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
-  const { activeClientId, canBrowseAllCompanies } = useSgi();
+  const { activeClientId } = useSgi();
   const active = React.useRef(true);
   const saving = React.useRef(false);
   const analyzing = React.useRef(false);
