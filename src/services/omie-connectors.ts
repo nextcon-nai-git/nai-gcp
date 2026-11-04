@@ -201,6 +201,10 @@ async function prepare(u: AuthContext, input: unknown) {
               (!f.migration || t.competence >= f.migration.billingStartMonth)
           )
         : undefined;
+    const clinicBatch =
+      t.kind === "payable"
+        ? s.finance.value.clinicPaymentBatches.find((batch) => batch.titleId === t.id)
+        : undefined;
     const partyId =
       flow?.migration?.partyId ||
       (flow?.orderId
@@ -222,9 +226,16 @@ async function prepare(u: AuthContext, input: unknown) {
       (flow
         ? typeof party.cnpj_cpf !== "string" ||
           normalizeDocument(party.cnpj_cpf) !== expectedDocument
-        : norm(party.razao_social) !== norm(t.party))
+        : clinicBatch
+          ? typeof party.cnpj_cpf !== "string" ||
+            normalizeDocument(party.cnpj_cpf) !== normalizeDocument(clinicBatch.clinicDocument)
+          : norm(party.razao_social) !== norm(t.party))
     )
-      conflict("Cliente/fornecedor selecionado não corresponde ao nome do título ou está inativo.");
+      conflict(
+        clinicBatch
+          ? "Fornecedor selecionado não corresponde ao CNPJ da clínica do lote ou está inativo."
+          : "Cliente/fornecedor selecionado não corresponde ao nome do título ou está inativo."
+      );
     const category = await session.call("categoryDetail", { codigo: selection.categoryCode });
     if (
       category.codigo !== selection.categoryCode ||
