@@ -27,6 +27,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useFirebaseApp } from "@/firebase";
 import { criarDenuncia, CATEGORIAS_COMPLIANCE } from "@/services/compliance-service";
+import type { ComplianceReportInput } from "@/lib/compliance";
 import { cn } from "@/lib/utils";
 
 export default function CompliancePublicPage() {
@@ -37,7 +38,7 @@ export default function CompliancePublicPage() {
   const [loading, setLoading] = React.useState(false);
   const [protocoloGerado, setProtocoloGerado] = React.useState<string | null>(null);
 
-  const [form, setForm] = React.useState({
+  const [form, setForm] = React.useState<ComplianceReportInput>({
     nome: "",
     email: "",
     categoria: "",
@@ -289,12 +290,15 @@ export default function CompliancePublicPage() {
               <div className="space-y-3 animate-in slide-in-from-top-2">
                 <Input
                   placeholder="Seu Nome"
+                  required
                   value={form.nome}
                   onChange={(e) => setForm({ ...form, nome: e.target.value })}
                   className="bg-white/5 border-none h-11 text-xs"
                 />
                 <Input
+                  type="email"
                   placeholder="Seu E-mail"
+                  required
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   className="bg-white/5 border-none h-11 text-xs"
