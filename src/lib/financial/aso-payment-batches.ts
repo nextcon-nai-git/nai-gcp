@@ -176,30 +176,35 @@ export function buildClinicPaymentPreview(
   }
 
   const batches = [...groups.entries()]
-    .map(([key, group]) => {
+    .flatMap(([key, group]) => {
       const items = [...group.items].sort(
         (a, b) =>
           a.examDate.localeCompare(b.examDate) ||
           a.collaborator.localeCompare(b.collaborator, "pt-BR") ||
           a.asoId.localeCompare(b.asoId)
       );
-      const amountCents = items.reduce((sum, item) => sum + item.amountCents, 0);
-      if (!Number.isSafeInteger(amountCents))
-        throw new Error("Total do lote excede a precisão financeira permitida.");
       const warnings: string[] = [];
       if (group.names.size > 1)
         warnings.push(
           "O mesmo CNPJ aparece com nomes de clínica diferentes; confira o cadastro antes do envio ao Omie."
         );
-      return {
-        key,
-        clinicName: group.clinicName,
-        clinicDocument: group.clinicDocument,
-        competence: group.competence,
-        amountCents,
-        items,
-        warnings,
-      };
+      const chunks: ClinicPaymentCandidateBatch[] = [];
+      for (let offset = 0; offset < items.length; offset += 500) {
+        const chunk = items.slice(offset, offset + 500);
+        const amountCents = chunk.reduce((sum, item) => sum + item.amountCents, 0);
+        if (!Number.isSafeInteger(amountCents))
+          throw new Error("Total do lote excede a precisão financeira permitida.");
+        chunks.push({
+          key: key + ":" + String(Math.floor(offset / 500) + 1),
+          clinicName: group.clinicName,
+          clinicDocument: group.clinicDocument,
+          competence: group.competence,
+          amountCents,
+          items: chunk,
+          warnings,
+        });
+      }
+      return chunks;
     })
     .sort(
       (a, b) =>
