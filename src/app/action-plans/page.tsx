@@ -74,13 +74,19 @@ function EnterpriseOpsContent() {
       active.current = false;
     };
   }, []);
+  const requestedCompanyId = params.get("company");
   const [selectedCompanyId, setSelectedCompanyId] = React.useState<string>(
-    activeClientId || "all"
+    requestedCompanyId || activeClientId || "all"
   );
 
   React.useEffect(() => {
+    if (requestedCompanyId && requestedCompanyId !== activeClientId) {
+      setActiveClientId(requestedCompanyId);
+      setSelectedCompanyId(requestedCompanyId);
+      return;
+    }
     setSelectedCompanyId(activeClientId || "all");
-  }, [activeClientId]);
+  }, [requestedCompanyId, activeClientId, setActiveClientId]);
 
   const handleCompanyFilterChange = React.useCallback(
     (companyId: string) => {
