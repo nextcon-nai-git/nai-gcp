@@ -194,6 +194,24 @@ export default function FinancialModule() {
       </Link>
 
       <Link
+        href="/financial/clinic-payments"
+        className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 transition-colors hover:bg-emerald-100/70"
+      >
+        <div className="flex items-center gap-4">
+          <CreditCard className="size-8 text-emerald-700" />
+          <div>
+            <h2 className="font-semibold text-slate-900">Pagamentos de clínicas · ASOs</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Consolide ASOs concluídos por clínica e gere rascunhos de contas a pagar para revisão.
+            </p>
+          </div>
+        </div>
+        <span className="flex items-center gap-2 text-sm font-semibold text-emerald-800">
+          Preparar lote <ArrowRight size={16} />
+        </span>
+      </Link>
+
+      <Link
         href="/financial/omie/dre"
         className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-violet-200 bg-violet-50 p-5 transition-colors hover:bg-violet-100/70"
       >
