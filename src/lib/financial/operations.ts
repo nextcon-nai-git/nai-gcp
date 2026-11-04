@@ -11,6 +11,7 @@ import { csvTextCell } from "@/lib/csv-cell";
 import { isCalendarDate } from "./omie-dre";
 import { ErpSchema, erpCommands, applyErpCommand } from "./erp";
 import { financialLabel } from "./labels";
+import { isValidCnpj } from "@/lib/cnpj";
 
 const text = z.string().trim().min(1).max(180);
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
@@ -64,6 +65,28 @@ const Title = z.object({
   createdBy: text,
   lastEditedBy: text.optional(),
   approvedBy: text.nullable(),
+});
+const ClinicPaymentItem = z.object({
+  asoId: z.string().trim().min(1).max(180),
+  collaborator: text,
+  city: text,
+  examDate: date,
+  amountCents: cents.refine((v) => v > 0),
+});
+const ClinicPaymentBatch = z.object({
+  id,
+  clinicName: text,
+  clinicDocument: z
+    .string()
+    .regex(/^[A-Z0-9]{12}\d{2}$/)
+    .refine(isValidCnpj, "CNPJ inválido."),
+  competence: month,
+  dueDate: date,
+  amountCents: cents.refine((v) => v > 0),
+  titleId: id,
+  items: z.array(ClinicPaymentItem).min(1).max(500),
+  createdBy: text,
+  createdAt: z.string(),
 });
 const Settlement = z.object({
   id,
@@ -125,6 +148,7 @@ export const FinanceBookSchema = z.object({
   contracts: z.array(Contract).max(3000),
   services: z.array(Service).max(20000),
   titles: z.array(Title).max(20000),
+  clinicPaymentBatches: z.array(ClinicPaymentBatch).max(20000).default([]),
   settlements: z.array(Settlement).max(40000),
   bank: z.array(BankRow).max(40000),
   statements: z.array(Statement).max(3000),
@@ -145,6 +169,7 @@ export function emptyFinanceBook(): FinanceBook {
     contracts: [],
     services: [],
     titles: [],
+    clinicPaymentBatches: [],
     settlements: [],
     bank: [],
     statements: [],
@@ -794,6 +819,8 @@ export function applyFinanceCommand(
     }
     case "editTitle": {
       const t = titleFor(book, command.id);
+      if (book.clinicPaymentBatches.some((batch) => batch.titleId === t.id))
+        fail("Título de lote de ASOs não pode ser editado. Cancele e gere o lote novamente.");
       if (t.source === "order")
         fail("Título originado de pedido: cancele e registre um novo pedido corrigido.");
       if (
@@ -846,6 +873,17 @@ export function applyFinanceCommand(
     }
     case "review": {
       const t = titleFor(book, command.id);
+      const clinicBatch = book.clinicPaymentBatches.find((batch) => batch.titleId === t.id);
+      if (clinicBatch && command.status === "approved") {
+        const batchTotal = sumCents(clinicBatch.items.map((item) => item.amountCents));
+        if (
+          batchTotal !== clinicBatch.amountCents ||
+          clinicBatch.amountCents !== t.amountCents ||
+          clinicBatch.competence !== t.competence ||
+          clinicBatch.dueDate !== t.dueDate
+        )
+          fail("Lote de ASOs divergente do título. Cancele e gere o lote novamente.");
+      }
       const allowed: Record<FinanceTitle["status"], string[]> = {
         draft: ["submitted", "cancelled"],
         submitted: ["approved", "rejected", "cancelled"],
