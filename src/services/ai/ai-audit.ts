@@ -1,6 +1,7 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { firebaseConfig } from "@/firebase/config";
+import "server-only";
+
+import { FieldValue } from "firebase-admin/firestore";
+import { adminDb } from "@/lib/firebase-admin";
 
 export interface AiAuditRecord {
   tenantId: string;
@@ -19,21 +20,14 @@ export interface AiAuditRecord {
 }
 
 export class AiAuditService {
-  private db;
-
-  constructor() {
-    const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    this.db = getFirestore(app);
-  }
-
   async recordInference(record: AiAuditRecord): Promise<void> {
     try {
-      await addDoc(collection(this.db, "ai_audit_logs"), {
+      await adminDb.collection("ai_audit_logs").add({
         ...record,
-        serverTimestamp: serverTimestamp(),
+        serverTimestamp: FieldValue.serverTimestamp(),
       });
-    } catch (err) {
-      console.error("[AiAuditService Error]", err);
+    } catch (error) {
+      console.error("[AiAuditService Error]", error);
     }
   }
 }
