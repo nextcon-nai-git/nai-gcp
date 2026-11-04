@@ -76,16 +76,11 @@ describe("compliance report rules", () => {
     });
     await assertSucceeds(
       getDoc(
-        doc(
-          env.authenticatedContext("security").firestore(),
-          "denuncias/DEN-TEST/mensagens/M1"
-        )
+        doc(env.authenticatedContext("security").firestore(), "denuncias/DEN-TEST/mensagens/M1")
       )
     );
     await assertFails(
-      getDoc(
-        doc(env.authenticatedContext("admin").firestore(), "denuncias/DEN-TEST/mensagens/M1")
-      )
+      getDoc(doc(env.authenticatedContext("admin").firestore(), "denuncias/DEN-TEST/mensagens/M1"))
     );
   });
 });
