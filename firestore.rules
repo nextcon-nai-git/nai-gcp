@@ -435,6 +435,18 @@ service cloud.firestore {
       );
     }
 
+    // Compliance reports are server-created and contain highly sensitive allegations.
+    // The public form writes through an Admin SDK endpoint; client SDK writes are never allowed.
+    match /denuncias/{reportId} {
+      allow read: if isSecurityAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /denuncias/{reportId}/{document=**} {
+      allow read: if isSecurityAdmin();
+      allow write: if false;
+    }
+
     match /config_nai_avatar/{docId} {
       allow read: if isSignedIn();
       allow write: if isNextconOfficial();
