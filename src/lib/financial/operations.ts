@@ -75,7 +75,7 @@ const ClinicPaymentItem = z.object({
 const ClinicPaymentBatch = z.object({
   id,
   clinicName: text,
-  clinicDocument: z.string().regex(/^\\d{14}$/),
+  clinicDocument: z.string().regex(/^[A-Z0-9]{12}\\d{2}$/),
   competence: month,
   dueDate: date,
   amountCents: cents.refine((v) => v > 0),
