@@ -70,6 +70,19 @@ describe("clinic ASO payment batches", () => {
     expect(preview.ignored).toBe(1);
   });
 
+  it("splits a clinic backlog into batches of at most 500 ASOs", () => {
+    const rows = Array.from({ length: 501 }, (_, index) =>
+      aso({
+        id: "avp_" + index.toString(16).padStart(32, "0"),
+        colaborador: "COLABORADOR " + index,
+      })
+    );
+    const preview = buildClinicPaymentPreview(rows, emptyFinanceBook());
+    expect(preview.batches).toHaveLength(2);
+    expect(preview.batches.map((batch) => batch.items.length)).toEqual([500, 1]);
+    expect(preview.totals.asos).toBe(501);
+  });
+
   it("blocks paid, invalid and already-batched ASOs", () => {
     const book = emptyFinanceBook();
     const titleId = "title_active";
