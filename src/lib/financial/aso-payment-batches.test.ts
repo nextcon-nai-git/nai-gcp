@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildClinicPaymentPreview,
-  nextClinicPaymentDate,
-} from "./aso-payment-batches";
+import { buildClinicPaymentPreview, nextClinicPaymentDate } from "./aso-payment-batches";
 import { emptyFinanceBook, type FinanceBook } from "./operations";
 import type { GrupoAvpAso } from "@/lib/grupo-avp-asos-data";
 
