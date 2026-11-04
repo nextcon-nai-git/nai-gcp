@@ -65,6 +65,25 @@ const Title = z.object({
   lastEditedBy: text.optional(),
   approvedBy: text.nullable(),
 });
+const ClinicPaymentItem = z.object({
+  asoId: z.string().trim().min(1).max(180),
+  collaborator: text,
+  city: text,
+  examDate: date,
+  amountCents: cents.refine((v) => v > 0),
+});
+const ClinicPaymentBatch = z.object({
+  id,
+  clinicName: text,
+  clinicDocument: z.string().regex(/^\\d{14}$/),
+  competence: month,
+  dueDate: date,
+  amountCents: cents.refine((v) => v > 0),
+  titleId: id,
+  items: z.array(ClinicPaymentItem).min(1).max(500),
+  createdBy: text,
+  createdAt: z.string(),
+});
 const Settlement = z.object({
   id,
   titleId: id,
@@ -125,6 +144,7 @@ export const FinanceBookSchema = z.object({
   contracts: z.array(Contract).max(3000),
   services: z.array(Service).max(20000),
   titles: z.array(Title).max(20000),
+  clinicPaymentBatches: z.array(ClinicPaymentBatch).max(20000).default([]),
   settlements: z.array(Settlement).max(40000),
   bank: z.array(BankRow).max(40000),
   statements: z.array(Statement).max(3000),
@@ -145,6 +165,7 @@ export function emptyFinanceBook(): FinanceBook {
     contracts: [],
     services: [],
     titles: [],
+    clinicPaymentBatches: [],
     settlements: [],
     bank: [],
     statements: [],
