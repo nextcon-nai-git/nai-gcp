@@ -55,7 +55,6 @@ import {
   collection,
   query,
   orderBy,
-  collectionGroup,
   writeBatch,
   doc,
   addDoc,
@@ -77,7 +76,7 @@ function PpeManagementSession() {
   const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
-  const { activeClientId, canBrowseAllCompanies } = useSgi();
+  const { activeClientId } = useSgi();
   const active = React.useRef(true);
   const saving = React.useRef(false);
   const analyzing = React.useRef(false);
@@ -131,16 +130,20 @@ function PpeManagementSession() {
 
   // Consulta reativa Firestore isolada por tenant
   const deliveriesQuery = useMemoFirebase(() => {
-    if (!db || !user || activeClientId === "unauthorized" || !activeClientId) return null;
-    if (activeClientId === "all") {
-      if (!canBrowseAllCompanies) return null;
-      return query(collectionGroup(db, "ppe_deliveries"), orderBy("deliveredAt", "desc"));
+    if (
+      !db ||
+      !user ||
+      activeClientId === "unauthorized" ||
+      !activeClientId ||
+      activeClientId === "all"
+    ) {
+      return null;
     }
     return query(
       collection(db, "companies", activeClientId, "ppe_deliveries"),
       orderBy("deliveredAt", "desc")
     );
-  }, [db, user, activeClientId, canBrowseAllCompanies]);
+  }, [db, user, activeClientId]);
 
   const { data: rawDeliveries, isLoading, error: deliveriesError } = useCollection(deliveriesQuery);
 

@@ -9,8 +9,13 @@ const state = vi.hoisted(() => ({
   toast: vi.fn(),
   error: null as Error | null,
   session: { isUserLoading: false, userError: null as Error | null },
+  activeClientId: "all",
+  setActiveClientId: vi.fn(),
+  searchParams: "",
 }));
-vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(state.searchParams),
+}));
 vi.mock("@/firebase", () => ({
   useUser: () => ({ user: state.user, ...state.profile, ...state.session }),
   useFirestore: () => ({}),
@@ -40,6 +45,12 @@ vi.mock("@/hooks/use-pgr-workspace", () => ({
   usePgrCompanies: () => ({ data: [] }),
 }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: state.toast }) }));
+vi.mock("@/contexts/sgi-context", () => ({
+  useSgi: () => ({
+    activeClientId: state.activeClientId,
+    setActiveClientId: state.setActiveClientId,
+  }),
+}));
 vi.mock("@/components/kanban/kanban-board", () => ({ KanbanBoard: () => <p>Quadro carregado</p> }));
 vi.mock("@/components/ui/dialog", () => {
   const Box = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
@@ -105,6 +116,9 @@ beforeEach(() => {
   state.profile = { role: "ADMIN", companyId: "nextcon", tenantId: null };
   state.error = null;
   state.session = { isUserLoading: false, userError: null };
+  state.activeClientId = "all";
+  state.searchParams = "";
+  state.setActiveClientId.mockReset();
   state.add.mockReset().mockResolvedValue({ id: "task" });
   host = document.createElement("div");
   document.body.append(host);
@@ -116,6 +130,12 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 describe("operational handoff", () => {
+  it("honors a company-scoped link and synchronizes it into SGI context", async () => {
+    state.searchParams = "company=client&source=pgr";
+    await render();
+    expect(state.setActiveClientId).toHaveBeenCalledWith("client");
+  });
+
   it.each(["loading", "error"])(
     "does not query or allow writes from a cached profile while session is %s",
     async (condition) => {

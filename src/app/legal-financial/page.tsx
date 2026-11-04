@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { useCollection, useUser, useMemoFirebase, useFirestore, useDoc } from "@/firebase";
-import { collection, query, orderBy, collectionGroup, doc, where } from "firebase/firestore";
+import { collection, query, orderBy, doc, where } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { useSgi } from "@/contexts/sgi-context";
 
@@ -53,9 +53,8 @@ export default function LegalFinancial() {
 
   // Busca perícias reais do Firestore protegendo a hierarquia multi-tenant
   const expertisesQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    if (activeClientId === "all") {
-      return query(collectionGroup(db, "legalExpertises"), orderBy("date", "desc"));
+    if (!db || !activeClientId || activeClientId === "unauthorized" || activeClientId === "all") {
+      return null;
     }
     return query(
       collection(db, "companies", activeClientId, "legalExpertises"),
@@ -107,6 +106,14 @@ export default function LegalFinancial() {
           </Badge>
         </div>
       </div>
+
+      {activeClientId === "all" && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="py-4 text-sm font-medium text-amber-900" role="status">
+            Selecione uma empresa no cabeçalho para consultar perícias e ROI jurídico.
+          </CardContent>
+        </Card>
+      )}
 
       {/* DRE GERENCIAL OCUPACIONAL DASHBOARD */}
       {dreData && (

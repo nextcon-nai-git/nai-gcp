@@ -155,19 +155,28 @@ export function TopNav() {
   const handleClientChange = (newClientId: string) => {
     if (!canBrowseAllCompanies && !authorizedCompanies.includes(newClientId)) return;
     setActiveClientId(newClientId);
-    if (!newClientId || newClientId === "all") {
-      router.push("/");
-      return;
-    }
-    const lower = newClientId.toLowerCase();
-    if (isGlobalStaff && newClientId === BRITANIA_ANCHOR) {
-      router.push("/clients/grupo-britania");
-    } else if (lower === "cassi_matriz" || lower.includes("cassi")) {
-      router.push("/clients/cassi");
-    } else if (lower === "grupo_avp" || lower.includes("grupo-avp") || lower.includes("avp")) {
-      router.push("/clients/grupo-avp");
-    } else {
-      router.push(`/clients/${encodeURIComponent(newClientId)}`);
+
+    // Most modules react to SGI context and must keep their current route.
+    // The client cockpit is route-bound, so keep its URL and visible data in sync.
+    if (/^\/clients\/[^/]+$/.test(pathname)) {
+      if (!newClientId || newClientId === "all") {
+        router.push("/clients");
+        return;
+      }
+      const lower = newClientId.toLowerCase();
+      if (isGlobalStaff && newClientId === BRITANIA_ANCHOR) {
+        router.push("/clients/grupo-britania");
+      } else if (lower === "cassi_matriz" || lower.includes("cassi")) {
+        router.push("/clients/cassi");
+      } else if (
+        lower === "grupo_avp" ||
+        lower.includes("grupo-avp") ||
+        lower.includes("avp")
+      ) {
+        router.push("/clients/grupo-avp");
+      } else {
+        router.push(`/clients/${encodeURIComponent(newClientId)}`);
+      }
     }
   };
 
@@ -215,7 +224,7 @@ export function TopNav() {
             onValueChange={handleClientChange}
             disabled={isSgiLoading || directoryLoading || !!directoryError}
           >
-            <SelectTrigger className="h-10 bg-slate-50 border border-slate-200/70 rounded-xl font-black uppercase text-[9px] tracking-wider shadow-inner focus:ring-primary/10 flex items-center justify-between w-full">
+            <SelectTrigger className="h-10 min-w-[190px] max-w-[280px] bg-slate-50 border border-slate-200/70 rounded-xl font-black uppercase text-[9px] tracking-wider shadow-inner focus:ring-primary/10 flex items-center justify-between w-full">
               <div className="flex items-center gap-2 truncate">
                 <Building2 className="size-3.5 text-primary/60 shrink-0" />
                 <span className="truncate">{activeCompanyName}</span>
