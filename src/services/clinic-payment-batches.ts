@@ -13,7 +13,7 @@ import {
   type ClinicPaymentCandidateBatch,
 } from "@/lib/financial/aso-payment-batches";
 import { brazilToday } from "@/lib/financial/treasury";
-import { getAvpSnapshot } from "@/services/avp-sheet-sync";
+import { getAvpSnapshot, syncAvpSource } from "@/services/avp-sheet-sync";
 import { readPrivate, writePrivate } from "@/services/private-json-store";
 
 const financePath = "financial-operations/v1/nextcon.json";
@@ -80,10 +80,11 @@ async function loadState(user: AuthContext, input: unknown) {
   const parsed = PreviewInput.parse(input);
   const today = brazilToday();
   const dueDate = ensureDueDate(parsed.dueDate || nextClinicPaymentDate(today), today);
-  const [snapshot, finance] = await Promise.all([
-    getAvpSnapshot(),
+  const [, finance] = await Promise.all([
+    syncAvpSource(true, user.uid),
     readPrivate(financePath, FinanceBookSchema, emptyFinanceBook),
   ]);
+  const snapshot = await getAvpSnapshot();
 
   if (!snapshot.revision)
     conflict("A fila AVP ainda não possui uma versão confirmada para montar pagamentos.");
@@ -194,6 +195,10 @@ export async function createClinicPaymentDrafts(user: AuthContext, input: unknow
   const request = CreateInput.parse(input);
   const state = await loadState(user, { dueDate: request.dueDate });
 
+  if (state.snapshot.status !== "CONNECTED" || state.snapshot.error)
+    conflict(
+      "A fonte AVP não está confirmada como conectada. Atualize a origem antes de gerar pagamentos."
+    );
   if (state.hash !== request.hash)
     conflict("A fila AVP ou o financeiro mudou desde a prévia. Atualize e revise o lote.");
   if (!state.preview.batches.length)
