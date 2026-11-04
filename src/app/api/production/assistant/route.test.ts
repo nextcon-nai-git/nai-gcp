@@ -78,6 +78,23 @@ describe("production agents boundary", () => {
     ).toBe(400);
     expect(mock.generate).not.toHaveBeenCalled();
   });
+  it("keeps a preserved PDF retryable when AI extraction fails", async () => {
+    mock.read.mockResolvedValue(Buffer.from("%PDF-1.7"));
+    mock.generate.mockRejectedValue(new Error("provider unavailable"));
+    const r = await POST(
+      req({
+        action: "extract",
+        source: {
+          sha256: "a".repeat(64),
+          storagePath: "internos_nextcon/contract-sources/" + "a".repeat(64),
+          generation: "1",
+          sizeBytes: 8,
+        },
+      })
+    );
+    expect(r.status).toBe(503);
+    expect((await r.json()).error).toContain("PDF foi preservado");
+  });
   it("does not extract a source whose integrity was not verified", async () => {
     mock.read.mockRejectedValue(new AuthError("Fonte divergente", 400));
     const r = await POST(
