@@ -94,7 +94,8 @@ export default function CompliancePublicPage() {
             </h3>
           </div>
           <p className="text-xs text-slate-400 italic">
-            "Guarde este código como referência do relato para eventual acompanhamento com o comitê de ética."
+            "Guarde este código como referência do relato para eventual acompanhamento com o comitê
+            de ética."
           </p>
           <Button
             onClick={() => window.location.reload()}
@@ -117,7 +118,8 @@ export default function CompliancePublicPage() {
           Canal de Ética & Compliance
         </h1>
         <p className="text-slate-500 font-medium max-w-2xl mx-auto">
-          Este é um canal para registrar relatos de ética e compliance. No modo anônimo, o NAI salva o relato sem nome ou e-mail do denunciante.
+          Este é um canal para registrar relatos de ética e compliance. No modo anônimo, o NAI salva
+          o relato sem nome ou e-mail do denunciante.
         </p>
       </header>
 
@@ -289,7 +291,8 @@ export default function CompliancePublicPage() {
               >
                 <p className="text-xs font-black uppercase">Relato Identificado</p>
                 <p className="text-[9px] font-medium text-white/50 mt-1">
-                  Nome e e-mail serão registrados junto ao relato para tratamento restrito pela administração responsável.
+                  Nome e e-mail serão registrados junto ao relato para tratamento restrito pela
+                  administração responsável.
                 </p>
               </button>
             </div>
@@ -325,14 +328,13 @@ export default function CompliancePublicPage() {
                 "Relato anônimo sem nome ou e-mail armazenados",
                 "Protocolo gerado no servidor",
               ].map((g) => (
-                  <li
-                    key={g}
-                    className="flex items-center gap-2 text-[11px] font-bold text-slate-600"
-                  >
-                    <CheckCircle2 className="size-3 text-emerald-500" /> {g}
-                  </li>
-                )
-              )}
+                <li
+                  key={g}
+                  className="flex items-center gap-2 text-[11px] font-bold text-slate-600"
+                >
+                  <CheckCircle2 className="size-3 text-emerald-500" /> {g}
+                </li>
+              ))}
             </ul>
           </Card>
         </div>
