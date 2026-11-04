@@ -1,3 +1,4 @@
+import "server-only";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { aiAuditService } from "./ai-audit";
 
@@ -39,11 +40,7 @@ export async function executeAiGatewayCall<TInput, TOutput>(
     "gemini-3.8-flash";
   const promptVersion = request.promptVersion || "v1.0";
 
-  const apiKey =
-    process.env.GEMINI_API_KEY ||
-    process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
-    process.env.GOOGLE_GENAI_API_KEY ||
-    "";
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || "";
 
   if (!apiKey) {
     if (fallbackGenerator) {
