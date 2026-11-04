@@ -349,7 +349,7 @@ describe("Omie controlled exports", () => {
     book.clinicPaymentBatches.push({
       id: "batch_clinic_1",
       clinicName: "Nome operacional da clínica",
-      clinicDocument: "12345678000190",
+      clinicDocument: "11222333000181",
       competence: "2026-10",
       dueDate: "2099-10-20",
       amountCents: 10001,
@@ -373,7 +373,7 @@ describe("Omie controlled exports", () => {
         ? {
             codigo_cliente_omie: 123,
             razao_social: "Razão social diferente",
-            cnpj_cpf: "12.345.678/0001-90",
+            cnpj_cpf: "11.222.333/0001-81",
             inativo: "N",
           }
         : lookup(kind, param)
