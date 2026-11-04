@@ -110,8 +110,7 @@ export default function CompliancePublicPage() {
           Canal de Ética & Compliance
         </h1>
         <p className="text-slate-500 font-medium max-w-2xl mx-auto">
-          Este é um canal seguro e, se desejar, totalmente anônimo para relatar condutas que violem
-          nossos princípios ou a legislação vigente.
+          Este é um canal para registrar relatos de ética e compliance. No modo anônimo, o NAI salva o relato sem nome ou e-mail do denunciante.
         </p>
       </header>
 
@@ -266,7 +265,7 @@ export default function CompliancePublicPage() {
               >
                 <p className="text-xs font-black uppercase">Relato Anônimo</p>
                 <p className="text-[9px] font-medium text-white/50 mt-1">
-                  Sua identidade será preservada integralmente.
+                  O relato será salvo sem nome ou e-mail.
                 </p>
               </button>
               <button
