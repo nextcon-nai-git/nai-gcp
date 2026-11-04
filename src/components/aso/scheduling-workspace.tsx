@@ -482,7 +482,7 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                                   }`}
                                 >
                                   <div className="flex items-center justify-between text-[11px]">
-                                    <span className="font-mono font-bold text-cyan-400">{req.id}</span>
+                                    <span className="font-mono font-bold text-cyan-400">\n                                      {req.id}\n                                    </span>
                                     <span className="uppercase text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300">
                                       {req.examType}
                                     </span>
@@ -515,7 +515,7 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                                     </span>
 
                                     <button
-                                      disabled={advancing !== null || req.status === "aso_concluido"}
+                                      disabled={\n                                        advancing !== null || req.status === "aso_concluido"\n                                      }
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         handleAdvanceStep(req.id, req.status);
@@ -528,11 +528,18 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                                 </div>
                               ))}
 
-                            {[...new Map(
-                              stepRequests
-                                .filter((req) => req.examType === "periodico" && req.requestedCity)
-                                .map((req) => [req.requestedCity!.trim().toLocaleUpperCase("pt-BR"), [] as AsoRequest[]])
-                            ).keys()].map((city) => {
+                            {[
+                              ...new Map(
+                                stepRequests
+                                  .filter(
+                                    (req) => req.examType === "periodico" && req.requestedCity
+                                  )
+                                  .map((req) => [
+                                    req.requestedCity!.trim().toLocaleUpperCase("pt-BR"),
+                                    [] as AsoRequest[],
+                                  ])
+                              ).keys(),
+                            ].map((city) => {
                               const cityRequests = stepRequests.filter(
                                 (req) =>
                                   req.examType === "periodico" &&
@@ -540,10 +547,22 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                               );
                               const groupKey = `${stepKey}:${city}`;
                               const expanded = expandedCityGroups.has(groupKey);
-                              const clinics = [...new Set(cityRequests.map((req) => req.clinicName).filter(Boolean))];
-                              const withoutClinic = cityRequests.filter((req) => !req.clinicName).length;
+                              const clinics = [
+                                ...new Set(
+                                  cityRequests.map((req) => req.clinicName).filter(Boolean)
+                                ),
+                              ];
+                              const withoutClinic = cityRequests.filter(
+                                (req) => !req.clinicName
+                              ).length;
                               const kitPending = cityRequests.filter((req) =>
-                                ["solicitado", "validando", "exames_definidos", "clinica_selecionada", "agendado"].includes(req.status)
+                                [
+                                  "solicitado",
+                                  "validando",
+                                  "exames_definidos",
+                                  "clinica_selecionada",
+                                  "agendado",
+                                ].includes(req.status)
                               ).length;
                               const kitSent = cityRequests.filter((req) =>
                                 [
