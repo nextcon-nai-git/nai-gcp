@@ -281,7 +281,7 @@ export default function CompliancePublicPage() {
               >
                 <p className="text-xs font-black uppercase">Relato Identificado</p>
                 <p className="text-[9px] font-medium text-white/50 mt-1">
-                  Apenas o comitê de ética terá acesso aos seus dados.
+                  Nome e e-mail serão registrados junto ao relato para tratamento restrito pela administração responsável.
                 </p>
               </button>
             </div>
