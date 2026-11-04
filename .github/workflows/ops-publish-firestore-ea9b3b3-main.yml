@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Checkout authorized main
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Verify reviewed release is included
         run: git merge-base --is-ancestor ea9b3b389f8be729e3e41f4c2205677c02acf4a1 HEAD
