@@ -3,28 +3,17 @@
 import * as React from "react";
 import {
   ShieldCheck,
-  Sparkles,
   MessageSquare,
-  AlertTriangle,
   Loader2,
   Send,
   UserCheck,
   UserX,
   Lock,
-  ArrowRight,
   CheckCircle2,
   Scale,
   ClipboardList,
-  ShieldAlert,
 } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter,
-} from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,15 +24,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useFirestore } from "@/firebase";
+import { useFirebaseApp } from "@/firebase";
 import { criarDenuncia, CATEGORIAS_COMPLIANCE } from "@/services/compliance-service";
 import { cn } from "@/lib/utils";
 
 export default function CompliancePublicPage() {
   const { toast } = useToast();
-  const db = useFirestore();
+  const firebaseApp = useFirebaseApp();
 
   const [isAnonimo, setIsAnonimo] = React.useState(true);
   const [loading, setLoading] = React.useState(false);
@@ -60,11 +48,10 @@ export default function CompliancePublicPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!db) return;
     setLoading(true);
 
     try {
-      const protocolo = await criarDenuncia(db, { ...form, isAnonimo });
+      const protocolo = await criarDenuncia(firebaseApp, { ...form, isAnonimo });
       setProtocoloGerado(protocolo);
       toast({
         title: "Relato Enviado",
@@ -99,7 +86,7 @@ export default function CompliancePublicPage() {
             </h3>
           </div>
           <p className="text-xs text-slate-400 italic">
-            "Utilize este código para futuras consultas ao status do seu relato."
+            "Guarde este código como referência do relato para eventual acompanhamento com o comitê de ética."
           </p>
           <Button
             onClick={() => window.location.reload()}
@@ -321,8 +308,11 @@ export default function CompliancePublicPage() {
               <ShieldCheck className="size-4" /> Garantias NAI
             </div>
             <ul className="space-y-3">
-              {["Não retaliação garantida", "Criptografia de ponta a ponta", "Sigilo Absoluto"].map(
-                (g) => (
+              {[
+                "Tratamento restrito ao fluxo de compliance",
+                "Relato anônimo sem nome ou e-mail armazenados",
+                "Protocolo gerado no servidor",
+              ].map((g) => (
                   <li
                     key={g}
                     className="flex items-center gap-2 text-[11px] font-bold text-slate-600"
