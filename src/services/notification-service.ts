@@ -269,9 +269,7 @@ export class NotificationService {
           allowedDomains.length ? allowedDomains : undefined
         );
         if (!validated.valid || !validated.normalizedUrl || !validated.resolvedIps?.length) {
-          logger.warn(
-            `[WhatsApp Notification] Destino de webhook bloqueado para ${masked}.`
-          );
+          logger.warn(`[WhatsApp Notification] Destino de webhook bloqueado para ${masked}.`);
           return {
             success: false,
             messageId,
@@ -314,9 +312,7 @@ export class NotificationService {
             timestamp,
           };
         }
-        logger.warn(
-          `[WhatsApp Notification] Falha no Webhook para ${masked}: ${response.status}`
-        );
+        logger.warn(`[WhatsApp Notification] Falha no Webhook para ${masked}: ${response.status}`);
         return {
           success: false,
           messageId,
@@ -327,9 +323,7 @@ export class NotificationService {
           error: `Webhook retornou status ${response.status}`,
         };
       } catch (error) {
-        logger.error(
-          `[WhatsApp Notification] Erro ao despachar webhook para ${masked}.`
-        );
+        logger.error(`[WhatsApp Notification] Erro ao despachar webhook para ${masked}.`);
         return {
           success: false,
           messageId,
