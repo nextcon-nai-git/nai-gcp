@@ -36,7 +36,10 @@ function rateLimit(request: NextRequest) {
     for (const [entry, value] of buckets) if (value.resetAt <= now) buckets.delete(entry);
   const bucket = buckets.get(key);
   if ((!bucket || bucket.resetAt <= now) && buckets.size >= MAX_BUCKETS)
-    throw new AuthError("Canal temporariamente com alto volume. Tente novamente em alguns minutos.", 429);
+    throw new AuthError(
+      "Canal temporariamente com alto volume. Tente novamente em alguns minutos.",
+      429
+    );
   if (!bucket || bucket.resetAt <= now) {
     buckets.set(key, { count: 1, resetAt: now + WINDOW_MS });
     return;
