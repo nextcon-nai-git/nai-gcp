@@ -66,12 +66,9 @@ export async function POST(req: NextRequest) {
       if (!extraction.success)
         throw new AuthError(
           "O PDF foi preservado, mas a extração veio incompleta ou inconsistente. Use “Analisar novamente com IA” e confira o documento original.",
-          422
+          503
         );
-      return NextResponse.json(
-        { extraction: extraction.data },
-        { headers: privateHeaders }
-      );
+      return NextResponse.json({ extraction: extraction.data }, { headers: privateHeaders });
     }
     const book = await getProductionBook(user);
     const record = book.records.find((r) => r.id === input.recordId);
