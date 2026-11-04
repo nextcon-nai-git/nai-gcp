@@ -482,7 +482,9 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                                   }`}
                                 >
                                   <div className="flex items-center justify-between text-[11px]">
-                                    <span className="font-mono font-bold text-cyan-400">\n                                      {req.id}\n                                    </span>
+                                    <span className="font-mono font-bold text-cyan-400">
+                                      {req.id}
+                                    </span>
                                     <span className="uppercase text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300">
                                       {req.examType}
                                     </span>
@@ -515,7 +517,9 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                                     </span>
 
                                     <button
-                                      disabled={\n                                        advancing !== null || req.status === "aso_concluido"\n                                      }
+                                      disabled={
+                                        advancing !== null || req.status === "aso_concluido"
+                                      }
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         handleAdvanceStep(req.id, req.status);
