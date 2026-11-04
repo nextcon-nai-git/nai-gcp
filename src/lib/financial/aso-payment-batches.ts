@@ -55,7 +55,8 @@ const normalizedText = (value: string) =>
     .replace(/\s+/g, " ")
     .toUpperCase();
 
-const digits = (value: string) => value.replace(/\D/g, "");
+const normalizeClinicDocument = (value: string) =>
+  value.replace(/[^a-z0-9]/gi, "").toUpperCase();
 
 function validCalendarDate(value: string) {
   if (!/^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(value)) return false;
@@ -129,8 +130,8 @@ export function buildClinicPaymentPreview(
       blockedRows.push(blocked(aso, "MISSING_CLINIC", "Clínica não informada."));
       continue;
     }
-    const clinicDocument = digits(aso.cnpjClinica);
-    if (!/^\d{14}$/.test(clinicDocument)) {
+    const clinicDocument = normalizeClinicDocument(aso.cnpjClinica);
+    if (!/^[A-Z0-9]{12}\d{2}$/.test(clinicDocument)) {
       blockedRows.push(blocked(aso, "INVALID_DOCUMENT", "CNPJ da clínica ausente ou inválido."));
       continue;
     }
