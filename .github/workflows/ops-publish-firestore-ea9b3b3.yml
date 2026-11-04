@@ -1,0 +1,70 @@
+name: One-time publish Firestore ea9b3b3
+
+on:
+  push:
+    branches:
+      - ops/publish-firestore-ea9b3b3
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nai-production-firestore-one-time-ea9b3b3
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Validate and publish Firestore rules/indexes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v7
+
+      - name: Verify release commit ancestry
+        run: git merge-base --is-ancestor ea9b3b389f8be729e3e41f4c2205677c02acf4a1 HEAD
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Set up Java for Firestore emulator
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Test Firestore security rules
+        run: npm run test:rules
+
+      - name: Prepare Firebase release credentials
+        env:
+          NAI_FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const value = process.env.NAI_FIREBASE_SERVICE_ACCOUNT_JSON;
+          try {
+            const account = JSON.parse(value || 'null');
+            if (!account?.client_email || !account?.private_key) throw new Error();
+            const credentialsPath = path.join(process.env.RUNNER_TEMP, 'nai-firebase-service-account.json');
+            fs.writeFileSync(credentialsPath, value, { mode: 0o600 });
+            fs.appendFileSync(process.env.GITHUB_ENV, `GOOGLE_APPLICATION_CREDENTIALS=${credentialsPath}\n`);
+          } catch {
+            throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON ausente ou inválido.');
+          }
+          NODE
+
+      - name: Publish tested Firestore rules and indexes
+        run: npx --yes firebase-tools@14.22.0 deploy --only firestore:rules,firestore:indexes --project studio-8439299034-125c7 --non-interactive
+
+      - name: Remove temporary release credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/nai-firebase-service-account.json"
