@@ -342,6 +342,58 @@ describe("Omie controlled exports", () => {
     expect(ExportReference.safeParse({ kind: "supplier", sourceId: id }).success).toBe(false);
     expect(OmieExport.safeParse({ ...overview.exports[0], kind: "supplier" }).success).toBe(false);
   });
+  it("matches clinic payment suppliers by CNPJ even when the Omie legal name differs", async () => {
+    const selection = seedTitle();
+    const book = JSON.parse(storage.files.get(fp)!.bytes.toString());
+    book.titles[0].party = "Nome operacional da clínica";
+    book.clinicPaymentBatches.push({
+      id: "batch_clinic_1",
+      clinicName: "Nome operacional da clínica",
+      clinicDocument: "12345678000190",
+      competence: "2026-10",
+      dueDate: "2099-10-20",
+      amountCents: 10001,
+      titleId: selection.sourceId,
+      items: [
+        {
+          asoId: "avp_" + "a".repeat(32),
+          collaborator: "Colaborador teste",
+          city: "Curitiba/PR",
+          examDate: "2026-10-10",
+          amountCents: 10001,
+        },
+      ],
+      createdBy: "creator",
+      createdAt: "2026-10-12T12:00:00Z",
+    });
+    put(fp, book);
+    const lookup = remote.call.getMockImplementation()!;
+    remote.call.mockImplementation(async (kind: string, param: Record<string, unknown>) =>
+      kind === "partyDetail"
+        ? {
+            codigo_cliente_omie: 123,
+            razao_social: "Razão social diferente",
+            cnpj_cpf: "12.345.678/0001-90",
+            inativo: "N",
+          }
+        : lookup(kind, param)
+    );
+    await expect(previewConnectorExport(admin, selection)).resolves.toMatchObject({
+      payload: { codigo_cliente_fornecedor: 123 },
+    });
+    remote.call.mockImplementation(async (kind: string, param: Record<string, unknown>) =>
+      kind === "partyDetail"
+        ? {
+            codigo_cliente_omie: 123,
+            razao_social: "Nome operacional da clínica",
+            cnpj_cpf: "99.999.999/0001-99",
+            inativo: "N",
+          }
+        : lookup(kind, param)
+    );
+    await expect(previewConnectorExport(admin, selection)).rejects.toThrow("CNPJ da clínica");
+  });
+
   it("preserves a prior competence using the confirmed emission date", async () => {
     const selection = seedTitle();
     const book = JSON.parse(storage.files.get(fp)!.bytes.toString());
