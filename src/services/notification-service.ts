@@ -1,6 +1,10 @@
 /** Prazos clínicos definidos pelo PCMSO; idade e grau de risco não substituem avaliação médica. */
 
+import "server-only";
+import { randomUUID } from "node:crypto";
 import { logger, maskPhone } from "@/lib/logger";
+import { validateWebhookTargetUrl } from "@/lib/webhook-security-guard";
+import { postWebhook } from "@/services/webhooks/post-webhook";
 
 export type ExamPeriodicity = "SEMESTRAL" | "ANUAL" | "BIENAL" | "PERSONALIZADA" | "PENDENTE";
 
@@ -249,25 +253,51 @@ export class NotificationService {
     const formattedMessage = this.formatWhatsAppMessage(alert);
     const masked = maskPhone(phone);
     const timestamp = new Date().toISOString();
-    const messageId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const messageId = `msg_${randomUUID()}`;
 
     const targetUrl =
       webhookUrl || (typeof process !== "undefined" ? process.env.WHATSAPP_WEBHOOK_URL : undefined);
 
     if (targetUrl) {
       try {
-        const response = await fetch(targetUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        const allowedDomains = (process.env.WHATSAPP_WEBHOOK_ALLOWED_DOMAINS || "")
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean);
+        const validated = await validateWebhookTargetUrl(
+          targetUrl,
+          allowedDomains.length ? allowedDomains : undefined
+        );
+        if (!validated.valid || !validated.normalizedUrl || !validated.resolvedIps?.length) {
+          logger.warn(`[WhatsApp Notification] Destino de webhook bloqueado para ${masked}.`);
+          return {
+            success: false,
             messageId,
-            phone,
-            message: formattedMessage,
-            alertId: alert.id,
-            severity: alert.severity,
+            status: "FAILED",
+            maskedPhone: masked,
+            formattedMessage,
             timestamp,
-          }),
+            error: "Destino de webhook inválido ou não autorizado.",
+          };
+        }
+        const body = JSON.stringify({
+          messageId,
+          phone,
+          message: formattedMessage,
+          alertId: alert.id,
+          severity: alert.severity,
+          timestamp,
         });
+        const response = await postWebhook(
+          validated.normalizedUrl,
+          validated.resolvedIps,
+          {
+            "Content-Type": "application/json",
+            "Content-Length": String(Buffer.byteLength(body)),
+          },
+          body,
+          10000
+        );
 
         if (response.ok) {
           logger.info(
@@ -281,22 +311,8 @@ export class NotificationService {
             formattedMessage,
             timestamp,
           };
-        } else {
-          logger.warn(
-            `[WhatsApp Notification] Falha no Webhook para ${masked}: ${response.status}`
-          );
-          return {
-            success: false,
-            messageId,
-            status: "FAILED",
-            maskedPhone: masked,
-            formattedMessage,
-            timestamp,
-            error: `Webhook retornou status ${response.status}`,
-          };
         }
-      } catch (err: any) {
-        logger.error(`[WhatsApp Notification] Erro na conexão do Webhook: ${err.message}`);
+        logger.warn(`[WhatsApp Notification] Falha no Webhook para ${masked}: ${response.status}`);
         return {
           success: false,
           messageId,
@@ -304,7 +320,21 @@ export class NotificationService {
           maskedPhone: masked,
           formattedMessage,
           timestamp,
-          error: err.message,
+          error: `Webhook retornou status ${response.status}`,
+        };
+      } catch (error) {
+        logger.error(`[WhatsApp Notification] Erro ao despachar webhook para ${masked}.`);
+        return {
+          success: false,
+          messageId,
+          status: "FAILED",
+          maskedPhone: masked,
+          formattedMessage,
+          timestamp,
+          error:
+            error instanceof Error
+              ? "Destino de webhook inválido ou indisponível."
+              : "Falha no envio do webhook.",
         };
       }
     }
