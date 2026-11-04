@@ -28,7 +28,7 @@ function aso(overrides: Partial<GrupoAvpAso> = {}): GrupoAvpAso {
     telefoneClinica: "",
     emailClinica: "",
     valorAso: "30,00",
-    cnpjClinica: "12.345.678/0001-90",
+    cnpjClinica: "11.222.333/0001-81",
     chavePix: "",
     pixRealizado: "NÃO",
     enderecoClinica: "",
@@ -58,7 +58,7 @@ describe("clinic ASO payment batches", () => {
 
     expect(preview.batches).toHaveLength(1);
     expect(preview.batches[0]).toMatchObject({
-      clinicDocument: "12345678000190",
+      clinicDocument: "11222333000181",
       competence: "2026-11",
       amountCents: 6500,
     });
@@ -114,7 +114,7 @@ describe("clinic ASO payment batches", () => {
     book.clinicPaymentBatches.push({
       id: "batch_active",
       clinicName: "CLINMETRA",
-      clinicDocument: "12345678000190",
+      clinicDocument: "11222333000181",
       competence: "2026-11",
       dueDate: "2026-11-03",
       amountCents: 3000,
@@ -179,7 +179,7 @@ describe("clinic ASO payment batches", () => {
     book.clinicPaymentBatches.push({
       id: "batch_cancelled",
       clinicName: "CLINMETRA",
-      clinicDocument: "12345678000190",
+      clinicDocument: "11222333000181",
       competence: "2026-11",
       dueDate: "2026-11-03",
       amountCents: 3000,
