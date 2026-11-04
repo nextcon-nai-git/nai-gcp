@@ -2,10 +2,7 @@
 
 import type { FirebaseApp } from "firebase/app";
 import { getNaiAppCheckToken } from "@/firebase/app-check";
-import {
-  CATEGORIAS_COMPLIANCE,
-  type ComplianceReportInput,
-} from "@/lib/compliance";
+import { CATEGORIAS_COMPLIANCE, type ComplianceReportInput } from "@/lib/compliance";
 
 export { CATEGORIAS_COMPLIANCE };
 
