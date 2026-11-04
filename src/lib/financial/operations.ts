@@ -11,6 +11,7 @@ import { csvTextCell } from "@/lib/csv-cell";
 import { isCalendarDate } from "./omie-dre";
 import { ErpSchema, erpCommands, applyErpCommand } from "./erp";
 import { financialLabel } from "./labels";
+import { isValidCnpj } from "@/lib/cnpj";
 
 const text = z.string().trim().min(1).max(180);
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
@@ -75,7 +76,7 @@ const ClinicPaymentItem = z.object({
 const ClinicPaymentBatch = z.object({
   id,
   clinicName: text,
-  clinicDocument: z.string().regex(/^[A-Z0-9]{12}\d{2}$/),
+  clinicDocument: z.string().regex(/^[A-Z0-9]{12}\d{2}$/).refine(isValidCnpj, "CNPJ inválido."),
   competence: month,
   dueDate: date,
   amountCents: cents.refine((v) => v > 0),
