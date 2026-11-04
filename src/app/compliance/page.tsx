@@ -58,8 +58,15 @@ export default function CompliancePublicPage() {
         title: "Relato Enviado",
         description: "Guarde seu número de protocolo para consulta.",
       });
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro no Envio" });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Erro no Envio",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível registrar o relato. Tente novamente.",
+      });
     } finally {
       setLoading(false);
     }
