@@ -6,11 +6,7 @@ import type { AuthContext } from "@/lib/auth/auth-context";
 import { requireFinancialAccess } from "@/lib/auth/financial-access";
 import { requireAvpAccess } from "@/lib/auth/avp-access";
 import { AuthError, badRequest } from "@/lib/auth/errors";
-import {
-  FinanceBookSchema,
-  emptyFinanceBook,
-  type FinanceBook,
-} from "@/lib/financial/operations";
+import { FinanceBookSchema, emptyFinanceBook, type FinanceBook } from "@/lib/financial/operations";
 import {
   buildClinicPaymentPreview,
   nextClinicPaymentDate,
@@ -96,9 +92,13 @@ async function loadState(user: AuthContext, input: unknown) {
   const closed = new Set(
     finance.value.periods.filter((period) => period.closed).map((period) => period.month)
   );
-  const closedCompetences = [...new Set(
-    preview.batches.filter((batch) => closed.has(batch.competence)).map((batch) => batch.competence)
-  )].sort();
+  const closedCompetences = [
+    ...new Set(
+      preview.batches
+        .filter((batch) => closed.has(batch.competence))
+        .map((batch) => batch.competence)
+    ),
+  ].sort();
 
   return {
     today,
