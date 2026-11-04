@@ -307,7 +307,7 @@ function ContractsSession() {
         </p>
         <Button onClick={() => window.location.reload()}>Verificar acesso novamente</Button>
         <Button asChild variant="outline">
-          <Link href="/production">Abrir Central de Contratos e Produção</Link>
+          <Link href="/production?new=contract">Importar novo contrato na Central</Link>
         </Button>
       </main>
     );
@@ -330,21 +330,24 @@ function ContractsSession() {
           contrato, execução, faturamento e recebimento em uma única esteira, use a Central.
         </p>
         <Button asChild>
-          <Link href="/production">Abrir Central de Contratos e Produção</Link>
+          <Link href="/production?new=contract">Importar novo contrato na Central</Link>
         </Button>
       </header>
       <Card>
         <CardHeader>
-          <CardTitle>Importar contrato para o SGI</CardTitle>
+          <CardTitle>Nova importação de contrato</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm">
-            Até {maxBatch} PDFs por lote, cada um com menos de 10 MB. Os arquivos são analisados em
-            sequência. A extração exige revisão antes da integração e não comprova assinatura ou
-            execução.
+            Novas importações foram concentradas na Central de Contratos e Produção para evitar que
+            um contrato seja gravado no acervo histórico sem entrar na esteira operacional e
+            financeira. O acervo abaixo permanece somente para consulta das importações anteriores.
           </p>
-          <label className="block space-y-2 text-sm">
-            <span>Selecionar PDFs para análise</span>
+          <Button asChild>
+            <Link href="/production?new=contract">Selecionar PDF e gerar a esteira</Link>
+          </Button>
+          <label className="hidden">
+            <span>Importador anterior desativado para novas cargas</span>
             <input
               type="file"
               accept="application/pdf,.pdf"

@@ -281,6 +281,11 @@ function Workspace() {
   const [pending, setPending] = React.useState<Command | null>(null),
     [showCreate, setShowCreate] = React.useState(false),
     [search, setSearch] = React.useState("");
+  React.useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("new") === "contract") {
+      setShowCreate(true);
+    }
+  }, []);
   const mounted = React.useRef(true),
     lock = React.useRef(false);
   const clearAccess = React.useCallback(
@@ -370,7 +375,11 @@ function Workspace() {
       if (command.action === "cycle") setSelectedCycle(command.cycleId);
       if (command.action === "scheduleCycles") setSelectedCycle(`${command.seriesId}_1`);
       if (command.action === "create") setSelectedCycle("");
-      setNotice("Alteração salva e confirmada.");
+      setNotice(
+        command.action === "create"
+          ? "Contrato salvo e confirmado. A esteira foi criada com 3 etapas comerciais, 6 etapas operacionais/financeiras e as obrigações extraídas para revisão."
+          : "Alteração salva e confirmada."
+      );
       return true;
     } catch (e) {
       if (
@@ -703,7 +712,7 @@ function SourceUpload({
             const file = e.target.files?.[0];
             if (!file || lock.current) return;
             lock.current = true;
-            const signal = AbortSignal.any([scopeRef.current.signal, AbortSignal.timeout(60000)]);
+            const signal = AbortSignal.any([scopeRef.current.signal, AbortSignal.timeout(120000)]);
             setDocument(null);
             onChange(null, null);
             setBusy(true);
@@ -731,6 +740,12 @@ function SourceUpload({
               const d = { name: file.name, kind, source };
               setDocument(d);
               onChange(d, null);
+              const analysis = await api("/api/production/assistant", signal, {
+                action: "extract",
+                source: d.source,
+              });
+              signal.throwIfAborted();
+              onChange(d, analysis.extraction);
             } catch (e) {
               if (!scopeRef.current.signal.aborted) setError((e as Error).message);
             } finally {
@@ -776,7 +791,7 @@ function SourceUpload({
               }
             }}
           >
-            Identificar cliente e dados com IA
+            Analisar novamente com IA
           </Button>
         </>
       )}

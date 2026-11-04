@@ -340,7 +340,7 @@ describe("production workspace", () => {
             ? "Consultar contratos e títulos"
             : endpoint === "assistant"
               ? "Consultar NAI Comercial"
-              : "Identificar cliente e dados com IA"
+              : "Analisar novamente com IA"
         );
       }
       expect(host.textContent).toContain("Sessão revogada");
@@ -601,7 +601,7 @@ describe("PDF preservation in the central", () => {
       await act(async () => {
         input.dispatchEvent(new Event("change", { bubbles: true }));
       });
-      expect(state.fetch).toHaveBeenLastCalledWith(
+      expect(state.fetch).toHaveBeenCalledWith(
         "/api/production/source",
         expect.objectContaining({
           method: "PUT",
@@ -682,7 +682,7 @@ describe("addendum consolidation", () => {
           },
         })
       );
-      await click("Identificar cliente e dados com IA");
+      await click("Analisar novamente com IA");
       expect(form.querySelector<HTMLInputElement>('[name="obligation.pgr.title"]')?.value).toBe(
         duty.title
       );
