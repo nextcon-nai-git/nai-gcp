@@ -111,8 +111,7 @@ export function ClinicPaymentBatchesWorkspace() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Não foi possível criar os rascunhos.");
-      const message =
-        `${data.created?.length || 0} rascunho(s) criado(s) para ${data.totals?.asos || 0} ASO(s). Revise no financeiro antes de aprovar ou enviar ao Omie.`;
+      const message = `${data.created?.length || 0} rascunho(s) criado(s) para ${data.totals?.asos || 0} ASO(s). Revise no financeiro antes de aprovar ou enviar ao Omie.`;
       await load(dueDate);
       setNotice(message);
     } catch (cause) {
