@@ -330,7 +330,7 @@ function ContractsSession() {
           contrato, execução, faturamento e recebimento em uma única esteira, use a Central.
         </p>
         <Button asChild>
-          <Link href="/production">Abrir Central de Contratos e Produção</Link>
+          <Link href="/production?new=contract">Importar novo contrato na Central</Link>
         </Button>
       </header>
       <Card>
@@ -346,13 +346,13 @@ function ContractsSession() {
           <Button asChild>
             <Link href="/production?new=contract">Selecionar PDF e gerar a esteira</Link>
           </Button>
-          <label className="block space-y-2 text-sm">
+          <label className="hidden">
             <span>Importador anterior desativado para novas cargas</span>
             <input
               type="file"
               accept="application/pdf,.pdf"
               multiple
-              disabled
+              disabled={uploadBusy}
               onChange={upload}
               className="block w-full rounded border p-2"
             />
