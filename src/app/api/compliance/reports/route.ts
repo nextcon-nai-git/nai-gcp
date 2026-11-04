@@ -5,10 +5,7 @@ import { z } from "zod/v3";
 import { firebaseConfig } from "@/firebase/config";
 import { AuthError, forbidden } from "@/lib/auth/errors";
 import { limitedJson } from "@/lib/http/private-api";
-import {
-  complianceBadRequest,
-  createComplianceReport,
-} from "@/services/compliance-reports";
+import { complianceBadRequest, createComplianceReport } from "@/services/compliance-reports";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
