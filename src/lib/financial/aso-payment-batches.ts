@@ -1,6 +1,7 @@
 import type { FinanceBook } from "./operations";
 import type { GrupoAvpAso } from "@/lib/grupo-avp-asos-data";
 import { parseBrlCents } from "@/lib/avp-costs";
+import { isValidCnpj, normalizeCnpj } from "@/lib/cnpj";
 
 export type ClinicPaymentBlockCode =
   | "ALREADY_PAID"
@@ -129,8 +130,8 @@ export function buildClinicPaymentPreview(
       blockedRows.push(blocked(aso, "MISSING_CLINIC", "Clínica não informada."));
       continue;
     }
-    const clinicDocument = normalizeClinicDocument(aso.cnpjClinica);
-    if (!/^[A-Z0-9]{12}\d{2}$/.test(clinicDocument)) {
+    const clinicDocument = normalizeCnpj(aso.cnpjClinica);
+    if (!isValidCnpj(aso.cnpjClinica)) {
       blockedRows.push(blocked(aso, "INVALID_DOCUMENT", "CNPJ da clínica ausente ou inválido."));
       continue;
     }
