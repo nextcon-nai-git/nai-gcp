@@ -435,6 +435,18 @@ service cloud.firestore {
       );
     }
 
+    // Compliance reports are server-created and contain highly sensitive allegations.
+    // The public form writes through an Admin SDK endpoint; client SDK writes are never allowed.
+    match /denuncias/{reportId} {
+      allow read: if isSecurityAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /denuncias/{reportId}/{document=**} {
+      allow read: if isSecurityAdmin();
+      allow write: if false;
+    }
+
     match /config_nai_avatar/{docId} {
       allow read: if isSignedIn();
       allow write: if isNextconOfficial();
@@ -475,8 +487,8 @@ service cloud.firestore {
     }
 
     match /{rootCollection}/{document=**} {
-      allow read: if isSignedIn() && isNextconOfficial() && !isClinicalCollection(rootCollection) && !(rootCollection in ['workAssistantProposals', 'workAssistantUsage', 'clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nxc_employees', 'user_access_audit', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries']);
-      allow write: if isNextconOfficial() && !isClinicalCollection(rootCollection) && !(rootCollection in ['workAssistantProposals', 'workAssistantUsage', 'clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nxc_employees', 'agendamentos', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'expert_access_audit', 'user_access_audit', 'analisesPGR']);
+      allow read: if isSignedIn() && isNextconOfficial() && !isClinicalCollection(rootCollection) && !(rootCollection in ['workAssistantProposals', 'workAssistantUsage', 'clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nxc_employees', 'user_access_audit', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries', 'denuncias']);
+      allow write: if isNextconOfficial() && !isClinicalCollection(rootCollection) && !(rootCollection in ['workAssistantProposals', 'workAssistantUsage', 'clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nxc_employees', 'agendamentos', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'expert_access_audit', 'user_access_audit', 'analisesPGR', 'denuncias']);
     }
   }
 }
