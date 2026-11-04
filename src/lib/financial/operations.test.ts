@@ -131,6 +131,67 @@ describe("financial controls", () => {
       expect(b.titles[0]).toMatchObject({ amountCents: 12345, approvedBy: "independent-reviewer" });
     }
   );
+  it("locks clinic ASO batch titles and rejects a divergent amount at approval", () => {
+    let b = run(emptyFinanceBook(), {
+      action: "title",
+      data: {
+        ...data,
+        kind: "payable",
+        party: "CLINMETRA",
+        amountCents: 3000,
+        sourceKey: "clinic-asos:test-batch",
+      },
+    });
+    const id = b.titles[0].id;
+    b.clinicPaymentBatches.push({
+      id: "batch_clinic_test",
+      clinicName: "CLINMETRA",
+      clinicDocument: "00000000E08G12",
+      competence: data.competence,
+      dueDate: data.dueDate,
+      amountCents: 3000,
+      titleId: id,
+      items: [
+        {
+          asoId: "avp_" + "a".repeat(32),
+          collaborator: "COLABORADOR TESTE",
+          city: "ILHÉUS/BA",
+          examDate: "2026-09-10",
+          amountCents: 3000,
+        },
+      ],
+      createdBy: "creator",
+      createdAt: at,
+    });
+    expect(() =>
+      run(b, {
+        action: "editTitle",
+        id,
+        data: {
+          description: data.description,
+          amountCents: 3100,
+          competence: data.competence,
+          dueDate: data.dueDate,
+          category: data.category,
+          center: data.center,
+          contractId: null,
+          evidence: data.evidence,
+        },
+        reason: "Tentativa de alterar o total",
+      })
+    ).toThrow("lote de ASOs");
+
+    b = run(b, { action: "review", id, status: "submitted", reason: "Conferido" });
+    b.titles[0].amountCents = 3100;
+    expect(() =>
+      run(
+        b,
+        { action: "review", id, status: "approved", reason: "Conferido" },
+        "independent-reviewer"
+      )
+    ).toThrow("divergente");
+  });
+
   it("recovers the latest legacy editor from authenticated audit entries without mutating history", () => {
     let b = run(emptyFinanceBook(), { action: "title", data });
     const id = b.titles[0].id;
