@@ -56,8 +56,6 @@ const normalizedText = (value: string) =>
     .replace(/\s+/g, " ")
     .toUpperCase();
 
-const normalizeClinicDocument = (value: string) => value.replace(/[^a-z0-9]/gi, "").toUpperCase();
-
 function validCalendarDate(value: string) {
   if (!/^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(value)) return false;
   const date = new Date(value + "T00:00:00Z");
