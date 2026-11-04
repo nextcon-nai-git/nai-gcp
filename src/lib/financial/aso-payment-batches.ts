@@ -131,9 +131,7 @@ export function buildClinicPaymentPreview(
     }
     const clinicDocument = digits(aso.cnpjClinica);
     if (!/^\d{14}$/.test(clinicDocument)) {
-      blockedRows.push(
-        blocked(aso, "INVALID_DOCUMENT", "CNPJ da clínica ausente ou inválido.")
-      );
+      blockedRows.push(blocked(aso, "INVALID_DOCUMENT", "CNPJ da clínica ausente ou inválido."));
       continue;
     }
     const amountCents = parseBrlCents(aso.valorAso);
