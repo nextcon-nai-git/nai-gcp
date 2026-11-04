@@ -27,7 +27,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useFirebaseApp } from "@/firebase";
 import { criarDenuncia, CATEGORIAS_COMPLIANCE } from "@/services/compliance-service";
-import type { ComplianceReportInput } from "@/lib/compliance";
+import { isComplianceCategory, type ComplianceReportInput } from "@/lib/compliance";
 import { cn } from "@/lib/utils";
 
 export default function CompliancePublicPage() {
@@ -38,7 +38,7 @@ export default function CompliancePublicPage() {
   const [loading, setLoading] = React.useState(false);
   const [protocoloGerado, setProtocoloGerado] = React.useState<string | null>(null);
 
-  const [form, setForm] = React.useState<ComplianceReportInput>({
+  const [form, setForm] = React.useState<Omit<ComplianceReportInput, "isAnonimo">>({
     nome: "",
     email: "",
     categoria: "",
@@ -56,7 +56,7 @@ export default function CompliancePublicPage() {
       setProtocoloGerado(protocolo);
       toast({
         title: "Relato Enviado",
-        description: "Guarde seu número de protocolo para consulta.",
+        description: "Guarde seu número de protocolo como referência do relato.",
       });
     } catch (error) {
       toast({
@@ -183,7 +183,9 @@ export default function CompliancePublicPage() {
                 </label>
                 <Select
                   value={form.categoria}
-                  onValueChange={(v) => setForm({ ...form, categoria: v })}
+                  onValueChange={(value) => {
+                    if (isComplianceCategory(value)) setForm({ ...form, categoria: value });
+                  }}
                   required
                 >
                   <SelectTrigger className="h-12 bg-slate-50 border-none rounded-xl font-bold shadow-inner">
