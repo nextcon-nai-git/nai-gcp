@@ -3,28 +3,17 @@
 import * as React from "react";
 import {
   ShieldCheck,
-  Sparkles,
   MessageSquare,
-  AlertTriangle,
   Loader2,
   Send,
   UserCheck,
   UserX,
   Lock,
-  ArrowRight,
   CheckCircle2,
   Scale,
   ClipboardList,
-  ShieldAlert,
 } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter,
-} from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,21 +24,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useFirestore } from "@/firebase";
+import { useFirebaseApp } from "@/firebase";
 import { criarDenuncia, CATEGORIAS_COMPLIANCE } from "@/services/compliance-service";
+import { isComplianceCategory, type ComplianceReportInput } from "@/lib/compliance";
 import { cn } from "@/lib/utils";
 
 export default function CompliancePublicPage() {
   const { toast } = useToast();
-  const db = useFirestore();
+  const firebaseApp = useFirebaseApp();
 
   const [isAnonimo, setIsAnonimo] = React.useState(true);
   const [loading, setLoading] = React.useState(false);
   const [protocoloGerado, setProtocoloGerado] = React.useState<string | null>(null);
 
-  const [form, setForm] = React.useState({
+  const [form, setForm] = React.useState<Omit<ComplianceReportInput, "isAnonimo">>({
     nome: "",
     email: "",
     categoria: "",
@@ -60,18 +49,24 @@ export default function CompliancePublicPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!db) return;
     setLoading(true);
 
     try {
-      const protocolo = await criarDenuncia(db, { ...form, isAnonimo });
+      const protocolo = await criarDenuncia(firebaseApp, { ...form, isAnonimo });
       setProtocoloGerado(protocolo);
       toast({
         title: "Relato Enviado",
-        description: "Guarde seu número de protocolo para consulta.",
+        description: "Guarde seu número de protocolo como referência do relato.",
       });
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro no Envio" });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Erro no Envio",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível registrar o relato. Tente novamente.",
+      });
     } finally {
       setLoading(false);
     }
@@ -99,7 +94,8 @@ export default function CompliancePublicPage() {
             </h3>
           </div>
           <p className="text-xs text-slate-400 italic">
-            "Utilize este código para futuras consultas ao status do seu relato."
+            "Guarde este código como referência do relato para eventual acompanhamento com o comitê
+            de ética."
           </p>
           <Button
             onClick={() => window.location.reload()}
@@ -122,8 +118,8 @@ export default function CompliancePublicPage() {
           Canal de Ética & Compliance
         </h1>
         <p className="text-slate-500 font-medium max-w-2xl mx-auto">
-          Este é um canal seguro e, se desejar, totalmente anônimo para relatar condutas que violem
-          nossos princípios ou a legislação vigente.
+          Este é um canal para registrar relatos de ética e compliance. No modo anônimo, o NAI salva
+          o relato sem nome ou e-mail do denunciante.
         </p>
       </header>
 
@@ -189,7 +185,9 @@ export default function CompliancePublicPage() {
                 </label>
                 <Select
                   value={form.categoria}
-                  onValueChange={(v) => setForm({ ...form, categoria: v })}
+                  onValueChange={(value) => {
+                    if (isComplianceCategory(value)) setForm({ ...form, categoria: value });
+                  }}
                   required
                 >
                   <SelectTrigger className="h-12 bg-slate-50 border-none rounded-xl font-bold shadow-inner">
@@ -278,7 +276,7 @@ export default function CompliancePublicPage() {
               >
                 <p className="text-xs font-black uppercase">Relato Anônimo</p>
                 <p className="text-[9px] font-medium text-white/50 mt-1">
-                  Sua identidade será preservada integralmente.
+                  O relato será salvo sem nome ou e-mail.
                 </p>
               </button>
               <button
@@ -293,7 +291,8 @@ export default function CompliancePublicPage() {
               >
                 <p className="text-xs font-black uppercase">Relato Identificado</p>
                 <p className="text-[9px] font-medium text-white/50 mt-1">
-                  Apenas o comitê de ética terá acesso aos seus dados.
+                  Nome e e-mail serão registrados junto ao relato para tratamento restrito pela
+                  administração responsável.
                 </p>
               </button>
             </div>
@@ -302,12 +301,15 @@ export default function CompliancePublicPage() {
               <div className="space-y-3 animate-in slide-in-from-top-2">
                 <Input
                   placeholder="Seu Nome"
+                  required
                   value={form.nome}
                   onChange={(e) => setForm({ ...form, nome: e.target.value })}
                   className="bg-white/5 border-none h-11 text-xs"
                 />
                 <Input
+                  type="email"
                   placeholder="Seu E-mail"
+                  required
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   className="bg-white/5 border-none h-11 text-xs"
@@ -321,16 +323,18 @@ export default function CompliancePublicPage() {
               <ShieldCheck className="size-4" /> Garantias NAI
             </div>
             <ul className="space-y-3">
-              {["Não retaliação garantida", "Criptografia de ponta a ponta", "Sigilo Absoluto"].map(
-                (g) => (
-                  <li
-                    key={g}
-                    className="flex items-center gap-2 text-[11px] font-bold text-slate-600"
-                  >
-                    <CheckCircle2 className="size-3 text-emerald-500" /> {g}
-                  </li>
-                )
-              )}
+              {[
+                "Tratamento restrito ao fluxo de compliance",
+                "Relato anônimo sem nome ou e-mail armazenados",
+                "Protocolo gerado no servidor",
+              ].map((g) => (
+                <li
+                  key={g}
+                  className="flex items-center gap-2 text-[11px] font-bold text-slate-600"
+                >
+                  <CheckCircle2 className="size-3 text-emerald-500" /> {g}
+                </li>
+              ))}
             </ul>
           </Card>
         </div>
