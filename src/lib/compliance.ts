@@ -10,6 +10,10 @@ export const CATEGORIAS_COMPLIANCE = {
 
 export type ComplianceCategory = keyof typeof CATEGORIAS_COMPLIANCE;
 
+export function isComplianceCategory(value: string): value is ComplianceCategory {
+  return Object.prototype.hasOwnProperty.call(CATEGORIAS_COMPLIANCE, value);
+}
+
 export type ComplianceReportInput = {
   isAnonimo: boolean;
   nome: string;
