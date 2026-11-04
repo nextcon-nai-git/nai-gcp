@@ -36,6 +36,7 @@ import {
 import { OpsTask } from "@/types/schema";
 import { TaskWorkspace } from "@/components/kanban/task-workspace";
 import { parseClaims } from "@/lib/auth/claims";
+import { useSgi } from "@/contexts/sgi-context";
 
 export default function EnterpriseOpsHub() {
   const { user, role, companyId, tenantId, servedCompanies, isUserLoading, userError } = useUser();
@@ -61,6 +62,7 @@ function EnterpriseOpsContent() {
   const profileReady = !!user && !isUserLoading && !userError;
   const db = useFirestore();
   const { toast } = useToast();
+  const { activeClientId, setActiveClientId } = useSgi();
 
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
   const [isCreating, setIsCreating] = React.useState(false);
@@ -73,7 +75,19 @@ function EnterpriseOpsContent() {
     };
   }, []);
   const [selectedCompanyId, setSelectedCompanyId] = React.useState<string>(
-    params.get("company") || "all"
+    activeClientId || "all"
+  );
+
+  React.useEffect(() => {
+    setSelectedCompanyId(activeClientId || "all");
+  }, [activeClientId]);
+
+  const handleCompanyFilterChange = React.useCallback(
+    (companyId: string) => {
+      setSelectedCompanyId(companyId);
+      setActiveClientId(companyId);
+    },
+    [setActiveClientId]
   );
   const pgrTasks = usePgrCollection<OpsTask>(
     "tasks",
@@ -267,7 +281,7 @@ function EnterpriseOpsContent() {
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="w-64">
-            <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+            <Select value={selectedCompanyId} onValueChange={handleCompanyFilterChange}>
               <SelectTrigger className="bg-white border-muted h-11 text-xs">
                 <Building2 className="size-4 mr-2" />
                 <SelectValue placeholder={loadingCompanies ? "Carregando..." : "Filtrar Unidade"} />
