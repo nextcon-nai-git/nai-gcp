@@ -154,9 +154,30 @@ export function TopNav() {
 
   const handleClientChange = (newClientId: string) => {
     if (!canBrowseAllCompanies && !authorizedCompanies.includes(newClientId)) return;
-    // Company selection is application context, not navigation. Keep the
-    // current module mounted and let its data hooks react to the new tenant.
     setActiveClientId(newClientId);
+
+    // Most modules react to SGI context and must keep their current route.
+    // The client cockpit is route-bound, so keep its URL and visible data in sync.
+    if (/^\/clients\/[^/]+$/.test(pathname)) {
+      if (!newClientId || newClientId === "all") {
+        router.push("/clients");
+        return;
+      }
+      const lower = newClientId.toLowerCase();
+      if (isGlobalStaff && newClientId === BRITANIA_ANCHOR) {
+        router.push("/clients/grupo-britania");
+      } else if (lower === "cassi_matriz" || lower.includes("cassi")) {
+        router.push("/clients/cassi");
+      } else if (
+        lower === "grupo_avp" ||
+        lower.includes("grupo-avp") ||
+        lower.includes("avp")
+      ) {
+        router.push("/clients/grupo-avp");
+      } else {
+        router.push(`/clients/${encodeURIComponent(newClientId)}`);
+      }
+    }
   };
 
   return (
