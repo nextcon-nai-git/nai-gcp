@@ -25,7 +25,9 @@ describe("SOC exam result import", () => {
     expect(parsed.rows).toHaveLength(1);
     expect(parsed.duplicates).toBe(1);
     expect(parsed.rows[0].derivedStatus).toBe("FALTA_AUSENCIA");
-    expect(summarizeSocExamResults(parsed.rows, parsed.sourceRows, parsed.duplicates)).toMatchObject({
+    expect(
+      summarizeSocExamResults(parsed.rows, parsed.sourceRows, parsed.duplicates)
+    ).toMatchObject({
       sourceRows: 2,
       uniqueRows: 1,
       duplicates: 1,
@@ -37,7 +39,12 @@ describe("SOC exam result import", () => {
 
   it("preserves a performed exam and altered flag", () => {
     const parsed = parseSocExamResults([
-      { ...row, CODEXAME: "CLINICO 24", NOMEEXAME: "Avaliação Clínica Ocupacional", EXAMEALTERADO: "1" },
+      {
+        ...row,
+        CODEXAME: "CLINICO 24",
+        NOMEEXAME: "Avaliação Clínica Ocupacional",
+        EXAMEALTERADO: "1",
+      },
     ]);
     expect(parsed.rows[0].derivedStatus).toBe("REALIZADO");
     expect(summarizeSocExamResults(parsed.rows, 1, 0).altered).toBe(1);
