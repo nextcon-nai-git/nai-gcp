@@ -51,14 +51,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import {
-  collection,
-  query,
-  orderBy,
-  writeBatch,
-  doc,
-  addDoc,
-} from "firebase/firestore";
+import { collection, query, orderBy, writeBatch, doc, addDoc } from "firebase/firestore";
 import { useSgi } from "@/contexts/sgi-context";
 import { useToast } from "@/hooks/use-toast";
 import { extractPpeSheetData, ExtractPpeSheetOutput } from "@/ai/flows/ppe-sheet-ocr-flow";
