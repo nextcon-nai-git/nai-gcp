@@ -88,13 +88,15 @@ export async function POST(req: NextRequest) {
 
     const hash = hashSocExamResults(parsed.rows);
     const active = await root().get();
-    if (active.data()?.hash === hash)
+    const activeData = active.data();
+    if (activeData?.hash === hash)
       return reply({
         imported: false,
         duplicate: true,
-        summary: active.data()?.summary,
-        importedAt: active.data()?.importedAt,
+        summary: activeData?.summary,
+        importedAt: activeData?.importedAt,
       });
+    const expectedImport = activeData?.importId || activeData?.hash || null;
 
     const metadata = {
       importId: randomUUID(),
@@ -118,8 +120,18 @@ export async function POST(req: NextRequest) {
       );
     }
     batch.set(root().collection("imports").doc(metadata.importId), metadata);
-    batch.set(root(), metadata);
     await batch.commit();
+
+    await adminDb.runTransaction(async (transaction) => {
+      const latest = await transaction.get(root());
+      const current = latest.data();
+      if ((current?.importId || current?.hash || null) !== expectedImport)
+        throw new AuthError(
+          "Outra importação foi publicada durante o envio. Recarregue e confira a base antes de tentar novamente.",
+          409
+        );
+      transaction.set(root(), metadata);
+    });
 
     return reply({ imported: true, summary: metadata.summary, importedAt: metadata.importedAt });
   } catch (e) {
