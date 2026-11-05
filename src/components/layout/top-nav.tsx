@@ -168,11 +168,7 @@ export function TopNav() {
         router.push("/clients/grupo-britania");
       } else if (lower === "cassi_matriz" || lower.includes("cassi")) {
         router.push("/clients/cassi");
-      } else if (
-        lower === "grupo_avp" ||
-        lower.includes("grupo-avp") ||
-        lower.includes("avp")
-      ) {
+      } else if (lower === "grupo_avp" || lower.includes("grupo-avp") || lower.includes("avp")) {
         router.push("/clients/grupo-avp");
       } else {
         router.push(`/clients/${encodeURIComponent(newClientId)}`);
