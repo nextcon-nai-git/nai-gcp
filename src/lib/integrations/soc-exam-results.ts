@@ -43,7 +43,10 @@ function normalizeRow(input: unknown): SocExamResultRow {
     throw new Error("Registro SOC inválido.");
   const source = input as Record<string, unknown>;
   const row = Object.fromEntries(
-    SOC_EXAM_RESULT_FIELDS.map((field) => [field, clean(source[field], field.includes("NOME") ? 500 : 120)])
+    SOC_EXAM_RESULT_FIELDS.map((field) => [
+      field,
+      clean(source[field], field.includes("NOME") ? 500 : 120),
+    ])
   ) as Record<(typeof SOC_EXAM_RESULT_FIELDS)[number], string>;
 
   if (!/^\d{1,20}$/.test(row.EMPRESA)) throw new Error("Código de empresa SOC inválido.");
@@ -89,7 +92,11 @@ export function parseSocExamResults(input: unknown) {
   };
 }
 
-export function summarizeSocExamResults(rows: SocExamResultRow[], sourceRows: number, duplicates: number) {
+export function summarizeSocExamResults(
+  rows: SocExamResultRow[],
+  sourceRows: number,
+  duplicates: number
+) {
   const companies = [...new Set(rows.map((row) => `${row.EMPRESA}|${row.NOMEEMPRESA}`))].sort();
   return {
     sourceRows,
@@ -99,7 +106,8 @@ export function summarizeSocExamResults(rows: SocExamResultRow[], sourceRows: nu
     realized: rows.filter((row) => row.derivedStatus === "REALIZADO").length,
     absences: rows.filter((row) => row.derivedStatus === "FALTA_AUSENCIA").length,
     altered: rows.filter((row) => row.EXAMEALTERADO === "1").length,
-    missingProvider: rows.filter((row) => !row.CODIGOPRESTADOR || row.CODIGOPRESTADOR === "0").length,
+    missingProvider: rows.filter((row) => !row.CODIGOPRESTADOR || row.CODIGOPRESTADOR === "0")
+      .length,
     reconciliationRequired: true,
   };
 }
