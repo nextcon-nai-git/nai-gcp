@@ -122,16 +122,24 @@ export async function POST(req: NextRequest) {
     batch.set(root().collection("imports").doc(metadata.importId), metadata);
     await batch.commit();
 
-    await adminDb.runTransaction(async (transaction) => {
-      const latest = await transaction.get(root());
-      const current = latest.data();
-      if ((current?.importId || current?.hash || null) !== expectedImport)
-        throw new AuthError(
-          "Outra importação foi publicada durante o envio. Recarregue e confira a base antes de tentar novamente.",
-          409
-        );
-      transaction.set(root(), metadata);
-    });
+    try {
+      await adminDb.runTransaction(async (transaction) => {
+        const latest = await transaction.get(root());
+        const current = latest.data();
+        if ((current?.importId || current?.hash || null) !== expectedImport)
+          throw new AuthError(
+            "Outra importação foi publicada durante o envio. Recarregue e confira a base antes de tentar novamente.",
+            409
+          );
+        transaction.set(root(), metadata);
+      });
+    } catch (e) {
+      // Evita deixar lotes órfãos quando a publicação falha.
+      await adminDb
+        .recursiveDelete(root().collection("imports").doc(metadata.importId))
+        .catch(() => {});
+      throw e;
+    }
 
     return reply({ imported: true, summary: metadata.summary, importedAt: metadata.importedAt });
   } catch (e) {
