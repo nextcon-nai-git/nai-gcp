@@ -4,6 +4,7 @@ import { ui } from "../../../tests/ui/harness";
 const m = vi.hoisted(() => ({
   user: { uid: "a", displayName: "Pessoa teste" },
   scope: "a",
+  path: "/financial",
   all: false,
   authorized: ["a", "cassi_matriz", "grupo_avp", "unit / test"],
   error: null as any,
@@ -19,7 +20,7 @@ const m = vi.hoisted(() => ({
   directory: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/financial",
+  usePathname: () => m.path,
   useRouter: () => ({ push: m.push, replace: m.replace, refresh: m.refresh }),
 }));
 vi.mock("@/firebase", () => ({
@@ -78,6 +79,7 @@ beforeEach(() => {
   m.scope = "a";
   m.all = false;
   m.global = false;
+  m.path = "/financial";
   m.error = null;
   m.loading = false;
   for (const mock of [
@@ -109,7 +111,8 @@ describe("navigation tenant boundaries", () => {
     ["cassi_matriz", "/clients/cassi"],
     ["grupo_avp", "/clients/grupo-avp"],
     ["unit / test", "/clients/unit%20%2F%20test"],
-  ])("routes authorized company %s", async (id, path) => {
+  ])("routes authorized company %s on the client cockpit", async (id, path) => {
+    m.path = "/clients/a";
     await v.render(<TopNav />);
     await v.input("select", id);
     expect(m.select).toHaveBeenCalledWith(id);
@@ -126,9 +129,17 @@ describe("navigation tenant boundaries", () => {
   });
   it("allows global overview only with the explicit capability", async () => {
     m.all = true;
+    m.path = "/clients/a";
     await v.render(<TopNav />);
     await v.input("select", "all");
-    expect(m.push).toHaveBeenCalledWith("/");
+    expect(m.select).toHaveBeenCalledWith("all");
+    expect(m.push).toHaveBeenCalledWith("/clients");
+  });
+  it("keeps the current route when switching company outside the client cockpit", async () => {
+    await v.render(<TopNav />);
+    await v.input("select", "cassi_matriz");
+    expect(m.select).toHaveBeenCalledWith("cassi_matriz");
+    expect(m.push).not.toHaveBeenCalled();
   });
   it.each(["loading", "error"])("disables company selection when directory is %s", async (mode) => {
     m.loading = mode === "loading";
