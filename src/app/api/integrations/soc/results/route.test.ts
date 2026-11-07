@@ -34,7 +34,9 @@ vi.mock("@/lib/firebase-admin", () => {
 
 const rootPath = "webhook_deliveries/soc-exam-results";
 
-function request(rows: Record<string, string>[] = [{ EMPRESA: "1", NOMEEMPRESA: "Empresa teste" }]) {
+function request(
+  rows: Record<string, string>[] = [{ EMPRESA: "1", NOMEEMPRESA: "Empresa teste" }]
+) {
   return new NextRequest("https://example.test/api/integrations/soc/results", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
