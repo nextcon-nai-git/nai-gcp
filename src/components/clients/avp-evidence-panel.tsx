@@ -321,9 +321,8 @@ function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
               <p className="text-xs">
                 Somente quantidades confirmadas.{" "}
                 {
-                  confirmed.filter(
-                    (r) => isAvpCostAtLeast40(r.unitCents) && r.quantity == null
-                  ).length
+                  confirmed.filter((r) => isAvpCostAtLeast40(r.unitCents) && r.quantity == null)
+                    .length
                 }{" "}
                 pagamentos de R$ 40 ou mais com quantidade desconhecida.
               </p>

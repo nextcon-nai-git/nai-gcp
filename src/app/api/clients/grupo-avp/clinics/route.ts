@@ -11,7 +11,7 @@ import {
   verifiedAvpClinicsForCity,
   type VerifiedAvpClinic,
 } from "@/lib/avp-verified-clinics";
-import { parseBrlCents } from "@/lib/avp-costs";
+import { isAvpCostAtLeast40, parseAvpQuoteCents } from "@/lib/avp-costs";
 
 export const dynamic = "force-dynamic";
 type Stage = "authorization" | "snapshot" | "budget" | "provider";
@@ -232,13 +232,13 @@ export async function GET(req: NextRequest) {
         (item) =>
           normalizeAvpCity(item.cidade) === normalizeAvpCity(city) &&
           item.uf === uf &&
-          (parseBrlCents(item.valorAso) ?? 0) > 4000
+          isAvpCostAtLeast40(parseAvpQuoteCents(item.valorAso))
       )
     )
       return json(
         {
           code: "CITY_NOT_ELIGIBLE",
-          error: "A busca automática atende cidades da fila AVP com custo acima de R$40.",
+          error: "A busca automática atende cidades da fila AVP com custo de R$ 40 ou mais.",
         },
         403
       );

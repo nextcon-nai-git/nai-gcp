@@ -1444,7 +1444,7 @@ export function GrupoAvpQueueMap({
                           )}
                         />
 
-                        {costs.aboveTarget > 0 && (
+                        {costs.atLeast40 > 0 && (
                           <g
                             role="button"
                             aria-label={`Opções de clínicas em ${loc.cidade}`}
@@ -1744,7 +1744,7 @@ export function GrupoAvpQueueMap({
                 <div className="rounded-xl border border-slate-700 p-3 text-sm">
                   <strong>Custos históricos da fila por ASO</strong>
                   <p>
-                    {avpCostSummary(activeLocality.asos).aboveTarget} acima de R$40 ·{" "}
+                    {avpCostSummary(activeLocality.asos).atLeast40} de R$ 40 ou mais ·{" "}
                     {avpCostSummary(activeLocality.asos).missing} sem cotação única
                   </p>
                   <p>
@@ -1754,7 +1754,7 @@ export function GrupoAvpQueueMap({
                       : formatBrlCents(avpCostSummary(activeLocality.asos).maximumCostCents!)}
                   </p>
                 </div>
-                {avpCostSummary(activeLocality.asos).aboveTarget > 0 && (
+                {avpCostSummary(activeLocality.asos).atLeast40 > 0 && (
                   <AvpClinicAlternatives cidade={activeLocality.cidade} uf={activeLocality.uf} />
                 )}
                 {/* DISTRIBUIÇÃO DE STATUS NA LOCALIDADE */}

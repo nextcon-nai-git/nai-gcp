@@ -136,7 +136,13 @@ describe("Sincronização AVP com persistência real no emulador", () => {
       status: "STATUS NÃO RECONHECIDO",
     });
     expect(mergeSpreadsheetData(refreshed.items, input).updatedCount).toBe(0);
-    await expect(patchAvpQueue(refreshed.revision, [{ id: updated.id, fields: { statusRaw: "inventado" } }], "operator")).rejects.toThrow();
+    await expect(
+      patchAvpQueue(
+        refreshed.revision,
+        [{ id: updated.id, fields: { statusRaw: "inventado" } }],
+        "operator"
+      )
+    ).rejects.toThrow();
   });
   it("sinaliza conflito quando a fonte e a edição mudam o mesmo campo", async () => {
     await syncAvpSource(true);

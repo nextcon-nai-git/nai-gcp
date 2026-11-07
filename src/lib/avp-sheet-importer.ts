@@ -122,7 +122,8 @@ export function normalizeAsoStatus(rawStatus: string): AsoStatus {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
-  const unconfirmed = /\b(?:CONFIRMAR SE|A CONFIRMAR|(?:AGUARDANDO|SEM|PENDENTE DE) CONFIRMACAO)\b/.test(s);
+  const unconfirmed =
+    /\b(?:CONFIRMAR SE|A CONFIRMAR|(?:AGUARDANDO|SEM|PENDENTE DE) CONFIRMACAO)\b/.test(s);
   if (s.includes("?") || unconfirmed) return "STATUS NÃO RECONHECIDO";
   if (/\bNAO\s+FOI\s+(?:AGENDAD[OA]|REALIZAD[OA]|CONCLUID[OA]|FEIT[OA])\b/.test(s)) {
     return /^(?:EXAME )?(?:AINDA )?NAO\s+FOI\s+\w+[.!]?$/.test(s)
@@ -139,7 +140,11 @@ export function normalizeAsoStatus(rawStatus: string): AsoStatus {
     return "AG. RETORNO DO COLABORADOR";
   if (s.includes("AGENDADO")) return "AGENDADO";
   if (s.includes("NAO INICIADO") || s.includes("PENDENTE")) return "NÃO INICIADO";
-  if (/^(?:(?:EXAME|ASO) (?:FOI )?)?(?:FEITO|CONCLUIDO|REALIZADO)(?: EM \d{1,2}\/\d{1,2}(?:\/\d{2,4})?)?[.!]?$/.test(s))
+  if (
+    /^(?:(?:EXAME|ASO) (?:FOI )?)?(?:FEITO|CONCLUIDO|REALIZADO)(?: EM \d{1,2}\/\d{1,2}(?:\/\d{2,4})?)?[.!]?$/.test(
+      s
+    )
+  )
     return "EXAME FEITO";
   if ((s.includes("2") && s.includes("VIA")) || s.includes("SEGUNDA VIA")) return "2 VIA ASO";
   if (s.includes("SOC") || s.includes("CADASTRANDO")) return "CADASTRANDO NO SOC";

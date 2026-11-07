@@ -29,13 +29,17 @@ const historicalReplay = () =>
 // chunks only for matching row counts. New content-addressed IDs are outside this range.
 async function matchLegacyImport(hash: string, count: number, activeId: string | null) {
   const imports = root().collection("imports");
-  const candidates = await imports.where(FieldPath.documentId(), "<", "v2-").select("summary.uniqueRows", "hash").get();
+  const candidates = await imports
+    .where(FieldPath.documentId(), "<", "v2-")
+    .select("summary.uniqueRows", "hash")
+    .get();
   let historical = false;
   for (const doc of candidates.docs) {
     if (doc.get("summary.uniqueRows") !== count) continue;
     const chunks = await doc.ref.collection("chunks").get();
     const rows: SocExamResultRow[] = chunks.docs.flatMap((chunk) => chunk.get("rows"));
-    if (rows.length !== count) throw new AuthError("Lote histórico SOC incompleto. Confira a base antes de importar.", 409);
+    if (rows.length !== count)
+      throw new AuthError("Lote histórico SOC incompleto. Confira a base antes de importar.", 409);
     if (hashSocExamResults(rows) !== hash) continue;
     if (doc.id === activeId || doc.get("hash") === activeId) return "active";
     historical = true;

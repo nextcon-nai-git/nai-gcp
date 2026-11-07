@@ -89,7 +89,7 @@ beforeEach(() => {
   });
   m.snapshot.mockResolvedValue({
     revision: "source-1:0",
-    items: [{ cidade: "Fortaleza", uf: "CE", valorAso: "R$ 80,00" }],
+    items: [{ cidade: "Fortaleza", uf: "CE", valorAso: "R$ 40,00" }],
   });
   m.verified.mockReturnValue([verified]);
   m.collection.mockReturnValue({

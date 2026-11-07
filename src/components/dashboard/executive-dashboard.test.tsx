@@ -142,6 +142,7 @@ describe("executive metrics evidence", () => {
       quoted: 2,
       missingCost: 1,
       aboveTarget: 1,
+      atLeast40: 1,
       checkedAt: "2026-10-18T12:00:00Z",
       status: "ok",
       stale: true,

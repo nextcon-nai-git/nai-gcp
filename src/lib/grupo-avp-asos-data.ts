@@ -59,8 +59,9 @@ export const AVP_EDITABLE_FIELDS = [
 
 export function avpQueueEditFields(previous: GrupoAvpAso, updated: GrupoAvpAso) {
   return Object.fromEntries(
-    AVP_EDITABLE_FIELDS.filter((field) => String(previous[field] ?? "") !== String(updated[field] ?? ""))
-      .map((field) => [field, String(updated[field] ?? "")])
+    AVP_EDITABLE_FIELDS.filter(
+      (field) => String(previous[field] ?? "") !== String(updated[field] ?? "")
+    ).map((field) => [field, String(updated[field] ?? "")])
   );
 }
 

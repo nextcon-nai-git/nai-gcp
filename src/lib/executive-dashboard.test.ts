@@ -59,7 +59,7 @@ describe("Executive dashboard source calculations", () => {
     const result = summarizeAvp(
       [
         row("AGENDADO", "45"),
-        row("NÃO INICIADO", "30"),
+        row("NÃO INICIADO", "40"),
         row("EXAME FEITO", ""),
         row("GESTOR CANCELOU", "40 / 50"),
         row("STATUS NÃO RECONHECIDO", "", ""),
@@ -76,6 +76,7 @@ describe("Executive dashboard source calculations", () => {
       cancelled: 1,
       urgentWaiting: 2,
       aboveTarget: 1,
+      atLeast40: 2,
       missingCost: 3,
       unknownStatus: 1,
       invalidDates: 1,

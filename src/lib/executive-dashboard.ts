@@ -46,6 +46,7 @@ export type AvpSummary = {
   quoted: number;
   missingCost: number;
   aboveTarget: number;
+  atLeast40: number;
   checkedAt: string | null;
   status: string;
   stale: boolean;
@@ -221,6 +222,7 @@ export function summarizeAvp(
     quoted: costs.quoted,
     missingCost: costs.missing,
     aboveTarget: costs.aboveTarget,
+    atLeast40: costs.atLeast40,
     checkedAt,
     status,
     stale:

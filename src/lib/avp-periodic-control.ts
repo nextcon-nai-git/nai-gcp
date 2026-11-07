@@ -263,7 +263,8 @@ export function buildAvpPeriodicControl(
       rows.some(
         (r) => taxId(r[4]).length !== 11 || !r[22] || !normalizeAvpText(r[28]).startsWith("OK ")
       );
-    const classification = progress === "cancelled" ? "cancelled" : needsReview ? "review" : "listed";
+    const classification =
+      progress === "cancelled" ? "cancelled" : needsReview ? "review" : "listed";
     const sourceAppointments = new Map(
       rows
         .map((r) => ({ date: r[7], time: r[8], clinic: r[9], city: r[10], uf: r[11] }))
@@ -493,9 +494,7 @@ export function buildAvpPeriodicControl(
       })
       .filter((p) => p.clinical && p.cents !== null);
     city.minClinicalCents = clinical.length ? Math.min(...clinical.map((p) => p.cents!)) : null;
-    city.above40 = local.filter((c) =>
-      c.prices.some((p) => isAvpCostAtLeast40(p.cents))
-    ).length;
+    city.above40 = local.filter((c) => c.prices.some((p) => isAvpCostAtLeast40(p.cents))).length;
     city.action =
       city.contracted === 0
         ? local.length > 0
@@ -534,8 +533,7 @@ export function buildAvpPeriodicControl(
       clinics: importedClinicCount,
       historicalClinics: clinics.filter((c) => c.origin === "price-history").length,
       naiClinics: clinics.filter((c) => c.origin === "nai").length,
-      above40: clinics.filter((c) => c.prices.some((p) => isAvpCostAtLeast40(p.cents)))
-        .length,
+      above40: clinics.filter((c) => c.prices.some((p) => isAvpCostAtLeast40(p.cents))).length,
     },
   };
 }

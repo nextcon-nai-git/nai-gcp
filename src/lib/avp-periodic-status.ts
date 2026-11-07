@@ -29,12 +29,17 @@ export function periodicProgress(status: string, receivedDate = ""): PeriodicPro
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, " ")
     .trim();
-  const unconfirmed = /\b(?:A CONFIRMAR|CONFIRMAR SE|(?:AGUARDANDO|SEM|PENDENTE DE) CONFIRMACAO)\b/.test(value);
+  const unconfirmed =
+    /\b(?:A CONFIRMAR|CONFIRMAR SE|(?:AGUARDANDO|SEM|PENDENTE DE) CONFIRMACAO)\b/.test(value);
   if (status.includes("?") || unconfirmed) return "unknown";
   const cancelled =
     /^(?:(?:EXAME|ASO|AGENDAMENTO) )?CANCELAD[OA](?: N A| SEM AVISO| PELO GESTOR)?$/.test(value) ||
-    /^(?:(?:O |A )?COLABORADORA? )?(?:FALTOU|NAO COMPARECEU)(?: (?:AO|NO) EXAME| (?:A|NA) CONSULTA)?$/.test(value) ||
-    /^(?:FALTAS?(?: AUSENCIA| D[OA] COLABORADORA?)?|AUSENCIA|(?:COLABORADORA? )?AUSENTE|NAO COMPARECIMENTO)$/.test(value);
+    /^(?:(?:O |A )?COLABORADORA? )?(?:FALTOU|NAO COMPARECEU)(?: (?:AO|NO) EXAME| (?:A|NA) CONSULTA)?$/.test(
+      value
+    ) ||
+    /^(?:FALTAS?(?: AUSENCIA| D[OA] COLABORADORA?)?|AUSENCIA|(?:COLABORADORA? )?AUSENTE|NAO COMPARECIMENTO)$/.test(
+      value
+    );
   if (!cancelled && /\b(?:FALTAS?|FALTOU|AUSENCIA|AUSENTE|CANCELAD[OA])\b/.test(value))
     return "unknown";
   // A negative statement must never become evidence of completed progress.

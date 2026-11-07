@@ -17,11 +17,13 @@ const root = () => adminDb.collection("webhook_deliveries").doc("soc-exam-result
 const imports = () => root().collection("imports");
 const row = (code: string) => ({ EMPRESA: "1", NOMEEMPRESA: "Empresa sintética", CODEXAME: code });
 const send = (rows: ReturnType<typeof row>[]) =>
-  POST(new NextRequest("https://example.test/api/integrations/soc/results", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(rows),
-  }));
+  POST(
+    new NextRequest("https://example.test/api/integrations/soc/results", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(rows),
+    })
+  );
 
 beforeAll(async () => {
   env = await initializeTestEnvironment({
@@ -29,7 +31,9 @@ beforeAll(async () => {
     firestore: { rules: readFileSync("firestore.rules", "utf8") },
   });
 });
-beforeEach(async () => { await env.clearFirestore(); });
+beforeEach(async () => {
+  await env.clearFirestore();
+});
 afterAll(async () => {
   await env?.cleanup();
   await adminDb.terminate();
@@ -68,7 +72,10 @@ it("reconhece lotes antigos com UUID, ordem diferente e classificação clínica
   await ref.set(historical);
   await ref.collection("chunks").doc("0000").set({ index: 0, rows: legacyRows });
   await root().set(historical);
-  expect(await (await send([...first].reverse())).json()).toMatchObject({ imported: false, duplicate: true });
+  expect(await (await send([...first].reverse())).json()).toMatchObject({
+    imported: false,
+    duplicate: true,
+  });
   expect((await send([row("3")])).status).toBe(200);
   const newer = (await root().get()).data();
   expect((await send([...first].reverse())).status).toBe(409);

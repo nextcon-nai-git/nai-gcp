@@ -188,7 +188,12 @@ describe("controle da campanha periódica e rede AVP", () => {
     );
     const result = build(records);
     expect(result.cities[0]).toMatchObject({ total: 4, cancelled: 1, review: 3 });
-    expect(result.people.map((p) => p.progress)).toEqual(["cancelled", "unknown", "unknown", "unknown"]);
+    expect(result.people.map((p) => p.progress)).toEqual([
+      "cancelled",
+      "unknown",
+      "unknown",
+      "unknown",
+    ]);
   });
   it("não junta pessoas de admissões diferentes nem municípios de UFs diferentes", () => {
     const other = person("2");

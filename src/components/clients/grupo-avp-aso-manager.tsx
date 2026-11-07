@@ -52,7 +52,12 @@ import {
 import { useUser } from "@/firebase";
 import { useAvpQueue } from "@/hooks/use-avp-queue";
 import { buildAvpQueueCsv } from "@/lib/avp-queue-export";
-import { avpCostSummary, parseAvpQuoteCents, formatBrlCents, isAvpCostAtLeast40 } from "@/lib/avp-costs";
+import {
+  avpCostSummary,
+  parseAvpQuoteCents,
+  formatBrlCents,
+  isAvpCostAtLeast40,
+} from "@/lib/avp-costs";
 import { normalizeNavigationSearch } from "@/lib/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -1203,11 +1208,13 @@ export function GrupoAvpAsoManager({
                 <p className="text-amber-800">Status na fonte: {selectedAso.statusRaw}</p>
               )}
               {selectedAso.manualStatusRaw && (
-                <p className="text-amber-800">Status na importação manual: {selectedAso.manualStatusRaw}</p>
+                <p className="text-amber-800">
+                  Status na importação manual: {selectedAso.manualStatusRaw}
+                </p>
               )}
               {isAvpCostAtLeast40(parseAvpQuoteCents(selectedAso.valorAso)) && (
-                  <AvpClinicAlternatives cidade={selectedAso.cidade} uf={selectedAso.uf} />
-                )}
+                <AvpClinicAlternatives cidade={selectedAso.cidade} uf={selectedAso.uf} />
+              )}
               {/* BLOCO 2: CLÍNICA CREDENCIADA & FINANCEIRO */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
                 <h4 className="font-black text-primary uppercase text-[11px] flex items-center gap-1.5">

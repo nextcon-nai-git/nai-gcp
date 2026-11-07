@@ -85,7 +85,7 @@ function failureMessage(status: number, code: unknown) {
     return "Não foi possível validar sua sessão. Entre novamente para consultar as opções.";
   if (status === 403)
     return code === "CITY_NOT_ELIGIBLE"
-      ? "A busca automática atende cidades da fila AVP com custo acima de R$40."
+      ? "A busca automática atende cidades da fila AVP com custo de R$ 40 ou mais."
       : "Sua conta não tem autorização para consultar as opções da fila AVP.";
   if (status === 400) return "Informe cidade e UF válidas para consultar as opções.";
   if (status === 429)
@@ -212,7 +212,7 @@ export function AvpClinicAlternatives({ cidade, uf }: { cidade: string; uf: stri
         </button>
       </div>
       <p className="text-xs opacity-80">
-        Custo atual acima de R$40. Confirme preço, disponibilidade e credenciamento com cada
+        Custo atual de R$ 40 ou mais. Confirme preço, disponibilidade e credenciamento com cada
         clínica.
       </p>
       {current.loading && <p>Buscando até 3 clínicas…</p>}
