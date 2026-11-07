@@ -34,12 +34,7 @@ vi.mock("@/lib/firebase-admin", () => {
 
 const rootPath = "webhook_deliveries/soc-exam-results";
 
-function request(count = 1) {
-  const rows = Array.from({ length: count }, (_, i) => ({
-    EMPRESA: "1",
-    NOMEEMPRESA: "Empresa teste",
-    CODEXAME: String(i),
-  }));
+function request(rows: Record<string, string>[] = [{ EMPRESA: "1", NOMEEMPRESA: "Empresa teste" }]) {
   return new NextRequest("https://example.test/api/integrations/soc/results", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -56,7 +51,12 @@ describe("publicação dos resultados SOC", () => {
   });
 
   it("publica os blocos e os dois registros de metadados na mesma transação", async () => {
-    const response = await POST(request(101));
+    const rows = Array.from({ length: 101 }, (_, i) => ({
+      EMPRESA: "1",
+      NOMEEMPRESA: "Empresa teste",
+      CODEXAME: String(i),
+    }));
+    const response = await POST(request(rows));
     expect(response.status).toBe(200);
     expect(db.write).toHaveBeenCalledTimes(4);
     const writes = db.write.mock.calls;
@@ -71,6 +71,42 @@ describe("publicação dos resultados SOC", () => {
     expect(writes[0][1].rows).toHaveLength(100);
     expect(writes[1][1].rows).toHaveLength(1);
     expect(writes[2][1]).toEqual(metadata);
+  });
+
+  it("identifica a linha inválida antes de consultar ou gravar o lote", async () => {
+    const row = { EMPRESA: "1", NOMEEMPRESA: "Empresa teste" };
+    const response = await POST(request([row, { ...row, DATAEXAME: "31/02/2026" }]));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Registro 2: Data SOC inválida em DATAEXAME." });
+    expect(db.readActive).not.toHaveBeenCalled();
+    expect(db.write).not.toHaveBeenCalled();
+  });
+
+  it("devolve o resumo publicado sem repetir a transação ao reenviar o mesmo lote", async () => {
+    const row = { EMPRESA: "1", NOMEEMPRESA: "Empresa teste", CODEXAME: "250" };
+    const rows = [
+      { ...row, NOMEEXAME: "Avaliação Clínica Ocupacional" },
+      { ...row, NOMEEXAME: "FALTA / AUSÊNCIA" },
+    ];
+    const first = await POST(request(rows));
+    expect(first.status).toBe(200);
+    const result = await first.json();
+    expect(result.summary).toMatchObject({ uniqueRows: 2, realized: 1, absences: 1 });
+    const metadata = db.write.mock.calls.at(-1)![1];
+    db.readActive.mockResolvedValue({ data: () => metadata });
+    db.readInTransaction.mockClear();
+    db.write.mockClear();
+
+    const retry = await POST(request(rows));
+    expect(retry.status).toBe(200);
+    expect(await retry.json()).toEqual({
+      imported: false,
+      duplicate: true,
+      summary: result.summary,
+      importedAt: result.importedAt,
+    });
+    expect(db.readInTransaction).not.toHaveBeenCalled();
+    expect(db.write).not.toHaveBeenCalled();
   });
 
   it("responde 409 antes de gravar quando outro lote já foi publicado", async () => {
