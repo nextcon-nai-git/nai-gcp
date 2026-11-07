@@ -67,9 +67,9 @@ function normalizeRow(input: unknown): SocExamResultRow {
   if (row.EXAMEALTERADO && !/^[01]$/.test(row.EXAMEALTERADO))
     throw new Error("Indicador EXAMEALTERADO inválido.");
 
+  const examName = row.NOMEEXAME.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const absence =
-    /FALTA|AUS[ÊE]NCIA/i.test(row.NOMEEXAME) ||
-    (row.CODEXAME === "250" && !/CLINIC/i.test(row.NOMEEXAME));
+    /FALTA|AUSENCIA/i.test(examName) || (row.CODEXAME === "250" && !/CLINIC/i.test(examName));
   return { ...row, derivedStatus: absence ? "FALTA_AUSENCIA" : "REALIZADO" };
 }
 
