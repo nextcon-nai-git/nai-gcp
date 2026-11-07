@@ -3,12 +3,14 @@ import type { GrupoAvpAso } from "./grupo-avp-asos-data";
 /** A cotação deve representar um preço único. Texto com vários preços não vira média. */
 export function parseBrlCents(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined || value === "") return null;
-  if (typeof value === "number")
-    return Number.isFinite(value) && value >= 0 ? Math.round(value * 100) : null;
-  const raw = value
-    .trim()
-    .replace(/^R\$\s*/i, "")
-    .replace(/\s/g, "");
+  if (typeof value === "number") {
+    const cents = Math.round(value * 100);
+    return value >= 0 && Number.isSafeInteger(cents) ? cents : null;
+  }
+  const price = value.trim().replace(/^R\$\s*/i, "");
+  const raw = /^\d{1,3}(?:[ \u00a0\u202f]\d{3})+(?:,\d{1,2})?$/.test(price)
+    ? price.replace(/[ \u00a0\u202f]/g, "")
+    : price;
   if (!/^(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d{1,2})?$/.test(raw) && !/^\d+\.\d{1,2}$/.test(raw))
     return null;
   const normalized = raw.includes(",")
@@ -21,7 +23,9 @@ export function parseBrlCents(value: string | number | null | undefined): number
 }
 
 export function avpCostSummary(asos: GrupoAvpAso[], revenueCents = 4000) {
-  const costs = asos.map((a) => parseBrlCents(a.valorAso)).filter((v): v is number => v !== null);
+  const costs = asos
+    .map((a) => parseBrlCents(a.valorAso))
+    .filter((v): v is number => v !== null && v > 0);
   return {
     quoted: costs.length,
     missing: asos.length - costs.length,

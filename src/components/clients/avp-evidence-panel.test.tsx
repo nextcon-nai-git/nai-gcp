@@ -13,8 +13,8 @@ const payment = {
   id: "a".repeat(64),
   clinic: "Clínica teste",
   date: "2026-10-16",
-  amountCents: 12000,
-  unitCents: 6000,
+  amountCents: 8000,
+  unitCents: 4000,
   quantity: null,
   confirmation: "Comprovante",
   scope: "AVP",
@@ -49,10 +49,10 @@ it("loads all pages before computing totals and keeps unknown exam quantities se
   expect(mocks.fetch).toHaveBeenCalledTimes(2);
   expect(mocks.fetch.mock.calls[1][0]).toContain("?cursor=" + "a".repeat(64));
   const metric = Array.from(host.querySelectorAll("p")).find(
-    (p) => p.textContent === "Exames acima de R$ 40"
+    (p) => p.textContent === "Exames de R$ 40 ou mais"
   )!.parentElement!;
   expect(metric.querySelector("strong")?.textContent).toBe("2");
-  expect(metric.textContent).toContain("1 pagamentos acima de R$ 40 com quantidade desconhecida");
+  expect(metric.textContent).toContain("1 pagamentos de R$ 40 ou mais com quantidade desconhecida");
 });
 it("downloads an ASO with its indexed human-readable filename", async () => {
   const aso = {
