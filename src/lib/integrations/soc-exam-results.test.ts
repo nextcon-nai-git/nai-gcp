@@ -37,6 +37,44 @@ describe("SOC exam result import", () => {
     });
   });
 
+  it.each(["31/04/2026", "29/02/2026", "00/11/2026", "12/13/2026"])(
+    "rejects an impossible exam date: %s",
+    (date) => {
+      expect(() => parseSocExamResults([{ ...row, DATAEXAME: date }])).toThrow("DATAEXAME");
+    }
+  );
+
+  it("identifies the original row when a later record fails validation", () => {
+    expect(() => parseSocExamResults([row, row, { ...row, DATARESULTADO: "31/11/2026" }])).toThrow(
+      "Registro 3: Data SOC inválida em DATARESULTADO."
+    );
+  });
+
+  it("accepts leap days and missing optional dates", () => {
+    const { rows } = parseSocExamResults([{ ...row, DATAEXAME: "29/02/2024", DATARESULTADO: "" }]);
+    expect(rows[0].DATAEXAME).toBe("29/02/2024");
+    expect(rows[0].DATARESULTADO).toBe("");
+  });
+
+  it.each([
+    ["EXAME CLINICO", "REALIZADO"],
+    ["Avaliação Clínica Ocupacional", "REALIZADO"],
+    ["Avaliação Clínica Ocupacional".normalize("NFD"), "REALIZADO"],
+    ["AUSÊNCIA - EXAME CLÍNICO".normalize("NFD"), "FALTA_AUSENCIA"],
+  ])("classifies code 250 consistently for %s", (name, status) => {
+    const parsed = parseSocExamResults([{ ...row, CODEXAME: "250", NOMEEXAME: name }]);
+    expect(parsed.rows[0].derivedStatus).toBe(status);
+    expect(parsed.rows[0].NOMEEXAME).toBe(name);
+  });
+
+  it("keeps distinct records when imported values contain a field separator", () => {
+    const first = { ...row, CODEXAME: "A\u001fB", NOMEEXAME: "C" };
+    const second = { ...row, CODEXAME: "A", NOMEEXAME: "B\u001fC" };
+    const result = parseSocExamResults([first, second, first]);
+    expect(result.rows).toHaveLength(2);
+    expect(result.duplicates).toBe(1);
+  });
+
   it("preserves a performed exam and altered flag", () => {
     const parsed = parseSocExamResults([
       {
