@@ -50,6 +50,17 @@ describe("SOC exam result import", () => {
     expect(rows[0].DATARESULTADO).toBe("");
   });
 
+  it.each([
+    ["EXAME CLINICO", "REALIZADO"],
+    ["Avaliação Clínica Ocupacional", "REALIZADO"],
+    ["Avaliação Clínica Ocupacional".normalize("NFD"), "REALIZADO"],
+    ["AUSÊNCIA - EXAME CLÍNICO".normalize("NFD"), "FALTA_AUSENCIA"],
+  ])("classifies code 250 consistently for %s", (name, status) => {
+    const parsed = parseSocExamResults([{ ...row, CODEXAME: "250", NOMEEXAME: name }]);
+    expect(parsed.rows[0].derivedStatus).toBe(status);
+    expect(parsed.rows[0].NOMEEXAME).toBe(name);
+  });
+
   it("preserves a performed exam and altered flag", () => {
     const parsed = parseSocExamResults([
       {
