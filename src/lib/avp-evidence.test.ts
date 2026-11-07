@@ -25,6 +25,8 @@ export const paymentFixture = {
 };
 describe("AVP evidence integrity", () => {
   it.each([
+    [0, "unknown"],
+    [1, "green"],
     [3999, "green"],
     [4000, "yellow"],
     [4999, "yellow"],

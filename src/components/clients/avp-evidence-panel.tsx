@@ -255,7 +255,7 @@ function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
         return false;
       if (r.kind === "payment") {
         const cents = basis === "unit" ? r.unitCents : r.amountCents;
-        if (above && (cents == null || cents <= 4000)) return false;
+        if (above && (cents == null || cents < 4000)) return false;
         if (band !== "all" && avpCostBand(cents) !== band) return false;
       }
       return true;
@@ -312,20 +312,20 @@ function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
               </strong>
             </div>
             <div className="rounded-xl bg-purple-50 p-4">
-              <p>Exames acima de R$ 40</p>
+              <p>Exames de R$ 40 ou mais</p>
               <strong className="text-2xl">
                 {confirmed
-                  .filter((r) => r.unitCents != null && r.unitCents > 4000)
+                  .filter((r) => r.unitCents != null && r.unitCents >= 4000)
                   .reduce((s, r) => s + (r.quantity ?? 0), 0)}
               </strong>
               <p className="text-xs">
                 Somente quantidades confirmadas.{" "}
                 {
                   confirmed.filter(
-                    (r) => r.unitCents != null && r.unitCents > 4000 && r.quantity == null
+                    (r) => r.unitCents != null && r.unitCents >= 4000 && r.quantity == null
                   ).length
                 }{" "}
-                pagamentos acima de R$ 40 com quantidade desconhecida.
+                pagamentos de R$ 40 ou mais com quantidade desconhecida.
               </p>
             </div>
           </div>
@@ -379,7 +379,7 @@ function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
             </select>
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={above} onChange={(e) => setAbove(e.target.checked)} />
-              Somente acima de R$ 40
+              Somente valores de R$ 40 ou mais
             </label>
             <Button variant="outline" onClick={exportCsv}>
               Exportar pagamentos

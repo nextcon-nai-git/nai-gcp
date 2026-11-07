@@ -55,6 +55,19 @@ describe("AVP Sheet Sync & Importer Suite", () => {
       expect(normalizeAsoStatus("pendente")).toBe("NÃO INICIADO");
     });
 
+    it.each([
+      ["Não foi agendado", "NÃO INICIADO"],
+      ["Exame ainda não foi realizado", "NÃO INICIADO"],
+      ["Não foi concluído", "NÃO INICIADO"],
+      ["Exame não foi feito", "NÃO INICIADO"],
+      ["Agendado?", "STATUS NÃO RECONHECIDO"],
+      ["Confirmar se exame foi realizado", "STATUS NÃO RECONHECIDO"],
+      ["Agendado a confirmar", "STATUS NÃO RECONHECIDO"],
+      ["Não foi agendado, conferir com a clínica", "STATUS NÃO RECONHECIDO"],
+    ])("preserva a incerteza da planilha em %s", (raw, status) => {
+      expect(normalizeAsoStatus(raw)).toBe(status);
+    });
+
     it("reconhece variações de EXAME FEITO", () => {
       expect(normalizeAsoStatus("Exame Feito")).toBe("EXAME FEITO");
       expect(normalizeAsoStatus("Concluído")).toBe("EXAME FEITO");
@@ -193,6 +206,23 @@ describe("AVP Sheet Sync & Importer Suite", () => {
       // O segundo item permanece inalterado
       const secondItem = result.mergedAsos.find((a) => a.id === "avp_mock_2");
       expect(secondItem?.status).toBe("NÃO INICIADO");
+    });
+
+    it("conserva a anotação da fonte ao criar, revisar e reimportar uma pendência", () => {
+      const row = { Nº: "99", COLABORADOR: "Pessoa sintética", STATUS: "Agendado?" };
+      const created = mergeSpreadsheetData([], [row]);
+      expect(created.mergedAsos[0]).toMatchObject({
+        status: "STATUS NÃO RECONHECIDO",
+        statusRaw: "Agendado?",
+      });
+      const changed = { ...row, STATUS: "Confirmar se exame foi realizado" };
+      const revised = mergeSpreadsheetData(created.mergedAsos, [changed]);
+      expect(revised.updatedCount).toBe(1);
+      expect(revised.mergedAsos[0].statusRaw).toBe(changed.STATUS);
+      expect(mergeSpreadsheetData(revised.mergedAsos, [changed]).updatedCount).toBe(0);
+      expect(mergeSpreadsheetData(revised.mergedAsos, [{ Nº: "99" }]).mergedAsos[0].statusRaw).toBe(
+        changed.STATUS
+      );
     });
 
     it("adiciona novo colaborador quando não existe na fila", () => {
