@@ -13,9 +13,13 @@ export function periodicProgress(status: string, receivedDate = ""): PeriodicPro
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, " ")
     .trim();
-  const cancelled = /CANCELAD|FALTOU|\bFALTAS?\b|NAO COMPARECEU/.test(value);
+  const noShow = /\bNAO COMPARECEU\b/g;
+  const cancelled =
+    /CANCELAD|\bFALTOU\b|\bNAO COMPARECEU\b/.test(value) ||
+    /^(?:FALTAS?|FALTA (?:DO COLABORADOR|DA COLABORADORA))$/.test(value);
+  if (!cancelled && /\bFALTAS?\b/.test(value)) return "unknown";
   // A negative statement must never become evidence of completed progress.
-  if (/\b(?:NAO|SEM|NUNCA)\b/.test(value) && !cancelled) {
+  if (/\b(?:NAO|SEM|NUNCA)\b/.test(value.replace(noShow, ""))) {
     if (/^NAO (?:INICIAD[OA]|AGENDAD[OA])$/.test(value) && !receivedDate.trim()) return "pending";
     return "unknown";
   }
