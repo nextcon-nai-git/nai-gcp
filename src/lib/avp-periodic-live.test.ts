@@ -118,6 +118,8 @@ describe("quatro cores dos periódicos", () => {
     ["Faltou", "cancelled"],
     ["Faltas", "cancelled"],
     ["Falta do colaborador", "cancelled"],
+    ["Falta / ausência", "cancelled"],
+    ["Cancelado sem aviso", "cancelled"],
     ["Não faltou", "unknown"],
     ["Não cancelado", "unknown"],
     ["Sem faltas", "unknown"],
