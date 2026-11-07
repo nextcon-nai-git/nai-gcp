@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { FieldPath, type DocumentData } from "firebase-admin/firestore";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { AuthError } from "@/lib/auth/errors";
@@ -6,6 +6,7 @@ import { adminDb } from "@/lib/firebase-admin";
 import { requireSocAccess } from "@/lib/integrations/soc";
 import {
   SOC_EXAM_RESULTS_MAX_BYTES,
+  type SocExamResultRow,
   hashSocExamResults,
   parseSocExamResults,
   summarizeSocExamResults,
@@ -20,6 +21,27 @@ const reply = (body: unknown, status = 200) =>
     status,
     headers: { "Cache-Control": "private, no-store", Vary: "Authorization" },
   });
+
+const historicalReplay = () =>
+  new AuthError("Este lote já consta no histórico SOC. A base ativa foi preservada.", 409);
+
+// Older imports used UUIDs and an order-dependent hash. Read their immutable
+// chunks only for matching row counts. New content-addressed IDs are outside this range.
+async function matchLegacyImport(hash: string, count: number, activeId: string | null) {
+  const imports = root().collection("imports");
+  const candidates = await imports.where(FieldPath.documentId(), "<", "v2-").select("summary.uniqueRows", "hash").get();
+  let historical = false;
+  for (const doc of candidates.docs) {
+    if (doc.get("summary.uniqueRows") !== count) continue;
+    const chunks = await doc.ref.collection("chunks").get();
+    const rows: SocExamResultRow[] = chunks.docs.flatMap((chunk) => chunk.get("rows"));
+    if (rows.length !== count) throw new AuthError("Lote histórico SOC incompleto. Confira a base antes de importar.", 409);
+    if (hashSocExamResults(rows) !== hash) continue;
+    if (doc.id === activeId || doc.get("hash") === activeId) return "active";
+    historical = true;
+  }
+  return historical ? "historical" : null;
+}
 
 async function readLimitedJson(req: NextRequest) {
   if (!req.headers.get("content-type")?.startsWith("application/json"))
@@ -87,19 +109,24 @@ export async function POST(req: NextRequest) {
     }
 
     const hash = hashSocExamResults(parsed.rows);
-    const active = await root().get();
-    const activeData = active.data();
-    if (activeData?.hash === hash)
-      return reply({
-        imported: false,
-        duplicate: true,
-        summary: activeData?.summary,
-        importedAt: activeData?.importedAt,
-      });
+    const resultsRef = root();
+    const importId = `v2-${hash}`;
+    const importRef = resultsRef.collection("imports").doc(importId);
+    const activeData = (await resultsRef.get()).data();
     const expectedImport = activeData?.importId || activeData?.hash || null;
+    const duplicate = (data: DocumentData) => ({
+      imported: false,
+      duplicate: true,
+      summary: data.summary,
+      importedAt: data.importedAt,
+    });
+    if (activeData?.importId === importId) return reply(duplicate(activeData));
+    const legacy = await matchLegacyImport(hash, parsed.rows.length, expectedImport);
+    if (legacy === "active" && activeData) return reply(duplicate(activeData));
+    if (legacy === "historical") throw historicalReplay();
 
     const metadata = {
-      importId: randomUUID(),
+      importId,
       hash,
       importedAt: new Date().toISOString(),
       importedBy: user.uid,
@@ -108,17 +135,17 @@ export async function POST(req: NextRequest) {
       summary: summarizeSocExamResults(parsed.rows, parsed.sourceRows, parsed.duplicates),
     };
 
-    const resultsRef = root();
-    const importRef = resultsRef.collection("imports").doc(metadata.importId);
-    await adminDb.runTransaction(async (transaction) => {
+    const result = await adminDb.runTransaction(async (transaction) => {
       const latest = await transaction.get(resultsRef);
       const current = latest.data();
+      if (current?.importId === importId) return duplicate(current);
       if ((current?.importId || current?.hash || null) !== expectedImport)
         throw new AuthError(
           "Outra importação foi publicada durante o envio. Recarregue e confira a base antes de tentar novamente.",
           409
         );
 
+      if ((await transaction.get(importRef)).exists) throw historicalReplay();
       for (let i = 0; i < parsed.rows.length; i += 100) {
         const index = i / 100;
         const chunk = importRef.collection("chunks").doc(String(index).padStart(4, "0"));
@@ -126,9 +153,10 @@ export async function POST(req: NextRequest) {
       }
       transaction.set(importRef, metadata);
       transaction.set(resultsRef, metadata);
+      return { imported: true, summary: metadata.summary, importedAt: metadata.importedAt };
     });
 
-    return reply({ imported: true, summary: metadata.summary, importedAt: metadata.importedAt });
+    return reply(result);
   } catch (e) {
     if (e instanceof AuthError) return reply({ error: e.message }, e.status);
     return reply({ error: "Não foi possível importar os resultados SOC." }, 500);

@@ -164,6 +164,7 @@ describe("Custos, prazos e mapa", () => {
       quoted: 2,
       missing: 2,
       aboveTarget: 1,
+      atLeast40: 2,
       grossMarginCents: -1,
     });
   });

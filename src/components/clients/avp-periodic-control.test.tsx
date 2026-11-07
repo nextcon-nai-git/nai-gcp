@@ -121,7 +121,7 @@ describe("painel de periódicos AVP", () => {
     expect(host.textContent).toContain("Pessoa autorizada");
     expect(host.textContent).toContain("Não iniciado");
   });
-  it("filtra estritamente acima de 40 e mantém a ressalva de preço histórico", async () => {
+  it("inclui o valor exato de 40 e mantém a ressalva de preço histórico", async () => {
     await render();
     await click("Clínicas e valores");
     expect(host.textContent).toContain("Clínica barata");
@@ -133,7 +133,7 @@ describe("painel de periódicos AVP", () => {
       select.value = "above40";
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
-    expect(host.textContent).not.toContain("Clínica barata");
+    expect(host.textContent).toContain("Clínica barata");
     expect(host.textContent).toContain("Clínica cara");
     expect(host.textContent).toContain("confirme o preço específico do periódico");
   });

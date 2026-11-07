@@ -22,13 +22,23 @@ export function parseBrlCents(value: string | number | null | undefined): number
   return Number.isSafeInteger(cents) && cents >= 0 ? cents : null;
 }
 
+export function isAvpCostAtLeast40(cents: number | null | undefined) {
+  return cents != null && cents >= 4000;
+}
+
+export function parseAvpQuoteCents(value: string | number | null | undefined) {
+  const cents = parseBrlCents(value);
+  return cents !== null && cents > 0 ? cents : null;
+}
+
 export function avpCostSummary(asos: GrupoAvpAso[], revenueCents = 4000) {
   const costs = asos
-    .map((a) => parseBrlCents(a.valorAso))
-    .filter((v): v is number => v !== null && v > 0);
+    .map((a) => parseAvpQuoteCents(a.valorAso))
+    .filter((v): v is number => v !== null);
   return {
     quoted: costs.length,
     missing: asos.length - costs.length,
+    atLeast40: costs.filter(isAvpCostAtLeast40).length,
     aboveTarget: costs.filter((v) => v > revenueCents).length,
     totalCostCents: costs.reduce((sum, v) => sum + v, 0),
     grossMarginCents: costs.reduce((sum, v) => sum + revenueCents - v, 0),

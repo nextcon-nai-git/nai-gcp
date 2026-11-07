@@ -38,6 +38,32 @@ export const AVP_STATUSES: AsoStatus[] = [
   "STATUS NÃO RECONHECIDO",
 ];
 
+export const AVP_EDITABLE_FIELDS = [
+  "urgencia",
+  "status",
+  "manualStatusRaw",
+  "responsavel",
+  "dataAgendada",
+  "tipoSolicitacao",
+  "nomeClinica",
+  "telefoneClinica",
+  "emailClinica",
+  "valorAso",
+  "cnpjClinica",
+  "chavePix",
+  "pixRealizado",
+  "enderecoClinica",
+  "oQueFazer",
+  "observacoes",
+] as const;
+
+export function avpQueueEditFields(previous: GrupoAvpAso, updated: GrupoAvpAso) {
+  return Object.fromEntries(
+    AVP_EDITABLE_FIELDS.filter((field) => String(previous[field] ?? "") !== String(updated[field] ?? ""))
+      .map((field) => [field, String(updated[field] ?? "")])
+  );
+}
+
 export interface GrupoAvpAso {
   id: string;
   numero: string;
@@ -55,6 +81,7 @@ export interface GrupoAvpAso {
   oQueFazer: string;
   observacoes?: string;
   statusRaw?: string;
+  manualStatusRaw?: string;
   sourceRow?: number;
   status: AsoStatus;
   responsavel: string;

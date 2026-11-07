@@ -13,7 +13,7 @@ import {
   type AvpPayment,
   type AvpAsoEvidence,
 } from "@/lib/avp-evidence";
-import { formatBrlCents } from "@/lib/avp-costs";
+import { formatBrlCents, isAvpCostAtLeast40 } from "@/lib/avp-costs";
 import { z } from "zod/v3";
 
 type Stored = AvpEvidence & { uploaded?: boolean };
@@ -255,7 +255,7 @@ function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
         return false;
       if (r.kind === "payment") {
         const cents = basis === "unit" ? r.unitCents : r.amountCents;
-        if (above && (cents == null || cents < 4000)) return false;
+        if (above && !isAvpCostAtLeast40(cents)) return false;
         if (band !== "all" && avpCostBand(cents) !== band) return false;
       }
       return true;
@@ -315,14 +315,14 @@ function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
               <p>Exames de R$ 40 ou mais</p>
               <strong className="text-2xl">
                 {confirmed
-                  .filter((r) => r.unitCents != null && r.unitCents >= 4000)
+                  .filter((r) => isAvpCostAtLeast40(r.unitCents))
                   .reduce((s, r) => s + (r.quantity ?? 0), 0)}
               </strong>
               <p className="text-xs">
                 Somente quantidades confirmadas.{" "}
                 {
                   confirmed.filter(
-                    (r) => r.unitCents != null && r.unitCents >= 4000 && r.quantity == null
+                    (r) => isAvpCostAtLeast40(r.unitCents) && r.quantity == null
                   ).length
                 }{" "}
                 pagamentos de R$ 40 ou mais com quantidade desconhecida.

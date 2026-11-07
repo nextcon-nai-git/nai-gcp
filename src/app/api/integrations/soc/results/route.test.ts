@@ -21,7 +21,10 @@ vi.mock("@/lib/firebase-admin", () => {
     };
   }
   function collection(path: string) {
-    return { doc: (id: string) => reference(path + "/" + id) };
+    return {
+      doc: (id: string) => reference(path + "/" + id),
+      where: () => ({ select: () => ({ get: async () => ({ docs: [] }) }) }),
+    };
   }
   return {
     adminDb: {

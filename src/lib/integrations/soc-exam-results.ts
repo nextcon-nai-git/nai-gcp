@@ -128,5 +128,7 @@ export function summarizeSocExamResults(
 }
 
 export function hashSocExamResults(rows: SocExamResultRow[]) {
-  return createHash("sha256").update(JSON.stringify(rows)).digest("hex");
+  // Source fields identify a result even when row order or classification changes.
+  const keys = rows.map(canonical).sort();
+  return createHash("sha256").update(JSON.stringify(keys)).digest("hex");
 }

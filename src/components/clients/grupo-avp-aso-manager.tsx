@@ -52,7 +52,7 @@ import {
 import { useUser } from "@/firebase";
 import { useAvpQueue } from "@/hooks/use-avp-queue";
 import { buildAvpQueueCsv } from "@/lib/avp-queue-export";
-import { avpCostSummary, parseBrlCents, formatBrlCents } from "@/lib/avp-costs";
+import { avpCostSummary, parseAvpQuoteCents, formatBrlCents, isAvpCostAtLeast40 } from "@/lib/avp-costs";
 import { normalizeNavigationSearch } from "@/lib/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -217,8 +217,8 @@ export function GrupoAvpAsoManager({
   // Filtragem
   const filteredList = React.useMemo(() => {
     return asosList.filter((item) => {
-      const cost = parseBrlCents(item.valorAso);
-      if (costFilter === "ABOVE_40" && (cost === null || cost <= 4000)) return false;
+      const cost = parseAvpQuoteCents(item.valorAso);
+      if (costFilter === "ABOVE_40" && !isAvpCostAtLeast40(cost)) return false;
       if (costFilter === "MISSING" && cost !== null) return false;
       // Busca textual
       if (searchTerm.trim()) {
@@ -476,7 +476,7 @@ export function GrupoAvpAsoManager({
           size="sm"
           onClick={() => setCostFilter(costFilter === "ABOVE_40" ? "ALL" : "ABOVE_40")}
         >
-          Acima de R$40: {costSummary.aboveTarget}
+          R$ 40 ou mais: {costSummary.atLeast40}
         </Button>
         <Button
           variant={costFilter === "MISSING" ? "default" : "outline"}
@@ -1199,11 +1199,13 @@ export function GrupoAvpAsoManager({
                   <p className="mt-1 whitespace-pre-wrap">{selectedAso.observacoes}</p>
                 </div>
               )}
-              {selectedAso.status === "STATUS NÃO RECONHECIDO" && (
+              {(selectedAso.status === "STATUS NÃO RECONHECIDO" || selectedAso.manualStatusRaw) && (
                 <p className="text-amber-800">Status na fonte: {selectedAso.statusRaw}</p>
               )}
-              {parseBrlCents(selectedAso.valorAso) !== null &&
-                parseBrlCents(selectedAso.valorAso)! > 4000 && (
+              {selectedAso.manualStatusRaw && (
+                <p className="text-amber-800">Status na importação manual: {selectedAso.manualStatusRaw}</p>
+              )}
+              {isAvpCostAtLeast40(parseAvpQuoteCents(selectedAso.valorAso)) && (
                   <AvpClinicAlternatives cidade={selectedAso.cidade} uf={selectedAso.uf} />
                 )}
               {/* BLOCO 2: CLÍNICA CREDENCIADA & FINANCEIRO */}

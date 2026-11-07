@@ -29,18 +29,14 @@ export function periodicProgress(status: string, receivedDate = ""): PeriodicPro
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, " ")
     .trim();
-  const unconfirmed = /\b(?:A CONFIRMAR|CONFIRMAR SE|AGUARDANDO CONFIRMACAO)\b/.test(value);
+  const unconfirmed = /\b(?:A CONFIRMAR|CONFIRMAR SE|(?:AGUARDANDO|SEM|PENDENTE DE) CONFIRMACAO)\b/.test(value);
   if (status.includes("?") || unconfirmed) return "unknown";
-  const negatedAbsence =
-    /\b(?:NAO|NUNCA|SEM) (?:FOI |HOUVE |TER )?(?:CANCEL\w*|FALTOU|FALTAS?)\b/.test(value);
-  const missingDocument =
-    /\bFALTAS? (?:DE |DO |DA |O |A )?(?:RECEBER|ENVIAR|ASSINAR|ASSINATURA|ASO|DOCUMENT\w*|KIT|PDF|CNPJ)\b/.test(
-      value
-    );
-  if (negatedAbsence || missingDocument) return "unknown";
   const cancelled =
-    /CANCELAD|FALTOU|\bFALTAS?\b|NAO COMPARECEU/.test(value) ||
-    /^(?:AUSENCIA|AUSENTE|COLABORADORA? AUSENTE|NAO COMPARECIMENTO)$/.test(value);
+    /^(?:(?:EXAME|ASO|AGENDAMENTO) )?CANCELAD[OA](?: N A| SEM AVISO| PELO GESTOR)?$/.test(value) ||
+    /^(?:(?:O |A )?COLABORADORA? )?(?:FALTOU|NAO COMPARECEU)(?: (?:AO|NO) EXAME| (?:A|NA) CONSULTA)?$/.test(value) ||
+    /^(?:FALTAS?(?: AUSENCIA| D[OA] COLABORADORA?)?|AUSENCIA|(?:COLABORADORA? )?AUSENTE|NAO COMPARECIMENTO)$/.test(value);
+  if (!cancelled && /\b(?:FALTAS?|FALTOU|AUSENCIA|AUSENTE|CANCELAD[OA])\b/.test(value))
+    return "unknown";
   // A negative statement must never become evidence of completed progress.
   if (/\b(?:NAO|SEM|NUNCA)\b/.test(value) && !cancelled) {
     if (/^NAO (?:INICIAD[OA]|AGENDAD[OA])$/.test(value) && !receivedDate.trim()) return "pending";
