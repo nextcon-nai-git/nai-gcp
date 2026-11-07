@@ -208,6 +208,23 @@ describe("AVP Sheet Sync & Importer Suite", () => {
       expect(secondItem?.status).toBe("NÃO INICIADO");
     });
 
+    it("conserva a anotação da fonte ao criar, revisar e reimportar uma pendência", () => {
+      const row = { Nº: "99", COLABORADOR: "Pessoa sintética", STATUS: "Agendado?" };
+      const created = mergeSpreadsheetData([], [row]);
+      expect(created.mergedAsos[0]).toMatchObject({
+        status: "STATUS NÃO RECONHECIDO",
+        statusRaw: "Agendado?",
+      });
+      const changed = { ...row, STATUS: "Confirmar se exame foi realizado" };
+      const revised = mergeSpreadsheetData(created.mergedAsos, [changed]);
+      expect(revised.updatedCount).toBe(1);
+      expect(revised.mergedAsos[0].statusRaw).toBe(changed.STATUS);
+      expect(mergeSpreadsheetData(revised.mergedAsos, [changed]).updatedCount).toBe(0);
+      expect(mergeSpreadsheetData(revised.mergedAsos, [{ Nº: "99" }]).mergedAsos[0].statusRaw).toBe(
+        changed.STATUS
+      );
+    });
+
     it("adiciona novo colaborador quando não existe na fila", () => {
       const incoming = [
         {
