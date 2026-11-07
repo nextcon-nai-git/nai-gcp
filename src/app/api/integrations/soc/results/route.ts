@@ -108,38 +108,25 @@ export async function POST(req: NextRequest) {
       summary: summarizeSocExamResults(parsed.rows, parsed.sourceRows, parsed.duplicates),
     };
 
-    const batch = adminDb.batch();
-    for (let i = 0; i < parsed.rows.length; i += 100) {
-      batch.set(
-        root()
-          .collection("imports")
-          .doc(metadata.importId)
-          .collection("chunks")
-          .doc(String(i / 100).padStart(4, "0")),
-        { index: i / 100, rows: parsed.rows.slice(i, i + 100) }
-      );
-    }
-    batch.set(root().collection("imports").doc(metadata.importId), metadata);
-    await batch.commit();
+    const resultsRef = root();
+    const importRef = resultsRef.collection("imports").doc(metadata.importId);
+    await adminDb.runTransaction(async (transaction) => {
+      const latest = await transaction.get(resultsRef);
+      const current = latest.data();
+      if ((current?.importId || current?.hash || null) !== expectedImport)
+        throw new AuthError(
+          "Outra importação foi publicada durante o envio. Recarregue e confira a base antes de tentar novamente.",
+          409
+        );
 
-    try {
-      await adminDb.runTransaction(async (transaction) => {
-        const latest = await transaction.get(root());
-        const current = latest.data();
-        if ((current?.importId || current?.hash || null) !== expectedImport)
-          throw new AuthError(
-            "Outra importação foi publicada durante o envio. Recarregue e confira a base antes de tentar novamente.",
-            409
-          );
-        transaction.set(root(), metadata);
-      });
-    } catch (e) {
-      // Evita deixar lotes órfãos quando a publicação falha.
-      await adminDb
-        .recursiveDelete(root().collection("imports").doc(metadata.importId))
-        .catch(() => {});
-      throw e;
-    }
+      for (let i = 0; i < parsed.rows.length; i += 100) {
+        const index = i / 100;
+        const chunk = importRef.collection("chunks").doc(String(index).padStart(4, "0"));
+        transaction.set(chunk, { index, rows: parsed.rows.slice(i, i + 100) });
+      }
+      transaction.set(importRef, metadata);
+      transaction.set(resultsRef, metadata);
+    });
 
     return reply({ imported: true, summary: metadata.summary, importedAt: metadata.importedAt });
   } catch (e) {
