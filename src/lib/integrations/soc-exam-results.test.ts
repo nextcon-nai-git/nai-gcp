@@ -44,6 +44,12 @@ describe("SOC exam result import", () => {
     }
   );
 
+  it("identifies the original row when a later record fails validation", () => {
+    expect(() => parseSocExamResults([row, row, { ...row, DATARESULTADO: "31/11/2026" }])).toThrow(
+      "Registro 3: Data SOC inválida em DATARESULTADO."
+    );
+  });
+
   it("accepts leap days and missing optional dates", () => {
     const { rows } = parseSocExamResults([{ ...row, DATAEXAME: "29/02/2024", DATARESULTADO: "" }]);
     expect(rows[0].DATAEXAME).toBe("29/02/2024");
