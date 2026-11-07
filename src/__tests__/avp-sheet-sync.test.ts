@@ -55,6 +55,19 @@ describe("AVP Sheet Sync & Importer Suite", () => {
       expect(normalizeAsoStatus("pendente")).toBe("NÃO INICIADO");
     });
 
+    it.each([
+      ["Não foi agendado", "NÃO INICIADO"],
+      ["Exame ainda não foi realizado", "NÃO INICIADO"],
+      ["Não foi concluído", "NÃO INICIADO"],
+      ["Exame não foi feito", "NÃO INICIADO"],
+      ["Agendado?", "STATUS NÃO RECONHECIDO"],
+      ["Confirmar se exame foi realizado", "STATUS NÃO RECONHECIDO"],
+      ["Agendado a confirmar", "STATUS NÃO RECONHECIDO"],
+      ["Não foi agendado, conferir com a clínica", "STATUS NÃO RECONHECIDO"],
+    ])("preserva a incerteza da planilha em %s", (raw, status) => {
+      expect(normalizeAsoStatus(raw)).toBe(status);
+    });
+
     it("reconhece variações de EXAME FEITO", () => {
       expect(normalizeAsoStatus("Exame Feito")).toBe("EXAME FEITO");
       expect(normalizeAsoStatus("Concluído")).toBe("EXAME FEITO");
