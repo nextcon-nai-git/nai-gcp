@@ -25,7 +25,15 @@ export type SocExamResultRow = Record<(typeof SOC_EXAM_RESULT_FIELDS)[number], s
   derivedStatus: "REALIZADO" | "FALTA_AUSENCIA";
 };
 
-const datePattern = /^(?:|\d{2}\/\d{2}\/\d{4})$/;
+function isValidSocDate(value: string) {
+  if (!value) return true;
+  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return false;
+  const [day, month, year] = value.split("/").map(Number);
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  return year > 0 && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
 const codePattern = /^.{0,80}$/;
 const shortPattern = /^.{0,500}$/;
 
@@ -53,7 +61,7 @@ function normalizeRow(input: unknown): SocExamResultRow {
   if (!row.NOMEEMPRESA || !shortPattern.test(row.NOMEEMPRESA))
     throw new Error("Empresa SOC ausente ou inválida.");
   for (const field of ["DATAFICHA", "DATARESULTADO", "DATAEXAME"] as const)
-    if (!datePattern.test(row[field])) throw new Error(`Data SOC inválida em ${field}.`);
+    if (!isValidSocDate(row[field])) throw new Error(`Data SOC inválida em ${field}.`);
   if (!codePattern.test(row.CODEXAME) || !codePattern.test(row.CODIGOPRESTADOR))
     throw new Error("Código SOC acima do limite.");
   if (row.EXAMEALTERADO && !/^[01]$/.test(row.EXAMEALTERADO))
