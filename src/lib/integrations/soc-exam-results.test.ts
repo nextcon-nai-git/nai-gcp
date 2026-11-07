@@ -37,6 +37,19 @@ describe("SOC exam result import", () => {
     });
   });
 
+  it.each(["31/04/2026", "29/02/2026", "00/11/2026", "12/13/2026"])(
+    "rejects an impossible exam date: %s",
+    (date) => {
+      expect(() => parseSocExamResults([{ ...row, DATAEXAME: date }])).toThrow("DATAEXAME");
+    }
+  );
+
+  it("accepts leap days and missing optional dates", () => {
+    const { rows } = parseSocExamResults([{ ...row, DATAEXAME: "29/02/2024", DATARESULTADO: "" }]);
+    expect(rows[0].DATAEXAME).toBe("29/02/2024");
+    expect(rows[0].DATARESULTADO).toBe("");
+  });
+
   it("preserves a performed exam and altered flag", () => {
     const parsed = parseSocExamResults([
       {
