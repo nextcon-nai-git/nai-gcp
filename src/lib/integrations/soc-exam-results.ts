@@ -74,7 +74,7 @@ function normalizeRow(input: unknown): SocExamResultRow {
 }
 
 function canonical(row: SocExamResultRow) {
-  return SOC_EXAM_RESULT_FIELDS.map((field) => row[field]).join("\u001f");
+  return JSON.stringify(SOC_EXAM_RESULT_FIELDS.map((field) => row[field]));
 }
 
 export function parseSocExamResults(input: unknown) {
