@@ -144,6 +144,11 @@ describe("Custos, prazos e mapa", () => {
     ["0,00", 0],
     ["45 / 50", null],
     ["35 a 45", null],
+    ["30 40", null],
+    ["R$ 30,00 40,00", null],
+    ["R$ 30,00", 3000],
+    ["1 234,56", 123456],
+    [Number.MAX_VALUE, null],
     ["Não informado", null],
     ["-10", null],
     ["", null],
@@ -151,10 +156,13 @@ describe("Custos, prazos e mapa", () => {
     expect(parseBrlCents(value)).toBe(expected)
   );
   it("distingue igual ao alvo, acima e custo desconhecido", () => {
-    const items = ["40", "40,01", ""].map((valorAso) => ({ ...AVP_TEST_ASOS[0], valorAso }));
+    const items = ["40", "40,01", "", "0,00"].map((valorAso) => ({
+      ...AVP_TEST_ASOS[0],
+      valorAso,
+    }));
     expect(avpCostSummary(items)).toMatchObject({
       quoted: 2,
-      missing: 1,
+      missing: 2,
       aboveTarget: 1,
       grossMarginCents: -1,
     });
