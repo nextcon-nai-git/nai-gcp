@@ -83,7 +83,14 @@ export function parseSocExamResults(input: unknown) {
   if (input.length > SOC_EXAM_RESULTS_MAX_ROWS)
     throw new Error(`O lote excede ${SOC_EXAM_RESULTS_MAX_ROWS} registros.`);
 
-  const normalized = input.map(normalizeRow);
+  const normalized = input.map((item, index) => {
+    try {
+      return normalizeRow(item);
+    } catch (error) {
+      if (!(error instanceof Error)) throw error;
+      throw new Error(`Registro ${index + 1}: ${error.message}`);
+    }
+  });
   const seen = new Set<string>();
   const rows: SocExamResultRow[] = [];
   for (const row of normalized) {
