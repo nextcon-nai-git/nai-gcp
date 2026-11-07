@@ -67,6 +67,14 @@ describe("SOC exam result import", () => {
     expect(parsed.rows[0].NOMEEXAME).toBe(name);
   });
 
+  it("keeps distinct records when imported values contain a field separator", () => {
+    const first = { ...row, CODEXAME: "A\u001fB", NOMEEXAME: "C" };
+    const second = { ...row, CODEXAME: "A", NOMEEXAME: "B\u001fC" };
+    const result = parseSocExamResults([first, second, first]);
+    expect(result.rows).toHaveLength(2);
+    expect(result.duplicates).toBe(1);
+  });
+
   it("preserves a performed exam and altered flag", () => {
     const parsed = parseSocExamResults([
       {
