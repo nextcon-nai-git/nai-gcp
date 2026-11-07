@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { GRUPO_AVP_ASO_LIST, type GrupoAvpAso } from "@/lib/grupo-avp-asos-data";
+import {
+  avpQueueEditFields,
+  GRUPO_AVP_ASO_LIST,
+  type GrupoAvpAso,
+} from "@/lib/grupo-avp-asos-data";
 import { useUser } from "@/firebase";
 import { AVP_SOURCE } from "@/lib/avp-source-config";
 import { avpElapsedDays } from "@/lib/avp-costs";
@@ -199,23 +203,6 @@ export function useAvpQueue(userId: string | null) {
       const existing = current.current.owner === userId ? current.current.items : readQueue(userId);
       const items = typeof update === "function" ? update(existing) : update;
       if (revision.current && user?.uid === userId) {
-        const allowed = [
-          "urgencia",
-          "status",
-          "responsavel",
-          "dataAgendada",
-          "tipoSolicitacao",
-          "nomeClinica",
-          "telefoneClinica",
-          "emailClinica",
-          "valorAso",
-          "cnpjClinica",
-          "chavePix",
-          "pixRealizado",
-          "enderecoClinica",
-          "oQueFazer",
-          "observacoes",
-        ] as const;
         const source = new Map(existing.map((item) => [item.id, item]));
         const identities = [
           "numero",
@@ -245,14 +232,7 @@ export function useAvpQueue(userId: string | null) {
         const changes = items
           .map((item) => ({
             id: item.id,
-            fields: Object.fromEntries(
-              allowed
-                .filter(
-                  (field) =>
-                    String(item[field] ?? "") !== String(source.get(item.id)?.[field] ?? "")
-                )
-                .map((field) => [field, String(item[field] ?? "")])
-            ),
+            fields: avpQueueEditFields(source.get(item.id)!, item),
           }))
           .filter((item) => Object.keys(item.fields).length);
         if (changes.length > 100) {

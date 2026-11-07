@@ -498,8 +498,8 @@ export function ExecutiveDashboardView() {
                   <p className="mt-1 text-xs text-slate-500">urgentes em tratamento</p>
                 </div>
                 <div>
-                  <p className="text-lg font-semibold text-slate-700">{number(avp.aboveTarget)}</p>
-                  <p className="mt-1 text-xs text-slate-500">cotações acima de R$ 40</p>
+                  <p className="text-lg font-semibold text-slate-700">{number(avp.atLeast40)}</p>
+                  <p className="mt-1 text-xs text-slate-500">cotações de R$ 40 ou mais</p>
                 </div>
               </div>
               <p className="mt-4 text-[11px] leading-5 text-slate-400">

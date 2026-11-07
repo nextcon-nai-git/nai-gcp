@@ -117,6 +117,26 @@ describe("quatro cores dos periódicos", () => {
     ["Cancelado / N/A", "cancelled"],
     ["Faltou", "cancelled"],
     ["Faltas", "cancelled"],
+    ["Falta do colaborador", "cancelled"],
+    ["Falta / ausência", "cancelled"],
+    ["Ausência", "cancelled"],
+    ["Colaboradora ausente", "cancelled"],
+    ["Ausência de CNPJ", "unknown"],
+    ["Falta de CPF", "unknown"],
+    ["Falta de data de nascimento", "unknown"],
+    ["Faltou informar o CNPJ", "unknown"],
+    ["Aguardando confirmação de exame realizado", "unknown"],
+    ["ASO recebido?", "unknown"],
+    ["Agendado a confirmar", "unknown"],
+    ["Confirmar se ASO recebido", "unknown"],
+    ["Agendado e confirmado", "scheduled"],
+    ["Cancelado sem aviso", "cancelled"],
+    ["Não faltou", "unknown"],
+    ["Não cancelado", "unknown"],
+    ["Sem faltas", "unknown"],
+    ["Falta receber o ASO", "unknown"],
+    ["Falta de documentação", "unknown"],
+    ["ASO recebido - falta assinatura", "unknown"],
     ["Não compareceu", "cancelled"],
     ["Aguardando ASO", "scheduled"],
     ["Situação nova", "unknown"],
@@ -126,6 +146,10 @@ describe("quatro cores dos periódicos", () => {
   it("considera data de recebimento e sinaliza contradição com cancelamento", () => {
     expect(periodicProgress("Agendado", "30/10/2026")).toBe("received");
     expect(periodicProgress("Cancelado", "30/10/2026")).toBe("unknown");
+    expect(periodicProgress("Agendado", "31/02/2026")).toBe("unknown");
+    expect(periodicProgress("Agendado", "2026-13-02")).toBe("unknown");
+    expect(periodicProgress("Agendado", "29/02/24")).toBe("received");
+    expect(periodicProgress("Agendado", "2024-02-29")).toBe("received");
     expect(periodicProgress("Agendado", "Não recebido")).toBe("scheduled");
   });
 });

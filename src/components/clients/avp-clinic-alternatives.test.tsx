@@ -95,7 +95,7 @@ describe("opções de clínicas sem sucesso ou evidência inventados", () => {
   });
   it.each([
     { status: 400, code: "INVALID_INPUT", expected: "cidade e UF válidas" },
-    { status: 403, code: "CITY_NOT_ELIGIBLE", expected: "custo acima de R$40" },
+    { status: 403, code: "CITY_NOT_ELIGIBLE", expected: "custo de R$ 40 ou mais" },
     { status: 503, code: "AUTH_UNAVAILABLE", expected: "validação de acesso" },
     { status: 503, code: "SNAPSHOT_UNAVAILABLE", expected: "conferir a fila AVP" },
     { status: 503, code: "BUDGET_UNAVAILABLE", expected: "conferir o limite diário" },

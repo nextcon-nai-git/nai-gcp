@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { beforeAll, beforeEach, afterAll, describe, it, expect, vi } from "vitest";
 import { initializeTestEnvironment, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
+import { mergeSpreadsheetData } from "@/lib/avp-sheet-importer";
+import { avpQueueEditFields } from "@/lib/grupo-avp-asos-data";
 import { AVP_SOURCE_HEADERS } from "@/lib/avp-source-config";
 
 const source = vi.hoisted(() => ({ values: [] as unknown[][], fail: false, reads: 0 }));
@@ -117,6 +119,30 @@ describe("Sincronização AVP com persistência real no emulador", () => {
     expect(audit.docs[0].data().changes).toEqual([
       { id: before.items[0].id, fields: ["valorAso"] },
     ]);
+  });
+  it("recarrega a anotação importada e mantém a evidência original da planilha", async () => {
+    source.values[1][AVP_SOURCE_HEADERS.indexOf("STATUS")] = "Agendado?";
+    await syncAvpSource(true);
+    const before = await getAvpSnapshot();
+    const input = [{ Nº: "1", STATUS: "Confirmar se exame foi realizado" }];
+    const [updated] = mergeSpreadsheetData(before.items, input).mergedAsos;
+    const fields = avpQueueEditFields(before.items[0], updated);
+    expect(fields).toEqual({ manualStatusRaw: input[0].STATUS });
+    await patchAvpQueue(before.revision, [{ id: updated.id, fields }], "operator");
+    const refreshed = await getAvpSnapshot();
+    expect(refreshed.items[0]).toMatchObject({
+      statusRaw: "Agendado?",
+      manualStatusRaw: input[0].STATUS,
+      status: "STATUS NÃO RECONHECIDO",
+    });
+    expect(mergeSpreadsheetData(refreshed.items, input).updatedCount).toBe(0);
+    await expect(
+      patchAvpQueue(
+        refreshed.revision,
+        [{ id: updated.id, fields: { statusRaw: "inventado" } }],
+        "operator"
+      )
+    ).rejects.toThrow();
   });
   it("sinaliza conflito quando a fonte e a edição mudam o mesmo campo", async () => {
     await syncAvpSource(true);

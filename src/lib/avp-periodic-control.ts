@@ -1,4 +1,4 @@
-import { parseBrlCents } from "./avp-costs";
+import { parseAvpQuoteCents, isAvpCostAtLeast40 } from "./avp-costs";
 import { periodicProgress, type PeriodicProgress } from "./avp-periodic-status";
 import type { AvpMapClinic } from "./avp-map-clinics";
 
@@ -255,13 +255,16 @@ export function buildAvpPeriodicControl(
   }
   const people: PeriodicPerson[] = [...grouped.values()].map((rows) => {
     const row = rows[0];
-    const cancelled = rows.some((r) => normalizeAvpText(r[6]).startsWith("CANCELADO"));
+    const statuses = new Set(rows.map((r) => periodicProgress(r[6], r[14])));
+    const progress = statuses.size === 1 ? [...statuses][0] : "unknown";
     const needsReview =
+      progress === "unknown" ||
       rows.length > 1 ||
       rows.some(
         (r) => taxId(r[4]).length !== 11 || !r[22] || !normalizeAvpText(r[28]).startsWith("OK ")
       );
-    const classification = cancelled ? "cancelled" : needsReview ? "review" : "listed";
+    const classification =
+      progress === "cancelled" ? "cancelled" : needsReview ? "review" : "listed";
     const sourceAppointments = new Map(
       rows
         .map((r) => ({ date: r[7], time: r[8], clinic: r[9], city: r[10], uf: r[11] }))
@@ -276,10 +279,7 @@ export function buildAvpPeriodicControl(
       cityKey: periodicCityKey(row[1], row[2]),
       unit: row[19],
       status: rows.length > 1 ? [...new Set(rows.map((r) => r[6]))].join(" / ") : row[6],
-      progress: (() => {
-        const statuses = new Set(rows.map((r) => periodicProgress(r[6], r[14])));
-        return statuses.size === 1 ? [...statuses][0] : "unknown";
-      })(),
+      progress,
       asoReceivedAt: [...new Set(rows.map((r) => r[14]).filter(Boolean))].join(" / "),
       review: [...new Set(rows.map((r) => r[28]).filter(Boolean))].join(" / "),
       phone: row[5],
@@ -442,7 +442,7 @@ export function buildAvpPeriodicControl(
       clinic: row[0],
       city: location?.[1] || "",
       uf: location?.[2] || "",
-      cents: parseBrlCents(row[2]),
+      cents: parseAvpQuoteCents(row[2]),
       service: row[3],
       evidence: row[4],
       date: row[5],
@@ -494,9 +494,7 @@ export function buildAvpPeriodicControl(
       })
       .filter((p) => p.clinical && p.cents !== null);
     city.minClinicalCents = clinical.length ? Math.min(...clinical.map((p) => p.cents!)) : null;
-    city.above40 = local.filter((c) =>
-      c.prices.some((p) => p.cents !== null && p.cents > 4000)
-    ).length;
+    city.above40 = local.filter((c) => c.prices.some((p) => isAvpCostAtLeast40(p.cents))).length;
     city.action =
       city.contracted === 0
         ? local.length > 0
@@ -507,7 +505,7 @@ export function buildAvpPeriodicControl(
           : city.minClinicalCents > 4000
             ? "Buscar opção de ASO até R$ 40"
             : city.above40 > 0
-              ? "Comparar serviços acima de R$ 40"
+              ? "Comparar serviços de R$ 40 ou mais"
               : "Confirmar agenda e preço do periódico";
   }
   const cities = [...cityMap.values()].sort(
@@ -535,8 +533,7 @@ export function buildAvpPeriodicControl(
       clinics: importedClinicCount,
       historicalClinics: clinics.filter((c) => c.origin === "price-history").length,
       naiClinics: clinics.filter((c) => c.origin === "nai").length,
-      above40: clinics.filter((c) => c.prices.some((p) => p.cents !== null && p.cents > 4000))
-        .length,
+      above40: clinics.filter((c) => c.prices.some((p) => isAvpCostAtLeast40(p.cents))).length,
     },
   };
 }

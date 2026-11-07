@@ -112,13 +112,13 @@ describe("PPE recorded evidence", () => {
     await v.render(<Page />);
     expect(m.query).toHaveBeenLastCalledWith(null);
   });
-  it("requires explicit global permission for a cross-company query", async () => {
+  it("never runs a cross-company query, even with global permission", async () => {
     m.scope = "all";
     await v.render(<Page />);
     expect(m.query).toHaveBeenLastCalledWith(null);
     m.all = true;
     await v.render(<Page />);
-    expect(m.query).toHaveBeenLastCalledWith(["ppe_deliveries", ["deliveredAt", "desc"]]);
+    expect(m.query).toHaveBeenLastCalledWith(null);
   });
   it("shows read failures instead of presenting a confirmed empty ledger", async () => {
     m.error = Error("denied");

@@ -16,7 +16,7 @@ export const AVP_COST_BANDS = {
   },
 } as const;
 export function avpCostBand(cents: number | null | undefined): keyof typeof AVP_COST_BANDS {
-  if (cents == null || !Number.isSafeInteger(cents) || cents < 0) return "unknown";
+  if (cents == null || !Number.isSafeInteger(cents) || cents <= 0) return "unknown";
   if (cents < 4000) return "green";
   if (cents < 5000) return "yellow";
   if (cents <= 7000) return "red";

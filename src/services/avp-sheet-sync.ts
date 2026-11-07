@@ -5,26 +5,10 @@ import { adminDb } from "@/lib/firebase-admin";
 import { AVP_SOURCE } from "@/lib/avp-source-config";
 import { parseAvpSourceValues } from "@/lib/avp-source-parser";
 import type { GrupoAvpAso } from "@/lib/grupo-avp-asos-data";
-import { AVP_STATUSES } from "@/lib/grupo-avp-asos-data";
+import { AVP_STATUSES, AVP_EDITABLE_FIELDS } from "@/lib/grupo-avp-asos-data";
 
 const metaRef = () => adminDb.collection("integrations").doc("grupo-avp");
-const editable = new Set([
-  "urgencia",
-  "status",
-  "responsavel",
-  "dataAgendada",
-  "tipoSolicitacao",
-  "nomeClinica",
-  "telefoneClinica",
-  "emailClinica",
-  "valorAso",
-  "cnpjClinica",
-  "chavePix",
-  "pixRealizado",
-  "enderecoClinica",
-  "oQueFazer",
-  "observacoes",
-]);
+const editable = new Set<string>(AVP_EDITABLE_FIELDS);
 type EditFields = Record<string, string>;
 type Override = {
   fields: EditFields;

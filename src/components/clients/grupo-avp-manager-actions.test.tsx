@@ -122,6 +122,8 @@ async function title(text: string) {
 const table = () => v.container.querySelector("tbody")!.textContent;
 describe("AVP queue action review", () => {
   it("reports full metrics and filters high or unknown unit costs", async () => {
+    m.rows[0].valorAso = "40,00";
+    m.rows[2].valorAso = "0,00";
     await render();
     expect(m.summary).toHaveBeenLastCalledWith({
       total: 3,
@@ -129,11 +131,11 @@ describe("AVP queue action review", () => {
       cidades: 2,
       concluidos: 1,
     });
-    await v.click("Acima de R$40");
+    await v.click("R$ 40 ou mais: 1");
     expect(table()).toContain("Pessoa Ágata");
     expect(table()).not.toContain("Pessoa Beta");
-    await v.click("Acima de R$40");
-    await v.click("Sem preço único");
+    await v.click("R$ 40 ou mais: 1");
+    await v.click("Sem preço único: 1");
     expect(table()).toContain("Pessoa Gama");
     expect(table()).not.toContain("Pessoa Ágata");
   });

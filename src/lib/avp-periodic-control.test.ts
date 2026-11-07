@@ -178,6 +178,23 @@ describe("controle da campanha periódica e rede AVP", () => {
     const d = build([cancelled, review, person("3", "00000000003")]);
     expect(d.summary).toMatchObject({ cancelled: 1, review: 1, listed: 1 });
   });
+  it("conta só a ausência explícita como falta na cidade", () => {
+    const records = ["Faltou", "Falta de CPF", "Faltou informar o CNPJ", "Cancelado?"].map(
+      (status, i) => {
+        const row = person(String(i + 1), String(i + 1).padStart(11, "0"));
+        row[6] = status;
+        return row;
+      }
+    );
+    const result = build(records);
+    expect(result.cities[0]).toMatchObject({ total: 4, cancelled: 1, review: 3 });
+    expect(result.people.map((p) => p.progress)).toEqual([
+      "cancelled",
+      "unknown",
+      "unknown",
+      "unknown",
+    ]);
+  });
   it("não junta pessoas de admissões diferentes nem municípios de UFs diferentes", () => {
     const other = person("2");
     other[22] = "01/01/2021";
@@ -205,7 +222,7 @@ describe("controle da campanha periódica e rede AVP", () => {
     expect(d.clinics[0].contractConflict).toBe(true);
     expect(d.cities[0].contracted).toBe(0);
   });
-  it("separa pacote, preços ausentes e limite estritamente acima de R$40", () => {
+  it("separa pacote, preços ausentes e limite inclusivo de R$40", () => {
     const d = build(
       [person()],
       [provider()],
@@ -220,7 +237,8 @@ describe("controle da campanha periódica e rede AVP", () => {
     expect(d.cities[0].minClinicalCents).toBe(4000);
     expect(d.clinics[0].prices[2]).toMatchObject({ cents: 18000, clinical: false });
     expect(d.clinics[0].prices[3].cents).toBeNull();
-    expect(build([person()], [provider()], [price("40")]).summary.above40).toBe(0);
+    expect(build([person()], [provider()], [price("40")]).summary.above40).toBe(1);
+    expect(build([person()], [provider()], [price("39,99")]).summary.above40).toBe(0);
   });
   it("conserva clínicas do histórico sem lhes atribuir contrato ou tarifa de outro município", () => {
     const d = build(

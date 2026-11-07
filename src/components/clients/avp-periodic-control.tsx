@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { AVP_SOURCE } from "@/lib/avp-source-config";
-import { formatBrlCents } from "@/lib/avp-costs";
+import { formatBrlCents, isAvpCostAtLeast40 } from "@/lib/avp-costs";
 import type { AvpPeriodicControl, AvpObservedPrice } from "@/lib/avp-periodic-control";
 import { ClinicContractDialog } from "./clinic-contract-dialog";
 import { AvpPeriodicWork } from "./avp-periodic-work";
@@ -143,7 +143,7 @@ export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => v
     (c) =>
       (!city || c.cityKey === city) &&
       matches(`${c.name} ${c.cnpj} ${c.city} ${c.uf}`) &&
-      (priceFilter !== "above40" || c.prices.some((p) => p.cents !== null && p.cents > 4000)) &&
+      (priceFilter !== "above40" || c.prices.some((p) => isAvpCostAtLeast40(p.cents))) &&
       (priceFilter !== "missing" || !c.prices.some((p) => p.clinical && p.cents !== null))
   );
   const people = (data?.people || []).filter(
@@ -171,7 +171,7 @@ export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => v
         "Sem ressalva na fonte",
         "Clínicas com contrato informado",
         "Menor ASO observado R$",
-        "Clínicas com algum serviço acima de R$40",
+        "Clínicas com algum serviço de R$ 40 ou mais",
         "Próxima ação",
       ],
       ...cities.map((c) => [
@@ -281,7 +281,7 @@ export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => v
               ["Validar convocação", data.summary.review],
               ["Cancelados na fonte", data.summary.cancelled],
               ["Cidades sem contrato informado", data.summary.uncovered],
-              ["Clínicas com serviço > R$40", data.summary.above40],
+              ["Clínicas com serviço de R$ 40 ou mais", data.summary.above40],
             ].map(([label, value]) => (
               <Card className="p-4" key={label}>
                 <p className="text-xs text-muted-foreground">{label}</p>
@@ -494,7 +494,7 @@ export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => v
                   <option value="all">Toda a cobertura</option>
                   <option value="missing">Precisa credenciar</option>
                   <option value="covered">Tem contrato informado</option>
-                  <option value="expensive">Algum serviço acima de R$40</option>
+                  <option value="expensive">Algum serviço de R$ 40 ou mais</option>
                 </select>
                 <Button variant="outline" onClick={exportCities}>
                   Exportar cobertura CSV
@@ -554,7 +554,7 @@ export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => v
                             : formatBrlCents(c.minClinicalCents)}
                           <br />
                           <span className="text-xs text-muted-foreground">
-                            {c.above40} clínica(s) com serviço &gt; R$40
+                            {c.above40} clínica(s) com serviço de R$ 40 ou mais
                           </span>
                         </td>
                         <td className={cellClass}>{c.action}</td>
@@ -574,7 +574,7 @@ export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => v
                 onChange={(e) => setPriceFilter(e.target.value)}
               >
                 <option value="all">Todos os valores</option>
-                <option value="above40">Algum serviço acima de R$40</option>
+                <option value="above40">Algum serviço de R$ 40 ou mais</option>
                 <option value="missing">Sem preço de ASO clínico</option>
               </select>
               <p className="text-xs text-muted-foreground">
@@ -667,7 +667,7 @@ export function AvpPeriodicControlPanel({ onOpenCosts }: { onOpenCosts?: () => v
                     .filter(
                       (p) =>
                         matches(`${p.clinic} ${p.city} ${p.cnpj}`) &&
-                        (priceFilter !== "above40" || (p.cents !== null && p.cents > 4000))
+                        (priceFilter !== "above40" || isAvpCostAtLeast40(p.cents))
                     )
                     .map((p, i) => (
                       <div className="mt-3" key={`${p.reference}-${i}`}>

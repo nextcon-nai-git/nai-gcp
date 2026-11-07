@@ -122,6 +122,14 @@ export function normalizeAsoStatus(rawStatus: string): AsoStatus {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
+  const unconfirmed =
+    /\b(?:CONFIRMAR SE|A CONFIRMAR|(?:AGUARDANDO|SEM|PENDENTE DE) CONFIRMACAO)\b/.test(s);
+  if (s.includes("?") || unconfirmed) return "STATUS NÃO RECONHECIDO";
+  if (/\bNAO\s+FOI\s+(?:AGENDAD[OA]|REALIZAD[OA]|CONCLUID[OA]|FEIT[OA])\b/.test(s)) {
+    return /^(?:EXAME )?(?:AINDA )?NAO\s+FOI\s+\w+[.!]?$/.test(s)
+      ? "NÃO INICIADO"
+      : "STATUS NÃO RECONHECIDO";
+  }
   if (/NAO (?:AGENDADO|REALIZADO|CONCLUIDO)|EXAME NAO (?:FEITO|REALIZADO)/.test(s))
     return "NÃO INICIADO";
   if (s.includes("ESPERANDO CNPJ") || s.includes("AGUARDANDO CNPJ"))
@@ -132,7 +140,11 @@ export function normalizeAsoStatus(rawStatus: string): AsoStatus {
     return "AG. RETORNO DO COLABORADOR";
   if (s.includes("AGENDADO")) return "AGENDADO";
   if (s.includes("NAO INICIADO") || s.includes("PENDENTE")) return "NÃO INICIADO";
-  if (s.includes("EXAME FEITO") || s.includes("CONCLUIDO") || s.includes("REALIZADO"))
+  if (
+    /^(?:(?:EXAME|ASO) (?:FOI )?)?(?:FEITO|CONCLUIDO|REALIZADO)(?: EM \d{1,2}\/\d{1,2}(?:\/\d{2,4})?)?[.!]?$/.test(
+      s
+    )
+  )
     return "EXAME FEITO";
   if ((s.includes("2") && s.includes("VIA")) || s.includes("SEGUNDA VIA")) return "2 VIA ASO";
   if (s.includes("SOC") || s.includes("CADASTRANDO")) return "CADASTRANDO NO SOC";
@@ -247,6 +259,7 @@ export function mapRowToAso(rowObj: Record<string, any>, _index: number): Partia
           explicitUf = candidate;
       } else if (targetProp === "status") {
         aso.status = normalizeAsoStatus(strVal);
+        aso.statusRaw = strVal;
       } else if (targetProp === "urgencia") {
         aso.urgencia = strVal.toUpperCase().includes("URGENT")
           ? "URGENTE"
@@ -406,11 +419,17 @@ export function mergeSpreadsheetData(
 
         // Objeto em mergedMap
         const target = mergedMap.get(existing.id)!;
+        if (parsed.statusRaw && target.sourceRow !== undefined) {
+          parsed.manualStatusRaw = parsed.statusRaw;
+          delete parsed.statusRaw;
+        }
         let hasChanges = false;
 
         // Compara campos e registra diffs
         const checkFields: (keyof GrupoAvpAso)[] = [
           "status",
+          "statusRaw",
+          "manualStatusRaw",
           "urgencia",
           "dataAgendada",
           "responsavel",
@@ -501,6 +520,7 @@ export function mergeSpreadsheetData(
           oQueFazer: parsed.oQueFazer || "",
           observacoes: parsed.observacoes || "",
           status: (parsed.status as AsoStatus) || "NÃO INICIADO",
+          statusRaw: parsed.statusRaw || "",
           responsavel: parsed.responsavel || "NÃO ATRIBUÍDO",
           dataAgendada: parsed.dataAgendada || "",
           dataAgendadaIso: "",
