@@ -44,9 +44,7 @@ export function periodicProgress(status: string, receivedDate = ""): PeriodicPro
   }
   const receiptDate = receiptDateStatus(receivedDate);
   if (receiptDate === "invalid") return "unknown";
-  const received =
-    /ASOS? RECEBID|RECEBID[OA]S? ASOS?/.test(value) ||
-    receiptDate === "valid";
+  const received = /ASOS? RECEBID|RECEBID[OA]S? ASOS?/.test(value) || receiptDate === "valid";
   if (cancelled && received) return "unknown";
   if (cancelled) return "cancelled";
   if (received) return "received";
