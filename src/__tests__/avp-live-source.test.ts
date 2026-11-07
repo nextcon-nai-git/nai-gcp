@@ -156,7 +156,10 @@ describe("Custos, prazos e mapa", () => {
     expect(parseBrlCents(value)).toBe(expected)
   );
   it("distingue igual ao alvo, acima e custo desconhecido", () => {
-    const items = ["40", "40,01", "", "0,00"].map((valorAso) => ({ ...AVP_TEST_ASOS[0], valorAso }));
+    const items = ["40", "40,01", "", "0,00"].map((valorAso) => ({
+      ...AVP_TEST_ASOS[0],
+      valorAso,
+    }));
     expect(avpCostSummary(items)).toMatchObject({
       quoted: 2,
       missing: 2,
