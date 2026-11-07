@@ -254,6 +254,7 @@ export function mapRowToAso(rowObj: Record<string, any>, _index: number): Partia
           explicitUf = candidate;
       } else if (targetProp === "status") {
         aso.status = normalizeAsoStatus(strVal);
+        aso.statusRaw = strVal;
       } else if (targetProp === "urgencia") {
         aso.urgencia = strVal.toUpperCase().includes("URGENT")
           ? "URGENTE"
@@ -413,11 +414,13 @@ export function mergeSpreadsheetData(
 
         // Objeto em mergedMap
         const target = mergedMap.get(existing.id)!;
+        const previousStatusText = target.statusRaw || target.status;
         let hasChanges = false;
 
         // Compara campos e registra diffs
         const checkFields: (keyof GrupoAvpAso)[] = [
           "status",
+          "statusRaw",
           "urgencia",
           "dataAgendada",
           "responsavel",
@@ -443,7 +446,7 @@ export function mergeSpreadsheetData(
 
         checkFields.forEach((field) => {
           const newVal = parsed[field];
-          const oldVal = target[field];
+          const oldVal = field === "statusRaw" ? previousStatusText : target[field];
           if (
             field === "uf" &&
             newVal === "BR" &&
@@ -508,6 +511,7 @@ export function mergeSpreadsheetData(
           oQueFazer: parsed.oQueFazer || "",
           observacoes: parsed.observacoes || "",
           status: (parsed.status as AsoStatus) || "NÃO INICIADO",
+          statusRaw: parsed.statusRaw || "",
           responsavel: parsed.responsavel || "NÃO ATRIBUÍDO",
           dataAgendada: parsed.dataAgendada || "",
           dataAgendadaIso: "",
