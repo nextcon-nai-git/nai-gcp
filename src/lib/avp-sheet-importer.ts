@@ -122,7 +122,8 @@ export function normalizeAsoStatus(rawStatus: string): AsoStatus {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
-  if (s.includes("?") || /\b(?:CONFIRMAR SE|A CONFIRMAR)\b/.test(s)) return "STATUS NÃO RECONHECIDO";
+  const unconfirmed = /\b(?:CONFIRMAR SE|A CONFIRMAR)\b/.test(s);
+  if (s.includes("?") || unconfirmed) return "STATUS NÃO RECONHECIDO";
   if (/\bNAO\s+FOI\s+(?:AGENDAD[OA]|REALIZAD[OA]|CONCLUID[OA]|FEIT[OA])\b/.test(s)) {
     return /^(?:EXAME )?(?:AINDA )?NAO\s+FOI\s+\w+[.!]?$/.test(s)
       ? "NÃO INICIADO"
