@@ -138,7 +138,7 @@ describe("consultas do assistente", () => {
     expect(m.scope).toHaveBeenCalledTimes(1);
   });
   it("mantém atendimentos RD pendentes sem escopo empresarial aprovado", async () => {
-    m.scope.mockResolvedValue(doc("client", undefined));
+    m.scope.mockResolvedValue({ data: () => undefined });
     const answer = await readWorkSources(user, "client", {
       ...selection,
       source: "rd_atendimentos",
