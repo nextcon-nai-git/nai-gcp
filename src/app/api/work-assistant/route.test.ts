@@ -15,6 +15,7 @@ const m = vi.hoisted(() => ({
   set: vi.fn(),
   records: vi.fn(),
   prepare: vi.fn(),
+  readSources: vi.fn(),
 }));
 vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: m.auth }));
 vi.mock("@/lib/firebase-admin", () => ({
@@ -25,6 +26,7 @@ vi.mock("@/services/work-assistant-openai", () => ({
   workAssistantConfigured: m.configured,
 }));
 vi.mock("@/services/operational-kits", () => ({ prepareKitBatch: m.prepare }));
+vi.mock("@/services/work-source-read", () => ({ readWorkSources: m.readSources }));
 import { GET, POST } from "./route";
 const id = "11111111-1111-4111-8111-111111111111";
 const action = {
@@ -237,5 +239,27 @@ describe("work assistant authorization and confirmation", () => {
     expect(r.status).toBe(503);
     expect(m.ask).not.toHaveBeenCalled();
     expect(r.headers.get("cache-control")).toBe("private, no-store");
+  });
+});
+
+describe("consultas autenticadas das fontes", () => {
+  const query = { source: "omie", start: "2026-11-02", end: "2026-11-08" };
+  it("consulta sem configuração de IA e não grava proposta", async () => {
+    m.configured.mockReturnValue(false);
+    m.readSources.mockResolvedValue("Resultado privado");
+    const r = await POST(request({ action: "read_sources", companyId: "ONE", query }));
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ answer: "Resultado privado", sourceQuery: query });
+    expect(m.ask).not.toHaveBeenCalled();
+    expect(m.create).not.toHaveBeenCalled();
+  });
+  it("oculta resultados se a permissão expirar durante a leitura", async () => {
+    m.readSources.mockImplementation(async () => {
+      m.auth.mockRejectedValue(new AuthError("Acesso revogado", 403));
+      return "Resultado privado";
+    });
+    const r = await POST(request({ action: "read_sources", companyId: "ONE", query }));
+    expect(r.status).toBe(403);
+    expect(await r.text()).not.toContain("Resultado privado");
   });
 });

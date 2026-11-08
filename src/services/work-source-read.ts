@@ -1,0 +1,370 @@
+import "server-only";
+import { z } from "zod/v3";
+import type { AuthContext } from "@/lib/auth/auth-context";
+import { AuthError } from "@/lib/auth/errors";
+import { requirePgrCompany } from "@/lib/auth/require-pgr-access";
+import { requireFinancialAccess } from "@/lib/auth/financial-access";
+import {
+  dateRange,
+  items,
+  object,
+  requireTallosAccess,
+  tallosRequest,
+} from "@/lib/integrations/tallos-api";
+import { requireSocAccess, socRead } from "@/lib/integrations/soc";
+import { adminDb } from "@/lib/firebase-admin";
+import { isValidCnpj, normalizeCnpj } from "@/lib/cnpj";
+import { fromOmieDate, isCalendarDate } from "@/lib/financial/omie-dre";
+import { omieConnectorSession } from "@/services/omie-financial";
+import { WorkSourceQuery, type WorkSourceSelection, workDay } from "@/lib/work-source-query";
+
+const cnpj = z
+  .string()
+  .regex(/^[A-Z0-9]{12}\d{2}$/)
+  .refine(isValidCnpj);
+const code = z.string().regex(/^\d{1,20}$/);
+const scopeSchema = z
+  .object({
+    cnpjs: z.array(cnpj).min(1).max(30),
+    soc: z.object({ companyId: code, units: z.array(code).min(1).max(200) }).optional(),
+    omie: z.object({ cnpj, partyCode: z.number().int().safe().positive() }).optional(),
+  })
+  .strict()
+  .refine((s) => !s.omie || s.cnpjs.includes(s.omie.cnpj));
+type Scope = z.infer<typeof scopeSchema>;
+type Selection = WorkSourceSelection;
+type RdRow = { id: string; cnpj: string; day: string };
+type SocForm = { id: string; employeeId: string; day: string };
+const privateScopes = () =>
+  adminDb.collection("webhook_deliveries").doc("work-assistant").collection("companies");
+
+async function rdOrders(scope: Scope, q: Selection) {
+  // In the supported period São Paulo civil-day boundaries fall on a UTC hour.
+  function localMidnight(day: string) {
+    const midnightUtc = Date.parse(day);
+    for (let h = 0; h < 24; h++) {
+      const candidate = new Date(midnightUtc + h * 3600000);
+      if (workDay(candidate) === day) return candidate.toISOString();
+    }
+    throw new Error("Dia fora do fuso da consulta.");
+  }
+  const tomorrow = new Date(Date.parse(q.end) + 86400000).toISOString().slice(0, 10);
+  const snapshot = await adminDb
+    .collection("integrations")
+    .doc("rd-conversas-avp")
+    .collection("asoRequests")
+    .where("cnpj", "in", [...new Set(scope.cnpjs)])
+    .where("createdAt", ">=", localMidnight(q.start))
+    .where("createdAt", "<", localMidnight(tomorrow))
+    .orderBy("createdAt", "asc")
+    .limit(101)
+    .select("cnpj", "source", "createdAt")
+    .get();
+  const rows: RdRow[] = [];
+  for (const doc of snapshot.docs.slice(0, 100)) {
+    const v = doc.data();
+    if (
+      !scope.cnpjs.includes(v.cnpj) ||
+      v.source !== "rd-conversas" ||
+      !/^rd-[a-f0-9]{64}$/.test(doc.id) ||
+      typeof v.createdAt !== "string" ||
+      !Number.isFinite(Date.parse(v.createdAt))
+    )
+      throw new Error("RD inconsistente");
+    const day = workDay(new Date(v.createdAt));
+    if (day >= q.start && day <= q.end) rows.push({ id: doc.id, cnpj: v.cnpj, day });
+  }
+  return { rows, partial: snapshot.size > 100 };
+}
+
+const linkSchema = z.object({ cnpj, companyId: code, employeeId: code, formId: code });
+type Link = z.infer<typeof linkSchema>;
+async function confirmedLinks(companyId: string, rows: RdRow[]) {
+  const links = new Map<string, Link>();
+  if (!rows.length) return links;
+  const base = privateScopes().doc(companyId).collection("rdSocLinks");
+  const ambiguous = new Set<string>();
+  for (let offset = 0; offset < rows.length; offset += 30) {
+    const ids = rows.slice(offset, offset + 30).map((row) => row.id);
+    const snapshot = await base.where("requestId", "in", ids).limit(61).get();
+    // A malformed or unusually large mapping cannot serve as proof for this batch.
+    if (snapshot.size > 60) continue;
+    for (const doc of snapshot.docs) {
+      const raw = doc.data();
+      if (!ids.includes(raw.requestId)) continue;
+      const parsed = linkSchema.safeParse(raw);
+      if (!parsed.success) {
+        ambiguous.add(raw.requestId);
+        continue;
+      }
+      const link = parsed.data;
+      // Keying by the provider's identity gives one owner to a form across all dates.
+      if (
+        doc.id !== [link.companyId, link.employeeId, link.formId].join("_") ||
+        links.has(raw.requestId)
+      )
+        ambiguous.add(raw.requestId);
+      else links.set(raw.requestId, link);
+    }
+  }
+  for (const id of ambiguous) links.delete(id);
+  return links;
+}
+
+async function socForms(scope: Scope, q: Selection, priorityIds: string[]) {
+  if (!scope.soc) throw new Error("Escopo SOC pendente");
+  const { companyId, units } = scope.soc;
+  const roster = await socRead("employees", { companyId });
+  // An employee ID shared by multiple units cannot establish the unit of an ASO.
+  const eligible = new Set<string>(),
+    excluded = new Set<string>();
+  for (const person of roster) {
+    if (person.companyId !== companyId) throw new Error("Escopo SOC divergente");
+    if (!units.includes(person.unitId)) excluded.add(person.id);
+    else if (code.safeParse(person.id).success) eligible.add(person.id);
+  }
+  for (const id of excluded) eligible.delete(id);
+  const ids = [...new Set([...priorityIds.filter((id) => eligible.has(id)), ...eligible])].slice(
+    0,
+    50
+  );
+  const data = ids.length
+    ? await socRead("asos", { companyId, start: q.start, end: q.end, employeeIds: ids.join(",") })
+    : [];
+  const forms: SocForm[] = [];
+  const seen = new Set<string>();
+  for (const row of data) {
+    const day = isCalendarDate(row.issuedAt) ? row.issuedAt : fromOmieDate(row.issuedAt);
+    if (
+      !day ||
+      day < q.start ||
+      day > q.end ||
+      row.companyId !== companyId ||
+      !ids.includes(row.employeeId) ||
+      !code.safeParse(row.id).success
+    )
+      throw new Error("Retorno SOC divergente");
+    const key = row.employeeId + ":" + row.id;
+    if (!seen.has(key)) forms.push({ id: row.id, employeeId: row.employeeId, day });
+    seen.add(key);
+  }
+  return { forms, partial: eligible.size > ids.length, checked: ids.length };
+}
+
+const titleSchema = z.object({
+  codigo_lancamento_omie: z.number().int().safe().positive(),
+  codigo_cliente_fornecedor: z.number().int().safe().positive(),
+  data_vencimento: z.string(),
+  valor_documento: z.number().finite().nonnegative(),
+});
+async function receivables(user: AuthContext, scope: Scope, q: Selection) {
+  if (!scope.omie) throw new Error("Vínculo financeiro pendente");
+  const binding = scope.omie;
+  const session = await omieConnectorSession(user);
+  const party = await session.call("partyDetail", { codigo_cliente_omie: binding.partyCode });
+  if (
+    party.codigo_cliente_omie !== binding.partyCode ||
+    typeof party.cnpj_cpf !== "string" ||
+    !isValidCnpj(party.cnpj_cpf) ||
+    normalizeCnpj(party.cnpj_cpf) !== binding.cnpj
+  )
+    throw new Error("Vínculo Omie divergente");
+  // Omie's generic date filter is not a due-date filter. Check data_vencimento on each title.
+  const pageSize = 50;
+  const maxPages = 5;
+  const pageSchema = z.object({
+    pagina: z.number().int().positive(),
+    total_de_paginas: z.number().int().nonnegative(),
+    total_de_registros: z.number().int().nonnegative(),
+    conta_receber_cadastro: z.array(titleSchema).max(pageSize),
+  });
+  const lines: string[] = [];
+  const seen = new Set<number>();
+  let total = 0;
+  let partial = false;
+  for (let page = 1; page <= maxPages; page++) {
+    const raw = await session.call("receivable", {
+      filtrar_cliente: binding.partyCode,
+      filtrar_por_cpf_cnpj: binding.cnpj,
+      filtrar_apenas_titulos_em_aberto: "S",
+      ordenar_por: "CODIGO",
+      pagina: page,
+      registros_por_pagina: pageSize,
+    });
+    const data = pageSchema.parse(raw);
+    if (page === 1) total = data.total_de_registros;
+    const expectedRows = Math.min(pageSize, total - seen.size);
+    if (
+      data.pagina !== page ||
+      data.total_de_registros !== total ||
+      (total ? data.total_de_paginas !== Math.ceil(total / pageSize) : data.total_de_paginas > 1) ||
+      data.conta_receber_cadastro.length !== expectedRows
+    )
+      throw new Error("Página Omie inconsistente");
+    for (const title of data.conta_receber_cadastro) {
+      const due = fromOmieDate(title.data_vencimento);
+      if (!due || title.codigo_cliente_fornecedor !== binding.partyCode)
+        throw new Error("Título fora do escopo");
+      if (seen.has(title.codigo_lancamento_omie)) throw new Error("Título Omie duplicado");
+      seen.add(title.codigo_lancamento_omie);
+      if (due < q.start || due > q.end) continue;
+      if (lines.length < pageSize) {
+        const amount = title.valor_documento.toLocaleString("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        });
+        lines.push("Título " + title.codigo_lancamento_omie + " · " + due + " · " + amount);
+      } else partial = true;
+    }
+    if (seen.size === total || partial) break;
+  }
+  partial ||= seen.size < total;
+  return [
+    "Omie · contas a receber em aberto · CNPJ " +
+      binding.cnpj +
+      " · valores originais dos títulos.",
+    ...lines,
+    ...(lines.length || partial ? [] : ["Nenhum título retornado no período."]),
+    ...(partial
+      ? [
+          `Consulta parcial: ${seen.size} de ${total} títulos em aberto conferidos. Exibidos ${lines.length} com vencimento no período. Total no período desconhecido.`,
+        ]
+      : []),
+  ].join("\n");
+}
+
+async function rdAttendance(companyId: string, q: Selection) {
+  const report = await tallosRequest("/v4/reports", {
+    ...dateRange(q.start, q.end),
+    page: "1",
+    limit: "50",
+    type: "operators",
+  });
+  const rows = items(report.data);
+  if (rows.length > 50) throw new Error("Página RD inválida");
+  const validId = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/);
+  const candidates = rows.map((r) => {
+    const customer = object(r.customer);
+    const contact = validId.safeParse(customer._id ?? customer.id ?? r.customer_id);
+    return { r, contact: contact.success ? contact.data : null };
+  });
+  const ids = [...new Set(candidates.flatMap((c) => (c.contact ? [c.contact] : [])))];
+  const refs = adminDb.collection("integrations").doc("rd-conversas").collection("links");
+  const bindings = ids.length ? await adminDb.getAll(...ids.map((id) => refs.doc(id))) : [];
+  const allowed = new Set(
+    bindings.filter((b) => b.data()?.companyId === companyId).map((b) => b.id)
+  );
+  const tickets = new Map<string, string>();
+  for (const { r, contact } of candidates) {
+    if (!contact || !allowed.has(contact)) continue;
+    const ticket = validId.parse(r._id ?? r.id);
+    const rawDate = z
+      .string()
+      .datetime({ offset: true })
+      .parse(r.created_at ?? r.started_at);
+    const day = workDay(new Date(rawDate));
+    if (day < q.start || day > q.end) continue;
+    const status =
+      r.status === "closed"
+        ? "encerrado"
+        : r.status === "opened"
+          ? "aberto"
+          : "situação a conferir";
+    const line = "Atendimento " + ticket + " · " + day + " · " + status;
+    if (tickets.has(ticket) && tickets.get(ticket) !== line)
+      throw new Error("Atendimento divergente");
+    tickets.set(ticket, line);
+  }
+  return [
+    "RD Conversas · API de atendimentos · primeira página do período, até 50 registros do provedor. Somente contatos com vínculo explícito no NAI.",
+    ...tickets.values(),
+    ...(tickets.size ? [] : ["Nenhum atendimento vinculável na página consultada."]),
+  ].join("\n");
+}
+
+async function observed<T>(read: () => Promise<T>) {
+  try {
+    return await read();
+  } catch (e) {
+    if (e instanceof AuthError && [401, 403].includes(e.status)) throw e;
+    return null;
+  }
+}
+
+export async function readWorkSources(user: AuthContext, companyId: string, input: unknown) {
+  requirePgrCompany(user, companyId);
+  const q = WorkSourceQuery.parse(input);
+  const wantRd = q.source === "rd" || q.source === "rd_soc",
+    wantSoc = q.source === "soc" || q.source === "rd_soc";
+  if (wantRd || q.source === "rd_atendimentos") requireTallosAccess(user);
+  if (wantSoc) requireSocAccess(user);
+  if (q.source === "omie") requireFinancialAccess(user);
+  const heading =
+    "Período " + q.start + " a " + q.end + " · consulta em " + new Date().toISOString();
+  const record = await privateScopes().doc(companyId).get();
+  const bound = scopeSchema.safeParse(record.data());
+  if (!bound.success)
+    return (
+      heading + "\nVínculo do cliente com as fontes pendente de validação. Consulta não executada."
+    );
+  if (q.source === "rd_atendimentos") {
+    const result = await observed(() => rdAttendance(companyId, q));
+    return heading + "\n" + (result ?? "Relatório do RD indisponível. Quantidade desconhecida.");
+  }
+  const scope = bound.data;
+  if (q.source === "omie") {
+    const data = await observed(() => receivables(user, scope, q));
+    return (
+      heading +
+      "\n" +
+      (data ?? "Omie indisponível ou vínculo financeiro não validado. Total desconhecido.")
+    );
+  }
+  const rd = wantRd ? await observed(() => rdOrders(scope, q)) : null;
+  const links = rd && wantSoc ? await observed(() => confirmedLinks(companyId, rd.rows)) : null;
+  const preferred = links
+    ? [...links.values()]
+        .filter((l) => l.companyId === scope.soc?.companyId)
+        .map((l) => l.employeeId)
+    : [];
+  const soc = wantSoc ? await observed(() => socForms(scope, q, preferred)) : null;
+  const lines = [heading];
+  if (wantRd)
+    lines.push(
+      rd
+        ? "RD Conversas · pedidos recebidos pelo webhook no recorte: " +
+            rd.rows.length +
+            (rd.partial ? " (consulta parcial)" : "")
+        : "RD Conversas indisponível. Quantidade desconhecida."
+    );
+  if (wantSoc)
+    lines.push(
+      soc
+        ? "SOC · " +
+            soc.forms.length +
+            " ASO(s) emitido(s) no período para " +
+            soc.checked +
+            " código(s) de colaborador consultados" +
+            (soc.partial ? " (consulta parcial, até 50 códigos)." : ".")
+        : "SOC indisponível ou vínculo não validado. Emissões desconhecidas."
+    );
+  // A signed-off request-to-form association is required. No identity inference from names or dates.
+  for (const row of rd?.rows ?? []) {
+    const l = links?.get(row.id);
+    const found =
+      l &&
+      l.cnpj === row.cnpj &&
+      l.companyId === scope.soc?.companyId &&
+      soc?.forms.find(
+        (f) => f.id === l.formId && f.employeeId === l.employeeId && f.day >= row.day
+      );
+    lines.push(
+      "RD " +
+        row.id +
+        " · " +
+        row.day +
+        (wantSoc ? (found ? " · ASO SOC confirmado em " + found.day : " · emissão a conferir") : "")
+    );
+  }
+  return lines.join("\n");
+}
