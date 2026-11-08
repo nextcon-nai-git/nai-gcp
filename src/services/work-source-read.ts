@@ -301,16 +301,16 @@ export async function readWorkSources(user: AuthContext, companyId: string, inpu
   if (q.source === "omie") requireFinancialAccess(user);
   const heading =
     "Período " + q.start + " a " + q.end + " · consulta em " + new Date().toISOString();
-  if (q.source === "rd_atendimentos") {
-    const result = await observed(() => rdAttendance(companyId, q));
-    return heading + "\n" + (result ?? "Relatório do RD indisponível. Quantidade desconhecida.");
-  }
   const record = await privateScopes().doc(companyId).get();
   const bound = scopeSchema.safeParse(record.data());
   if (!bound.success)
     return (
       heading + "\nVínculo do cliente com as fontes pendente de validação. Consulta não executada."
     );
+  if (q.source === "rd_atendimentos") {
+    const result = await observed(() => rdAttendance(companyId, q));
+    return heading + "\n" + (result ?? "Relatório do RD indisponível. Quantidade desconhecida.");
+  }
   const scope = bound.data;
   if (q.source === "omie") {
     const data = await observed(() => receivables(user, scope, q));

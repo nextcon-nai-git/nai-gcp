@@ -137,7 +137,17 @@ describe("consultas do assistente", () => {
     ).rejects.toThrow();
     expect(m.scope).toHaveBeenCalledTimes(1);
   });
-  it("consulta o relatório real do RD usando apenas vínculos do cliente", async () => {
+  it("mantém atendimentos RD pendentes sem escopo empresarial aprovado", async () => {
+    m.scope.mockResolvedValue(doc("client", undefined));
+    const answer = await readWorkSources(user, "client", {
+      ...selection,
+      source: "rd_atendimentos",
+    });
+    expect(answer).toContain("Consulta não executada");
+    expect(m.reports).not.toHaveBeenCalled();
+    expect(m.bindings).not.toHaveBeenCalled();
+  });
+  it("consulta o relatório do RD usando apenas vínculos do cliente", async () => {
     const common = { created_at: "2026-11-06T15:00:00Z", status: "closed" };
     m.reports.mockResolvedValue({
       data: [
@@ -160,7 +170,7 @@ describe("consultas do assistente", () => {
       "/v4/reports",
       expect.objectContaining({ page: "1", start_date: selection.start, end_date: selection.end })
     );
-    expect(m.scope).not.toHaveBeenCalled();
+    expect(m.scope).toHaveBeenCalledTimes(1);
   });
   it("confere o favorecido e a data de cada título antes da exibição", async () => {
     const title = {
