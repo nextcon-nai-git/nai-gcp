@@ -1,7 +1,11 @@
 import "server-only";
 import { WorkAnswer, workOutputFormat } from "@/lib/work-assistant";
 import { AuthError } from "@/lib/auth/errors";
-import { WorkSourceQuery, workSourceModes, type WorkSourceSelection } from "@/lib/work-source-query";
+import {
+  WorkSourceQuery,
+  workSourceModes,
+  type WorkSourceSelection,
+} from "@/lib/work-source-query";
 import type { KitPreview } from "@/lib/operational-kits";
 
 export function workAssistantConfigured() {
@@ -31,32 +35,44 @@ export async function askWorkAssistant(
         ? {
             parallel_tool_calls: false,
             tools: [
-              ...(readSources ? [{
-                type: "function",
-                name: "read_company_sources",
-                strict: true,
-                description: "Consultar pedidos de ASO recebidos via RD, ASOs emitidos no SOC, conciliação RD/SOC ou títulos a receber no Omie. A empresa selecionada é resolvida exclusivamente pelo NAI. Período inclusivo de até 31 dias.",
-                parameters: {
-                  type: "object", properties: {
-                    source: { type: "string", enum: workSourceModes },
-                    start: { type: "string", description: "Data inicial AAAA-MM-DD" },
-                    end: { type: "string", description: "Data final AAAA-MM-DD" },
-                  }, required: ["source","start","end"], additionalProperties: false,
-                },
-              }] : []),
-              ...(prepareSelectedKits ? [{
-                type: "function",
-                name: "prepare_selected_kits",
-                strict: true,
-                description:
-                  "Valida no NAI o lote selecionado pelo usuário e prepara uma prévia para revisão. Não emite PDF, não agenda, não envia e não acessa o SOC. Não altera a seleção nem define exames.",
-                parameters: {
-                  type: "object",
-                  properties: {},
-                  required: [],
-                  additionalProperties: false,
-                },
-              }] : []),
+              ...(readSources
+                ? [
+                    {
+                      type: "function",
+                      name: "read_company_sources",
+                      strict: true,
+                      description:
+                        "Consultar pedidos de ASO recebidos via RD, ASOs emitidos no SOC, conciliação RD/SOC ou títulos a receber no Omie. A empresa selecionada é resolvida exclusivamente pelo NAI. Período inclusivo de até 31 dias.",
+                      parameters: {
+                        type: "object",
+                        properties: {
+                          source: { type: "string", enum: workSourceModes },
+                          start: { type: "string", description: "Data inicial AAAA-MM-DD" },
+                          end: { type: "string", description: "Data final AAAA-MM-DD" },
+                        },
+                        required: ["source", "start", "end"],
+                        additionalProperties: false,
+                      },
+                    },
+                  ]
+                : []),
+              ...(prepareSelectedKits
+                ? [
+                    {
+                      type: "function",
+                      name: "prepare_selected_kits",
+                      strict: true,
+                      description:
+                        "Valida no NAI o lote selecionado pelo usuário e prepara uma prévia para revisão. Não emite PDF, não agenda, não envia e não acessa o SOC. Não altera a seleção nem define exames.",
+                      parameters: {
+                        type: "object",
+                        properties: {},
+                        required: [],
+                        additionalProperties: false,
+                      },
+                    },
+                  ]
+                : []),
             ],
           }
         : {}),

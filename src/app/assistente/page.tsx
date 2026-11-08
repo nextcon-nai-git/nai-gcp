@@ -40,7 +40,10 @@ export default function WorkAssistantPage() {
 function AssistantSession({ companyId }: { companyId: string }) {
   const { user } = useUser();
   const [messages, setMessages] = React.useState<Message[]>([]);
-  const [lastRead, setLastRead] = React.useState<{query: WorkSourceSelection; answer: string} | null>(null);
+  const [lastRead, setLastRead] = React.useState<{
+    query: WorkSourceSelection;
+    answer: string;
+  } | null>(null);
   const [input, setInput] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -103,8 +106,16 @@ function AssistantSession({ companyId }: { companyId: string }) {
         kitSelection,
       });
       if (!active.current) return;
-      if (r.sourceQuery) setLastRead({query:r.sourceQuery, answer:r.answer});
-      setMessages([...next, { role: "assistant", content: r.sourceQuery ? "Consulta realizada. Confira o resultado no painel de fontes." : r.answer }]);
+      if (r.sourceQuery) setLastRead({ query: r.sourceQuery, answer: r.answer });
+      setMessages([
+        ...next,
+        {
+          role: "assistant",
+          content: r.sourceQuery
+            ? "Consulta realizada. Confira o resultado no painel de fontes."
+            : r.answer,
+        },
+      ]);
       setInput("");
       if (r.proposalId) setProposal({ id: r.proposalId, actions: r.actions });
       if (r.kitProposal) setKitProposal(r.kitProposal);
@@ -248,12 +259,12 @@ function AssistantSession({ companyId }: { companyId: string }) {
               <CircleHelp aria-hidden="true" className="h-4 w-4" /> Privacidade e ajuda
             </summary>
             <p>
-              Os resultados de SOC, Omie e RD ficam no painel do NAI. São enviados à OpenAI sua mensagem, os nomes dos documentos e até 200 cards do
-              cliente. PDFs, prontuários, e-mail e Drive não são lidos por esta integração. A
-              conversa fica nesta tela; ao trocar de cliente, ela é encerrada. Novos cards exigem
-              sua confirmação abaixo. Para kits, a OpenAI recebe somente a quantidade selecionada;
-              cadastros e protocolo do formulário são validados no NAI. Não inclua dados clínicos na
-              mensagem.
+              Os resultados de SOC, Omie e RD ficam no painel do NAI. São enviados à OpenAI sua
+              mensagem, os nomes dos documentos e até 200 cards do cliente. PDFs, prontuários,
+              e-mail e Drive não são lidos por esta integração. A conversa fica nesta tela; ao
+              trocar de cliente, ela é encerrada. Novos cards exigem sua confirmação abaixo. Para
+              kits, a OpenAI recebe somente a quantidade selecionada; cadastros e protocolo do
+              formulário são validados no NAI. Não inclua dados clínicos na mensagem.
             </p>
           </details>
           <div role="log" aria-label="Conversa com o assistente" className="space-y-4">

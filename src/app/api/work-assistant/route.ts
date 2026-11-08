@@ -113,7 +113,10 @@ export async function POST(request: NextRequest) {
       return answer;
     };
     if (data.action === "read_sources")
-      return NextResponse.json({ answer: await readSources(data.query), sourceQuery: data.query }, { headers: privateHeaders });
+      return NextResponse.json(
+        { answer: await readSources(data.query), sourceQuery: data.query },
+        { headers: privateHeaders }
+      );
     if (data.action === "probe") {
       await askWorkAssistant(
         [
