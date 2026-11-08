@@ -1,7 +1,7 @@
 import { z } from "zod/v3";
 import { isCalendarDate } from "@/lib/financial/omie-dre";
 
-export const workSourceModes = ["rd", "soc", "rd_soc", "omie"] as const;
+export const workSourceModes = ["rd", "rd_atendimentos", "soc", "rd_soc", "omie"] as const;
 export const WorkSourceQuery = z
   .object({
     source: z.enum(workSourceModes),

@@ -15,6 +15,7 @@ type Props = {
 };
 const labels = {
   rd: "Pedidos recebidos pelo RD",
+  rd_atendimentos: "Atendimentos no RD Conversas",
   soc: "ASOs emitidos no SOC",
   rd_soc: "Conciliação RD e SOC",
   omie: "Contas a receber no Omie",

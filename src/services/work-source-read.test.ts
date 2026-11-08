@@ -7,6 +7,8 @@ const m = vi.hoisted(() => ({
   scope: vi.fn(),
   rd: vi.fn(),
   links: vi.fn(),
+  bindings: vi.fn(),
+  reports: vi.fn(),
   soc: vi.fn(),
   omie: vi.fn(),
   session: vi.fn(),
@@ -14,12 +16,13 @@ const m = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/firebase-admin", () => ({
   adminDb: {
+    getAll: m.bindings,
     collection: (name: string) => ({
       doc: () => ({
         collection: () =>
           name === "webhook_deliveries"
             ? { doc: () => ({ get: m.scope, collection: () => ({ where: () => ({limit:()=>({get:m.links})}) }) }) }
-            : { where: m.where },
+            : { where: m.where, doc: (id: string) => id },
       }),
     }),
   },
@@ -27,6 +30,10 @@ vi.mock("@/lib/firebase-admin", () => ({
 vi.mock("@/lib/integrations/soc", async (original) => ({
   ...(await original<typeof import("@/lib/integrations/soc")>()),
   socRead: m.soc,
+}));
+vi.mock("@/lib/integrations/tallos-api", async (original) => ({
+  ...(await original<typeof import("@/lib/integrations/tallos-api")>()),
+  tallosRequest: m.reports,
 }));
 vi.mock("@/services/omie-financial", () => ({ omieConnectorSession: m.session }));
 import { readWorkSources } from "./work-source-read";
@@ -112,6 +119,20 @@ describe("consultas do assistente", () => {
       readWorkSources({ ...user, role: "CLIENT_ADMIN", tenantId: "outro" }, "client", selection)
     ).rejects.toThrow();
     expect(m.scope).toHaveBeenCalledTimes(1);
+  });
+  it("consulta o relatório real do RD usando apenas vínculos do cliente", async () => {
+    const common = { created_at: "2026-11-06T15:00:00Z", status: "closed" };
+    m.reports.mockResolvedValue({ data: [
+      { ...common, id: "ticketA", customer: {_id:"cA"} },
+      { ...common, id: "ticketB", customer: {_id:"cB"} },
+      { ...common, id: "ticketC", customer: {full_name:"Mesmo Nome"} },
+    ] });
+    m.bindings.mockResolvedValue([doc("cA",{companyId:"client"}),doc("cB",{companyId:"outro"})]);
+    const answer = await readWorkSources(user, "client", {...selection,source:"rd_atendimentos"});
+    expect(answer).toContain("ticketA");
+    expect(answer).not.toMatch(/ticketB|ticketC|Mesmo Nome/);
+    expect(m.reports).toHaveBeenCalledWith("/v4/reports",expect.objectContaining({page:"1",start_date:selection.start,end_date:selection.end}));
+    expect(m.scope).not.toHaveBeenCalled();
   });
   it("confere o favorecido e a data de cada título antes da exibição", async () => {
     const title = {

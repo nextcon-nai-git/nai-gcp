@@ -57,7 +57,8 @@ Usar o provisionamento existente de cada conector; não inserir segredos neste d
 
 ### Fontes e conferência
 
-- RD: lê até 100 solicitações completas recebidas pelo webhook AVP,
+- Atendimentos RD: consulta diretamente a API Tallos de relatórios e cruza os IDs estáveis de contato com os vínculos já confirmados na Central RD do NAI. Apresenta apenas referências, datas e situação do cliente selecionado. A primeira página nunca é tratada como histórico completo.
+- Pedidos RD: lê até 100 solicitações completas recebidas pelo webhook AVP,
   filtradas pelos CNPJs permitidos e pela data de recebimento em Brasília.
   Exige o índice composto de coleção `asoRequests(cnpj ASC, createdAt ASC)`.
   Não lê mensagens livres nem depende da chave de histórico completo.
