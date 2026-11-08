@@ -6,6 +6,8 @@ import { useSgi } from "@/contexts/sgi-context";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { WorkActionData } from "@/lib/work-assistant";
+import { WorkSourcePanel } from "@/components/operations/work-source-panel";
+import type { WorkSourceSelection } from "@/lib/work-source-query";
 import { OperationsShortcuts } from "@/components/operations/operations-shortcuts";
 import { OperationalKitPanel } from "@/components/operations/operational-kit-panel";
 import type { KitPreview, KitSelectionData } from "@/lib/operational-kits";
@@ -38,6 +40,7 @@ export default function WorkAssistantPage() {
 function AssistantSession({ companyId }: { companyId: string }) {
   const { user } = useUser();
   const [messages, setMessages] = React.useState<Message[]>([]);
+  const [lastRead, setLastRead] = React.useState<{query: WorkSourceSelection; answer: string} | null>(null);
   const [input, setInput] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -100,7 +103,8 @@ function AssistantSession({ companyId }: { companyId: string }) {
         kitSelection,
       });
       if (!active.current) return;
-      setMessages([...next, { role: "assistant", content: r.answer }]);
+      if (r.sourceQuery) setLastRead({query:r.sourceQuery, answer:r.answer});
+      setMessages([...next, { role: "assistant", content: r.sourceQuery ? "Consulta realizada. Confira o resultado no painel de fontes." : r.answer }]);
       setInput("");
       if (r.proposalId) setProposal({ id: r.proposalId, actions: r.actions });
       if (r.kitProposal) setKitProposal(r.kitProposal);
@@ -169,6 +173,14 @@ function AssistantSession({ companyId }: { companyId: string }) {
           </span>
         )}
       </div>
+      {configured !== null && !["all", "unauthorized"].includes(companyId) && (
+        <WorkSourcePanel
+          key={companyId}
+          lastRead={lastRead}
+          request={request}
+          companyId={companyId}
+        />
+      )}
       {configured !== null && <OperationsShortcuts includeAssistant={false} compact />}
       {configured !== null && !["all", "unauthorized"].includes(companyId) && (
         <OperationalKitPanel
@@ -236,7 +248,7 @@ function AssistantSession({ companyId }: { companyId: string }) {
               <CircleHelp aria-hidden="true" className="h-4 w-4" /> Privacidade e ajuda
             </summary>
             <p>
-              São enviados à OpenAI sua mensagem, os nomes dos documentos e até 200 cards do
+              Os resultados de SOC, Omie e RD ficam no painel do NAI. São enviados à OpenAI sua mensagem, os nomes dos documentos e até 200 cards do
               cliente. PDFs, prontuários, e-mail e Drive não são lidos por esta integração. A
               conversa fica nesta tela; ao trocar de cliente, ela é encerrada. Novos cards exigem
               sua confirmação abaixo. Para kits, a OpenAI recebe somente a quantidade selecionada;

@@ -1,4 +1,5 @@
 import { z } from "zod/v3";
+import { WorkSourceQuery } from "./work-source-query";
 import { KitSelection } from "@/lib/operational-kits";
 
 export const WorkAction = z.object({
@@ -22,6 +23,7 @@ export const WorkAnswer = z.object({
   actions: z.array(WorkAction).max(10),
 });
 export const WorkRequest = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("read_sources"), companyId: z.string().min(1).max(128), query: WorkSourceQuery }).strict(),
   z.object({ action: z.literal("probe"), companyId: z.string().min(1).max(128) }).strict(),
   z.object({
     action: z.literal("chat"),

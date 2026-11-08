@@ -7,11 +7,13 @@ import { AuthError, badRequest, forbidden } from "@/lib/auth/errors";
 import { limitedJson, privateFailure, privateHeaders } from "@/lib/http/private-api";
 import { WorkAnswer, WorkRequest } from "@/lib/work-assistant";
 import { askWorkAssistant, workAssistantConfigured } from "@/services/work-assistant-openai";
+import { readWorkSources } from "@/services/work-source-read";
+import { currentWorkWeek, workDay, type WorkSourceSelection } from "@/lib/work-source-query";
 import { prepareKitBatch } from "@/services/operational-kits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 90;
+export const maxDuration = 180;
 async function administrator(request: NextRequest) {
   const user = await requireAuth(request);
   // Start with existing internal document-import permission; no new access grants.
@@ -88,7 +90,7 @@ export async function POST(request: NextRequest) {
       });
       return NextResponse.json(saved, { headers: privateHeaders });
     }
-    if (!workAssistantConfigured())
+    if (data.action !== "read_sources" && !workAssistantConfigured())
       throw new AuthError("O assistente aguarda configuração da OpenAI pela administração.", 503);
     if (data.action === "chat" && data.messages.at(-1)?.role !== "user")
       throw badRequest("Envie uma nova mensagem.");
@@ -105,6 +107,13 @@ export async function POST(request: NextRequest) {
         throw new AuthError("Aguarde um minuto antes de enviar outra mensagem.", 429);
       tx.set(quotaRef, { startedAt: current.startedAt, count: current.count + 1 });
     });
+    const readSources = async (query: WorkSourceSelection) => {
+      const answer = await readWorkSources(await administrator(request), data.companyId, query);
+      requirePgrCompany(await administrator(request), data.companyId);
+      return answer;
+    };
+    if (data.action === "read_sources")
+      return NextResponse.json({ answer: await readSources(data.query), sourceQuery: data.query }, { headers: privateHeaders });
     if (data.action === "probe") {
       await askWorkAssistant(
         [
@@ -148,6 +157,8 @@ export async function POST(request: NextRequest) {
       data.messages,
       {
         ...context,
+        todayInBrasilia: workDay(new Date()),
+        currentWeek: currentWorkWeek(),
         selectedKitBatch: data.kitSelection
           ? { count: data.kitSelection.employeeIds.length, available: true }
           : null,
@@ -155,7 +166,8 @@ export async function POST(request: NextRequest) {
       data.kitSelection
         ? async () =>
             prepareKitBatch(await administrator(request), data.companyId, data.kitSelection)
-        : undefined
+        : undefined,
+      readSources
     );
     // Model processing may outlive an administrative access change.
     const currentUser = await administrator(request);

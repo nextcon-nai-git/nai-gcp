@@ -138,3 +138,14 @@ describe("OpenAI operational assistant", () => {
     );
   });
 });
+
+it("consulta a fonte selecionada e mantém os registros de integração fora das chamadas ao modelo", async () => {
+  const q = {source:"rd_soc",start:"2026-11-02",end:"2026-11-08"};
+  fetchMock.mockResolvedValue({ok:true,json:async()=>({status:"completed",output:[{type:"function_call",name:"read_company_sources",arguments:JSON.stringify(q)}]})});
+  const read = vi.fn().mockResolvedValue("evidência exclusiva da sessão");
+  const reply=await askWorkAssistant([{role:"user",content:"Consultar os pedidos"}],{},undefined,read);
+  expect(reply).toMatchObject({answer:"evidência exclusiva da sessão",actions:[],sourceQuery:q});
+  expect(read).toHaveBeenCalledWith(q);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(fetchMock.mock.calls[0][1].body).not.toContain("evidência exclusiva da sessão");
+});
