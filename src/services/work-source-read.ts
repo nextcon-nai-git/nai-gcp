@@ -4,7 +4,13 @@ import type { AuthContext } from "@/lib/auth/auth-context";
 import { AuthError } from "@/lib/auth/errors";
 import { requirePgrCompany } from "@/lib/auth/require-pgr-access";
 import { requireFinancialAccess } from "@/lib/auth/financial-access";
-import { dateRange, items, object, requireTallosAccess, tallosRequest } from "@/lib/integrations/tallos-api";
+import {
+  dateRange,
+  items,
+  object,
+  requireTallosAccess,
+  tallosRequest,
+} from "@/lib/integrations/tallos-api";
 import { requireSocAccess, socRead } from "@/lib/integrations/soc";
 import { adminDb } from "@/lib/firebase-admin";
 import { isValidCnpj, normalizeCnpj } from "@/lib/cnpj";
@@ -93,8 +99,11 @@ async function confirmedLinks(companyId: string, rows: RdRow[]) {
       }
       const link = parsed.data;
       // Keying by the provider's identity gives one owner to a form across all dates.
-      if (doc.id !== [link.companyId, link.employeeId, link.formId].join("_") ||
-          links.has(raw.requestId)) ambiguous.add(raw.requestId);
+      if (
+        doc.id !== [link.companyId, link.employeeId, link.formId].join("_") ||
+        links.has(raw.requestId)
+      )
+        ambiguous.add(raw.requestId);
       else links.set(raw.requestId, link);
     }
   }
@@ -156,7 +165,8 @@ async function receivables(user: AuthContext, scope: Scope, q: Selection) {
   if (
     party.codigo_cliente_omie !== binding.partyCode ||
     typeof party.cnpj_cpf !== "string" ||
-    !isValidCnpj(party.cnpj_cpf) || normalizeCnpj(party.cnpj_cpf) !== binding.cnpj
+    !isValidCnpj(party.cnpj_cpf) ||
+    normalizeCnpj(party.cnpj_cpf) !== binding.cnpj
   )
     throw new Error("Vínculo Omie divergente");
   const raw = await session.call("receivable", {
@@ -212,7 +222,10 @@ async function receivables(user: AuthContext, scope: Scope, q: Selection) {
 
 async function rdAttendance(companyId: string, q: Selection) {
   const report = await tallosRequest("/v4/reports", {
-    ...dateRange(q.start, q.end), page: "1", limit: "50", type: "operators",
+    ...dateRange(q.start, q.end),
+    page: "1",
+    limit: "50",
+    type: "operators",
   });
   const rows = items(report.data);
   if (rows.length > 50) throw new Error("Página RD inválida");
@@ -222,24 +235,38 @@ async function rdAttendance(companyId: string, q: Selection) {
     const contact = validId.safeParse(customer._id ?? customer.id ?? r.customer_id);
     return { r, contact: contact.success ? contact.data : null };
   });
-  const ids = [...new Set(candidates.flatMap(c => c.contact ? [c.contact] : []))];
+  const ids = [...new Set(candidates.flatMap((c) => (c.contact ? [c.contact] : [])))];
   const refs = adminDb.collection("integrations").doc("rd-conversas").collection("links");
-  const bindings = ids.length ? await adminDb.getAll(...ids.map(id=>refs.doc(id))) : [];
-  const allowed = new Set(bindings.filter(b=>b.data()?.companyId===companyId).map(b=>b.id));
-  const tickets = new Map<string,string>();
-  for (const {r,contact} of candidates) {
+  const bindings = ids.length ? await adminDb.getAll(...ids.map((id) => refs.doc(id))) : [];
+  const allowed = new Set(
+    bindings.filter((b) => b.data()?.companyId === companyId).map((b) => b.id)
+  );
+  const tickets = new Map<string, string>();
+  for (const { r, contact } of candidates) {
     if (!contact || !allowed.has(contact)) continue;
     const ticket = validId.parse(r._id ?? r.id);
-    const rawDate = z.string().datetime({offset:true}).parse(r.created_at ?? r.started_at);
+    const rawDate = z
+      .string()
+      .datetime({ offset: true })
+      .parse(r.created_at ?? r.started_at);
     const day = workDay(new Date(rawDate));
-    if(day<q.start || day>q.end) continue;
-    const status = r.status === "closed" ? "encerrado" : r.status === "opened" ? "aberto" : "situação a conferir";
-    const line = "Atendimento "+ticket+" · "+day+" · "+status;
-    if(tickets.has(ticket) && tickets.get(ticket)!==line) throw new Error("Atendimento divergente");
-    tickets.set(ticket,line);
+    if (day < q.start || day > q.end) continue;
+    const status =
+      r.status === "closed"
+        ? "encerrado"
+        : r.status === "opened"
+          ? "aberto"
+          : "situação a conferir";
+    const line = "Atendimento " + ticket + " · " + day + " · " + status;
+    if (tickets.has(ticket) && tickets.get(ticket) !== line)
+      throw new Error("Atendimento divergente");
+    tickets.set(ticket, line);
   }
-  return ["RD Conversas · API de atendimentos · primeira página do período, até 50 registros do provedor. Somente contatos com vínculo explícito no NAI.",
-    ...tickets.values(), ...(tickets.size ? [] : ["Nenhum atendimento vinculável na página consultada."])].join("\n");
+  return [
+    "RD Conversas · API de atendimentos · primeira página do período, até 50 registros do provedor. Somente contatos com vínculo explícito no NAI.",
+    ...tickets.values(),
+    ...(tickets.size ? [] : ["Nenhum atendimento vinculável na página consultada."]),
+  ].join("\n");
 }
 
 async function observed<T>(read: () => Promise<T>) {

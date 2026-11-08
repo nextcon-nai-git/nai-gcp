@@ -21,7 +21,12 @@ vi.mock("@/lib/firebase-admin", () => ({
       doc: () => ({
         collection: () =>
           name === "webhook_deliveries"
-            ? { doc: () => ({ get: m.scope, collection: () => ({ where: () => ({limit:()=>({get:m.links})}) }) }) }
+            ? {
+                doc: () => ({
+                  get: m.scope,
+                  collection: () => ({ where: () => ({ limit: () => ({ get: m.links }) }) }),
+                }),
+              }
             : { where: m.where, doc: (id: string) => id },
       }),
     }),
@@ -68,7 +73,10 @@ beforeEach(() => {
   };
   m.where.mockReturnValue(query);
   m.rd.mockResolvedValue({ docs: [doc(id, incoming)], size: 1 });
-  m.links.mockResolvedValue({size:1, docs:[doc("11_9_7", { requestId:id, cnpj, companyId: "11", employeeId: "9", formId: "7" })]});
+  m.links.mockResolvedValue({
+    size: 1,
+    docs: [doc("11_9_7", { requestId: id, cnpj, companyId: "11", employeeId: "9", formId: "7" })],
+  });
   m.soc.mockImplementation(async (resource: string) =>
     resource === "employees" ? [{ id: "9", unitId: "3", companyId: "11" }] : [row]
   );
@@ -87,11 +95,20 @@ describe("consultas do assistente", () => {
     expect(m.where).toHaveBeenCalledWith("createdAt", "<", "2026-11-09T03:00:00.000Z");
   });
   it("não atribui por nome, ficha fora da unidade ou vínculo de outro CNPJ", async () => {
-    m.links.mockResolvedValue({size:1,docs:[
-      doc("11_9_7", { requestId:id, cnpj: other, companyId: "11", employeeId: "9", formId: "7" }),
-    ]});
+    m.links.mockResolvedValue({
+      size: 1,
+      docs: [
+        doc("11_9_7", {
+          requestId: id,
+          cnpj: other,
+          companyId: "11",
+          employeeId: "9",
+          formId: "7",
+        }),
+      ],
+    });
     expect(await readWorkSources(user, "client", selection)).toContain("emissão a conferir");
-    m.links.mockResolvedValue({size:0,docs:[]});
+    m.links.mockResolvedValue({ size: 0, docs: [] });
     expect(await readWorkSources(user, "client", selection)).not.toContain("ASO SOC confirmado");
     m.soc.mockResolvedValueOnce([{ id: "9", unitId: "22", companyId: "11" }]);
     expect(await readWorkSources(user, "client", selection)).toContain("0 código(s)");
@@ -122,16 +139,27 @@ describe("consultas do assistente", () => {
   });
   it("consulta o relatório real do RD usando apenas vínculos do cliente", async () => {
     const common = { created_at: "2026-11-06T15:00:00Z", status: "closed" };
-    m.reports.mockResolvedValue({ data: [
-      { ...common, id: "ticketA", customer: {_id:"cA"} },
-      { ...common, id: "ticketB", customer: {_id:"cB"} },
-      { ...common, id: "ticketC", customer: {full_name:"Mesmo Nome"} },
-    ] });
-    m.bindings.mockResolvedValue([doc("cA",{companyId:"client"}),doc("cB",{companyId:"outro"})]);
-    const answer = await readWorkSources(user, "client", {...selection,source:"rd_atendimentos"});
+    m.reports.mockResolvedValue({
+      data: [
+        { ...common, id: "ticketA", customer: { _id: "cA" } },
+        { ...common, id: "ticketB", customer: { _id: "cB" } },
+        { ...common, id: "ticketC", customer: { full_name: "Mesmo Nome" } },
+      ],
+    });
+    m.bindings.mockResolvedValue([
+      doc("cA", { companyId: "client" }),
+      doc("cB", { companyId: "outro" }),
+    ]);
+    const answer = await readWorkSources(user, "client", {
+      ...selection,
+      source: "rd_atendimentos",
+    });
     expect(answer).toContain("ticketA");
     expect(answer).not.toMatch(/ticketB|ticketC|Mesmo Nome/);
-    expect(m.reports).toHaveBeenCalledWith("/v4/reports",expect.objectContaining({page:"1",start_date:selection.start,end_date:selection.end}));
+    expect(m.reports).toHaveBeenCalledWith(
+      "/v4/reports",
+      expect.objectContaining({ page: "1", start_date: selection.start, end_date: selection.end })
+    );
     expect(m.scope).not.toHaveBeenCalled();
   });
   it("confere o favorecido e a data de cada título antes da exibição", async () => {
