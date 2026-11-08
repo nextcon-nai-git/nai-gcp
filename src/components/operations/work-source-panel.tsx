@@ -22,37 +22,21 @@ const labels = {
 };
 
 export function WorkSourcePanel({ companyId, lastRead, request }: Props) {
-  const [query, setQuery] = React.useState<WorkSourceSelection>(() => ({
-    source: "rd_soc",
-    ...currentWorkWeek(),
-  }));
+  const [query, setQuery] = React.useState<WorkSourceSelection>(
+    () => lastRead?.query ?? { source: "rd_soc", ...currentWorkWeek() }
+  );
   const [minutes, setMinutes] = React.useState(0);
-  const [result, setResult] = React.useState("");
+  const [result, setResult] = React.useState(lastRead?.answer ?? "");
   const [busy, setBusy] = React.useState(false);
   const [failure, setFailure] = React.useState("");
   const version = React.useRef(0);
   const inFlight = React.useRef(false);
-  const invalidate = React.useCallback(() => {
+  function edit(next: WorkSourceSelection) {
     version.current++;
     inFlight.current = false;
     setBusy(false);
     setResult("");
     setFailure("");
-  }, []);
-  React.useEffect(() => {
-    return () => {
-      version.current++;
-    };
-  }, []);
-  React.useEffect(() => {
-    if (lastRead) {
-      invalidate();
-      setQuery(lastRead.query);
-      setResult(lastRead.answer);
-    }
-  }, [lastRead, invalidate]);
-  function edit(next: WorkSourceSelection) {
-    invalidate();
     setQuery(next);
   }
   const refresh = React.useCallback(async () => {

@@ -41,6 +41,7 @@ function AssistantSession({ companyId }: { companyId: string }) {
   const { user } = useUser();
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [lastRead, setLastRead] = React.useState<{
+    id: string;
     query: WorkSourceSelection;
     answer: string;
   } | null>(null);
@@ -106,7 +107,9 @@ function AssistantSession({ companyId }: { companyId: string }) {
         kitSelection,
       });
       if (!active.current) return;
-      if (r.sourceQuery) setLastRead({ query: r.sourceQuery, answer: r.answer });
+      if (r.sourceQuery) {
+        setLastRead({ id: crypto.randomUUID(), query: r.sourceQuery, answer: r.answer });
+      }
       setMessages([
         ...next,
         {
@@ -186,7 +189,7 @@ function AssistantSession({ companyId }: { companyId: string }) {
       </div>
       {configured !== null && !["all", "unauthorized"].includes(companyId) && (
         <WorkSourcePanel
-          key={companyId}
+          key={lastRead?.id ?? companyId}
           lastRead={lastRead}
           request={request}
           companyId={companyId}
