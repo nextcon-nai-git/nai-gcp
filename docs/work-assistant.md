@@ -66,11 +66,11 @@ Usar o provisionamento existente de cada conector; não inserir segredos neste d
   leitura. O relatório informa a quantidade consultada e o recorte parcial.
   A data é a de emissão do ASO. Uma emissão pode ocorrer fora do período.
 - Para confirmar um pedido, uma conciliação previamente conferida deve existir na
-  subcoleção privada `rdSocLinks/{idDoPedidoRD}` do mesmo documento de cliente,
-  com `cnpj`, `companyId` (SOC), `employeeId` e `formId` (ficha SOC).
+  subcoleção privada `rdSocLinks/{companyIdSOC}_{employeeId}_{formId}` do mesmo documento de cliente,
+  com `requestId` (ID completo do pedido RD), `cnpj`, `companyId` (SOC), `employeeId` e `formId` (ficha SOC).
   O resultado é marcado confirmado somente quando a ficha volta do SOC no período
   com o funcionário previsto, na unidade autorizada e com data a partir do pedido.
-  Um vínculo ausente, duplicado no recorte ou incerto fica a conferir.
+  A chave da ficha só permite um pedido titular; um pedido associado a várias fichas fica a conferir.
 - Omie: consulta o favorecido pelo código confirmado, compara o CNPJ e busca a
   primeira página (até 50) das contas a receber em aberto por vencimento. Confere
   código e data em cada linha. Exibe valores originais dos documentos e informa

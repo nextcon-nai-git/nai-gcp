@@ -7,8 +7,8 @@ import { requireFinancialAccess } from "@/lib/auth/financial-access";
 import { requireTallosAccess } from "@/lib/integrations/tallos-api";
 import { requireSocAccess, socRead } from "@/lib/integrations/soc";
 import { adminDb } from "@/lib/firebase-admin";
-import { isValidCnpj } from "@/lib/cnpj";
-import { fromOmieDate, toOmieDate } from "@/lib/financial/omie-dre";
+import { isValidCnpj, normalizeCnpj } from "@/lib/cnpj";
+import { fromOmieDate, isCalendarDate, toOmieDate } from "@/lib/financial/omie-dre";
 import { omieConnectorSession } from "@/services/omie-financial";
 import { WorkSourceQuery, type WorkSourceSelection, workDay } from "@/lib/work-source-query";
 
@@ -33,15 +33,23 @@ const privateScopes = () =>
   adminDb.collection("webhook_deliveries").doc("work-assistant").collection("companies");
 
 async function rdOrders(scope: Scope, q: Selection) {
-  // UTC bounds include the whole final local day, including historical DST changes.
-  const upper = new Date(Date.parse(q.end) + 2 * 86400000).toISOString();
+  // In the supported period São Paulo civil-day boundaries fall on a UTC hour.
+  function localMidnight(day: string) {
+    const midnightUtc = Date.parse(day);
+    for (let h = 0; h < 24; h++) {
+      const candidate = new Date(midnightUtc + h * 3600000);
+      if (workDay(candidate) === day) return candidate.toISOString();
+    }
+    throw new Error("Dia fora do fuso da consulta.");
+  }
+  const tomorrow = new Date(Date.parse(q.end) + 86400000).toISOString().slice(0, 10);
   const snapshot = await adminDb
     .collection("integrations")
     .doc("rd-conversas-avp")
     .collection("asoRequests")
     .where("cnpj", "in", [...new Set(scope.cnpjs)])
-    .where("createdAt", ">=", q.start + "T00:00:00.000Z")
-    .where("createdAt", "<", upper)
+    .where("createdAt", ">=", localMidnight(q.start))
+    .where("createdAt", "<", localMidnight(tomorrow))
     .orderBy("createdAt", "asc")
     .limit(101)
     .select("cnpj", "source", "createdAt")
@@ -69,11 +77,28 @@ async function confirmedLinks(companyId: string, rows: RdRow[]) {
   const links = new Map<string, Link>();
   if (!rows.length) return links;
   const base = privateScopes().doc(companyId).collection("rdSocLinks");
-  const docs = await adminDb.getAll(...rows.map((row) => base.doc(row.id)));
-  for (const doc of docs) {
-    const parsed = linkSchema.safeParse(doc.data());
-    if (parsed.success) links.set(doc.id, parsed.data);
+  const ambiguous = new Set<string>();
+  for (let offset = 0; offset < rows.length; offset += 30) {
+    const ids = rows.slice(offset, offset + 30).map((row) => row.id);
+    const snapshot = await base.where("requestId", "in", ids).limit(61).get();
+    // A malformed or unusually large mapping cannot serve as proof for this batch.
+    if (snapshot.size > 60) continue;
+    for (const doc of snapshot.docs) {
+      const raw = doc.data();
+      if (!ids.includes(raw.requestId)) continue;
+      const parsed = linkSchema.safeParse(raw);
+      if (!parsed.success) {
+        ambiguous.add(raw.requestId);
+        continue;
+      }
+      const link = parsed.data;
+      // Keying by the provider's identity gives one owner to a form across all dates.
+      if (doc.id !== [link.companyId, link.employeeId, link.formId].join("_") ||
+          links.has(raw.requestId)) ambiguous.add(raw.requestId);
+      else links.set(raw.requestId, link);
+    }
   }
+  for (const id of ambiguous) links.delete(id);
   return links;
 }
 
@@ -100,7 +125,7 @@ async function socForms(scope: Scope, q: Selection, priorityIds: string[]) {
   const forms: SocForm[] = [];
   const seen = new Set<string>();
   for (const row of data) {
-    const day = fromOmieDate(row.issuedAt);
+    const day = isCalendarDate(row.issuedAt) ? row.issuedAt : fromOmieDate(row.issuedAt);
     if (
       !day ||
       day < q.start ||
@@ -131,7 +156,7 @@ async function receivables(user: AuthContext, scope: Scope, q: Selection) {
   if (
     party.codigo_cliente_omie !== binding.partyCode ||
     typeof party.cnpj_cpf !== "string" ||
-    party.cnpj_cpf.replace(/[.\/\s-]/g, "").toUpperCase() !== binding.cnpj
+    !isValidCnpj(party.cnpj_cpf) || normalizeCnpj(party.cnpj_cpf) !== binding.cnpj
   )
     throw new Error("Vínculo Omie divergente");
   const raw = await session.call("receivable", {
@@ -248,18 +273,12 @@ export async function readWorkSources(user: AuthContext, companyId: string, inpu
         : "SOC indisponível ou vínculo não validado. Emissões desconhecidas."
     );
   // A signed-off request-to-form association is required. No identity inference from names or dates.
-  const occurrences = new Map<string, number>();
-  for (const l of links?.values() ?? []) {
-    const k = [l.companyId, l.employeeId, l.formId].join(":");
-    occurrences.set(k, (occurrences.get(k) ?? 0) + 1);
-  }
   for (const row of rd?.rows ?? []) {
     const l = links?.get(row.id);
     const found =
       l &&
       l.cnpj === row.cnpj &&
       l.companyId === scope.soc?.companyId &&
-      occurrences.get([l.companyId, l.employeeId, l.formId].join(":")) === 1 &&
       soc?.forms.find(
         (f) => f.id === l.formId && f.employeeId === l.employeeId && f.day >= row.day
       );

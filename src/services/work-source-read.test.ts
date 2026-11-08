@@ -18,11 +18,10 @@ vi.mock("@/lib/firebase-admin", () => ({
       doc: () => ({
         collection: () =>
           name === "webhook_deliveries"
-            ? { doc: () => ({ get: m.scope, collection: () => ({ doc: (id: string) => id }) }) }
+            ? { doc: () => ({ get: m.scope, collection: () => ({ where: () => ({limit:()=>({get:m.links})}) }) }) }
             : { where: m.where },
       }),
     }),
-    getAll: m.links,
   },
 }));
 vi.mock("@/lib/integrations/soc", async (original) => ({
@@ -62,7 +61,7 @@ beforeEach(() => {
   };
   m.where.mockReturnValue(query);
   m.rd.mockResolvedValue({ docs: [doc(id, incoming)], size: 1 });
-  m.links.mockResolvedValue([doc(id, { cnpj, companyId: "11", employeeId: "9", formId: "7" })]);
+  m.links.mockResolvedValue({size:1, docs:[doc("11_9_7", { requestId:id, cnpj, companyId: "11", employeeId: "9", formId: "7" })]});
   m.soc.mockImplementation(async (resource: string) =>
     resource === "employees" ? [{ id: "9", unitId: "3", companyId: "11" }] : [row]
   );
@@ -77,13 +76,15 @@ describe("consultas do assistente", () => {
     expect(s).toContain("ASO SOC confirmado em 2026-11-05");
     expect(s).toContain("1 ASO(s)");
     expect(m.where).toHaveBeenCalledWith("cnpj", "in", [cnpj]);
+    expect(m.where).toHaveBeenCalledWith("createdAt", ">=", "2026-11-02T03:00:00.000Z");
+    expect(m.where).toHaveBeenCalledWith("createdAt", "<", "2026-11-09T03:00:00.000Z");
   });
   it("não atribui por nome, ficha fora da unidade ou vínculo de outro CNPJ", async () => {
-    m.links.mockResolvedValue([
-      doc(id, { cnpj: other, companyId: "11", employeeId: "9", formId: "7" }),
-    ]);
+    m.links.mockResolvedValue({size:1,docs:[
+      doc("11_9_7", { requestId:id, cnpj: other, companyId: "11", employeeId: "9", formId: "7" }),
+    ]});
     expect(await readWorkSources(user, "client", selection)).toContain("emissão a conferir");
-    m.links.mockResolvedValue([]);
+    m.links.mockResolvedValue({size:0,docs:[]});
     expect(await readWorkSources(user, "client", selection)).not.toContain("ASO SOC confirmado");
     m.soc.mockResolvedValueOnce([{ id: "9", unitId: "22", companyId: "11" }]);
     expect(await readWorkSources(user, "client", selection)).toContain("0 código(s)");
@@ -130,12 +131,10 @@ describe("consultas do assistente", () => {
     m.omie.mockResolvedValueOnce(party).mockResolvedValueOnce(page);
     expect(await ask()).toContain("Título 123 · 2026-11-06");
     expect(m.omie.mock.calls.map((c) => c[0])).toEqual(["partyDetail", "receivable"]);
-    m.omie
-      .mockResolvedValueOnce(party)
-      .mockResolvedValueOnce({
-        ...page,
-        conta_receber_cadastro: [{ ...title, codigo_cliente_fornecedor: 99 }],
-      });
+    m.omie.mockResolvedValueOnce(party).mockResolvedValueOnce({
+      ...page,
+      conta_receber_cadastro: [{ ...title, codigo_cliente_fornecedor: 99 }],
+    });
     expect(await ask()).not.toContain("Título 123");
     m.omie.mockResolvedValueOnce({ ...party, cnpj_cpf: other });
     expect(await ask()).toContain("Total desconhecido");
