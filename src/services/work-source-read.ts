@@ -14,7 +14,7 @@ import {
 import { requireSocAccess, socRead } from "@/lib/integrations/soc";
 import { adminDb } from "@/lib/firebase-admin";
 import { isValidCnpj, normalizeCnpj } from "@/lib/cnpj";
-import { fromOmieDate, isCalendarDate, toOmieDate } from "@/lib/financial/omie-dre";
+import { fromOmieDate, isCalendarDate } from "@/lib/financial/omie-dre";
 import { omieConnectorSession } from "@/services/omie-financial";
 import { WorkSourceQuery, type WorkSourceSelection, workDay } from "@/lib/work-source-query";
 
@@ -169,53 +169,66 @@ async function receivables(user: AuthContext, scope: Scope, q: Selection) {
     normalizeCnpj(party.cnpj_cpf) !== binding.cnpj
   )
     throw new Error("Vínculo Omie divergente");
-  const raw = await session.call("receivable", {
-    filtrar_cliente: binding.partyCode,
-    filtrar_por_cpf_cnpj: binding.cnpj,
-    filtrar_apenas_titulos_em_aberto: "S",
-    ordenar_por: "CODIGO",
-    pagina: 1,
-    registros_por_pagina: 50,
-    filtrar_por_data_de: toOmieDate(q.start),
-    filtrar_por_data_ate: toOmieDate(q.end),
+  // Omie's generic date filter is not a due-date filter. Check data_vencimento on each title.
+  const pageSize = 50;
+  const maxPages = 5;
+  const pageSchema = z.object({
+    pagina: z.number().int().positive(),
+    total_de_paginas: z.number().int().nonnegative(),
+    total_de_registros: z.number().int().nonnegative(),
+    conta_receber_cadastro: z.array(titleSchema).max(pageSize),
   });
-  const p = z
-    .object({
-      pagina: z.literal(1),
-      total_de_paginas: z.number().int().nonnegative(),
-      total_de_registros: z.number().int().nonnegative(),
-      conta_receber_cadastro: z.array(titleSchema).max(50),
-    })
-    .parse(raw);
-  const rows = p.conta_receber_cadastro;
-  if (
-    p.total_de_registros < rows.length ||
-    (p.total_de_registros > 0 && (!rows.length || !p.total_de_paginas)) ||
-    (p.total_de_registros === 0 && p.total_de_paginas > 1) ||
-    new Set(rows.map((r) => r.codigo_lancamento_omie)).size !== rows.length
-  )
-    throw new Error("Página Omie inconsistente");
-  const lines = rows.map((r) => {
-    const due = fromOmieDate(r.data_vencimento);
-    if (r.codigo_cliente_fornecedor !== binding.partyCode || !due || due < q.start || due > q.end)
-      throw new Error("Título fora do escopo");
-    return (
-      "Título " +
-      r.codigo_lancamento_omie +
-      " · " +
-      due +
-      " · " +
-      r.valor_documento.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-    );
-  });
+  const lines: string[] = [];
+  const seen = new Set<number>();
+  let total = 0;
+  let partial = false;
+  for (let page = 1; page <= maxPages; page++) {
+    const raw = await session.call("receivable", {
+      filtrar_cliente: binding.partyCode,
+      filtrar_por_cpf_cnpj: binding.cnpj,
+      filtrar_apenas_titulos_em_aberto: "S",
+      ordenar_por: "CODIGO",
+      pagina: page,
+      registros_por_pagina: pageSize,
+    });
+    const data = pageSchema.parse(raw);
+    if (page === 1) total = data.total_de_registros;
+    const expectedRows = Math.min(pageSize, total - seen.size);
+    if (
+      data.pagina !== page ||
+      data.total_de_registros !== total ||
+      (total ? data.total_de_paginas !== Math.ceil(total / pageSize) : data.total_de_paginas > 1) ||
+      data.conta_receber_cadastro.length !== expectedRows
+    )
+      throw new Error("Página Omie inconsistente");
+    for (const title of data.conta_receber_cadastro) {
+      const due = fromOmieDate(title.data_vencimento);
+      if (!due || title.codigo_cliente_fornecedor !== binding.partyCode)
+        throw new Error("Título fora do escopo");
+      if (seen.has(title.codigo_lancamento_omie)) throw new Error("Título Omie duplicado");
+      seen.add(title.codigo_lancamento_omie);
+      if (due < q.start || due > q.end) continue;
+      if (lines.length < pageSize) {
+        const amount = title.valor_documento.toLocaleString("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        });
+        lines.push("Título " + title.codigo_lancamento_omie + " · " + due + " · " + amount);
+      } else partial = true;
+    }
+    if (seen.size === total || partial) break;
+  }
+  partial ||= seen.size < total;
   return [
     "Omie · contas a receber em aberto · CNPJ " +
       binding.cnpj +
       " · valores originais dos títulos.",
     ...lines,
-    ...(lines.length ? [] : ["Nenhum título retornado no período."]),
-    ...(p.total_de_registros > rows.length || p.total_de_paginas > 1
-      ? ["Consulta parcial: primeira página de até 50 títulos."]
+    ...(lines.length || partial ? [] : ["Nenhum título retornado no período."]),
+    ...(partial
+      ? [
+          `Consulta parcial: ${seen.size} de ${total} títulos em aberto conferidos. Exibidos ${lines.length} com vencimento no período. Total no período desconhecido.`,
+        ]
       : []),
   ].join("\n");
 }

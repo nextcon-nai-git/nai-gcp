@@ -188,6 +188,59 @@ describe("consultas do assistente", () => {
     m.omie.mockResolvedValueOnce({ ...party, cnpj_cpf: other });
     expect(await ask()).toContain("Total desconhecido");
   });
+  it("encontra um vencimento na segunda página sem filtrar a data de alteração", async () => {
+    const first = Array.from({ length: 50 }, (_, i) => ({
+      codigo_lancamento_omie: i + 1,
+      codigo_cliente_fornecedor: 45,
+      data_vencimento: "01/11/2026",
+      valor_documento: 40,
+    }));
+    m.omie
+      .mockResolvedValueOnce({ codigo_cliente_omie: 45, cnpj_cpf: cnpj })
+      .mockResolvedValueOnce({
+        pagina: 1,
+        total_de_paginas: 2,
+        total_de_registros: 51,
+        conta_receber_cadastro: first,
+      })
+      .mockResolvedValueOnce({
+        pagina: 2,
+        total_de_paginas: 2,
+        total_de_registros: 51,
+        conta_receber_cadastro: [
+          { ...first[0], codigo_lancamento_omie: 51, data_vencimento: "06/11/2026" },
+        ],
+      });
+    const answer = await readWorkSources(user, "client", { ...selection, source: "omie" });
+    expect(answer).toContain("Título 51 · 2026-11-06");
+    expect(answer).not.toMatch(/01\/11|Título 1 ·|Consulta parcial/);
+    for (const [, params] of m.omie.mock.calls.slice(1)) {
+      expect(params).not.toHaveProperty("filtrar_por_data_de");
+      expect(params).not.toHaveProperty("filtrar_por_data_ate");
+      expect(params).toMatchObject({ filtrar_cliente: 45, filtrar_apenas_titulos_em_aberto: "S" });
+    }
+  });
+  it("preserva a incerteza quando os vencimentos podem estar após a quinta página", async () => {
+    m.omie.mockImplementation(async (kind: string, { pagina }: { pagina: number }) => {
+      if (kind === "partyDetail") return { codigo_cliente_omie: 45, cnpj_cpf: cnpj };
+      return {
+        pagina,
+        total_de_paginas: 6,
+        total_de_registros: 251,
+        conta_receber_cadastro: Array.from({ length: 50 }, (_, i) => ({
+          codigo_lancamento_omie: (pagina - 1) * 50 + i + 1,
+          codigo_cliente_fornecedor: 45,
+          data_vencimento: "01/11/2026",
+          valor_documento: 40,
+        })),
+      };
+    });
+    const answer = await readWorkSources(user, "client", { ...selection, source: "omie" });
+    expect(answer).toContain("250 de 251 títulos");
+    expect(answer).toContain("Total no período desconhecido");
+    expect(answer).not.toContain("Nenhum título");
+    expect(m.omie).toHaveBeenCalledTimes(6);
+  });
   it("respeita a semana de Brasília e rejeita datas e argumentos de outro cliente", () => {
     expect(currentWorkWeek(new Date("2026-11-09T01:00:00Z"))).toEqual({
       start: "2026-11-02",
