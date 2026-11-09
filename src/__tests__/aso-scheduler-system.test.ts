@@ -224,6 +224,29 @@ describe("avanço com evidência e controle transacional", () => {
     );
     expect(records.get("synthetic-req")).toEqual(record());
   });
+  it("desfaz só o movimento confirmado desta versão e mantém os outros campos", async () => {
+    const original = record();
+    records.set(original.id, original);
+    const first = await advancePipelineStepAction(original.id, "validando", "test-token", {
+      from: "solicitado",
+      updatedAt: original.updatedAt,
+    });
+    expect(first.receipt).toBeDefined();
+    const undo = {
+      from: "validando" as const,
+      updatedAt: first.receipt!.updatedAt,
+      undoId: first.receipt!.id,
+    };
+    const restore = (expected: typeof undo) =>
+      advancePipelineStepAction(original.id, "solicitado", "test-token", expected);
+    expect((await restore({ ...undo, undoId: "outro" })).success).toBe(false);
+    expect((await restore({ ...undo, updatedAt: "anterior" })).success).toBe(false);
+    expect((await restore(undo)).data).toMatchObject({
+      status: "solicitado",
+      digitalKit: original.digitalKit,
+    });
+    expect((await restore(undo)).success).toBe(false);
+  });
   it("não confirma exames sugeridos pela IA antes da revisão do PCMSO", async () => {
     records.set("synthetic-req", { ...record(), status: "validando" });
     const pending = await advancePipelineStepAction(

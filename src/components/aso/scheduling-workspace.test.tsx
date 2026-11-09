@@ -22,6 +22,15 @@ vi.mock("@/actions/aso-scheduler-actions", () => ({
 }));
 import Page from "./scheduling-workspace";
 let v: ReturnType<typeof ui>;
+const picker = () =>
+  v.container.querySelector<HTMLSelectElement>('select[aria-label^="Mover cartão"]')!;
+async function chooseStage(stage: string) {
+  await act(async () => {
+    const select = picker();
+    select.value = stage;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+}
 const kit = {
   guiaNumber: "MINUTA-synthetic",
   companyDetails: { name: "Empresa Teste", cnpj: "synthetic" },
@@ -163,6 +172,9 @@ describe("scheduling persistence and session boundaries", () => {
       node.textContent?.includes("Pessoa Ilhéus 1")
     );
     expect(group).toBeTruthy();
+    expect(picker().getAttribute("aria-label")).toContain("Pessoa Ilhéus 1");
+    await chooseStage("validando");
+    expect(m.advance.mock.calls[0][0]).toBe("ilh-1");
   });
   it("creates with reviewed input, splits risks and waits for save", async () => {
     await v.render(<Page />);
@@ -237,19 +249,71 @@ describe("scheduling persistence and session boundaries", () => {
     await v.render(<Page />);
     const p = deferred<unknown>();
     m.advance.mockReturnValue(p.promise);
-    await v.click("Avançar");
-    await v.click("Avançar");
+    await chooseStage("validando");
+    await chooseStage("validando");
     expect(m.advance).toHaveBeenCalledTimes(1);
-    expect(m.advance).toHaveBeenCalledWith("synthetic", "validando", "a-token");
+    expect(m.advance).toHaveBeenCalledWith("synthetic", "validando", "a-token", {
+      from: "solicitado",
+      updatedAt: null,
+    });
     await act(async () => p.resolve({ success: false, error: "Etapa não salva" }));
     expect(v.container.textContent).toContain("Etapa não salva");
-    expect(v.button("Avançar").disabled).toBe(false);
+    expect(picker().disabled).toBe(false);
   });
   it("applies persisted advance and disables completed requests", async () => {
     await v.render(<Page />);
     m.advance.mockResolvedValue({ success: true, data: { ...request, status: "aso_concluido" } });
-    await v.click("Avançar");
-    expect(v.button("Avançar").disabled).toBe(true);
+    await chooseStage("validando");
+    expect(picker().disabled).toBe(true);
+  });
+  it("drops a card with the mouse and undoes the saved move", async () => {
+    const receipt = { id: "receipt-1", from: "solicitado", to: "validando", updatedAt: "now" };
+    m.advance
+      .mockResolvedValueOnce({
+        success: true,
+        receipt,
+        data: { ...request, status: "validando", updatedAt: "now" },
+      })
+      .mockResolvedValueOnce({ success: true, data: request });
+    await v.render(<Page />);
+    const card = picker().closest('[draggable="true"]')!;
+    const target = v.container.querySelector('[data-aso-stage="validando"]')!;
+    const dataTransfer = { setData: vi.fn(), effectAllowed: "", dropEffect: "" };
+    for (const [element, type] of [
+      [card, "dragstart"],
+      [target, "dragover"],
+      [target, "drop"],
+    ] as const) {
+      await act(async () => {
+        element.dispatchEvent(
+          Object.assign(new Event(type, { bubbles: true, cancelable: true }), { dataTransfer })
+        );
+      });
+    }
+    expect(m.advance).toHaveBeenCalledTimes(1);
+    expect(target.contains(picker())).toBe(true);
+    await v.click("Desfazer");
+    expect(m.advance).toHaveBeenLastCalledWith("synthetic", "solicitado", "a-token", {
+      from: "validando",
+      updatedAt: "now",
+      undoId: "receipt-1",
+    });
+    expect(picker().value).toBe("solicitado");
+    expect(v.container.textContent).not.toContain("Desfazer");
+  });
+  it("preserves touch scrolling and explains a destination that requires evidence", async () => {
+    await v.render(<Page />);
+    const card = picker().closest<HTMLDivElement>('[draggable="true"]')!;
+    await act(async () => {
+      card.dispatchEvent(
+        Object.assign(new Event("pointerdown", { bubbles: true }), { pointerType: "touch" })
+      );
+    });
+    expect(card.draggable).toBe(false);
+    await chooseStage("aso_concluido");
+    expect(m.advance).not.toHaveBeenCalled();
+    expect(picker().value).toBe("solicitado");
+    expect(v.container.textContent).toContain("arquivamento");
   });
   it("does not pretend alerts were resolved", async () => {
     await v.render(<Page />);

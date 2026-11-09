@@ -6,6 +6,12 @@ import {
 } from "@/ai/flows/aso-scheduler-system-flow";
 import { AsoRequest, AsoPipelineStep, ExamType, DigitalKit } from "@/types/aso-scheduler-types";
 import { z } from "zod/v3";
+import { randomUUID } from "node:crypto";
+import {
+  reviewMoveError,
+  type BoardMoveExpectation,
+  type BoardMoveReceipt,
+} from "@/lib/aso-review-move";
 
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
@@ -246,8 +252,9 @@ export async function createAsoRequestAction(
 export async function advancePipelineStepAction(
   requestId: string,
   targetStep: AsoPipelineStep,
-  token = ""
-): Promise<{ success: boolean; data?: AsoRequest; error?: string }> {
+  token = "",
+  expected?: BoardMoveExpectation
+): Promise<{ success: boolean; data?: AsoRequest; receipt?: BoardMoveReceipt; error?: string }> {
   try {
     const user = await schedulerUser(token);
     const step = z
@@ -276,51 +283,45 @@ export async function advancePipelineStepAction(
       const snapshot = await tx.get(ref);
       if (!snapshot.exists) return { success: false, error: "Solicitação de ASO não encontrada." };
       const existing = snapshot.data() as AsoRequest;
-      // This legacy action changes internal review steps only. A draft kit and the
-      // timestamps previously written by this button are not external evidence.
-      const evidenceRequired: Partial<Record<AsoPipelineStep, string>> = {
-        agendado: "Registre a confirmação da clínica e a data do agendamento na esteira de ASOs.",
-        kit_montado: "Registre o pedido e o kit emitidos no SOC na esteira de ASOs.",
-        kit_enviado: "Registre o envio efetivo do kit e seu comprovante na esteira de ASOs.",
-        clinica_confirmou: "Registre a confirmação recebida da clínica na esteira de ASOs.",
-        exame_realizado:
-          "Registre a evidência do comparecimento e do exame realizado na esteira de ASOs.",
-        aso_concluido:
-          "Registre o ASO conferido, seu arquivamento e o comprovante de entrega ao cliente na esteira de ASOs.",
-      };
-      const error = evidenceRequired[step.data];
+      if (
+        expected &&
+        (existing.status !== expected.from || (existing.updatedAt ?? null) !== expected.updatedAt)
+      )
+        return {
+          success: false,
+          error: "O cartão mudou. Atualize o quadro antes de mover ou desfazer.",
+        };
+
+      if (expected?.undoId) {
+        const last = snapshot.data()?.lastBoardMove as
+          (BoardMoveReceipt & { actor: string }) | undefined;
+        if (
+          !last ||
+          last.id !== expected.undoId ||
+          last.actor !== user.uid ||
+          last.from !== step.data ||
+          last.to !== existing.status ||
+          last.updatedAt !== existing.updatedAt
+        )
+          return { success: false, error: "Este movimento já não pode ser desfeito." };
+
+        const changes = { status: last.from, updatedAt: new Date().toISOString() };
+        tx.update(ref, { ...changes, lastBoardMove: null });
+        return { success: true, data: { ...existing, ...changes } };
+      }
+
+      const error = reviewMoveError(existing, step.data);
       if (error) return { success: false, error };
-      if (
-        step.data === "exames_definidos" &&
-        (existing.validationPassed !== true || !existing.exams?.length)
-      )
-        return {
-          success: false,
-          error: "Registre a revisão dos exames com o PCMSO antes de defini-los como confirmados.",
-        };
-      if (
-        step.data === "clinica_selecionada" &&
-        (existing.validationPassed !== true ||
-          !existing.clinicId ||
-          !existing.clinicName ||
-          existing.clinicName === "A confirmar")
-      )
-        return { success: false, error: "Registre a clínica confirmada para este atendimento." };
       if (existing.status === step.data) return { success: true, data: existing };
-      const next: Partial<Record<AsoPipelineStep, AsoPipelineStep>> = {
-        solicitado: "validando",
-        validando: "exames_definidos",
-        exames_definidos: "clinica_selecionada",
-      };
-      if (next[existing.status] !== step.data)
-        return {
-          success: false,
-          error:
-            "A etapa foi alterada ou o avanço não é permitido. Atualize o card e conclua a etapa atual.",
-        };
       const changes = { status: step.data, updatedAt: new Date().toISOString() };
-      tx.update(ref, changes);
-      return { success: true, data: { ...existing, ...changes } };
+      const receipt: BoardMoveReceipt = {
+        id: randomUUID(),
+        from: existing.status,
+        to: step.data,
+        updatedAt: changes.updatedAt,
+      };
+      tx.update(ref, { ...changes, lastBoardMove: { ...receipt, actor: user.uid } });
+      return { success: true, data: { ...existing, ...changes }, receipt };
     });
   } catch (err: any) {
     console.error("[Advance Pipeline Action Error]", err);
