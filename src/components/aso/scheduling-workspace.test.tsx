@@ -141,6 +141,8 @@ describe("scheduling persistence and session boundaries", () => {
           ...request,
           id: "ilh-2",
           employeeName: "Pessoa Ilhéus 2",
+          clinicName: "A confirmar",
+          digitalKit: undefined,
           examType: "periodico",
           requestedCity: "Ilhéus/BA",
           exams: [{ name: "Clínico" }, { name: "Audiometria" }],
@@ -160,9 +162,10 @@ describe("scheduling persistence and session boundaries", () => {
     expect(v.container.textContent).toContain("Pessoa Ilhéus 1");
     await v.click("Agrupar por cidade");
     expect(v.container.textContent).toContain("Periódicos · ILHÉUS/BA");
-    expect(v.container.textContent).toContain("2 colaboradores");
+    expect(v.container.textContent).toContain("2 pedidos");
     expect(v.container.textContent).toContain("Sem clínica: 2");
-    expect(v.container.textContent).toContain("Com kit vinculado: 2");
+    expect(v.container.textContent).toContain("Com kit vinculado: 1");
+    expect(v.container.textContent).toContain("Sem kit vinculado: 1");
     expect(v.container.textContent).toContain("Periódicos · SALVADOR/BA");
     expect(v.container.textContent).not.toContain("Pessoa Ilhéus 1");
 

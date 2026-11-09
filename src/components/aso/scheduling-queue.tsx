@@ -239,7 +239,7 @@ function CityGroup({
           />
         </span>
         <span className="block text-sm text-slate-300">
-          {requests.length} {requests.length === 1 ? "colaborador" : "colaboradores"} ·{" "}
+          {requests.length} {requests.length === 1 ? "pedido" : "pedidos"} ·{" "}
           {requests.reduce((sum, req) => sum + (req.exams?.length ?? 0), 0)} exames
         </span>
         <span className="flex flex-wrap gap-x-2 text-xs text-slate-300">
@@ -368,7 +368,8 @@ export function SchedulingQueue({
       </div>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p role="status" className="text-sm text-slate-300">
-          {ready && `${filtered.length} de ${requests.length} atendimentos carregados`}
+          {ready &&
+            `${filtered.length} de ${requests.length} ${requests.length === 1 ? "atendimento carregado" : "atendimentos carregados"}`}
         </p>
         {hasFilters && (
           <button
@@ -395,6 +396,9 @@ export function SchedulingQueue({
               .filter((key) => !stage || stage === key)
               .map((key) => {
                 const list = filtered.filter((request) => request.status === key);
+                const emptyColumn = hasFilters
+                  ? "hidden md:order-last md:block"
+                  : "hidden md:block";
                 const cities = new Map<string, AsoRequest[]>();
                 const single: AsoRequest[] = [];
                 for (const request of list) {
@@ -414,7 +418,7 @@ export function SchedulingQueue({
                     key={key}
                     data-aso-stage={key}
                     {...stageDropProps(key)}
-                    className={`w-full space-y-2 rounded-xl border bg-slate-950/80 p-2.5 md:w-72 md:shrink-0 ${list.length ? "" : "hidden md:block"} ${dropTarget === key ? "border-cyan-400" : "border-slate-800"}`}
+                    className={`w-full space-y-2 rounded-xl border bg-slate-950/80 p-2.5 md:w-72 md:shrink-0 ${list.length ? "" : emptyColumn} ${dropTarget === key ? "border-cyan-400" : "border-slate-800"}`}
                   >
                     <div className="flex items-center justify-between gap-2 pb-1">
                       <h3
