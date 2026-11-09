@@ -1,10 +1,10 @@
 "use client";
 
+import { SchedulingQueue, initialQueueFilters } from "./scheduling-queue";
 import { ClinicPortalInvite } from "@/components/aso/clinic-portal-invite";
 import { KitPdfGenerator } from "@/components/aso/kit-pdf-generator";
 import { reviewMoveError, type BoardMoveReceipt } from "@/lib/aso-review-move";
 import React, { useState, useEffect } from "react";
-import { useSgi } from "@/contexts/sgi-context";
 import { useUser } from "@/firebase";
 import {
   getAsoRequestsAction,
@@ -13,20 +13,10 @@ import {
   runAsoOrchestratorAnalysisAction,
 } from "@/actions/aso-scheduler-actions";
 import { INITIAL_PARTNER_CLINICS, PIPELINE_STEPS_CONFIG } from "@/lib/aso-scheduler-data";
-import {
-  AsoRequest,
-  AsoPipelineStep,
-  ExamType,
-  PartnerClinic,
-  DigitalKit,
-} from "@/types/aso-scheduler-types";
+import { AsoRequest, AsoPipelineStep, ExamType, DigitalKit } from "@/types/aso-scheduler-types";
 import { AsoSystemOrchestratorOutput } from "@/ai/flows/aso-scheduler-system-flow";
 import {
-  Calendar,
-  ClipboardList,
   Building2,
-  UserCheck,
-  CheckCircle2,
   AlertTriangle,
   Send,
   Loader2,
@@ -34,58 +24,12 @@ import {
   Copy,
   Check,
   FileText,
-  Search,
   Plus,
-  ArrowRight,
-  ChevronRight,
-  ChevronDown,
-  ShieldCheck,
-  Stethoscope,
-  Activity,
-  Users,
   MapPin,
-  Clock,
   Star,
-  Zap,
-  Filter,
-  CheckSquare,
   AlertCircle,
   Brain,
 } from "lucide-react";
-
-const boardSteps = Object.keys(PIPELINE_STEPS_CONFIG) as AsoPipelineStep[];
-
-function MovePicker({
-  request,
-  disabled,
-  onMove,
-}: {
-  request: AsoRequest;
-  disabled: boolean;
-  onMove: (request: AsoRequest, target: AsoPipelineStep) => void;
-}) {
-  return (
-    <label
-      className="relative inline-flex min-h-11 items-center gap-1 rounded-lg bg-cyan-500/15 px-3 text-xs font-semibold text-cyan-200 focus-within:ring-2 focus-within:ring-cyan-300"
-      onClick={(event) => event.stopPropagation()}
-    >
-      Mover <ChevronDown className="size-3" aria-hidden="true" />
-      <select
-        aria-label={`Mover cartão de ${request.employeeName}`}
-        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-        disabled={disabled || request.status === "aso_concluido"}
-        value={request.status}
-        onChange={(event) => onMove(request, event.target.value as AsoPipelineStep)}
-      >
-        {boardSteps.map((step) => (
-          <option key={step} value={step}>
-            {PIPELINE_STEPS_CONFIG[step].label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
 
 export default function SchedulingWorkspace() {
   const { user } = useUser();
@@ -120,6 +64,8 @@ function SchedulingSession() {
   const [activeTab, setActiveTab] = useState<
     "kanban" | "nova_solicitacao" | "kit_digital" | "clinicas" | "supervisor"
   >("kanban");
+  const [queueFilters, setQueueFilters] = useState(initialQueueFilters);
+  const [listReady, setListReady] = useState(false);
   const [requests, setRequests] = useState<AsoRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -161,6 +107,7 @@ function SchedulingSession() {
         const res = await getAsoRequestsAction(token);
         if (!res.success) throw new Error("Consulta não concluída");
         if (!disposed && res.success && revision === boardRevision.current) {
+          setListReady(true);
           setRequests(res.data);
           setLoadError("");
           setSelectedRequest((current) =>
@@ -374,52 +321,37 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
     }
   };
 
-  // KPIs
-  const totalToday = requests.length;
-  const pendingTriage = requests.filter(
-    (r) => r.status === "solicitado" || r.status === "validando"
-  ).length;
-  const kitsSent = requests.filter(
-    (r) => r.status === "kit_enviado" || r.status === "clinica_confirmou"
-  ).length;
-  const asoCompleted = requests.filter((r) => r.status === "aso_concluido").length;
-  const criticalAlertsCount = requests
-    .flatMap((r) => r.alerts)
+  const pendingAlertsCount = requests
+    .flatMap((r) => r.alerts ?? [])
     .filter((a) => a.status === "PENDING").length;
 
+  const stageDropProps = (step: AsoPipelineStep): React.HTMLAttributes<HTMLDivElement> => ({
+    onDragOver(event) {
+      if (!dragging || dragging.status === step) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      setDropTarget(step);
+    },
+    onDragLeave(event) {
+      if (
+        !(event.relatedTarget instanceof Node) ||
+        !event.currentTarget.contains(event.relatedTarget)
+      ) {
+        setDropTarget((current) => (current === step ? null : current));
+      }
+    },
+    onDrop(event) {
+      if (!dragging) return;
+      event.preventDefault();
+      void handleMove(dragging, step);
+      clearDrag();
+    },
+  });
+
   return (
-    <div className="rounded-2xl bg-slate-950 text-slate-100 p-4 sm:p-6">
-      <div className="max-w-7xl mx-auto space-y-8">
-        {/* Header Bar */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-800 pb-6">
-          <div>
-            <div className="flex items-center gap-3">
-              <span className="p-2.5 bg-cyan-500/10 border border-cyan-500/20 rounded-xl text-cyan-400">
-                <Calendar className="w-7 h-7" />
-              </span>
-              <div>
-                <h2 className="text-2xl font-extrabold tracking-tight text-white">
-                  Agendamento e kits para clínicas
-                </h2>
-                <p className="text-sm text-slate-400 mt-1">
-                  Automação de solicitações, triagem de exames PCMSO/PGR, matching de clínicas
-                  credenciadas e acompanhamento eSocial S-2220.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setActiveTab("nova_solicitacao")}
-              className="bg-linear-to-r from-cyan-600 to-teal-500 hover:from-cyan-500 hover:to-teal-400 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-cyan-600/20 transition-all flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Nova Solicitação de ASO
-            </button>
-          </div>
-        </div>
-
+    <div className="min-w-0 rounded-2xl bg-slate-950 p-3 text-slate-100 sm:p-5">
+      <div className="mx-auto min-w-0 max-w-7xl space-y-4">
+        <h2 className="text-xl font-semibold tracking-tight text-white">Agendamento de ASOs</h2>
         {operationError && <p role="alert">{operationError}</p>}
         {notice && <p role="status">{notice}</p>}
         {loadError && (
@@ -427,121 +359,32 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
             {loadError}
           </p>
         )}
-        {/* Top KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800/80 space-y-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Solicitações Ativas
-            </span>
-            <div className="text-2xl font-black text-white">{totalToday}</div>
-            <p className="text-[10px] text-slate-500">Total no pipeline atual</p>
-          </div>
-
-          <div className="bg-slate-900/80 p-4 rounded-2xl border border-blue-500/20 space-y-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-blue-400">
-              Em Triagem / IA
-            </span>
-            <div className="text-2xl font-black text-blue-300">{pendingTriage}</div>
-            <p className="text-[10px] text-slate-500">Validação e exames PCMSO</p>
-          </div>
-
-          <div className="bg-slate-900/80 p-4 rounded-2xl border border-cyan-500/20 space-y-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-400">
-              Kits Enviados
-            </span>
-            <div className="text-2xl font-black text-cyan-300">{kitsSent}</div>
-            <p className="text-[10px] text-slate-500">Aguardando confirmação clínica</p>
-          </div>
-
-          <div className="bg-slate-900/80 p-4 rounded-2xl border border-emerald-500/20 space-y-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
-              ASOs Concluídos
-            </span>
-            <div className="text-2xl font-black text-emerald-300">{asoCompleted}</div>
-            <p className="text-[10px] text-slate-500">Prontos para carga eSocial S-2220</p>
-          </div>
-
-          <div className="bg-slate-900/80 p-4 rounded-2xl border border-amber-500/20 space-y-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
-              Alertas Supervisor
-            </span>
-            <div className="text-2xl font-black text-amber-300">{criticalAlertsCount}</div>
-            <p className="text-[10px] text-slate-500">Intervenção humana necessária</p>
-          </div>
-        </div>
-
-        {/* Operating Mode Tabs */}
-        <div className="flex flex-wrap items-center gap-2 bg-slate-900/60 p-1.5 rounded-2xl border border-slate-800">
-          <button
-            onClick={() => setActiveTab("kanban")}
-            className={`py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
-              activeTab === "kanban"
-                ? "bg-cyan-600 text-white shadow-lg shadow-cyan-600/20"
-                : "text-slate-400 hover:text-white"
-            }`}
-          >
-            <ClipboardList className="w-4 h-4" />
-            1. Pipeline Kanban (10 Etapas)
-          </button>
-          <button
-            onClick={() => setActiveTab("nova_solicitacao")}
-            className={`py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
-              activeTab === "nova_solicitacao"
-                ? "bg-cyan-600 text-white shadow-lg shadow-cyan-600/20"
-                : "text-slate-400 hover:text-white"
-            }`}
-          >
-            <Plus className="w-4 h-4" />
-            2. Nova Solicitação (IA Triagem)
-          </button>
-          <button
-            onClick={() => setActiveTab("kit_digital")}
-            className={`py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
-              activeTab === "kit_digital"
-                ? "bg-cyan-600 text-white shadow-lg shadow-cyan-600/20"
-                : "text-slate-400 hover:text-white"
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            3. Montador de Kit Digital
-          </button>
-          <button
-            onClick={() => setActiveTab("clinicas")}
-            className={`py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
-              activeTab === "clinicas"
-                ? "bg-cyan-600 text-white shadow-lg shadow-cyan-600/20"
-                : "text-slate-400 hover:text-white"
-            }`}
-          >
-            <Building2 className="w-4 h-4" />
-            4. Clínicas Credenciadas
-          </button>
-          <button
-            onClick={() => setActiveTab("supervisor")}
-            className={`py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
-              activeTab === "supervisor"
-                ? "bg-amber-600 text-white shadow-lg shadow-amber-600/20"
-                : "text-slate-400 hover:text-white"
-            }`}
-          >
-            <AlertTriangle className="w-4 h-4" />
-            5. Alertas & Exceções ({criticalAlertsCount})
-          </button>
-        </div>
-
-        {/* TAB 1: KANBAN PIPELINE (10 ETAPAS) */}
+        <nav
+          aria-label="Agendamento de ASOs"
+          className="flex items-center gap-1 overflow-x-auto rounded-xl border border-slate-800 bg-slate-900 p-1"
+        >
+          {(
+            [
+              ["kanban", "Atendimentos"],
+              ["nova_solicitacao", "Nova Solicitação de ASO"],
+              ["kit_digital", "Kit Digital"],
+              ["clinicas", "Clínicas"],
+              ["supervisor", `Alertas & Exceções (${pendingAlertsCount})`],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              type="button"
+              key={key}
+              aria-current={activeTab === key ? "page" : undefined}
+              onClick={() => setActiveTab(key)}
+              className="min-h-11 shrink-0 rounded-lg px-3 text-sm font-medium text-slate-300 hover:bg-slate-800 aria-[current=page]:bg-cyan-400/15 aria-[current=page]:text-cyan-200"
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
         {activeTab === "kanban" && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <Activity className="w-5 h-5 text-cyan-400" />
-                Pipeline de Acompanhamento (10 Etapas Rastreáveis)
-              </h2>
-              <span className="text-xs text-slate-400">
-                Use Mover para escolher a etapa ou arraste o cartão com o mouse.
-              </span>
-            </div>
-
+          <div className="min-w-0 space-y-3">
             {(moveMessage || movedCard) && (
               <div className="sticky top-2 z-10 flex flex-wrap items-center gap-3 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm">
                 <span role="status">{moveMessage}</span>
@@ -558,288 +401,25 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                 )}
               </div>
             )}
-            {/* Scrollable Pipeline */}
-            <div className="overflow-x-auto pb-4">
-              <div className="flex gap-4 min-w-[1800px]">
-                {(Object.keys(PIPELINE_STEPS_CONFIG) as AsoPipelineStep[]).map((stepKey) => {
-                  const stepConfig = PIPELINE_STEPS_CONFIG[stepKey];
-                  const stepRequests = requests.filter((r) => r.status === stepKey);
-
-                  return (
-                    <div
-                      key={stepKey}
-                      data-aso-stage={stepKey}
-                      onDragOver={(event) => {
-                        if (!dragging || dragging.status === stepKey) return;
-                        event.preventDefault();
-                        event.dataTransfer.dropEffect = "move";
-                        setDropTarget(stepKey);
-                      }}
-                      onDragLeave={(event) => {
-                        if (
-                          !(event.relatedTarget instanceof Node) ||
-                          !event.currentTarget.contains(event.relatedTarget)
-                        ) {
-                          setDropTarget((current) => (current === stepKey ? null : current));
-                        }
-                      }}
-                      onDrop={(event) => {
-                        if (!dragging) return;
-                        event.preventDefault();
-                        void handleMove(dragging, stepKey);
-                        clearDrag();
-                      }}
-                      className={`w-[280px] shrink-0 bg-slate-900/60 rounded-2xl border p-3 space-y-3 ${dropTarget === stepKey ? "border-cyan-400" : "border-slate-800"}`}
-                    >
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                        <span
-                          className={`text-xs font-bold px-2.5 py-1 rounded-lg ${stepConfig.badgeColor}`}
-                        >
-                          {stepConfig.label}
-                        </span>
-                        <span className="text-xs text-slate-400 font-bold">
-                          {stepRequests.length}
-                        </span>
-                      </div>
-
-                      <div className="space-y-3">
-                        {stepRequests.length > 0 ? (
-                          <>
-                            {stepRequests
-                              .filter((req) => req.examType !== "periodico" || !req.requestedCity)
-                              .map((req) => (
-                                <div
-                                  key={req.id}
-                                  {...dragProps(req)}
-                                  onClick={() => setSelectedRequest(req)}
-                                  className={`p-3.5 rounded-xl border transition-all cursor-pointer space-y-2 ${
-                                    selectedRequest?.id === req.id
-                                      ? "bg-slate-800 border-cyan-500 shadow-lg shadow-cyan-500/10"
-                                      : "bg-slate-950/80 border-slate-800 hover:border-slate-700"
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between text-[11px]">
-                                    <span className="font-mono font-bold text-cyan-400">
-                                      {req.id}
-                                    </span>
-                                    <span className="uppercase text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                                      {req.examType}
-                                    </span>
-                                  </div>
-
-                                  <div>
-                                    <h4 className="text-xs font-bold text-white line-clamp-1">
-                                      {req.employeeName}
-                                    </h4>
-                                    <p className="text-[11px] text-slate-400 line-clamp-1">
-                                      {req.roleTitle}
-                                    </p>
-                                    <p className="text-[10px] text-slate-500">{req.companyName}</p>
-                                    {req.source === "rd-conversas" && (
-                                      <p className="text-[10px] text-cyan-300">
-                                        RD Conversas · {req.requestedCity}
-                                      </p>
-                                    )}
-                                  </div>
-
-                                  {req.clinicName && (
-                                    <div className="text-[10px] text-cyan-300 bg-cyan-500/10 p-1.5 rounded border border-cyan-500/20 line-clamp-1">
-                                      🏥 {req.clinicName}
-                                    </div>
-                                  )}
-
-                                  <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
-                                    <span className="text-[10px] text-slate-500">
-                                      {req.exams.length} exames PCMSO
-                                    </span>
-
-                                    <MovePicker
-                                      request={req}
-                                      disabled={advancing !== null}
-                                      onMove={handleMove}
-                                    />
-                                  </div>
-                                </div>
-                              ))}
-
-                            {[
-                              ...new Map(
-                                stepRequests
-                                  .filter(
-                                    (req) => req.examType === "periodico" && req.requestedCity
-                                  )
-                                  .map((req) => [
-                                    req.requestedCity!.trim().toLocaleUpperCase("pt-BR"),
-                                    [] as AsoRequest[],
-                                  ])
-                              ).keys(),
-                            ].map((city) => {
-                              const cityRequests = stepRequests.filter(
-                                (req) =>
-                                  req.examType === "periodico" &&
-                                  req.requestedCity?.trim().toLocaleUpperCase("pt-BR") === city
-                              );
-                              const groupKey = `${stepKey}:${city}`;
-                              const expanded = expandedCityGroups.has(groupKey);
-                              const clinics = [
-                                ...new Set(
-                                  cityRequests.map((req) => req.clinicName).filter(Boolean)
-                                ),
-                              ];
-                              const withoutClinic = cityRequests.filter(
-                                (req) => !req.clinicName
-                              ).length;
-                              const kitPending = cityRequests.filter((req) =>
-                                [
-                                  "solicitado",
-                                  "validando",
-                                  "exames_definidos",
-                                  "clinica_selecionada",
-                                  "agendado",
-                                ].includes(req.status)
-                              ).length;
-                              const kitSent = cityRequests.filter((req) =>
-                                [
-                                  "kit_enviado",
-                                  "clinica_confirmou",
-                                  "exame_realizado",
-                                  "aso_concluido",
-                                ].includes(req.status)
-                              ).length;
-                              const scheduled = cityRequests.filter((req) =>
-                                [
-                                  "agendado",
-                                  "kit_montado",
-                                  "kit_enviado",
-                                  "clinica_confirmou",
-                                  "exame_realizado",
-                                  "aso_concluido",
-                                ].includes(req.status)
-                              ).length;
-                              const completed = cityRequests.filter(
-                                (req) => req.status === "aso_concluido"
-                              ).length;
-
-                              return (
-                                <div
-                                  key={groupKey}
-                                  className="rounded-xl border border-cyan-500/25 bg-slate-950/80 overflow-hidden"
-                                >
-                                  <button
-                                    type="button"
-                                    aria-expanded={expanded}
-                                    onClick={() => toggleCityGroup(groupKey)}
-                                    className="w-full p-3.5 text-left space-y-2 hover:bg-slate-900/80 transition-colors"
-                                  >
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="flex items-center gap-1.5 text-xs font-bold text-white">
-                                        <MapPin className="w-3.5 h-3.5 text-cyan-400" />
-                                        Periódicos · {city}
-                                      </span>
-                                      <span className="flex items-center gap-1 text-[10px] font-bold text-cyan-300">
-                                        {cityRequests.length} colaboradores
-                                        {expanded ? (
-                                          <ChevronDown className="w-3.5 h-3.5" />
-                                        ) : (
-                                          <ChevronRight className="w-3.5 h-3.5" />
-                                        )}
-                                      </span>
-                                    </div>
-                                    <div className="flex flex-wrap gap-1.5 text-[9px]">
-                                      {withoutClinic > 0 && (
-                                        <span className="rounded bg-rose-500/15 px-2 py-0.5 text-rose-300">
-                                          Sem clínica: {withoutClinic}
-                                        </span>
-                                      )}
-                                      {kitPending > 0 && (
-                                        <span className="rounded bg-amber-500/15 px-2 py-0.5 text-amber-300">
-                                          Kit pendente: {kitPending}
-                                        </span>
-                                      )}
-                                      {kitSent > 0 && (
-                                        <span className="rounded bg-cyan-500/15 px-2 py-0.5 text-cyan-300">
-                                          Kit enviado: {kitSent}
-                                        </span>
-                                      )}
-                                      {scheduled > 0 && (
-                                        <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-emerald-300">
-                                          Agendado+: {scheduled}
-                                        </span>
-                                      )}
-                                      {completed > 0 && (
-                                        <span className="rounded bg-blue-500/15 px-2 py-0.5 text-blue-300">
-                                          ASO concluído: {completed}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center justify-between text-[10px] text-slate-500">
-                                      <span>
-                                        {cityRequests.reduce(
-                                          (sum, req) => sum + req.exams.length,
-                                          0
-                                        )}{" "}
-                                        exames
-                                      </span>
-                                      <span className="truncate max-w-[150px]">
-                                        {clinics.length > 0
-                                          ? clinics.join(", ")
-                                          : "Clínica ainda não definida"}
-                                      </span>
-                                    </div>
-                                  </button>
-
-                                  {expanded && (
-                                    <div className="border-t border-slate-800 divide-y divide-slate-800">
-                                      {cityRequests.map((req) => (
-                                        <div
-                                          key={req.id}
-                                          {...dragProps(req)}
-                                          onClick={() => setSelectedRequest(req)}
-                                          className={`p-3 cursor-pointer ${
-                                            selectedRequest?.id === req.id
-                                              ? "bg-cyan-500/10"
-                                              : "hover:bg-slate-900/70"
-                                          }`}
-                                        >
-                                          <div className="flex items-start justify-between gap-2">
-                                            <div className="min-w-0">
-                                              <p className="text-[11px] font-bold text-white truncate">
-                                                {req.employeeName}
-                                              </p>
-                                              <p className="text-[10px] text-slate-400 truncate">
-                                                {req.roleTitle} · {req.exams.length} exames
-                                              </p>
-                                              {req.clinicName && (
-                                                <p className="text-[10px] text-cyan-300 truncate">
-                                                  {req.clinicName}
-                                                </p>
-                                              )}
-                                            </div>
-                                            <MovePicker
-                                              request={req}
-                                              disabled={advancing !== null}
-                                              onMove={handleMove}
-                                            />
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </>
-                        ) : (
-                          <div className="text-xs text-slate-600 italic py-6 text-center border border-dashed border-slate-800 rounded-xl">
-                            Nenhum pedido nesta etapa
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            <SchedulingQueue
+              filters={queueFilters}
+              setFilters={setQueueFilters}
+              requests={requests}
+              ready={listReady || requests.length > 0}
+              loadError={loadError}
+              dropTarget={dropTarget}
+              stageDropProps={stageDropProps}
+              expandedCities={expandedCityGroups}
+              onToggleCity={toggleCityGroup}
+              busy={advancing !== null}
+              dragProps={dragProps}
+              onMove={handleMove}
+              onSelect={setSelectedRequest}
+              onKit={(req) => {
+                setSelectedRequest(req);
+                setActiveTab("kit_digital");
+              }}
+            />
           </div>
         )}
 
@@ -1379,9 +959,9 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
             </div>
 
             <div className="space-y-3">
-              {requests.flatMap((r) => r.alerts).length > 0 ? (
+              {requests.flatMap((r) => r.alerts ?? []).length > 0 ? (
                 requests
-                  .flatMap((r) => r.alerts)
+                  .flatMap((r) => r.alerts ?? [])
                   .map((alt) => (
                     <div
                       key={alt.id}
