@@ -2,6 +2,7 @@
 
 import { ClinicPortalInvite } from "@/components/aso/clinic-portal-invite";
 import { KitPdfGenerator } from "@/components/aso/kit-pdf-generator";
+import { reviewMoveError, type BoardMoveReceipt } from "@/lib/aso-review-move";
 import React, { useState, useEffect } from "react";
 import { useSgi } from "@/contexts/sgi-context";
 import { useUser } from "@/firebase";
@@ -52,6 +53,40 @@ import {
   Brain,
 } from "lucide-react";
 
+const boardSteps = Object.keys(PIPELINE_STEPS_CONFIG) as AsoPipelineStep[];
+
+function MovePicker({
+  request,
+  disabled,
+  onMove,
+}: {
+  request: AsoRequest;
+  disabled: boolean;
+  onMove: (request: AsoRequest, target: AsoPipelineStep) => void;
+}) {
+  return (
+    <label
+      className="relative inline-flex min-h-11 items-center gap-1 rounded-lg bg-cyan-500/15 px-3 text-xs font-semibold text-cyan-200 focus-within:ring-2 focus-within:ring-cyan-300"
+      onClick={(event) => event.stopPropagation()}
+    >
+      Mover <ChevronDown className="size-3" aria-hidden="true" />
+      <select
+        aria-label={`Mover cartão de ${request.employeeName}`}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        disabled={disabled || request.status === "aso_concluido"}
+        value={request.status}
+        onChange={(event) => onMove(request, event.target.value as AsoPipelineStep)}
+      >
+        {boardSteps.map((step) => (
+          <option key={step} value={step}>
+            {PIPELINE_STEPS_CONFIG[step].label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export default function SchedulingWorkspace() {
   const { user } = useUser();
   if (!user) return <p>Entre no NAI para acessar os agendamentos.</p>;
@@ -73,6 +108,14 @@ function SchedulingSession() {
   const [operationError, setOperationError] = useState("");
   const [notice, setNotice] = useState("");
   const [advancing, setAdvancing] = useState<string | null>(null);
+
+  const [dragging, setDragging] = useState<AsoRequest | null>(null);
+  const [dropTarget, setDropTarget] = useState<AsoPipelineStep | null>(null);
+  const [lastMove, setLastMove] = useState<{ requestId: string; receipt: BoardMoveReceipt } | null>(
+    null
+  );
+  const [moveMessage, setMoveMessage] = useState("");
+  const boardRevision = React.useRef(0);
 
   const [activeTab, setActiveTab] = useState<
     "kanban" | "nova_solicitacao" | "kit_digital" | "clinicas" | "supervisor"
@@ -111,12 +154,13 @@ function SchedulingSession() {
     const refresh = async () => {
       if (inFlight) return;
       inFlight = true;
+      const revision = boardRevision.current;
       try {
         const token = await user.getIdToken();
         if (disposed) return;
         const res = await getAsoRequestsAction(token);
         if (!res.success) throw new Error("Consulta não concluída");
-        if (!disposed && res.success) {
+        if (!disposed && res.success && revision === boardRevision.current) {
           setRequests(res.data);
           setLoadError("");
           setSelectedRequest((current) =>
@@ -158,7 +202,7 @@ function SchedulingSession() {
       if (mounted.current) {
         if (key === "triage") setAnalyzingAi(false);
         else if (key === "create") setLoading(false);
-        else setAdvancing(null);
+        else if (key === "board-move") setAdvancing(null);
       }
     }
   }
@@ -201,6 +245,7 @@ function SchedulingSession() {
       if (!res.success || !res.data)
         throw new Error(res.error || "Erro ao criar solicitação de ASO.");
       if (!mounted.current) return;
+      boardRevision.current++;
       setRequests((prev) => [res.data!, ...prev.filter((r) => r.id !== res.data!.id)]);
       setSelectedRequest(res.data);
       setFormData({
@@ -233,19 +278,73 @@ function SchedulingSession() {
     });
   };
 
-  const handleAdvanceStep = (reqId: string, currentStep: AsoPipelineStep) => {
-    const order = Object.keys(PIPELINE_STEPS_CONFIG) as AsoPipelineStep[];
-    const index = order.indexOf(currentStep);
-    if (index < 0 || index >= order.length - 1) return;
-    setAdvancing(reqId);
-    return perform(`advance:${reqId}`, async (token) => {
-      const res = await advancePipelineStepAction(reqId, order[index + 1], token);
-      if (!res.success || !res.data) throw new Error(res.error || "Erro ao avançar etapa.");
+  const handleMove = (req: AsoRequest, target: AsoPipelineStep, undo?: BoardMoveReceipt) => {
+    if (req.status === target || operations.current.has("board-move")) return;
+    const reason = !undo && reviewMoveError(req, target);
+    if (reason) {
+      setMoveMessage(reason);
+      return;
+    }
+    setAdvancing(req.id);
+    setMoveMessage("");
+    return perform("board-move", async (token) => {
+      const res = await advancePipelineStepAction(req.id, target, token, {
+        from: req.status,
+        updatedAt: req.updatedAt ?? null,
+        ...(undo ? { undoId: undo.id } : {}),
+      });
+      if (!res.success || !res.data)
+        throw new Error(res.error || "Não foi possível mover o cartão.");
       if (!mounted.current) return;
-      setRequests((prev) => prev.map((r) => (r.id === reqId ? res.data! : r)));
-      setSelectedRequest((current) => (current?.id === reqId ? res.data! : current));
+      boardRevision.current++;
+      const saved = res.data;
+      setRequests((prev) => prev.map((item) => (item.id === saved.id ? saved : item)));
+      setSelectedRequest((current) => (current?.id === saved.id ? saved : current));
+      setLastMove(res.receipt ? { requestId: saved.id, receipt: res.receipt } : null);
+      if (saved.examType === "periodico" && saved.requestedCity) {
+        const key = `${saved.status}:${saved.requestedCity.trim().toLocaleUpperCase("pt-BR")}`;
+        setExpandedCityGroups((previous) => new Set(previous).add(key));
+      }
+      setMoveMessage(`${saved.employeeName} · ${PIPELINE_STEPS_CONFIG[saved.status].label}`);
     });
   };
+
+  const clearDrag = () => {
+    setDragging(null);
+    setDropTarget(null);
+  };
+
+  const dragProps = (req: AsoRequest): React.HTMLAttributes<HTMLDivElement> => {
+    const enabled = advancing === null && req.status !== "aso_concluido";
+    return {
+      draggable: enabled,
+      onPointerDown(event) {
+        event.currentTarget.draggable =
+          enabled &&
+          event.pointerType === "mouse" &&
+          !(event.target as Element).closest("select, button, label");
+      },
+      onDragStart(event) {
+        if (!event.currentTarget.draggable) {
+          event.preventDefault();
+          return;
+        }
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("application/x-nai-aso-card", "move");
+        setDragging(req);
+      },
+      onDragEnd: clearDrag,
+    };
+  };
+
+  const movedCard =
+    lastMove &&
+    requests.find(
+      (req) =>
+        req.id === lastMove.requestId &&
+        req.status === lastMove.receipt.to &&
+        req.updatedAt === lastMove.receipt.updatedAt
+    );
 
   const copyKitText = async (kit: DigitalKit) => {
     const text = `=== GUIA DE ENCAMINHAMENTO OCUPACIONAL NAI (${kit.guiaNumber}) ===
@@ -439,10 +538,26 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                 Pipeline de Acompanhamento (10 Etapas Rastreáveis)
               </h2>
               <span className="text-xs text-slate-400">
-                Clique no botão de cada card para avançar a etapa no fluxo automatizado.
+                Use Mover para escolher a etapa ou arraste o cartão com o mouse.
               </span>
             </div>
 
+            {(moveMessage || movedCard) && (
+              <div className="sticky top-2 z-10 flex flex-wrap items-center gap-3 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm">
+                <span role="status">{moveMessage}</span>
+                {movedCard && lastMove && (
+                  <button
+                    type="button"
+                    disabled={advancing !== null}
+                    aria-label={`Desfazer movimento de ${movedCard.employeeName}`}
+                    className="min-h-11 font-semibold text-cyan-300 underline"
+                    onClick={() => handleMove(movedCard, lastMove.receipt.from, lastMove.receipt)}
+                  >
+                    Desfazer
+                  </button>
+                )}
+              </div>
+            )}
             {/* Scrollable Pipeline */}
             <div className="overflow-x-auto pb-4">
               <div className="flex gap-4 min-w-[1800px]">
@@ -453,7 +568,28 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                   return (
                     <div
                       key={stepKey}
-                      className="w-[280px] shrink-0 bg-slate-900/60 rounded-2xl border border-slate-800 p-3 space-y-3"
+                      data-aso-stage={stepKey}
+                      onDragOver={(event) => {
+                        if (!dragging || dragging.status === stepKey) return;
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "move";
+                        setDropTarget(stepKey);
+                      }}
+                      onDragLeave={(event) => {
+                        if (
+                          !(event.relatedTarget instanceof Node) ||
+                          !event.currentTarget.contains(event.relatedTarget)
+                        ) {
+                          setDropTarget((current) => (current === stepKey ? null : current));
+                        }
+                      }}
+                      onDrop={(event) => {
+                        if (!dragging) return;
+                        event.preventDefault();
+                        void handleMove(dragging, stepKey);
+                        clearDrag();
+                      }}
+                      className={`w-[280px] shrink-0 bg-slate-900/60 rounded-2xl border p-3 space-y-3 ${dropTarget === stepKey ? "border-cyan-400" : "border-slate-800"}`}
                     >
                       <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                         <span
@@ -474,6 +610,7 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                               .map((req) => (
                                 <div
                                   key={req.id}
+                                  {...dragProps(req)}
                                   onClick={() => setSelectedRequest(req)}
                                   className={`p-3.5 rounded-xl border transition-all cursor-pointer space-y-2 ${
                                     selectedRequest?.id === req.id
@@ -516,18 +653,11 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                                       {req.exams.length} exames PCMSO
                                     </span>
 
-                                    <button
-                                      disabled={
-                                        advancing !== null || req.status === "aso_concluido"
-                                      }
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleAdvanceStep(req.id, req.status);
-                                      }}
-                                      className="text-[10px] bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-white px-2 py-1 rounded transition-all font-semibold flex items-center gap-1"
-                                    >
-                                      Avançar <ChevronRight className="w-3 h-3" />
-                                    </button>
+                                    <MovePicker
+                                      request={req}
+                                      disabled={advancing !== null}
+                                      onMove={handleMove}
+                                    />
                                   </div>
                                 </div>
                               ))}
@@ -663,6 +793,7 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                                       {cityRequests.map((req) => (
                                         <div
                                           key={req.id}
+                                          {...dragProps(req)}
                                           onClick={() => setSelectedRequest(req)}
                                           className={`p-3 cursor-pointer ${
                                             selectedRequest?.id === req.id
@@ -684,18 +815,11 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
                                                 </p>
                                               )}
                                             </div>
-                                            <button
-                                              disabled={
-                                                advancing !== null || req.status === "aso_concluido"
-                                              }
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleAdvanceStep(req.id, req.status);
-                                              }}
-                                              className="shrink-0 text-[10px] bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-white px-2 py-1 rounded transition-all font-semibold"
-                                            >
-                                              Avançar
-                                            </button>
+                                            <MovePicker
+                                              request={req}
+                                              disabled={advancing !== null}
+                                              onMove={handleMove}
+                                            />
                                           </div>
                                         </div>
                                       ))}
