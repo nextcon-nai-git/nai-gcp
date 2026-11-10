@@ -1,0 +1,27 @@
+{
+  "name": "nai-s2220-audit",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.cjs",
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "@genkit-ai/anthropic": "0.6.0",
+    "@genkit-ai/compat-oai": "1.43.0",
+    "@genkit-ai/google-genai": "1.43.0",
+    "@google-cloud/logging": "11.4.0",
+    "firebase-admin": "13.10.0",
+    "firebase-functions": "7.4.0",
+    "genkit": "1.43.0",
+    "zod": "4.6.7"
+  },
+  "scripts": {
+    "postinstall": "node scripts/security/apply-dependency-patches.mjs"
+  },
+  "overrides": {
+    "@genkit-ai/firebase": "1.43.0",
+    "@opentelemetry/propagator-jaeger": "2.9.0",
+    "zod@>=4.0.0 <4.6.6": "4.6.7"
+  }
+}

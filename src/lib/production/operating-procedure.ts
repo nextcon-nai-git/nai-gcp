@@ -70,7 +70,7 @@ export const operatingProcedure: OperatingProcedure = {
         },
         {
           kind: "paragraph",
-          text: "COMERCIAL / CONTRATOS: cadastro e documentos. IMPLANTAÇÃO / OPERAÇÕES: Central de Contratos e Produção e operação do cliente. FATURAMENTO / FINANCEIRO: ERP, títulos e conciliação. NAI Painel Estratégico: acompanhamento das pendências. Se o item não aparecer no seu perfil, solicite acesso ao administrador; não use a conta de outro operador.",
+          text: "Em Comercial, abra Vendas e contratos para acompanhar propostas e a produção contratada. Operacional reúne ASOs, documentos, equipe e eSocial. Em Faturamento, acesse cobrança, Omie e contabilidade. O logotipo NAI abre o painel inicial. Se o item não aparecer no seu perfil, solicite acesso ao administrador; não use a conta de outro operador.",
         },
         {
           kind: "heading",

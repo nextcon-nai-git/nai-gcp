@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   type LucideIcon,
   LogOut,
+  ChevronRight,
   BarChart3,
   ShieldCheck,
   DollarSign,
@@ -40,7 +41,11 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { getActiveNavigationHref, normalizeNavigationSearch } from "@/lib/navigation";
+import {
+  getActiveNavigationHref,
+  matchesNavigationTask,
+  normalizeNavigationSearch,
+} from "@/lib/navigation";
 import { usePathname, useRouter } from "next/navigation";
 
 import {
@@ -295,67 +300,110 @@ const NAV_CATALOG: NavModule[] = [
   },
 ];
 
-// The main menu follows delivery from contract to receipt. Supporting tools remain discoverable.
-const catalogItems = NAV_CATALOG.flatMap((module) => module.items);
-const operationalRoutes = new Set([
-  "/suppliers/qualification",
-  "/nai-importa",
-  "/assistente",
-  "/clients/grupo-avp",
-  "/agentes-ia",
-  "/health-control",
-  "/clients/cassi",
-  "/risk-management",
-  "/action-plans",
-  "/reports",
-  "/work-orders",
-  "/employees",
-  "/integrations/soc",
-  "/providers",
-  "/accredited-network",
-]);
-const commercialItems: NavItem[] = [
-  { title: "Comercial e propostas", icon: ShoppingCart, href: "/comercial" },
-  { title: "CRM comercial", icon: Users, href: "/crm" },
-  { title: "Contratos", icon: FileText, href: "/contracts" },
-  ...NAV_CATALOG[1].items,
-];
-const financialItems: NavItem[] = [
-  { title: "Faturamento e recebimentos", icon: DollarSign, href: "/financial/faturamento" },
+const itemsByHref = new Map(
+  NAV_CATALOG.flatMap((section) => section.items).map((item) => [item.href, item])
+);
+const additions: NavItem[] = [
+  { title: "Propostas", href: "/comercial", icon: ShoppingCart },
+  { title: "CRM comercial", href: "/crm", icon: Users },
+  { title: "Contratos", href: "/contracts", icon: FileText },
+  { title: "Faturamento e recebimentos", href: "/financial/faturamento", icon: DollarSign },
   {
     title: "Faturamento mensal por grupo",
-    icon: FileSpreadsheet,
     href: "/financial/monthly-billing",
+    icon: FileSpreadsheet,
   },
-  ...NAV_CATALOG[3].items,
+  { title: "Mensageria eSocial", href: "/esocial/messaging", icon: ShieldCheck },
 ];
-const mainRoutes = new Set([
-  "/",
-  ...commercialItems.map((item) => item.href),
-  ...operationalRoutes,
-  ...financialItems.map((item) => item.href),
-]);
-const NAV_MODULES: NavModule[] = [
+additions.forEach((item) => itemsByHref.set(item.href, item));
+function group(title: string, hrefs: string[]) {
+  return {
+    title,
+    items: hrefs.map((href) => {
+      const item = itemsByHref.get(href);
+      if (!item) throw new Error("Destino ausente no catálogo de navegação: " + href);
+      return item;
+    }),
+  };
+}
+const areas = [
   {
-    label: "NAI Painel Estratégico",
-    icon: Zap,
-    items: [{ title: "NAI Painel Estratégico", icon: Zap, href: "/" }],
+    label: "Comercial",
+    groups: [
+      group("Vendas e contratos", ["/comercial", "/crm", "/contracts", "/production"]),
+      group("Clientes e atendimento", ["/clients", "/client-center", "/integrations/rd-conversas"]),
+    ],
   },
-  { label: "COMERCIAL / CONTRATOS", icon: ShoppingCart, items: commercialItems },
   {
-    label: "IMPLANTAÇÃO / OPERAÇÕES",
-    icon: HardHat,
-    items: catalogItems
-      .filter((item) => operationalRoutes.has(item.href))
-      .map((item) =>
-        item.href === "/integrations/soc" ? { ...item, parentHref: undefined } : item
-      ),
+    label: "Operacional",
+    groups: [
+      group("ASOs e clínicas", [
+        "/health-control",
+        "/clients/grupo-avp",
+        "/accredited-network",
+        "/providers",
+        "/suppliers/qualification",
+        "/medical/health-management",
+        "/medical-certificates",
+        "/clients/cassi",
+        "/absenteeism",
+        "/medical/biomechanics",
+      ]),
+      group("Documentos e segurança", [
+        "/nai-importa",
+        "/reports",
+        "/risk-management",
+        "/risk-management/pgr-analysis",
+        "/action-plans",
+        "/ppe-management",
+        "/work-orders",
+        "/governance/compliance-audit",
+        "/trainings",
+        "/field-inspection",
+        "/audits",
+      ]),
+      group("Equipe e sistemas", [
+        "/assistente",
+        "/agentes-ia",
+        "/employees",
+        "/nxc-team",
+        "/time-tracking",
+        "/integrations/soc",
+        "/integrations",
+      ]),
+      group("eSocial e governança", [
+        "/esocial/messaging",
+        "/esocial/audit",
+        "/esocial-audit",
+        "/legal-financial",
+        "/legal-financial/ntep-contestation",
+        "/simulator",
+        "/compliance",
+        "/governance",
+      ]),
+    ],
   },
-  { label: "FATURAMENTO / FINANCEIRO", icon: DollarSign, items: financialItems },
   {
-    label: "EXTRAS",
-    icon: LayoutGrid,
-    items: catalogItems.filter((item) => !mainRoutes.has(item.href)),
+    label: "Faturamento",
+    groups: [
+      group("Cobrança e notas", [
+        "/financial/faturamento",
+        "/financial/monthly-billing",
+        "/financial/notas-fiscais",
+        "/cassi-billing",
+      ]),
+      group("Financeiro e Omie", [
+        "/financial",
+        "/financial/operacoes",
+        "/financial/actions",
+        "/financial/omie/conectores",
+      ]),
+      group("Contabilidade", [
+        "/financial/omie/dre",
+        "/financial/balanco",
+        "/financial/livro-diario",
+      ]),
+    ],
   },
 ];
 
@@ -414,57 +462,53 @@ export function AppSidebar() {
       pSpecialty.includes("TST") ||
       pSpecialty.includes("TÉCNICO"));
 
-  const isHealthProvider = isProvider && !isEngineeringProvider;
-
   const userName = profile?.name || user?.displayName || user?.email?.split("@")[0] || "Usuário";
 
-  // Filtragem dos módulos de acordo com o texto digitado
-  const filteredModules = React.useMemo(() => {
-    const query = normalizeNavigationSearch(filterText);
-    return NAV_MODULES.map((module) => {
-      const visibleItems = module.items.filter((item) => {
-        if (
-          isProvider &&
-          /^\/(financial|cassi-billing|contracts|production|comercial|crm)(\/|$)/.test(item.href)
-        )
-          return false;
-        if (isEngineeringProvider)
-          return item.providerAudience === "engineering" || item.providerAudience === "all";
-        if (isHealthProvider)
-          return item.providerAudience === "health" || item.providerAudience === "all";
-        return true;
-      });
-      if (visibleItems.length === 0) return null;
-
-      if (!query) return { ...module, items: visibleItems };
-
-      const matchedItems = visibleItems.filter(
-        (item) =>
-          normalizeNavigationSearch(item.title).includes(query) ||
-          item.href.toLowerCase().includes(query) ||
-          (item.badge && normalizeNavigationSearch(item.badge).includes(query))
-      );
-
-      if (matchedItems.length === 0 && !normalizeNavigationSearch(module.label).includes(query)) {
-        return null;
-      }
-
-      return {
-        ...module,
-        items: matchedItems.length > 0 ? matchedItems : visibleItems,
-      };
-    }).filter(Boolean) as NavModule[];
-  }, [filterText, isEngineeringProvider, isHealthProvider]);
-
-  const activeHref = getActiveNavigationHref(
-    pathname,
-    NAV_MODULES.flatMap((module) => module.items.map((item) => item.href))
-  );
-
+  const query = normalizeNavigationSearch(filterText);
+  const filteredModules = areas
+    .map((area) => ({
+      ...area,
+      groups: area.groups
+        .map((group) => ({
+          ...group,
+          items: group.items.filter((item) => {
+            if (
+              isProvider &&
+              /^\/(financial|cassi-billing|contracts|production|comercial|crm)(\/|$)/.test(
+                item.href
+              )
+            )
+              return false;
+            if (
+              isProvider &&
+              item.providerAudience !== "all" &&
+              item.providerAudience !== (isEngineeringProvider ? "engineering" : "health")
+            )
+              return false;
+            return (
+              !query ||
+              matchesNavigationTask(
+                query,
+                [area.label, group.title, item.title, item.href, item.badge]
+                  .filter(Boolean)
+                  .join(" "),
+                item.href
+              )
+            );
+          }),
+        }))
+        .filter((group) => group.items.length > 0),
+    }))
+    .filter((area) => area.groups.length > 0);
+  const activeHref = getActiveNavigationHref(pathname, [...itemsByHref.keys()]);
   return (
     <Sidebar className="border-r border-sidebar-border bg-[#001F3F] text-white">
       <SidebarHeader className="p-5 md:p-6 pb-3 md:pb-4 flex flex-row items-center justify-between border-b border-white/5">
-        <Link href="/" className="flex items-center gap-3 md:gap-3.5 group">
+        <Link
+          href="/"
+          aria-label="NAI · Painel inicial"
+          className="flex items-center gap-3 md:gap-3.5 group"
+        >
           <div className="relative size-10 md:size-11 shrink-0 p-1 bg-white/5 rounded-2xl border border-white/10 group-hover:border-amber-400/50 transition-all shadow-md">
             <Image
               src={BRASAO_URL}
@@ -479,9 +523,6 @@ export function AppSidebar() {
             <div className="flex items-center gap-1.5">
               <span className="text-xl md:text-2xl font-black tracking-tighter uppercase leading-none text-white">
                 NAI
-              </span>
-              <span className="px-1.5 py-0.2 text-[8px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 rounded border border-amber-400/30">
-                v4.2
               </span>
             </div>
           </div>
@@ -504,11 +545,13 @@ export function AppSidebar() {
           <input
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
-            placeholder="Filtrar módulos..."
+            placeholder="Buscar uma tarefa…"
+            aria-label="Buscar uma tarefa no menu"
             className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-7 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-hidden focus:border-amber-400/50 focus:bg-white/10 transition-all"
           />
           {filterText && (
             <button
+              aria-label="Limpar busca"
               onClick={() => setFilterText("")}
               className="absolute right-2.5 top-2 text-slate-400 hover:text-white text-xs"
             >
@@ -524,70 +567,55 @@ export function AppSidebar() {
             Nenhum módulo encontrado para &ldquo;{filterText}&rdquo;
           </div>
         ) : (
-          filteredModules.map((module) => {
-            return (
-              <SidebarGroup key={module.label} className="py-2">
-                <SidebarGroupLabel className="text-slate-400/80 text-[9px] font-black uppercase tracking-[0.08em] mb-1.5 px-3 flex items-center justify-between h-auto min-h-8 gap-2 py-1 leading-4">
-                  <span className="whitespace-normal">{module.label}</span>
-                  <span className="text-[8px] opacity-40 font-mono">({module.items.length})</span>
-                </SidebarGroupLabel>
-                <SidebarMenu className="space-y-0.5">
-                  {module.items.map((item) => {
-                    const isActive = activeHref === item.href;
-                    const Icon = item.icon;
-                    return (
-                      <SidebarMenuItem key={item.title}>
+          filteredModules.map((area) => (
+            <SidebarGroup key={area.label} className="py-2">
+              <SidebarGroupLabel className="px-3 text-xs font-semibold text-slate-300">
+                {area.label}
+              </SidebarGroupLabel>
+              {area.groups.map((group) => (
+                <details
+                  key={group.title + pathname + Boolean(query)}
+                  open={Boolean(query) || group.items.some((i) => i.href === activeHref)}
+                  className="group/nav"
+                >
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg px-3 text-sm font-medium text-slate-100 hover:bg-white/10 focus-visible:outline focus-visible:outline-amber-400">
+                    {group.title}
+                    <ChevronRight
+                      aria-hidden="true"
+                      className="size-4 shrink-0 transition-transform group-open/nav:rotate-90"
+                    />
+                  </summary>
+                  <SidebarMenu className="mb-2 border-l border-white/15 ml-3 pl-2">
+                    {group.items.map((item) => (
+                      <SidebarMenuItem key={item.href}>
                         <SidebarMenuButton
                           asChild
-                          isActive={isActive}
+                          isActive={activeHref === item.href}
                           className={cn(
-                            "rounded-xl px-3 h-10 transition-all duration-200 group",
-                            item.parentHref && "ml-4 w-[calc(100%-1rem)] border-l border-white/10",
-                            isActive
-                              ? "bg-linear-to-r from-amber-400/20 to-transparent text-white font-black border-l-4 border-amber-400 shadow-md"
-                              : "hover:bg-white/5 text-slate-300 hover:text-white opacity-85 hover:opacity-100"
+                            "h-auto min-h-10 rounded-lg text-sm",
+                            activeHref === item.href
+                              ? "bg-white/10 text-amber-300"
+                              : "text-slate-300 hover:bg-white/10"
                           )}
                         >
                           <Link
                             href={item.href}
-                            title={item.title}
-                            className="flex items-center justify-between w-full"
+                            aria-current={activeHref === item.href ? "page" : undefined}
                             onClick={() => {
                               if (isMobile) setOpenMobile(false);
                             }}
                           >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <Icon
-                                className={cn(
-                                  "size-4 shrink-0 transition-colors",
-                                  isActive
-                                    ? "text-amber-400"
-                                    : "text-slate-400 group-hover:text-slate-200"
-                                )}
-                              />
-                              <span className="text-[11px] font-bold uppercase tracking-tight truncate">
-                                {item.title}
-                              </span>
-                            </div>
-                            {item.badge && (
-                              <span
-                                className={cn(
-                                  "text-[8px] font-black uppercase px-1.5 py-0.2 rounded-md border shrink-0",
-                                  item.badgeColor || "bg-white/10 text-slate-300 border-white/10"
-                                )}
-                              >
-                                {item.badge}
-                              </span>
-                            )}
+                            <item.icon aria-hidden="true" className="size-4 shrink-0" />
+                            <span className="whitespace-normal">{item.title}</span>
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
-              </SidebarGroup>
-            );
-          })
+                    ))}
+                  </SidebarMenu>
+                </details>
+              ))}
+            </SidebarGroup>
+          ))
         )}
       </SidebarContent>
 
