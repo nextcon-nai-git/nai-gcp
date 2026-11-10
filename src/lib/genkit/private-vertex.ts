@@ -71,7 +71,7 @@ async function extract<S extends z.ZodTypeAny>(
   // Vertex returns JSON and the same full Zod contract is enforced locally.
   const format =
     mode === "json-template"
-      ? " Produza um objeto JSON com exatamente os campos e tipos deste esquema. Use no máximo três elementos por lista quando possível e frases de até 180 caracteres. " +
+      ? " Produza um objeto JSON com exatamente os campos e tipos deste esquema. Preserve todos os itens legíveis de cada lista até o limite do esquema. Se esse limite impedir a transcrição integral, indique a lacuna em pendências ou limitações. " +
         JSON.stringify(jsonSchema)
       : "";
   const client = await credentials.getClient();
