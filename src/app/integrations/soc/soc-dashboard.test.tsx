@@ -55,7 +55,7 @@ it("retains two companies prepared consecutively before the shared publication",
     Object.defineProperty(file, "arrayBuffer", {
       value: async () =>
         new TextEncoder().encode(
-          `CNPJ DA UNIDADE,Apelido da Empresa,UNIDADE,Exame,Refazer em,Código Funcionario,Situação\n001,${name},Matriz,Clínico,01/01/2026,1,Ativo`
+          `CNPJ DA UNIDADE,Apelido da Empresa,UNIDADE,Exame,Refazer em,Código Funcionario,Situação\n11.222.333/0001-81,${name},Matriz,Clínico,01/01/2026,1,Ativo`
         ).buffer,
     });
     const input = host.querySelector('input[type="file"][accept=".csv,text/csv"]')!;

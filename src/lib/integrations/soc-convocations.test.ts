@@ -32,6 +32,22 @@ describe("SOC convocações", () => {
       withoutDueDate: 2,
     });
   });
+  it("conta CNPJs alfanuméricos distintos e reconhece o mesmo CNPJ com outra máscara", () => {
+    const ids = ["12.ABC.345/01DE-35", "12abc34501de35", "12.LBC.345/01DE-35"];
+    const rows = parseConvocations(csv(ids.map((id) => ({ ...row, "CNPJ DA UNIDADE": id }))));
+    expect(rows.map((r) => r["CNPJ DA UNIDADE"])).toEqual(ids);
+    expect(summarizeConvocations(rows, "2026-11-10")).toMatchObject({
+      cnpjs: 2,
+      uniqueEmployeeExamKeys: 2,
+      repeatedKeys: 1,
+      extraRowsForRepeatedKeys: 1,
+    });
+  });
+  it("recusa um documento com dígito verificador incorreto", () => {
+    expect(() =>
+      parseConvocations(csv([{ ...row, "CNPJ DA UNIDADE": "11.222.333/0001-82" }]))
+    ).toThrow("CNPJ");
+  });
   it("does not infer due dates or completion from frequency or order", () => {
     expect(convocationStatus({ ...row, "Último Pedido": "01/10/2025" }, "2026-10-16")).toBe(
       "Sem vencimento informado"

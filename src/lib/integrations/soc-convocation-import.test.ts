@@ -5,7 +5,7 @@ import { socDashboardSchema } from "./soc-dashboard";
 const header =
   "CNPJ DA UNIDADE,Apelido da Empresa,UNIDADE,Exame,Refazer em,Código Funcionario,Situação,Nome,Data Resultado";
 const row = (id: string, due: string, state = "Ativo", company = "Empresa Teste") =>
-  `001,${company},Unidade,Exame clínico,${due},${id},${state},Pessoa privada,01/01/2026`;
+  `11.222.333/0001-81,${company},Unidade,Exame clínico,${due},${id},${state},Pessoa privada,01/01/2026`;
 const parse = (rows: string[]) =>
   importSocConvocation(
     [header, ...rows].join("\n"),
@@ -33,6 +33,19 @@ describe("SOC convocation import", () => {
       duplicates: 1,
       unknown: 2,
     });
+  });
+  it("preserva CNPJs com letras na contagem agregada de unidades", () => {
+    const lines = ["12.ABC.345/01DE-35", "12abc34501de35", "12.LBC.345/01DE-35"].map((id) =>
+      row("1", "").replace(/^[^,]*/, id)
+    );
+    expect(parse(lines)).toMatchObject({ total: 2, duplicates: 1, unknown: 2 });
+  });
+  it("mantém a unidade por nome quando o arquivo não informa CNPJ", () => {
+    const missing = row("1", "").replace(/^[^,]*/, "");
+    expect(parse([missing, missing])).toMatchObject({ total: 1, duplicates: 1 });
+  });
+  it("recusa CNPJ preenchido que não identifica a unidade", () => {
+    expect(() => parse([row("1", "").replace(/^[^,]*/, "001")])).toThrow("CNPJ da unidade");
   });
   it("rejects conflicting dates for the same unit, employee and exam", () => {
     expect(() => parse([row("1", ""), row("1", "01/10/2026")])).toThrow("divergentes");
