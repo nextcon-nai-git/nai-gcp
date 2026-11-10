@@ -66,8 +66,14 @@ export const AsoFlowRowSchema = z
   })
   .strict();
 export type AsoFlowRow = z.infer<typeof AsoFlowRowSchema>;
+const documentId = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[^/\u0000]+$/);
 export const AsoFlowImportSchema = z
   .object({
+    companyId: documentId.optional(),
     rows: z.array(AsoFlowRowSchema).min(1).max(ASO_FLOW_BATCH_SIZE),
     sourceName: text(240).min(1),
   })
@@ -213,11 +219,6 @@ export function asoFlowMapStatus(
   return "pending";
 }
 const mutation = { id: AsoFlowIdSchema, version: z.number().int().positive() };
-const documentId = z
-  .string()
-  .min(1)
-  .max(128)
-  .regex(/^[^/\u0000]+$/);
 export const AsoFlowMutationSchema = z.discriminatedUnion("action", [
   z
     .object({

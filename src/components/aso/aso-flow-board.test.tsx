@@ -666,7 +666,7 @@ describe("esteira compartilhada de ASOs", () => {
         cards: body.rows.map((row: AsoFlowRow) => makeCard(row.sourceRow)),
       });
     });
-    await render();
+    await act(async () => root.render(<AsoFlowBoard initialCompany="company-test" />));
     const fileInput = host.querySelector<HTMLInputElement>(
       '[aria-label="Planilha de solicitações ASO"]'
     )!;
@@ -691,6 +691,7 @@ describe("esteira compartilhada de ASOs", () => {
       ["import", 200],
       ["import", 1],
     ]);
+    expect(payloads().map((payload) => payload.companyId)).toEqual(Array(4).fill("company-test"));
     expect(document.body.textContent).toContain("201 cards criados");
   });
   it("apaga dados da esteira e prévia quando a autorização é revogada", async () => {

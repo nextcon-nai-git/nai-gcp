@@ -364,6 +364,35 @@ describe("revogação durante operações da esteira", () => {
   });
 });
 describe("resolução e importação canônica", () => {
+  it("separa os clientes da planilha na prévia e revalida o cliente na gravação", async () => {
+    const otherRow = { ...row, companyCnpj: "12.ABC.345/01DE-35", sourceRow: 8 };
+    db.set("companies/TWO", { active: true, cnpj: otherRow.companyCnpj, name: "Outro cliente" });
+    db.set("companies/TWO/employees/E2", {
+      ...db.get("companies/ONE/employees/E1"),
+      companyId: "TWO",
+    });
+    const mixed = input([row, otherRow]);
+    const scoped = { ...mixed, companyId: "ONE" };
+    const preview = await previewAsoFlowImport(user, scoped);
+    expect(preview).toMatchObject({ ready: 1, blocked: 1 });
+    expect(preview.rows[1].errors.join(" ")).toContain("cliente selecionado");
+    expect(preview.rows[1].employeeId).toBeUndefined();
+    await expect(importAsoFlowRows(user, scoped)).rejects.toMatchObject({ status: 409 });
+    expect([...db.keys()].some((key) => key.includes("/cases/"))).toBe(false);
+    expect(await importAsoFlowRows(user, { ...input(), companyId: "ONE" })).toMatchObject({
+      created: 1,
+      cards: [{ companyId: "ONE" }],
+    });
+    expect(await importAsoFlowRows(user, mixed)).toMatchObject({ created: 1, unchanged: 1 });
+  });
+
+  it("confere o acesso ao cliente solicitado até quando todas as linhas estão pendentes", async () => {
+    const scoped = { ...input([{ ...row, employeeCpf: "" }]), companyId: "ONE" };
+    db.set("users/operator", { role: "OPERATIONS", accessEnabled: true, servedCompanies: ["TWO"] });
+    await expect(previewAsoFlowImport(user, scoped)).rejects.toMatchObject({ status: 403 });
+    await expect(importAsoFlowRows(user, scoped)).rejects.toMatchObject({ status: 403 });
+  });
+
   it("preserva letras do CNPJ ao importar, reimportar e conferir a identidade do cliente", async () => {
     db.get("companies/ONE")!.cnpj = "12.ABC.345/01DE-35";
     const alphaRow = { ...row, companyCnpj: "12abc34501de35" };
