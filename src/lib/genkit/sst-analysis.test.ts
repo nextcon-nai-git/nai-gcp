@@ -1,9 +1,12 @@
 // @vitest-environment node
 import { describe, it, expect, vi } from "vitest";
 import { z } from "zod/v3";
-import { fapNtepAuditFlow } from "./flows/fap-ntep-audit";
-import { aftNr28SimulatorFlow } from "./flows/aft-nr28-simulator";
-import { legacyEtlMigrationFlow } from "./flows/legacy-etl-migration";
+import { calculateFapReview as fapNtepAuditFlow } from "./flows/fap-ntep-audit";
+import { calculateNr28 as aftNr28SimulatorFlow } from "./flows/aft-nr28-simulator";
+import {
+  mapLegacyRecords as legacyEtlMigrationFlow,
+  legacyEtlMigrationFlow as suggestLegacy,
+} from "./flows/legacy-etl-migration";
 import { scoreErgonomics } from "./flows/ergonomic-assessment";
 import { reviewTraining } from "./flows/training-compliance";
 import { accidentInvestigationFlow } from "./flows/accident-investigation";
@@ -250,5 +253,17 @@ describe("TESTE NAI – análises SST", () => {
       relato: "TESTE queda",
     });
     expect(r.fatosRelatados).toHaveLength(1);
+  });
+  it("filtra sugestões fora do catálogo e preserva a taxa de correspondências exatas", async () => {
+    request.mockResolvedValueOnce(
+      vertex({ sugestoes: [{ linha: 0, codigos: ["99.99.999", "02.01.001"] }] })
+    );
+    const r = await suggestLegacy({
+      ...etl,
+      registros: [{ idOriginal: "TESTE-1", descricaoAgenteNocivo: "Barulho alto no setor" }],
+    });
+    expect(r.registrosMapeados[0].candidatos.map((c) => c.codigo)).toContain("02.01.001");
+    expect(r.registrosMapeados[0].candidatos.map((c) => c.codigo)).not.toContain("99.99.999");
+    expect(r.taxaSucessoMapeamentoPercent).toBe(0);
   });
 });

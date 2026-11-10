@@ -87,18 +87,41 @@ export function reviewTraining(
         .replace(/[\u0300-\u036f]/g, "")
         .toLowerCase()
     : null;
+  const horasConferem = horas === null || c.cargaHoraria === null ? null : c.cargaHoraria >= horas;
+  const conclusaoFutura = conclusao.success ? conclusao.data > i.dataReferencia : null;
+  const prazoUltrapassado = limite ? i.dataReferencia > limite : null;
+  const divergente =
+    [titularConfere, normaConfere, modalidadeConfere, horasConferem].includes(false) ||
+    conclusaoFutura === true ||
+    prazoUltrapassado === true;
+  const pendente =
+    [
+      titularConfere,
+      normaConfere,
+      modalidadeConfere,
+      horasConferem,
+      conclusaoFutura,
+      prazoUltrapassado,
+    ].includes(null) ||
+    !c.instrutor ||
+    !c.conteudoProgramatico.length ||
+    c.pendencias.length > 0;
   return {
+    situacaoDocumental: divergente
+      ? "Divergência identificada"
+      : pendente
+        ? "Evidência incompleta"
+        : "Critérios documentais conferidos",
     dadosExtraidos: c,
     conferencia: {
       titularConfere,
       normaConfere,
       modalidadeConfere,
       cargaHorariaMinima: horas,
-      cargaHorariaAtingida:
-        horas === null || c.cargaHoraria === null ? null : c.cargaHoraria >= horas,
-      dataConclusaoPosterior: conclusao.success ? conclusao.data > i.dataReferencia : null,
+      cargaHorariaAtingida: horasConferem,
+      dataConclusaoPosterior: conclusaoFutura,
       limiteDocumental: limite,
-      prazoUltrapassado: limite ? i.dataReferencia > limite : null,
+      prazoUltrapassado,
     },
     statusControleAcesso: "Aguardando conferência do responsável",
     pendencias: [

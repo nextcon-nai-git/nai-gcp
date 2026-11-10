@@ -1,6 +1,7 @@
 import { z } from "zod/v3";
 import tabela from "../tables/nr28.json";
-import { shortText } from "../sst-fields";
+import { privateVertexFlow } from "../private-vertex";
+import { shortText, listOfNotes } from "../sst-fields";
 const count = z.number().int().min(0).max(1e7);
 export const AuditSimulationInputSchema = z.object({
   numeroColaboradores: count.min(1),
@@ -16,7 +17,7 @@ export const AuditSimulationInputSchema = z.object({
   valorUnidade: z.number().positive().max(10000).optional(),
   referenciaConversao: shortText.optional(),
 });
-export function aftNr28SimulatorFlow(raw: unknown) {
+export function calculateNr28(raw: unknown) {
   const i = AuditSimulationInputSchema.parse(raw),
     limites = [10, 25, 50, 100, 250, 500, 1000, Infinity],
     linha = tabela.faixas[limites.findIndex((l) => i.numeroColaboradores <= l)];
@@ -81,4 +82,28 @@ export function aftNr28SimulatorFlow(raw: unknown) {
       : ["Conferir a evidência de cada item com o responsável de SST."],
     nota: "Contagens de eventos e pendências servem para triagem. A conversão em reais depende de base monetária e referência vigentes informadas pelo responsável.",
   };
+}
+
+const plan = privateVertexFlow(
+  "aftNr28SimulatorFlow",
+  z.object({ verificacoesPrioritarias: listOfNotes, evidenciasAReunir: listOfNotes })
+);
+export async function aftNr28SimulatorFlow(raw: unknown) {
+  const result = calculateNr28(raw);
+  try {
+    const revisao = await plan(
+      "Proponha ações corretivas verificáveis e evidências a reunir para estes indicadores e itens selecionados. Use apenas os dados fornecidos. Não estime multas, probabilidades, novos enquadramentos ou prazos legais. " +
+        JSON.stringify({
+          indicadores: result.indicadores,
+          achados: result.achados,
+          pendencias: result.planoAcao,
+        })
+    );
+    return { ...result, ...revisao, assistenciaIa: "Plano para revisão gerado." };
+  } catch {
+    return {
+      ...result,
+      assistenciaIa: "IA indisponível. Estimativa local e pendências disponíveis.",
+    };
+  }
 }

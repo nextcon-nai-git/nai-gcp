@@ -50,6 +50,8 @@ export function scoreErgonomics(input: Input) {
       };
     const rwl = input.multiplicadores.reduce((v, m) => v * m, 23),
       index = input.cargaKg / rwl;
+    if (!Number.isFinite(index) || rwl < 0.001)
+      throw new Error("Confira os multiplicadores da ficha RNLE.");
     return {
       limiteRecomendadoKg: Number(rwl.toFixed(3)),
       indiceLevantamento: Number(index.toFixed(3)),

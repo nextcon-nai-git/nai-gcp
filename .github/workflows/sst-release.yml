@@ -22,6 +22,10 @@ jobs:
   release:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
     timeout-minutes: 25
     env:
       GOOGLE_CLOUD_PROJECT: studio-8439299034-125c7
@@ -33,7 +37,16 @@ jobs:
           cache: npm
       - run: npm ci --prefer-offline --no-audit
       - run: npm run build:s2220-function
-      - name: Autenticar no projeto do NAI
+      - name: Autenticar com identidade federada de SST
+        id: federated
+        if: vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && vars.GCP_SST_DEPLOY_SERVICE_ACCOUNT != ''
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SST_DEPLOY_SERVICE_ACCOUNT }}
+          project_id: studio-8439299034-125c7
+      - name: Usar credencial de publicação existente quando não houver identidade federada
+        if: steps.federated.outcome == 'skipped'
         id: credentials
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
@@ -43,5 +56,5 @@ jobs:
         id: metrics
         run: npm run infra:ai-metrics
       - name: Publicar somente a função de auditoria S-2220
-        if: ${{ !cancelled() && steps.credentials.outcome == 'success' }}
+        if: ${{ !cancelled() && (steps.credentials.outcome == 'success' || steps.federated.outcome == 'success') }}
         run: npx --yes firebase-tools@15.33.0 deploy --only functions:s2220-audit --project studio-8439299034-125c7 --non-interactive

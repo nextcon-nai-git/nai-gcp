@@ -1,6 +1,7 @@
 import { z } from "zod/v3";
 import { isValidCnpj } from "@/lib/cnpj";
-import { isoDate, shortText } from "../sst-fields";
+import { privateVertexFlow } from "../private-vertex";
+import { isoDate, shortText, listOfNotes } from "../sst-fields";
 import lista from "../tables/ntep-lista-c.json";
 const factor = z.number().min(0.5).max(2).multipleOf(0.0001);
 export const FapContestInputSchema = z
@@ -28,7 +29,7 @@ export const FapContestInputSchema = z
     path: ["dataFim"],
     message: "O fim é anterior ao início.",
   });
-export function fapNtepAuditFlow(raw: unknown) {
+export function calculateFapReview(raw: unknown) {
   const i = FapContestInputSchema.parse(raw),
     classe = i.cnaePrincipal.slice(0, 4),
     cid = i.cid10.slice(0, 3);
@@ -83,4 +84,27 @@ export function fapNtepAuditFlow(raw: unknown) {
       "Identificar o procedimento e o prazo aplicáveis antes de protocolar.",
     ],
   };
+}
+
+const draft = privateVertexFlow(
+  "fapNtepAuditFlow",
+  z.object({ quesitosParaRevisao: listOfNotes, documentosAConferir: listOfNotes })
+);
+export async function fapNtepAuditFlow(raw: unknown) {
+  const result = calculateFapReview(raw);
+  try {
+    const apoio = await draft(
+      "Prepare quesitos e documentos para o responsável que revisará a minuta de contestação do FAP. Use o cruzamento local e as evidências informadas como subsídio. Evite concluir nexo individual, estimar chances, alterar valores ou inventar prazos. " +
+        JSON.stringify({
+          cruzamento: result.nexoTecnicoEpidemiologico,
+          evidencias: result.evidencias,
+        })
+    );
+    return { ...result, ...apoio, assistenciaIa: "Quesitos para revisão gerados." };
+  } catch {
+    return {
+      ...result,
+      assistenciaIa: "IA indisponível. Cruzamento, cálculo e minuta local concluídos.",
+    };
+  }
 }
