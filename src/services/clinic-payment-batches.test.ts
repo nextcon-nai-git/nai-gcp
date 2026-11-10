@@ -98,6 +98,8 @@ describe("rascunhos financeiros de ASOs da fila AVP", () => {
       amountCents: 5550,
       titleId: book.titles[0].id,
     });
+    expect(book.clinicPaymentBatches[0].sourceRevision).toBe("source:0");
+    expect(book.clinicPaymentBatches[0].items.map((row) => row.sourceRow)).toEqual([2, 3]);
     expect(book.titles[0].status).toBe("draft");
     expect(book.audit).toHaveLength(1);
     expect(book.settlements).toEqual([]);

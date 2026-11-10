@@ -21,18 +21,23 @@ export function applyAvpOverrides(rows: GrupoAvpAso[], overrides: Map<string, Ov
   const conflicts: Array<{ id: string; field: string }> = [];
   const items = rows.map((row) => {
     const override = overrides.get(row.id);
-    const result = { ...row };
-    for (const [field, value] of Object.entries(override?.fields ?? {})) {
+    // As primeiras versões podem ter apenas o texto ou apenas a data ISO.
+    const result = {
+      ...row,
+      dataAgendadaIso: avpCalendarDay(row.dataAgendada || row.dataAgendadaIso || ""),
+      dataPedidoIso: avpCalendarDay(row.dataPedido || row.dataPedidoIso || ""),
+    };
+    if (!override) return result;
+    for (const [field, value] of Object.entries(override.fields)) {
       if (!editable.has(field)) continue;
       const current = String(row[field as keyof GrupoAvpAso] ?? "");
-      if (current !== override?.baseFields[field] && current !== value) {
+      if (current !== override.baseFields[field] && current !== value) {
         conflicts.push({ id: row.id, field });
         continue;
       }
       (result as unknown as Record<string, unknown>)[field] = value;
+      if (field === "dataAgendada") result.dataAgendadaIso = avpCalendarDay(value);
     }
-    result.dataAgendadaIso = avpCalendarDay(result.dataAgendada);
-    result.dataPedidoIso = avpCalendarDay(result.dataPedido);
     return result;
   });
   return { items, conflicts };

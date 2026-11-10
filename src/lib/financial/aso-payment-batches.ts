@@ -26,6 +26,7 @@ export type ClinicPaymentBlockCode =
 
 export type ClinicPaymentBlocked = {
   asoId: string;
+  sourceRow?: number;
   collaborator: string;
   clinicName: string;
   code: ClinicPaymentBlockCode;
@@ -34,6 +35,7 @@ export type ClinicPaymentBlocked = {
 
 export type ClinicPaymentCandidateItem = {
   asoId: string;
+  sourceRow?: number;
   collaborator: string;
   city: string;
   examDate: string;
@@ -88,6 +90,7 @@ function blocked(
 ): ClinicPaymentBlocked {
   return {
     asoId: aso.id,
+    sourceRow: aso.sourceRow,
     collaborator: aso.colaborador,
     clinicName: aso.nomeClinica,
     code,
@@ -224,6 +227,7 @@ export function buildClinicPaymentPreview(
     group.names.add(normalizeAvpText(clinicName));
     group.items.push({
       asoId: aso.id,
+      sourceRow: aso.sourceRow,
       collaborator: aso.colaborador.trim() || "Colaborador não identificado",
       city: [aso.cidade.trim(), aso.uf.trim()].filter(Boolean).join("/") || "Cidade não informada",
       examDate,

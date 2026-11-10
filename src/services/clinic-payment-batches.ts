@@ -174,6 +174,7 @@ function titleForBatch(
     title,
     batch: {
       id: batchId,
+      sourceRevision,
       clinicName: short(batch.clinicName, "Clínica não identificada"),
       clinicDocument: batch.clinicDocument,
       competence: batch.competence,
@@ -182,6 +183,7 @@ function titleForBatch(
       titleId,
       items: batch.items.map((item) => ({
         asoId: item.asoId.slice(0, 180),
+        sourceRow: item.sourceRow,
         collaborator: short(item.collaborator, "Colaborador não identificado"),
         city: short(item.city, "Cidade não informada"),
         examDate: item.examDate,

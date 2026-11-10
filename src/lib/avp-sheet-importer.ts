@@ -476,6 +476,8 @@ export function mergeSpreadsheetData(
                 valorNovo: String(newVal),
               });
               (target as any)[field] = newVal;
+              if (field === "dataPedido") target.dataPedidoIso = avpCalendarDay(String(newVal));
+              if (field === "dataAgendada") target.dataAgendadaIso = avpCalendarDay(String(newVal));
               hasChanges = true;
             }
           }
@@ -485,8 +487,6 @@ export function mergeSpreadsheetData(
           if (target.cidade !== existing.cidade || target.uf !== existing.uf)
             target.cidadeRaw = `${target.cidade} / ${target.uf}`;
           target.urgenciaRaw = target.urgencia;
-          target.dataPedidoIso = avpCalendarDay(target.dataPedido);
-          target.dataAgendadaIso = avpCalendarDay(target.dataAgendada);
         }
 
         if (hasChanges) {

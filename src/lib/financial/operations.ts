@@ -69,6 +69,7 @@ const Title = z.object({
   approvedBy: text.nullable(),
 });
 const ClinicPaymentItem = z.object({
+  sourceRow: z.number().int().min(2).max(10001).optional(),
   asoId: z.string().trim().min(1).max(180),
   collaborator: text,
   city: text,
@@ -76,6 +77,7 @@ const ClinicPaymentItem = z.object({
   amountCents: cents.refine((v) => v > 0),
 });
 const ClinicPaymentBatch = z.object({
+  sourceRevision: z.string().min(1).optional(),
   id,
   clinicName: text,
   clinicDocument: z

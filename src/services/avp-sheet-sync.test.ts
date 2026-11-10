@@ -345,6 +345,29 @@ describe("edição manual e conflitos com a planilha", () => {
     expect(original.responsavel).toBe("");
   });
 
+  it("mantém datas legadas apenas em ISO até a remoção explícita do agendamento", async () => {
+    const item = seed();
+    const path = `${meta}/versions/version-one/rows/${item.id}`;
+    mock.docs.set(path, {
+      ...item,
+      dataPedido: "",
+      dataPedidoIso: "2026-10-31",
+      dataAgendada: "",
+      dataAgendadaIso: "2026-11-01",
+    });
+    const current = await getAvpSnapshot();
+    expect(current.items[0]).toMatchObject({
+      dataPedidoIso: "2026-10-31",
+      dataAgendadaIso: "2026-11-01",
+    });
+    await patchAvpQueue(
+      current.revision,
+      [{ id: item.id, fields: { dataAgendada: "" } }],
+      "operator"
+    );
+    expect((await getAvpSnapshot()).items[0].dataAgendadaIso).toBe("");
+  });
+
   it("recalcula a competência a partir da data efetiva, inclusive em versões já salvas", async () => {
     const item = seed();
     const path = `${meta}/versions/version-one/rows/${item.id}`;

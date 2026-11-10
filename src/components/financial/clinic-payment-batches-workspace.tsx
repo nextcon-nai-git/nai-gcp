@@ -256,6 +256,7 @@ function ClinicPaymentReview({ user }: { user: User }) {
                         <div key={item.asoId} className="flex flex-wrap justify-between gap-2">
                           <span>
                             {item.collaborator} · {item.city} · {item.examDate}
+                            {item.sourceRow && ` · Linha ${item.sourceRow}`}
                           </span>
                           <span>{money(item.amountCents)}</span>
                         </div>
@@ -282,6 +283,7 @@ function ClinicPaymentReview({ user }: { user: User }) {
               ))}
               {preview.blocked.slice(page * pageSize, (page + 1) * pageSize).map((row) => (
                 <p key={row.asoId} className="text-slate-600">
+                  {row.sourceRow && `Linha ${row.sourceRow} · `}
                   {row.collaborator} · {row.clinicName || "Clínica não informada"} — {row.reason}
                 </p>
               ))}
