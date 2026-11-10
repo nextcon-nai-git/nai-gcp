@@ -235,16 +235,12 @@ describe("TESTE NAI – análises SST", () => {
   it("descarta citação de testemunha inexistente", async () => {
     request.mockResolvedValueOnce(
       vertex({
-        fatosRelatados: [
-          { fato: "Relato", trechoLiteral: "TESTE queda" },
-          { fato: "Hipótese", trechoLiteral: "outro texto" },
+        itens: [
+          { tipo: "trecho", texto: "TESTE queda" },
+          { tipo: "trecho", texto: "outro texto" },
+          { tipo: "pergunta", texto: "O que antecedeu a queda?" },
+          { tipo: "acao", texto: "Conferir o registro do local" },
         ],
-        hipotesesImediatas: [],
-        hipotesesOrganizacionais: [],
-        cincoPorques: [],
-        bowTie: { barreirasPreventivasAConferir: [], barreirasMitigadorasAConferir: [] },
-        revisaoInventarioPgr: "Revisar",
-        plano5W2H: [],
       })
     );
     const r = await accidentInvestigationFlow({
@@ -252,7 +248,13 @@ describe("TESTE NAI – análises SST", () => {
       setor: "TESTE",
       relato: "TESTE queda",
     });
-    expect(r.fatosRelatados).toHaveLength(1);
+    expect(r.fatosRelatados).toEqual([{ fato: "TESTE queda", trechoLiteral: "TESTE queda" }]);
+    expect(r.cincoPorques[0].respostaProvisoria).toBeNull();
+    expect(r.plano5W2H[0]).toMatchObject({
+      onde: "TESTE",
+      custo: null,
+      oQue: "Conferir o registro do local",
+    });
   });
   it("filtra sugestões fora do catálogo e preserva a taxa de correspondências exatas", async () => {
     request.mockResolvedValueOnce(
@@ -266,7 +268,7 @@ describe("TESTE NAI – análises SST", () => {
     expect(r.registrosMapeados[0].candidatos.map((c) => c.codigo)).not.toContain("99.99.999");
     expect(r.taxaSucessoMapeamentoPercent).toBe(0);
   });
-  it("usa o contrato local em JSON multimodal e não atribui causas quando o provedor falha", async () => {
+  it("usa uma saída compacta e não atribui causas quando o provedor falha", async () => {
     request.mockRejectedValueOnce({ response: { status: 503 } });
     const r = await accidentInvestigationFlow({
       dataAcidente: "2026-11-10",
@@ -274,8 +276,8 @@ describe("TESTE NAI – análises SST", () => {
       relato: "Relato TESTE",
     });
     const body = request.mock.lastCall?.[0]?.data;
-    expect(body.generationConfig.responseJsonSchema).toBeUndefined();
-    expect(body.systemInstruction.parts[0].text).toContain("cincoPorques");
+    expect(body.generationConfig.responseJsonSchema.properties).toHaveProperty("itens");
+    expect(body.generationConfig.maxOutputTokens).toBe(2048);
     expect(r.assistenciaIa).toContain("não foi concluída");
     expect(r.hipotesesImediatas).toEqual([]);
   });
