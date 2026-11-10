@@ -3,6 +3,8 @@ import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod/v3";
 import type { AuthContext } from "@/lib/auth/auth-context";
+import { requireCurrentFinancialAccess } from "./financial-access";
+import { isCalendarDate } from "@/lib/calendar-date";
 import { requireFinancialAccess } from "@/lib/auth/financial-access";
 import { requireAvpAccess } from "@/lib/auth/avp-access";
 import { AuthError, badRequest } from "@/lib/auth/errors";
@@ -36,10 +38,7 @@ function conflict(message: string): never {
 }
 
 function ensureDueDate(value: string, today: string) {
-  if (!/^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(value))
-    throw badRequest("Data de pagamento inválida.");
-  const parsed = new Date(value + "T00:00:00Z");
-  if (Number.isNaN(parsed.valueOf()) || parsed.toISOString().slice(0, 10) !== value)
+  if (!value.startsWith("20") || !isCalendarDate(value))
     throw badRequest("Data de pagamento inválida.");
   if (value < today) throw badRequest("A data de pagamento não pode estar no passado.");
   const limit = new Date(today + "T00:00:00Z");
@@ -89,7 +88,10 @@ async function loadState(user: AuthContext, input: unknown) {
   if (!snapshot.revision)
     conflict("A fila AVP ainda não possui uma versão confirmada para montar pagamentos.");
 
-  const preview = buildClinicPaymentPreview(snapshot.items, finance.value);
+  const preview = buildClinicPaymentPreview(snapshot.items, finance.value, {
+    today,
+    conflicts: snapshot.conflicts,
+  });
   const closed = new Set(
     finance.value.periods.filter((period) => period.closed).map((period) => period.month)
   );
@@ -114,6 +116,7 @@ async function loadState(user: AuthContext, input: unknown) {
 
 export async function previewClinicPaymentBatches(user: AuthContext, input: unknown) {
   const state = await loadState(user, input);
+  await requireCurrentFinancialAccess(user);
   return {
     hash: state.hash,
     dueDate: state.dueDate,
@@ -121,6 +124,7 @@ export async function previewClinicPaymentBatches(user: AuthContext, input: unkn
     sourceRevision: state.snapshot.revision,
     sourceCheckedAt: state.snapshot.checkedAt,
     sourceStatus: state.snapshot.status,
+    refreshInProgress: state.snapshot.refreshInProgress,
     sourceError: state.snapshot.error || null,
     closedCompetences: state.closedCompetences,
     ...state.preview,
@@ -195,6 +199,8 @@ export async function createClinicPaymentDrafts(user: AuthContext, input: unknow
   const request = CreateInput.parse(input);
   const state = await loadState(user, { dueDate: request.dueDate });
 
+  if (state.snapshot.refreshInProgress)
+    conflict("A fila AVP está sendo atualizada. Aguarde a conclusão e revise a prévia.");
   if (state.snapshot.status !== "CONNECTED" || state.snapshot.error)
     conflict(
       "A fonte AVP não está confirmada como conectada. Atualize a origem antes de gerar pagamentos."
@@ -249,6 +255,7 @@ export async function createClinicPaymentDrafts(user: AuthContext, input: unknow
   });
 
   const validated = FinanceBookSchema.parse(book);
+  await requireCurrentFinancialAccess(user);
   await writePrivate(financePath, validated, state.finance.generation);
 
   return {

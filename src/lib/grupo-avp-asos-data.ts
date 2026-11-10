@@ -1,3 +1,5 @@
+import { isCalendarDate } from "./calendar-date";
+
 // Dados Estruturados de Agendamentos de ASO do Cliente GRUPO AVP
 // Tipos operacionais da fila; os pedidos são lidos da fonte privada configurada.
 
@@ -37,6 +39,52 @@ export const AVP_STATUSES: AsoStatus[] = [
   "AG. RETORNO DO COLABORADOR",
   "STATUS NÃO RECONHECIDO",
 ];
+
+export const normalizeAvpText = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+
+export function avpRequestIdentity(row: Partial<GrupoAvpAso>) {
+  return [row.numero, row.colaborador, row.cidade, row.uf, row.dataPedido, row.tipoExame]
+    .map((value) => normalizeAvpText(value || ""))
+    .join("|");
+}
+
+export function avpPixStatus(value: string) {
+  switch (normalizeAvpText(value)) {
+    case "SIM":
+    case "PAGO":
+    case "REALIZADO":
+    case "PIX REALIZADO":
+      return "PAGO";
+    case "NAO":
+    case "NAO PAGO":
+    case "NAO REALIZADO":
+    case "PENDENTE":
+      return "PENDENTE";
+    default:
+      return "A CONFERIR";
+  }
+}
+
+// Captura a data de realização apenas quando o status inteiro confirma o exame.
+export function completedAvpStatus(value: string) {
+  return /^(?:(?:EXAME|ASO) (?:FOI )?)?(?:FEITO|CONCLUIDO|REALIZADO)(?: EM (\d{1,2}\/\d{1,2}(?:\/\d{2,4})?))?[.!]?$/.exec(
+    normalizeAvpText(value)
+  );
+}
+
+/** A planilha exibe o dia local, com horário opcional. Não infere ano ou intervalo. */
+export function avpCalendarDay(value: string) {
+  const day = value.trim().replace(/(?: |T)(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/, "");
+  const br = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(day);
+  const iso = br ? `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}` : day;
+  return isCalendarDate(iso) ? iso : "";
+}
 
 export const AVP_EDITABLE_FIELDS = [
   "urgencia",

@@ -5,7 +5,7 @@ import { adminDb } from "@/lib/firebase-admin";
 import { AVP_SOURCE } from "@/lib/avp-source-config";
 import { parseAvpSourceValues } from "@/lib/avp-source-parser";
 import type { GrupoAvpAso } from "@/lib/grupo-avp-asos-data";
-import { AVP_STATUSES, AVP_EDITABLE_FIELDS } from "@/lib/grupo-avp-asos-data";
+import { avpCalendarDay, AVP_STATUSES, AVP_EDITABLE_FIELDS } from "@/lib/grupo-avp-asos-data";
 
 const metaRef = () => adminDb.collection("integrations").doc("grupo-avp");
 const editable = new Set<string>(AVP_EDITABLE_FIELDS);
@@ -21,17 +21,18 @@ export function applyAvpOverrides(rows: GrupoAvpAso[], overrides: Map<string, Ov
   const conflicts: Array<{ id: string; field: string }> = [];
   const items = rows.map((row) => {
     const override = overrides.get(row.id);
-    if (!override) return row;
     const result = { ...row };
-    for (const [field, value] of Object.entries(override.fields)) {
+    for (const [field, value] of Object.entries(override?.fields ?? {})) {
       if (!editable.has(field)) continue;
       const current = String(row[field as keyof GrupoAvpAso] ?? "");
-      if (current !== override.baseFields[field] && current !== value) {
+      if (current !== override?.baseFields[field] && current !== value) {
         conflicts.push({ id: row.id, field });
         continue;
       }
       (result as unknown as Record<string, unknown>)[field] = value;
     }
+    result.dataAgendadaIso = avpCalendarDay(result.dataAgendada);
+    result.dataPedidoIso = avpCalendarDay(result.dataPedido);
     return result;
   });
   return { items, conflicts };
@@ -89,8 +90,14 @@ export async function syncAvpSource(force = false, actor = "scheduler") {
     const { rows, warnings } = await readPrivateAvpSheet();
     const digest = createHash("sha256").update(JSON.stringify(rows)).digest("hex");
     const previous = (await ref.get()).data() || {};
-    if (previous.sourceVersion !== digest) {
-      const version = ref.collection("versions").doc(digest);
+    const version = ref.collection("versions").doc(digest);
+    const storedCount =
+      previous.sourceVersion === digest
+        ? (await version.collection("rows").count().get()).data().count
+        : 0;
+    if (storedCount > rows.length)
+      throw new Error("A versão armazenada contém linhas inesperadas.");
+    if (storedCount < rows.length) {
       for (let offset = 0; offset < rows.length; offset += 400) {
         const batch = adminDb.batch();
         for (const row of rows.slice(offset, offset + 400))
@@ -149,35 +156,47 @@ export async function syncAvpSource(force = false, actor = "scheduler") {
 
 export async function getAvpSnapshot() {
   const ref = metaRef();
-  const data = (await ref.get()).data() || {};
-  if (!data.sourceVersion)
-    return {
-      items: [] as GrupoAvpAso[],
-      conflicts: [],
-      revision: "",
-      source: AVP_SOURCE,
-      checkedAt: null,
-      status: data.status || "CONFIGURATION_REQUIRED",
-      error: data.lastError || "A primeira leitura da planilha ainda não foi concluída.",
-      warnings: [],
-    };
-  const [rows, overrideDocs] = await Promise.all([
-    ref.collection("versions").doc(data.sourceVersion).collection("rows").get(),
-    ref.collection("overrides").get(),
-  ]);
-  const items = rows.docs
-    .map((doc) => doc.data() as GrupoAvpAso)
-    .sort((a, b) => (a.sourceRow || 0) - (b.sourceRow || 0));
-  const overrides = new Map(overrideDocs.docs.map((doc) => [doc.id, doc.data() as Override]));
-  return {
-    ...applyAvpOverrides(items, overrides),
-    revision: `${data.sourceVersion}:${data.manualRevision || "0"}`,
-    source: AVP_SOURCE,
-    checkedAt: data.checkedAt,
-    status: data.status,
-    error: data.lastError,
-    warnings: data.warnings || [],
-  };
+  return adminDb.runTransaction(
+    async (tx) => {
+      const data = (await tx.get(ref)).data() || {};
+      const refreshInProgress = Boolean(data.lease && Number(data.leaseUntil) > Date.now());
+      if (!data.sourceVersion)
+        return {
+          items: [] as GrupoAvpAso[],
+          conflicts: [],
+          revision: "",
+          refreshInProgress,
+          source: AVP_SOURCE,
+          checkedAt: null,
+          status: data.status || "CONFIGURATION_REQUIRED",
+          error: data.lastError || "A primeira leitura da planilha ainda não foi concluída.",
+          warnings: [],
+        };
+      const [rows, overrideDocs] = await Promise.all([
+        tx.get(ref.collection("versions").doc(data.sourceVersion).collection("rows")),
+        tx.get(ref.collection("overrides")),
+      ]);
+      if (data.rowCount !== undefined && rows.docs.length !== data.rowCount)
+        throw new Error(
+          "A versão da fila AVP está incompleta. Atualize a origem antes de continuar."
+        );
+      const items = rows.docs
+        .map((doc) => doc.data() as GrupoAvpAso)
+        .sort((a, b) => (a.sourceRow || 0) - (b.sourceRow || 0));
+      const overrides = new Map(overrideDocs.docs.map((doc) => [doc.id, doc.data() as Override]));
+      return {
+        ...applyAvpOverrides(items, overrides),
+        refreshInProgress,
+        revision: `${data.sourceVersion}:${data.manualRevision || "0"}`,
+        source: AVP_SOURCE,
+        checkedAt: data.checkedAt,
+        status: data.status,
+        error: data.lastError,
+        warnings: data.warnings || [],
+      };
+    },
+    { readOnly: true }
+  );
 }
 
 export async function patchAvpQueue(

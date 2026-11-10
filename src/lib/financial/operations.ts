@@ -17,8 +17,10 @@ const text = z.string().trim().min(1).max(180);
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 const date = z.string().refine(isCalendarDate, "Data inválida.");
 const month = z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/);
-const cents = z.number().int().min(0).max(100_000_000_000);
-const signed = z.number().int().min(-100_000_000_000).max(100_000_000_000);
+export const MAX_FINANCE_CENTS = 100_000_000_000;
+export const MAX_CLINIC_BATCH_ITEMS = 500;
+const cents = z.number().int().min(0).max(MAX_FINANCE_CENTS);
+const signed = z.number().int().min(-MAX_FINANCE_CENTS).max(MAX_FINANCE_CENTS);
 const note = z.string().trim().min(3).max(1000);
 const Account = z.object({ id, name: text });
 const Contract = z.object({
@@ -84,7 +86,7 @@ const ClinicPaymentBatch = z.object({
   dueDate: date,
   amountCents: cents.refine((v) => v > 0),
   titleId: id,
-  items: z.array(ClinicPaymentItem).min(1).max(500),
+  items: z.array(ClinicPaymentItem).min(1).max(MAX_CLINIC_BATCH_ITEMS),
   createdBy: text,
   createdAt: z.string(),
 });

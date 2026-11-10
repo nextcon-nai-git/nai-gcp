@@ -1,23 +1,22 @@
 import { createHash } from "node:crypto";
 import { mapRowToAso } from "./avp-sheet-importer";
-import type { GrupoAvpAso } from "./grupo-avp-asos-data";
+import {
+  avpCalendarDay,
+  avpRequestIdentity,
+  normalizeAvpText,
+  type GrupoAvpAso,
+} from "./grupo-avp-asos-data";
 import { AVP_SOURCE_HEADERS } from "./avp-source-config";
 
-const normalize = (text: string) =>
-  text
-    .trim()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/\s+/g, " ");
 export function parseAvpSourceValues(values: unknown[][]) {
   if (!Array.isArray(values) || values.length < 2 || values.length > 10001)
     throw new Error("A fonte não contém uma fila válida ou excede 10.000 linhas.");
   const headers = values[0].map((v) => String(v ?? "").trim());
-  const normalizedHeaders = headers.map(normalize);
+  const normalizedHeaders = headers.map(normalizeAvpText);
   if (
     !AVP_SOURCE_HEADERS.every(
-      (header) => normalizedHeaders.filter((value) => value === normalize(header)).length === 1
+      (header) =>
+        normalizedHeaders.filter((value) => value === normalizeAvpText(header)).length === 1
     )
   )
     throw new Error(
@@ -33,23 +32,16 @@ export function parseAvpSourceValues(values: unknown[][]) {
         .map((header) => [header, values[index][headers.indexOf(header)] ?? ""])
     );
     const sourceValue = (field: string) =>
-      String(values[index][headers.findIndex((header) => normalize(header) === field)] ?? "");
+      String(
+        values[index][headers.findIndex((header) => normalizeAvpText(header) === field)] ?? ""
+      );
     const parsed = mapRowToAso(record, index);
     if (!parsed.colaborador?.trim()) {
       if (Object.values(record).some((v) => String(v).trim()))
         warnings.push(`Linha ${index + 1}: sem colaborador; não incluída na fila.`);
       continue;
     }
-    const identity = [
-      parsed.numero || "",
-      parsed.colaborador,
-      parsed.cidade || "",
-      parsed.uf || "",
-      parsed.dataPedido || "",
-      parsed.tipoExame || "",
-    ]
-      .map(normalize)
-      .join("|");
+    const identity = avpRequestIdentity(parsed);
     const occurrence = occurrences.get(identity) || 0;
     occurrences.set(identity, occurrence + 1);
     if (occurrence)
@@ -66,7 +58,7 @@ export function parseAvpSourceValues(values: unknown[][]) {
       urgencia: parsed.urgencia || "NORMAL",
       urgenciaRaw: parsed.urgencia || "NORMAL",
       dataPedido: parsed.dataPedido || "",
-      dataPedidoIso: "",
+      dataPedidoIso: avpCalendarDay(parsed.dataPedido || ""),
       diasParado: parsed.diasParado || 0,
       cidadeRaw: sourceValue("CIDADE"),
       cidade: parsed.cidade || "Não informada",
@@ -80,7 +72,7 @@ export function parseAvpSourceValues(values: unknown[][]) {
       statusRaw: sourceValue("STATUS"),
       responsavel: parsed.responsavel || "",
       dataAgendada: parsed.dataAgendada || "",
-      dataAgendadaIso: "",
+      dataAgendadaIso: avpCalendarDay(parsed.dataAgendada || ""),
       tipoSolicitacao: parsed.tipoSolicitacao || "",
       nomeClinica: parsed.nomeClinica || "",
       telefoneClinica: parsed.telefoneClinica || "",
