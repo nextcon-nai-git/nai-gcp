@@ -1,5 +1,6 @@
 "use client";
-import { useLayoutEffect, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { User } from "firebase/auth";
 import Link from "next/link";
 import { useUser } from "@/firebase";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import {
   type summarizeConvocations,
 } from "@/lib/integrations/soc-convocations";
 type Snapshot = {
+  importId?: string;
   importedAt: string;
   group: string;
   rows: ConvocationRow[];
@@ -20,12 +22,18 @@ type Snapshot = {
 export default function ConvocationsPage() {
   const { user, role, tenantId } = useUser();
   const canImport = !!user && (role === "SUPER_ADMIN" || (role === "ADMIN" && !tenantId));
-  const identity = useRef(user?.uid);
-  useLayoutEffect(() => {
-    identity.current = user?.uid;
-  }, [user?.uid]);
-  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const [busy, setBusy] = useState(false);
+  return (
+    <ConvocationsSession
+      key={JSON.stringify([user?.uid, role, tenantId])}
+      user={user}
+      canImport={canImport}
+    />
+  );
+}
+function ConvocationsSession({ user, canImport }: { user: User | null; canImport: boolean }) {
+  const request = useRef<AbortController | null>(null);
+  const [snapshot, setSnapshot] = useState<Snapshot | null>();
+  const [busy, setBusy] = useState<"load" | "upload" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [query, setQuery] = useState("");
@@ -35,70 +43,80 @@ export default function ConvocationsPage() {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(
     new Date()
   );
-  async function load() {
-    if (!user) return;
-    const uid = user.uid;
-    const response = await fetch("/api/integrations/soc/convocations", {
-      cache: "no-store",
-      headers: { Authorization: `Bearer ${await user.getIdToken()}` },
-    });
-    const data = await response.json();
-    if (!response.ok) throw Error(data.error || "Falha ao carregar.");
-    if (identity.current === uid) {
-      setSnapshot(data.snapshot);
-      setPage(0);
-    }
-  }
-  useEffect(() => {
-    setSnapshot(null);
-    setError("");
-    setNotice("");
-    setQuery("");
-    setUnit("");
-    setStatus("");
-    void load().catch((e) => {
-      if (identity.current === user?.uid) setError(e.message);
-    });
-  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
-  async function upload(file: File | undefined) {
-    if (!file || !user || !canImport || busy) return;
-    const uid = user.uid;
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      if (file.size > CONVOCATION_MAX_BYTES) throw Error("CSV acima de 4 MB.");
-      const response = await fetch("/api/integrations/soc/convocations", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${await user.getIdToken()}`,
-          "Content-Type": "text/csv; charset=utf-8",
-        },
-        body: file,
-      });
-      const data = await response.json();
-      if (!response.ok) throw Error(data.error || "Importação não concluída.");
-      if (identity.current !== uid) return;
-      setNotice(`Importação salva: ${data.summary.rows} linhas.`);
+  const refresh = useCallback(
+    async (file?: File) => {
+      if (!user || request.current || (file && !canImport)) return;
+      const controller = new AbortController();
+      const { signal } = controller;
+      request.current = controller;
+      setBusy(file ? "upload" : "load");
+      setError("");
+      setNotice("");
+      let saved: { importId?: string; summary: { rows: number } } | undefined;
       try {
-        await load();
-        if (identity.current === uid)
-          setNotice(
-            `Importação salva: ${data.summary.rows} linhas. Os dados foram relidos do servidor.`
-          );
-      } catch {
-        if (identity.current === uid)
-          setError(
-            "A importação foi salva, mas não foi possível atualizar a consulta. Use Recarregar base salva."
-          );
+        if (file && file.size > CONVOCATION_MAX_BYTES) throw Error("CSV acima de 4 MB.");
+        const headers = { Authorization: `Bearer ${await user.getIdToken()}` };
+        if (signal.aborted) return;
+        if (file) {
+          const response = await fetch("/api/integrations/soc/convocations", {
+            method: "POST",
+            headers: { ...headers, "Content-Type": "text/csv; charset=utf-8" },
+            body: file,
+            signal,
+          });
+          if (response.status === 401 || response.status === 403) setSnapshot(undefined);
+          const data = await response.json();
+          if (signal.aborted) return;
+          if (!response.ok) throw Error(data.error || "Importação não concluída.");
+          saved = data;
+          setNotice(`Importação salva: ${data.summary.rows} linhas.`);
+        }
+        setSnapshot(undefined);
+        const response = await fetch("/api/integrations/soc/convocations", {
+          cache: "no-store",
+          headers,
+          signal,
+        });
+        const data = await response.json();
+        if (signal.aborted) return;
+        if (!response.ok) throw Error(data.error || "Falha ao carregar.");
+        const next: Snapshot | null = data.snapshot;
+        setSnapshot(next);
+        setPage(0);
+        setUnit((previous) => (next?.rows.some((row) => row.UNIDADE === previous) ? previous : ""));
+        if (saved) {
+          if (saved.importId && next?.importId !== saved.importId) {
+            setNotice("Importação salva. A versão ativa mudou durante a releitura.");
+          } else {
+            setNotice(
+              `Importação salva: ${saved.summary.rows} linhas. Os dados foram relidos do servidor.`
+            );
+          }
+        }
+      } catch (e) {
+        if (signal.aborted) return;
+        const message = e instanceof Error ? e.message : "Falha ao consultar as convocações.";
+        setError(
+          saved
+            ? `A importação foi salva, mas não foi possível atualizar a consulta. Use Recarregar base salva. ${message}`
+            : message
+        );
+      } finally {
+        if (request.current === controller) {
+          request.current = null;
+          setBusy(null);
+        }
       }
-    } catch (e) {
-      if (identity.current === uid)
-        setError(e instanceof Error ? e.message : "Falha na importação.");
-    } finally {
-      setBusy(false);
-    }
-  }
+    },
+    [user, canImport]
+  );
+  useEffect(() => {
+    void refresh();
+    return () => {
+      request.current?.abort();
+      request.current = null;
+    };
+  }, [refresh]);
   const rows = snapshot?.rows || [];
   const keys = new Map<string, number>();
   rows.forEach((r) => keys.set(convocationKey(r), (keys.get(convocationKey(r)) || 0) + 1));
@@ -138,9 +156,10 @@ export default function ConvocationsPage() {
               id="convocation-file"
               type="file"
               accept=".csv,text/csv"
-              disabled={!user || busy}
+              disabled={!user || busy !== null}
               onChange={(e) => {
-                void upload(e.target.files?.[0]);
+                const file = e.target.files?.[0];
+                if (file) void refresh(file);
                 e.target.value = "";
               }}
             />
@@ -151,17 +170,14 @@ export default function ConvocationsPage() {
             </p>
           </>
         )}
-        <Button
-          disabled={!user || busy}
-          variant="outline"
-          onClick={() => {
-            setError("");
-            void load().catch((e) => setError(e.message));
-          }}
-        >
+        <Button disabled={!user || busy !== null} variant="outline" onClick={() => void refresh()}>
           Recarregar base salva
         </Button>
-        {busy && <p role="status">Importando e conferindo persistência…</p>}
+        {busy && (
+          <p role="status">
+            {busy === "upload" ? "Importando e conferindo persistência…" : "Carregando base salva…"}
+          </p>
+        )}
         {notice && <p role="status">{notice}</p>}
         {error && (
           <p role="alert" className="text-destructive">
@@ -169,7 +185,7 @@ export default function ConvocationsPage() {
           </p>
         )}
       </section>
-      {!snapshot && <p>Nenhuma base importada neste módulo.</p>}
+      {snapshot === null && <p>Nenhuma base importada neste módulo.</p>}
       {snapshot && summary && (
         <>
           <p>

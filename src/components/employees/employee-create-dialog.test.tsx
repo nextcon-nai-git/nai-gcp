@@ -49,11 +49,14 @@ async function form(cpf: string) {
   });
   return { saved, close };
 }
-it("rejects repeated-digit CPF before persistence", async () => {
-  await form("00000000000");
-  expect(mock.transaction).not.toHaveBeenCalled();
-  expect(document.querySelector('[role="alert"]')?.textContent).toContain("CPF válido");
-});
+it.each(["00000000000", "52998224725X"])(
+  "rejects invalid CPF %s before persistence",
+  async (cpf) => {
+    await form(cpf);
+    expect(mock.transaction).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain("CPF válido");
+  }
+);
 it("does not overwrite an existing CPF", async () => {
   mock.get.mockResolvedValue({ exists: () => true });
   const f = await form("52998224725");
@@ -62,10 +65,11 @@ it("does not overwrite an existing CPF", async () => {
   expect(f.saved).not.toHaveBeenCalled();
 });
 it("confirms success only after persistence and preserves the company", async () => {
-  const f = await form("52998224725");
+  const f = await form("529.982.247-25");
   expect(f.saved).toHaveBeenCalledOnce();
   expect(mock.set.mock.calls[0][1]).toMatchObject({
     companyId: "synthetic-company",
+    cpf: "52998224725",
     job_role: { title: "Assistente" },
     status: "active",
   });

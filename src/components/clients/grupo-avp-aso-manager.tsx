@@ -62,6 +62,7 @@ import { normalizeNavigationSearch } from "@/lib/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
+  avpPixStatus,
   GRUPO_AVP_ASO_LIST,
   GrupoAvpAso,
   AsoStatus,
@@ -157,6 +158,7 @@ export function GrupoAvpAsoManager({
   }, [user?.uid]);
 
   // Contatos de WhatsApp e Clínicas parseados para o ASO selecionado
+  const selectedPixStatus = selectedAso ? avpPixStatus(selectedAso.pixRealizado) : "A CONFERIR";
   const selectedAsoClinics = React.useMemo(() => {
     if (!selectedAso) return [];
     const defaultMsg = generateWhatsAppAppointmentMessage(selectedAso);
@@ -323,7 +325,7 @@ export function GrupoAvpAsoManager({
       (item.enderecoClinica ? `🗺️ *Endereço Clínica:* ${item.enderecoClinica}\n` : "") +
       (item.valorAso ? `💰 *Valor ASO:* R$ ${item.valorAso}\n` : "") +
       (item.chavePix
-        ? `🔑 *Chave PIX:* ${item.chavePix} (${item.pixRealizado === "SIM" ? "PAGO" : "PENDENTE"})\n`
+        ? `🔑 *Chave PIX:* ${item.chavePix} (${avpPixStatus(item.pixRealizado)})\n`
         : "") +
       (item.oQueFazer ? `📝 *Observação:* ${item.oQueFazer}\n` : "");
 
@@ -1271,14 +1273,16 @@ export function GrupoAvpAsoManager({
                         </span>
                         <Badge
                           className={
-                            selectedAso.pixRealizado === "SIM"
+                            selectedPixStatus === "PAGO"
                               ? "bg-emerald-600"
                               : "bg-slate-300 text-slate-700"
                           }
                         >
-                          {selectedAso.pixRealizado === "SIM"
+                          {selectedPixStatus === "PAGO"
                             ? "PIX Realizado"
-                            : "Aguardando Pagamento"}
+                            : selectedPixStatus === "PENDENTE"
+                              ? "Aguardando Pagamento"
+                              : "A conferir"}
                         </Badge>
                       </div>
                     </div>

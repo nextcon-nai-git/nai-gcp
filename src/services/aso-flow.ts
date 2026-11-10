@@ -16,6 +16,7 @@ import type { AuthContext } from "@/lib/auth/auth-context";
 import { AuthError, badRequest, forbidden } from "@/lib/auth/errors";
 import { isPgrGlobalAdmin, requirePgrCompany } from "@/lib/auth/require-pgr-access";
 import { parseClaims } from "@/lib/auth/claims";
+import { isValidCpf, parseCpf } from "@/lib/cpf";
 import { isValidCnpj, normalizeCnpj } from "@/lib/cnpj";
 import { socWebAccess } from "@/lib/integrations/soc-access";
 import { asoGmailConfiguration } from "@/lib/integrations/aso-gmail";
@@ -155,7 +156,8 @@ type Resolved = {
 async function resolveRows(
   user: AuthContext,
   rows: AsoFlowRow[],
-  reader: Reader
+  reader: Reader,
+  selectedCompanyId?: string
 ): Promise<Resolved[]> {
   const companyCache = new Map<string, DocumentSnapshot[]>();
   const employeeCache = new Map<string, DocumentSnapshot[]>();
@@ -215,6 +217,10 @@ async function resolveRows(
       );
       continue;
     }
+    if (selectedCompanyId && companies[0].id !== selectedCompanyId) {
+      preview.errors.push("O CNPJ desta linha não corresponde ao cliente selecionado.");
+      continue;
+    }
     item.company = companies[0];
   }
   const employeeRows = [
@@ -269,7 +275,7 @@ async function resolveRows(
       employeeData = employee.data()!;
     if (
       employeeData.companyId !== company.id ||
-      asoFlowDigits(value(employeeData.cpf)) !== cpf ||
+      parseCpf(value(employeeData.cpf)) !== cpf ||
       !isValidCnpj(value(companyData.cnpj)) ||
       normalizeCnpj(value(companyData.cnpj)) !== cnpj
     ) {
@@ -357,28 +363,28 @@ function previewResult(resolved: Resolved[]): AsoFlowPreview {
     blocked: rows.filter((r) => r.state === "blocked").length,
   };
 }
-function parseImport(input: unknown) {
+function parseImport(user: AuthContext, input: unknown) {
+  requireAsoFlowAccess(user);
   const parsed = AsoFlowImportSchema.safeParse(input);
   if (!parsed.success)
     throw badRequest(
       "Envie de 1 a 200 linhas por lote, com o nome da planilha e os campos esperados."
     );
+  if (parsed.data.companyId) requireAsoFlowAccess(user, parsed.data.companyId);
   return parsed.data;
 }
 export async function previewAsoFlowImport(user: AuthContext, input: unknown) {
-  requireAsoFlowAccess(user);
-  const data = parseImport(input);
-  const resolved = await resolveRows(user, data.rows, read);
-  const current = await currentAsoFlowUser(user);
+  const data = parseImport(user, input);
+  const resolved = await resolveRows(user, data.rows, read, data.companyId);
+  const current = await currentAsoFlowUser(user, data.companyId);
   for (const item of resolved) if (item.company) requireAsoFlowAccess(current, item.company.id);
   return previewResult(resolved);
 }
 export async function importAsoFlowRows(user: AuthContext, input: unknown) {
-  requireAsoFlowAccess(user);
-  const data = parseImport(input);
+  const data = parseImport(user, input);
   return adminDb.runTransaction(async (tx) => {
-    const current = await currentAsoFlowUser(user, undefined, tx);
-    const resolved = await resolveRows(user, data.rows, transactionReader(tx));
+    const current = await currentAsoFlowUser(user, data.companyId, tx);
+    const resolved = await resolveRows(user, data.rows, transactionReader(tx), data.companyId);
     for (const item of resolved) if (item.company) requireAsoFlowAccess(current, item.company.id);
     const preview = previewResult(resolved);
     if (preview.blocked)
@@ -567,6 +573,7 @@ async function currentIdentity(tx: Transaction, card: AsoFlowCard) {
     c.active !== true ||
     e.isDeleted === true ||
     e.companyId !== card.companyId ||
+    !isValidCpf(value(e.cpf)) ||
     card.employeeIdentityHash !==
       employeeIdentityHash(card.companyId, card.employeeId, value(e.cpf)) ||
     !isValidCnpj(value(c.cnpj)) ||

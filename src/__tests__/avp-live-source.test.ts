@@ -92,6 +92,22 @@ describe("Leitura da fonte AVP", () => {
       sourceRow: 2,
     });
   });
+  it.each([
+    ["5/11/2026 08:30", "2026-11-05"],
+    ["2024-02-29", "2024-02-29"],
+    ["29/02/2026", ""],
+    ["05/11/2026 25:30", ""],
+    ["05/11/2026 ou 06/11/2026", ""],
+    ["05/11", ""],
+  ])("preserva o texto %s e deriva somente datas de calendário inequívocas", (raw, expected) => {
+    const input = [...row];
+    input[11] = raw;
+    expect(parseAvpSourceValues([headers, input]).rows[0]).toMatchObject({
+      dataPedidoIso: "2026-10-03",
+      dataAgendada: raw,
+      dataAgendadaIso: expected,
+    });
+  });
   it("mantém pedidos duplicados como registros distintos", () => {
     const result = parseAvpSourceValues([headers, row, row]);
     expect(result.rows).toHaveLength(2);

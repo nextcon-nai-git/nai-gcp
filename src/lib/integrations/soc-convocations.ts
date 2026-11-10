@@ -1,4 +1,5 @@
 import Papa from "papaparse";
+import { isValidCnpj, normalizeCnpj } from "@/lib/cnpj";
 
 export const CONVOCATION_MAX_BYTES = 4_000_000;
 export const convocationFields = [
@@ -32,7 +33,7 @@ export function socDay(value: string): string | null {
   return iso;
 }
 export const convocationKey = (r: ConvocationRow) =>
-  JSON.stringify([r["CNPJ DA UNIDADE"].replace(/\D/g, ""), r["Código Funcionario"], r.Exame]);
+  JSON.stringify([normalizeCnpj(r["CNPJ DA UNIDADE"]), r["Código Funcionario"], r.Exame]);
 export function parseConvocations(csv: string): ConvocationRow[] {
   const parsed = Papa.parse<Record<string, string>>(csv.replace(/^\uFEFF/, ""), {
     header: true,
@@ -55,7 +56,7 @@ export function parseConvocations(csv: string): ConvocationRow[] {
     if (
       Object.values(clean).some((v) => v.length > 300) ||
       !/^\d{1,20}$/.test(clean["Código Funcionario"]) ||
-      clean["CNPJ DA UNIDADE"].replace(/\D/g, "").length !== 14 ||
+      !isValidCnpj(clean["CNPJ DA UNIDADE"]) ||
       !clean.Nome ||
       !clean.UNIDADE ||
       !clean.Exame
@@ -89,7 +90,7 @@ export function summarizeConvocations(rows: ConvocationRow[], today: string) {
     uniqueEmployeeExamKeys: keys.size,
     employees: new Set(rows.map((r) => r["Código Funcionario"])).size,
     units: new Set(rows.map((r) => r.UNIDADE)).size,
-    cnpjs: new Set(rows.map((r) => r["CNPJ DA UNIDADE"].replace(/\D/g, ""))).size,
+    cnpjs: new Set(rows.map((r) => normalizeCnpj(r["CNPJ DA UNIDADE"]))).size,
     repeatedKeys: [...keys.values()].filter((n) => n > 1).length,
     extraRowsForRepeatedKeys: rows.length - keys.size,
     withResultDate: rows.filter((r) => r["Data Resultado"]).length,

@@ -66,8 +66,14 @@ export const AsoFlowRowSchema = z
   })
   .strict();
 export type AsoFlowRow = z.infer<typeof AsoFlowRowSchema>;
+const documentId = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[^/\u0000]+$/);
 export const AsoFlowImportSchema = z
   .object({
+    companyId: documentId.optional(),
     rows: z.array(AsoFlowRowSchema).min(1).max(ASO_FLOW_BATCH_SIZE),
     sourceName: text(240).min(1),
   })
@@ -78,8 +84,7 @@ const states = new Set(
 export function asoFlowRowProblems(row: AsoFlowRow): string[] {
   const errors: string[] = [];
   if (!isValidCnpj(row.companyCnpj)) errors.push("CNPJ do cliente ausente ou inválido.");
-  if (!isValidCpf(asoFlowDigits(row.employeeCpf)))
-    errors.push("CPF do colaborador ausente ou inválido.");
+  if (!isValidCpf(row.employeeCpf)) errors.push("CPF do colaborador ausente ou inválido.");
   if (row.employeeName.length < 2) errors.push("Informe o nome do colaborador.");
   if (row.city.length < 2 || !states.has(row.state.toUpperCase()))
     errors.push("Informe cidade e UF válidas.");
@@ -213,11 +218,6 @@ export function asoFlowMapStatus(
   return "pending";
 }
 const mutation = { id: AsoFlowIdSchema, version: z.number().int().positive() };
-const documentId = z
-  .string()
-  .min(1)
-  .max(128)
-  .regex(/^[^/\u0000]+$/);
 export const AsoFlowMutationSchema = z.discriminatedUnion("action", [
   z
     .object({

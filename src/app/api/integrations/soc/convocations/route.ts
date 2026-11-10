@@ -6,6 +6,7 @@ import { adminDb } from "@/lib/firebase-admin";
 import { requireSocAccess } from "@/lib/integrations/soc";
 import {
   CONVOCATION_MAX_BYTES,
+  convocationFields,
   parseConvocations,
   summarizeConvocations,
   type ConvocationRow,
@@ -35,7 +36,25 @@ export async function GET(req: NextRequest) {
       .collection("chunks")
       .orderBy("index")
       .get();
-    const rows = chunks.docs.flatMap((doc) => doc.data().rows as ConvocationRow[]);
+    const incomplete = () =>
+      new AuthError(
+        "A base de convocações está incompleta. Confira o histórico de importação.",
+        409
+      );
+    const rows = chunks.docs.flatMap((doc, index) => {
+      const chunk = doc.data();
+      if (
+        chunk.index !== index ||
+        !Array.isArray(chunk.rows) ||
+        !chunk.rows.length ||
+        !chunk.rows.every(
+          (row) => row && convocationFields.every((field) => typeof row[field] === "string")
+        )
+      )
+        throw incomplete();
+      return chunk.rows as ConvocationRow[];
+    });
+    if (!rows.length || rows.length !== metadata.summary?.rows) throw incomplete();
     return reply({ snapshot: { ...metadata, rows } });
   } catch (e) {
     return fail(e);
@@ -90,30 +109,30 @@ export async function POST(req: NextRequest) {
       source: "CSV SOC · Convocação de Exames",
       summary: summarizeConvocations(rows, today),
     };
-    // Immutable import chunks are committed atomically, then the active pointer is updated.
-    const batch = adminDb.batch();
-    for (let i = 0; i < rows.length; i += 100)
-      batch.set(
-        root()
-          .collection("imports")
-          .doc(metadata.importId)
-          .collection("chunks")
-          .doc(String(i / 100).padStart(4, "0")),
-        { index: i / 100, rows: rows.slice(i, i + 100) }
-      );
-    batch.set(root().collection("imports").doc(metadata.importId), metadata);
-    await batch.commit();
+    const active = root();
+    const history = active.collection("imports").doc(metadata.importId);
     await adminDb.runTransaction(async (transaction) => {
-      const latest = await transaction.get(root());
+      const latest = await transaction.get(active);
       const current = latest.data();
       if ((current?.importId || current?.hash || null) !== expectedImport)
         throw new AuthError(
           "Outra importação foi publicada durante o envio. Recarregue e confira a base antes de tentar novamente.",
           409
         );
-      transaction.set(root(), metadata);
+      for (let i = 0; i < rows.length; i += 100) {
+        const index = i / 100;
+        const chunk = history.collection("chunks").doc(String(index).padStart(4, "0"));
+        transaction.set(chunk, { index, rows: rows.slice(i, i + 100) });
+      }
+      transaction.set(history, metadata);
+      transaction.set(active, metadata);
     });
-    return reply({ imported: true, summary: metadata.summary, importedAt: metadata.importedAt });
+    return reply({
+      imported: true,
+      importId: metadata.importId,
+      summary: metadata.summary,
+      importedAt: metadata.importedAt,
+    });
   } catch (e) {
     return fail(e);
   }

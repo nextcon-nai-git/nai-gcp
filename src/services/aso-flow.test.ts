@@ -364,6 +364,35 @@ describe("revogação durante operações da esteira", () => {
   });
 });
 describe("resolução e importação canônica", () => {
+  it("separa os clientes da planilha na prévia e revalida o cliente na gravação", async () => {
+    const otherRow = { ...row, companyCnpj: "12.ABC.345/01DE-35", sourceRow: 8 };
+    db.set("companies/TWO", { active: true, cnpj: otherRow.companyCnpj, name: "Outro cliente" });
+    db.set("companies/TWO/employees/E2", {
+      ...db.get("companies/ONE/employees/E1"),
+      companyId: "TWO",
+    });
+    const mixed = input([row, otherRow]);
+    const scoped = { ...mixed, companyId: "ONE" };
+    const preview = await previewAsoFlowImport(user, scoped);
+    expect(preview).toMatchObject({ ready: 1, blocked: 1 });
+    expect(preview.rows[1].errors.join(" ")).toContain("cliente selecionado");
+    expect(preview.rows[1].employeeId).toBeUndefined();
+    await expect(importAsoFlowRows(user, scoped)).rejects.toMatchObject({ status: 409 });
+    expect([...db.keys()].some((key) => key.includes("/cases/"))).toBe(false);
+    expect(await importAsoFlowRows(user, { ...input(), companyId: "ONE" })).toMatchObject({
+      created: 1,
+      cards: [{ companyId: "ONE" }],
+    });
+    expect(await importAsoFlowRows(user, mixed)).toMatchObject({ created: 1, unchanged: 1 });
+  });
+
+  it("confere o acesso ao cliente solicitado até quando todas as linhas estão pendentes", async () => {
+    const scoped = { ...input([{ ...row, employeeCpf: "" }]), companyId: "ONE" };
+    db.set("users/operator", { role: "OPERATIONS", accessEnabled: true, servedCompanies: ["TWO"] });
+    await expect(previewAsoFlowImport(user, scoped)).rejects.toMatchObject({ status: 403 });
+    await expect(importAsoFlowRows(user, scoped)).rejects.toMatchObject({ status: 403 });
+  });
+
   it("preserva letras do CNPJ ao importar, reimportar e conferir a identidade do cliente", async () => {
     db.get("companies/ONE")!.cnpj = "12.ABC.345/01DE-35";
     const alphaRow = { ...row, companyCnpj: "12abc34501de35" };
@@ -424,6 +453,20 @@ describe("resolução e importação canônica", () => {
       (await importAsoFlowRows(user, input([{ ...row, examType: "demissional" }]))).created
     ).toBe(1);
     expect(db.get("companies/ONE/employees/E1")!.status).toBe("fired");
+  });
+  it("mantém CPF com caracteres estranhos em conferência mesmo quando os dígitos coincidem", async () => {
+    const invalid = "X" + row.employeeCpf;
+    const batch = input([{ ...row, employeeCpf: invalid }]);
+    expect(await previewAsoFlowImport(user, batch)).toMatchObject({ blocked: 1, ready: 0 });
+    await expect(importAsoFlowRows(user, batch)).rejects.toMatchObject({ status: 409 });
+    const card = await create();
+    Object.assign(db.get("companies/ONE/employees/E1")!, {
+      cpf: invalid,
+      cpfNormalized: "52998224725",
+    });
+    expect(await previewAsoFlowImport(user, input())).toMatchObject({ blocked: 1, existing: 0 });
+    await expect(schedule(card)).rejects.toMatchObject({ status: 409 });
+    expect((await getAsoFlowCard(user, card.id)).version).toBe(card.version);
   });
   it("preserva pendências por linha e resolve CNPJ/CPF formatados sem associar apenas por nome", async () => {
     const p = await previewAsoFlowImport(

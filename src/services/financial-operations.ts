@@ -5,6 +5,7 @@ import "@/lib/firebase-admin";
 import { firebaseConfig } from "@/firebase/config";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import { requireFinancialAccess } from "@/lib/auth/financial-access";
+import { clinicBatchForTitle, verifyClinicPayment } from "./clinic-payment-review";
 import { verifyOmieTitleReference } from "@/services/omie-financial";
 import { AuthError, badRequest } from "@/lib/auth/errors";
 import {
@@ -62,6 +63,11 @@ export async function saveFinanceCommand(user: AuthContext, payload: unknown) {
     throw error;
   }
   if (next === book) return book;
+  if (command.action === "review" && command.status === "approved") {
+    const title = next.titles.find((t) => t.id === command.id)!;
+    const batch = clinicBatchForTitle(book, title);
+    if (batch) await verifyClinicPayment(user, book, batch);
+  }
   // Linking is read-only in Omie. Never silently mutate the provider's financial titles.
   const touched =
     command.action === "reference" || command.action === "editTitle"

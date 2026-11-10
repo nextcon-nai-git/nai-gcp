@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildClinicPaymentPreview, nextClinicPaymentDate } from "./aso-payment-batches";
 import { emptyFinanceBook, type FinanceBook } from "./operations";
 import type { GrupoAvpAso } from "@/lib/grupo-avp-asos-data";
@@ -6,7 +6,7 @@ import type { GrupoAvpAso } from "@/lib/grupo-avp-asos-data";
 function aso(overrides: Partial<GrupoAvpAso> = {}): GrupoAvpAso {
   return {
     id: "avp_" + "a".repeat(32),
-    numero: "1",
+    numero: overrides.id || "1",
     urgencia: "NORMAL",
     urgenciaRaw: "NORMAL",
     dataPedido: "01/11/2026",
@@ -37,6 +37,73 @@ function aso(overrides: Partial<GrupoAvpAso> = {}): GrupoAvpAso {
 }
 
 describe("clinic ASO payment batches", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-10T12:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it.each([
+    ["pago", "ALREADY_PAID"],
+    ["PIX realizado", "ALREADY_PAID"],
+    ["", "UNCONFIRMED_PAYMENT"],
+    ["ver comprovante", "UNCONFIRMED_PAYMENT"],
+    ["PAGO?", "UNCONFIRMED_PAYMENT"],
+  ])("impede gerar outro rascunho quando o Pix é %j", (pixRealizado, code) => {
+    const preview = buildClinicPaymentPreview([aso({ pixRealizado })], emptyFinanceBook());
+    expect(preview.totals.asos).toBe(0);
+    expect(preview.blocked[0].code).toBe(code);
+  });
+
+  it("mantém para conferência todos os pedidos indistinguíveis na origem", () => {
+    const repeated = aso({
+      id: "b",
+      numero: "1",
+      colaborador: " COLABORADOR   TESTE ",
+      valorAso: "40",
+    });
+    const distinct = aso({ id: "c", numero: "2" });
+    const preview = buildClinicPaymentPreview([repeated, distinct, aso()], emptyFinanceBook());
+    expect(preview.batches[0].items.map((row) => row.asoId)).toEqual(["c"]);
+    expect(preview.blocked.map((row) => row.code)).toEqual([
+      "DUPLICATE_REQUEST",
+      "DUPLICATE_REQUEST",
+    ]);
+  });
+
+  it("usa a realização datada no status ao apurar a competência, e recusa datas duvidosas ou futuras", () => {
+    const results = buildClinicPaymentPreview(
+      [
+        aso({ statusRaw: "EXAME FEITO EM 31/10/2026" }),
+        aso({ id: "b", statusRaw: "EXAME FEITO EM 31/02/2026" }),
+        aso({ id: "c", dataAgendadaIso: "2026-11-11" }),
+        aso({ id: "d", statusRaw: "EXAME FEITO EM 7/11" }),
+      ],
+      emptyFinanceBook()
+    );
+    expect(results.batches.map((b) => [b.competence, b.items[0].examDate])).toEqual([
+      ["2026-10", "2026-10-31"],
+    ]);
+    expect(results.blocked).toHaveLength(3);
+  });
+
+  it("segrega conflitos que alteram o pagamento e admite alterações apenas administrativas", () => {
+    const preview = buildClinicPaymentPreview(
+      [aso({ id: "a" }), aso({ id: "b" }), aso({ id: "c" })],
+      emptyFinanceBook(),
+      {
+        today: "2026-11-10",
+        conflicts: [
+          { id: "a", field: "valorAso" },
+          { id: "b", field: "pixRealizado" },
+          { id: "c", field: "responsavel" },
+        ],
+      }
+    );
+    expect(preview.batches[0].items.map((row) => row.asoId)).toEqual(["c"]);
+    expect(preview.blocked.map((row) => row.code)).toEqual(["SOURCE_CONFLICT", "SOURCE_CONFLICT"]);
+  });
+
   it("groups completed ASOs by clinic CNPJ and competence", () => {
     const book = emptyFinanceBook();
     const preview = buildClinicPaymentPreview(
@@ -85,6 +152,18 @@ describe("clinic ASO payment batches", () => {
     expect(preview.blocked[0]?.code).toBe("INVALID_DOCUMENT");
   });
 
+  it("limita os valores por item e por título também na prévia", () => {
+    const preview = buildClinicPaymentPreview(
+      [
+        aso({ id: "a", valorAso: "1.000.000.000,01" }),
+        aso({ id: "b", valorAso: "1.000.000.000,00" }),
+        aso({ id: "c", valorAso: "0,01" }),
+      ],
+      emptyFinanceBook()
+    );
+    expect(preview.blocked.map((row) => row.code)).toEqual(["INVALID_AMOUNT"]);
+    expect(preview.batches.map((row) => row.amountCents)).toEqual([100_000_000_000, 1]);
+  });
   it("splits a clinic backlog into batches of at most 500 ASOs", () => {
     const rows = Array.from({ length: 501 }, (_, index) =>
       aso({

@@ -144,6 +144,24 @@ describe("Sincronização AVP com persistência real no emulador", () => {
       )
     ).rejects.toThrow();
   });
+  it("repara a mesma versão da planilha se uma linha publicada estiver ausente", async () => {
+    await syncAvpSource(true);
+    const before = await getAvpSnapshot();
+    const { sourceVersion } = (await meta().get()).data()!;
+    const row = meta()
+      .collection("versions")
+      .doc(sourceVersion)
+      .collection("rows")
+      .doc(before.items[0].id);
+    await row.delete();
+    await expect(getAvpSnapshot()).rejects.toThrow(/incompleta/i);
+    await meta().set({ lastAttemptMs: 0 }, { merge: true });
+    await syncAvpSource(true);
+    const restored = await getAvpSnapshot();
+    expect(restored.revision).toBe(before.revision);
+    expect(restored.items).toEqual(before.items);
+  });
+
   it("sinaliza conflito quando a fonte e a edição mudam o mesmo campo", async () => {
     await syncAvpSource(true);
     const before = await getAvpSnapshot();

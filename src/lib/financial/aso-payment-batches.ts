@@ -1,10 +1,23 @@
-import type { FinanceBook } from "./operations";
-import type { GrupoAvpAso } from "@/lib/grupo-avp-asos-data";
+import { MAX_FINANCE_CENTS, MAX_CLINIC_BATCH_ITEMS, type FinanceBook } from "./operations";
+import {
+  avpCalendarDay,
+  avpPixStatus,
+  avpRequestIdentity,
+  completedAvpStatus,
+  normalizeAvpText,
+  type GrupoAvpAso,
+} from "@/lib/grupo-avp-asos-data";
+import { brazilToday } from "./treasury";
+import { isCalendarDate } from "@/lib/calendar-date";
 import { parseBrlCents } from "@/lib/avp-costs";
 import { isValidCnpj, normalizeCnpj } from "@/lib/cnpj";
 
 export type ClinicPaymentBlockCode =
   | "ALREADY_PAID"
+  | "UNCONFIRMED_PAYMENT"
+  | "SOURCE_CONFLICT"
+  | "DUPLICATE_REQUEST"
+  | "FUTURE_EXAM"
   | "ALREADY_BATCHED"
   | "MISSING_CLINIC"
   | "INVALID_DOCUMENT"
@@ -13,6 +26,7 @@ export type ClinicPaymentBlockCode =
 
 export type ClinicPaymentBlocked = {
   asoId: string;
+  sourceRow?: number;
   collaborator: string;
   clinicName: string;
   code: ClinicPaymentBlockCode;
@@ -21,6 +35,7 @@ export type ClinicPaymentBlocked = {
 
 export type ClinicPaymentCandidateItem = {
   asoId: string;
+  sourceRow?: number;
   collaborator: string;
   city: string;
   examDate: string;
@@ -48,19 +63,15 @@ export type ClinicPaymentPreview = {
   };
 };
 
-const normalizedText = (value: string) =>
-  value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .toUpperCase();
-
-function validCalendarDate(value: string) {
-  if (!/^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(value)) return false;
-  const date = new Date(value + "T00:00:00Z");
-  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
-}
+const paymentFields = new Set([
+  "status",
+  "manualStatusRaw",
+  "nomeClinica",
+  "cnpjClinica",
+  "dataAgendada",
+  "valorAso",
+  "pixRealizado",
+]);
 
 function activeBatchedAsoIds(book: FinanceBook) {
   const titleState = new Map(book.titles.map((title) => [title.id, title.status]));
@@ -79,6 +90,7 @@ function blocked(
 ): ClinicPaymentBlocked {
   return {
     asoId: aso.id,
+    sourceRow: aso.sourceRow,
     collaborator: aso.colaborador,
     clinicName: aso.nomeClinica,
     code,
@@ -92,8 +104,21 @@ function blocked(
  */
 export function buildClinicPaymentPreview(
   asos: GrupoAvpAso[],
-  book: FinanceBook
+  book: FinanceBook,
+  {
+    today = brazilToday(),
+    conflicts = [],
+  }: {
+    today?: string;
+    conflicts?: ReadonlyArray<{ id: string; field: string }>;
+  } = {}
 ): ClinicPaymentPreview {
+  const contested = new Set(conflicts.filter((c) => paymentFields.has(c.field)).map((c) => c.id));
+  const identityCounts = new Map<string, number>();
+  for (const row of asos) {
+    const identity = avpRequestIdentity(row);
+    identityCounts.set(identity, (identityCounts.get(identity) || 0) + 1);
+  }
   const alreadyBatched = activeBatchedAsoIds(book);
   const groups = new Map<
     string,
@@ -109,17 +134,44 @@ export function buildClinicPaymentPreview(
   let ignored = 0;
 
   for (const aso of asos) {
+    if (contested.has(aso.id)) {
+      blockedRows.push(
+        blocked(
+          aso,
+          "SOURCE_CONFLICT",
+          "Há divergência entre a fila e a planilha em um campo do pagamento."
+        )
+      );
+      continue;
+    }
     if (aso.status !== "EXAME FEITO") {
       ignored++;
       continue;
     }
-    if (aso.pixRealizado.trim().toUpperCase() === "SIM") {
+    const pix = avpPixStatus(aso.pixRealizado);
+    if (pix === "PAGO") {
       blockedRows.push(blocked(aso, "ALREADY_PAID", "A fila informa pagamento já realizado."));
       continue;
     }
     if (alreadyBatched.has(aso.id)) {
       blockedRows.push(
         blocked(aso, "ALREADY_BATCHED", "O ASO já pertence a um lote financeiro ativo.")
+      );
+      continue;
+    }
+    if (pix === "A CONFERIR") {
+      blockedRows.push(
+        blocked(aso, "UNCONFIRMED_PAYMENT", "Confira na origem se o Pix já foi realizado.")
+      );
+      continue;
+    }
+    if ((identityCounts.get(avpRequestIdentity(aso)) || 0) > 1) {
+      blockedRows.push(
+        blocked(
+          aso,
+          "DUPLICATE_REQUEST",
+          "Há pedidos com a mesma identificação na fila. Confira a duplicidade."
+        )
       );
       continue;
     }
@@ -134,14 +186,15 @@ export function buildClinicPaymentPreview(
       continue;
     }
     const amountCents = parseBrlCents(aso.valorAso);
-    if (amountCents === null || amountCents <= 0) {
+    if (amountCents === null || amountCents <= 0 || amountCents > MAX_FINANCE_CENTS) {
       blockedRows.push(
         blocked(aso, "INVALID_AMOUNT", "Valor unitário do ASO ausente ou inválido.")
       );
       continue;
     }
-    const examDate = aso.dataAgendadaIso;
-    if (!validCalendarDate(examDate)) {
+    const reportedDate = completedAvpStatus(aso.manualStatusRaw || aso.statusRaw || "")?.[1];
+    const examDate = reportedDate ? avpCalendarDay(reportedDate) : aso.dataAgendadaIso;
+    if (!examDate.startsWith("20") || !isCalendarDate(examDate)) {
       blockedRows.push(
         blocked(
           aso,
@@ -152,6 +205,16 @@ export function buildClinicPaymentPreview(
       continue;
     }
 
+    if (examDate > today) {
+      blockedRows.push(
+        blocked(
+          aso,
+          "FUTURE_EXAM",
+          "O exame consta como concluído com data futura. Confira a realização."
+        )
+      );
+      continue;
+    }
     const competence = examDate.slice(0, 7);
     const key = clinicDocument + ":" + competence;
     const group = groups.get(key) || {
@@ -161,9 +224,10 @@ export function buildClinicPaymentPreview(
       names: new Set<string>(),
       items: [],
     };
-    group.names.add(normalizedText(clinicName));
+    group.names.add(normalizeAvpText(clinicName));
     group.items.push({
       asoId: aso.id,
+      sourceRow: aso.sourceRow,
       collaborator: aso.colaborador.trim() || "Colaborador não identificado",
       city: [aso.cidade.trim(), aso.uf.trim()].filter(Boolean).join("/") || "Cidade não informada",
       examDate,
@@ -186,20 +250,26 @@ export function buildClinicPaymentPreview(
           "O mesmo CNPJ aparece com nomes de clínica diferentes; confira o cadastro antes do envio ao Omie."
         );
       const chunks: ClinicPaymentCandidateBatch[] = [];
-      for (let offset = 0; offset < items.length; offset += 500) {
-        const chunk = items.slice(offset, offset + 500);
-        const amountCents = chunk.reduce((sum, item) => sum + item.amountCents, 0);
-        if (!Number.isSafeInteger(amountCents))
-          throw new Error("Total do lote excede a precisão financeira permitida.");
-        chunks.push({
-          key: key + ":" + String(Math.floor(offset / 500) + 1),
-          clinicName: group.clinicName,
-          clinicDocument: group.clinicDocument,
-          competence: group.competence,
-          amountCents,
-          items: chunk,
-          warnings,
-        });
+      for (const item of items) {
+        let current = chunks.at(-1);
+        if (
+          !current ||
+          current.items.length >= MAX_CLINIC_BATCH_ITEMS ||
+          current.amountCents + item.amountCents > MAX_FINANCE_CENTS
+        ) {
+          current = {
+            key: `${key}:${chunks.length + 1}`,
+            clinicName: group.clinicName,
+            clinicDocument: group.clinicDocument,
+            competence: group.competence,
+            amountCents: 0,
+            items: [],
+            warnings,
+          };
+          chunks.push(current);
+        }
+        current.items.push(item);
+        current.amountCents += item.amountCents;
       }
       return chunks;
     })
@@ -224,7 +294,8 @@ export function buildClinicPaymentPreview(
 
 /** Tuesday/Friday review cadence, using an ISO calendar date in Brazil as input. */
 export function nextClinicPaymentDate(today: string) {
-  if (!validCalendarDate(today)) throw new Error("Data de referência inválida.");
+  if (!today.startsWith("20") || !isCalendarDate(today))
+    throw new Error("Data de referência inválida.");
   const start = new Date(today + "T12:00:00Z");
   for (let offset = 0; offset <= 6; offset++) {
     const candidate = new Date(start);

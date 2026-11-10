@@ -203,6 +203,7 @@ describe("AVP Sheet Sync & Importer Suite", () => {
       expect(updatedItem).toBeDefined();
       expect(updatedItem?.status).toBe("AGENDADO");
       expect(updatedItem?.dataAgendada).toBe("18/09/2026 08:30");
+      expect(updatedItem?.dataAgendadaIso).toBe("2026-09-18");
       expect(updatedItem?.nomeClinica).toBe("Clínica Médica Aldeota");
       expect(updatedItem?.valorAso).toBe("120,00");
 

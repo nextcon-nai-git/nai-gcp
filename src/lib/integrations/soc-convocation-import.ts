@@ -1,4 +1,5 @@
 import Papa from "papaparse";
+import { isValidCnpj, normalizeCnpj } from "@/lib/cnpj";
 import { socExamSummarySchema, type SocExamSummary } from "./soc-dashboard";
 
 export const SOC_CONVOCATION_MAX_BYTES = 16 * 1024 * 1024;
@@ -90,13 +91,16 @@ export function importSocConvocation(
     }
     const employee = (row["Código Funcionario"] || "").trim();
     const exam = normalize(row.Exame || "");
-    const unit = (row["CNPJ DA UNIDADE"] || "").replace(/\D/g, "") || normalize(row.UNIDADE || "");
+    const cnpj = row["CNPJ DA UNIDADE"].trim();
+    if (cnpj && !isValidCnpj(cnpj))
+      throw Error("CNPJ da unidade inválido no CSV. Confira o cadastro na origem.");
+    const unit = cnpj ? normalizeCnpj(cnpj) : normalize(row.UNIDADE || "");
     if (!/^\d{1,20}$/.test(employee) || !exam || !unit)
       throw Error(
         "Há linhas sem código de funcionário, unidade ou exame. Corrija a origem antes de importar."
       );
     const due = day(row["Refazer em"] || "");
-    const key = JSON.stringify([employee, unit, exam]);
+    const key = JSON.stringify([employee, cnpj ? "cnpj" : "unidade", unit, exam]);
     if (seen.has(key)) {
       if (seen.get(key) !== (due || ""))
         throw Error(

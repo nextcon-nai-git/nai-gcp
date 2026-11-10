@@ -6,7 +6,7 @@ import type { AuthContext } from "@/lib/auth/auth-context";
 import { parseClaims } from "@/lib/auth/claims";
 import { isPgrGlobalAdmin, requirePgrCompany } from "@/lib/auth/require-pgr-access";
 import { AuthError, badRequest, forbidden } from "@/lib/auth/errors";
-import { isValidCpf } from "@/lib/cpf";
+import { parseCpf } from "@/lib/cpf";
 import { isValidCnpj } from "@/lib/cnpj";
 import {
   KitId,
@@ -111,8 +111,8 @@ function validateSources(companyId: string, input: KitSelectionData, docs: Docum
     );
   const cpfs = new Set<string>();
   for (const employee of employees) {
-    const cpf = str(employee.cpf).replace(/\D/g, "");
-    if (employee.companyId !== companyId || employee.status !== "active" || !isValidCpf(cpf))
+    const cpf = parseCpf(str(employee.cpf));
+    if (employee.companyId !== companyId || employee.status !== "active" || !cpf)
       throw badRequest("Cada colaborador deve estar ativo, vinculado à empresa e com CPF válido.");
     if (cpfs.has(cpf)) throw badRequest("Há cadastros do mesmo CPF no lote. Corrija a seleção.");
     cpfs.add(cpf);

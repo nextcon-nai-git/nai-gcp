@@ -367,6 +367,7 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               action: "preview",
+              companyId: company || undefined,
               rows: rows.slice(offset, offset + ASO_FLOW_BATCH_SIZE),
               sourceName: file.name,
             }),
@@ -412,6 +413,7 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 action: "import",
+                companyId: company || undefined,
                 rows: batch.map((row) => row.row),
                 sourceName,
               }),
@@ -424,7 +426,7 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
           setCards((old) => {
             const merged = new Map(old.map((card) => [card.id, card]));
             data.cards
-              .filter((card) => !initialCompany || card.companyId === initialCompany)
+              .filter((card) => !company || card.companyId === company)
               .forEach((card) => merged.set(card.id, card));
             return [...merged.values()];
           });
@@ -662,6 +664,7 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
           disabled={!!initialCompany || busy}
           onChange={(e) => {
             setCompany(e.target.value);
+            setPreview(null);
             setBusy(true);
             busyRef.current = true;
             setCity("");
@@ -868,6 +871,8 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
             <DialogTitle>Conferir importação</DialogTitle>
             <DialogDescription>
               {sourceName} · {preview?.rows.length || 0} linhas conferidas
+              {company &&
+                ` · Cliente: ${directory.find((item) => item.id === company)?.name || company}`}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-wrap gap-3 text-sm">
