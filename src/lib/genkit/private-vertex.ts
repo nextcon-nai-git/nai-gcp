@@ -4,6 +4,7 @@ import { auth } from "googleapis/build/src/apis/aiplatform";
 import { z } from "zod/v3";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { ai } from "./router";
+import { vertexContentUrl } from "./vertex-content";
 
 export const MAX_MEDIA_BYTES = 10 * 1024 * 1024;
 export type PrivateMedia = { mimeType: string; data: string };
@@ -58,20 +59,7 @@ async function extract<S extends z.ZodTypeAny>(
     process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
     (await credentials.getProjectId());
   const location = process.env.NAI_VERTEX_LOCATION || "us";
-  if (!["us", "eu", "global"].includes(location) || !project)
-    throw new Error("Configuração Vertex indisponível.");
-  const host =
-    location === "global"
-      ? "aiplatform.googleapis.com"
-      : "aiplatform." + location + ".rep.googleapis.com";
-  const url =
-    "https://" +
-    host +
-    "/v1/projects/" +
-    encodeURIComponent(project) +
-    "/locations/" +
-    location +
-    "/publishers/google/models/gemini-4-argon:generateContent";
+  const url = vertexContentUrl(project, location);
   const parts: ({ text: string } | { inlineData: PrivateMedia })[] = [{ text: task }];
   if (media) parts.push({ inlineData: media });
   const jsonSchema = zodToJsonSchema(schema, { $refStrategy: "none" });
