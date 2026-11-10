@@ -2,7 +2,8 @@
   "name": "nai-s2220-audit",
   "version": "1.0.0",
   "private": true,
-  "main": "index.cjs",
+  "type": "commonjs",
+  "main": "index.js",
   "engines": {
     "node": "22"
   },
