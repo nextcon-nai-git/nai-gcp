@@ -141,6 +141,8 @@ describe("scheduling persistence and session boundaries", () => {
           ...request,
           id: "ilh-2",
           employeeName: "Pessoa Ilhéus 2",
+          clinicName: "A confirmar",
+          digitalKit: undefined,
           examType: "periodico",
           requestedCity: "Ilhéus/BA",
           exams: [{ name: "Clínico" }, { name: "Audiometria" }],
@@ -157,10 +159,13 @@ describe("scheduling persistence and session boundaries", () => {
     });
     await v.render(<Page />);
 
+    expect(v.container.textContent).toContain("Pessoa Ilhéus 1");
+    await v.click("Agrupar por cidade");
     expect(v.container.textContent).toContain("Periódicos · ILHÉUS/BA");
-    expect(v.container.textContent).toContain("2 colaboradores");
+    expect(v.container.textContent).toContain("2 pedidos");
     expect(v.container.textContent).toContain("Sem clínica: 2");
-    expect(v.container.textContent).toContain("Kit pendente: 2");
+    expect(v.container.textContent).toContain("Com kit vinculado: 1");
+    expect(v.container.textContent).toContain("Sem kit vinculado: 1");
     expect(v.container.textContent).toContain("Periódicos · SALVADOR/BA");
     expect(v.container.textContent).not.toContain("Pessoa Ilhéus 1");
 
@@ -175,6 +180,95 @@ describe("scheduling persistence and session boundaries", () => {
     expect(picker().getAttribute("aria-label")).toContain("Pessoa Ilhéus 1");
     await chooseStage("validando");
     expect(m.advance.mock.calls[0][0]).toBe("ilh-1");
+  });
+  it("searches all loaded cards before paging and keeps the search when returning from the selected kit", async () => {
+    const others = Array.from({ length: 23 }, (_, i) => ({
+      ...request,
+      id: "outro-" + i,
+      employeeName: "Outro " + i,
+    }));
+    const target = {
+      ...request,
+      id: "SOL-984",
+      employeeName: "Lídia Dias",
+      requestedCity: "Gurupi",
+      companyName: "Escola Modelo",
+      clinicName: "Clínica do Sol",
+      digitalKit: { ...kit, guiaNumber: "GUIA-984" },
+    };
+    m.list.mockResolvedValueOnce({ success: true, data: [...others, target] });
+    await v.render(<Page />);
+    expect(v.container.textContent).not.toContain("Lídia Dias");
+    expect(v.container.textContent).toContain("24 de 24");
+    await v.click("Mostrar mais");
+    expect(v.container.textContent).toContain("Lídia Dias");
+    const search = 'input[aria-label="Buscar atendimentos"]';
+    await v.input(search, "984 LIDIA  gurupi escola clinica");
+    expect(v.container.textContent).toContain("1 de 24");
+    expect(v.container.textContent).not.toContain("Outro 0");
+    await v.click("Detalhes de Lídia Dias");
+    expect(v.container.textContent).toContain("Clínica do Sol");
+    await v.click("Abrir kit deste pedido");
+    expect(v.container.textContent).toContain("GUIA-984");
+    await v.click("Atendimentos");
+    expect(v.container.textContent).toContain("1 de 24");
+    expect(m.advance).not.toHaveBeenCalled();
+  });
+  it("counts one request per pending human action and combines the action filter with stage and search", async () => {
+    const warning = { ...request.alerts[0], requiresHumanIntervention: true };
+    const urgent = {
+      ...warning,
+      id: "urgent",
+      severity: "CRITICAL",
+      message: "Documento divergente",
+      suggestedAction: "Conferir a empresa",
+    };
+    const data = [
+      {
+        ...request,
+        id: "a",
+        employeeName: "Pessoa Um",
+        status: "agendado",
+        alerts: [warning, urgent],
+      },
+      {
+        ...request,
+        id: "b",
+        employeeName: "Pessoa Dois",
+        status: "agendado",
+        alerts: [{ ...urgent, status: "RESOLVED" }],
+      },
+      {
+        ...request,
+        id: "c",
+        employeeName: "Pessoa Três",
+        alerts: [{ ...urgent, requiresHumanIntervention: false }],
+      },
+    ];
+    m.list.mockResolvedValueOnce({ success: true, data });
+    await v.render(<Page />);
+    await v.click("Ação da equipe (1)");
+    expect(v.container.textContent).toContain("1 de 3");
+    expect(v.container.textContent).toContain("Documento divergente");
+    expect(v.container.textContent).toContain("Conferir a empresa");
+    expect(v.container.textContent).not.toContain("Pessoa Dois");
+    await v.input('select[aria-label="Filtrar por etapa"]', "solicitado");
+    expect(v.container.textContent).toContain("Nenhum atendimento corresponde aos filtros.");
+    await v.input('select[aria-label="Filtrar por etapa"]', "agendado");
+    await v.input('input[type="search"]', "inexistente");
+    expect(v.container.textContent).toContain("0 de 3");
+    await v.click("Limpar filtros");
+    expect(v.container.textContent).toContain("3 de 3");
+    expect(m.advance).not.toHaveBeenCalled();
+  });
+  it("only shows an empty queue after a successful read", async () => {
+    const pending = deferred<unknown>();
+    m.list.mockReturnValueOnce(pending.promise);
+    await v.render(<Page />);
+    expect(v.container.textContent).toContain("Carregando atendimentos");
+    expect(v.container.textContent).not.toContain("Nenhum atendimento cadastrado");
+    await act(async () => pending.resolve({ success: true, data: [] }));
+    expect(v.container.textContent).toContain("Nenhum atendimento cadastrado");
   });
   it("creates with reviewed input, splits risks and waits for save", async () => {
     await v.render(<Page />);
