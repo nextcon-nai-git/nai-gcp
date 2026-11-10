@@ -11,6 +11,8 @@ import {
   type EsocialEventType,
   type EsocialFormField,
 } from "@/lib/esocial-events";
+import { AsoIngestForm } from "./aso-ingest-form";
+import { applyAsoDraft } from "@/lib/genkit/aso-draft";
 import { S2220AuditPanel } from "./s2220-audit-panel";
 import type { PayrollEmployee, PayrollDirectory } from "./payroll-link-settings";
 
@@ -373,6 +375,8 @@ export function EventForm({
         : {}),
     }
   );
+  const [auditAgents, setAuditAgents] = useState<{ cpf: string; value: string } | null>(null);
+  const workerCpf = String(valueAt(payload, "ideVinculo.cpfTrab") || "");
   const [reference, setReference] = useState(initialReference);
   const [errors, setErrors] = useState<string[]>([]);
   const eventType = payload.eventType as EsocialEventType;
@@ -526,6 +530,21 @@ export function EventForm({
         </p>
       </div>
       <p className="text-sm text-slate-600">{form.description}</p>
+      {eventType === "S2220" && companyId && (
+        <AsoIngestForm
+          companyId={companyId}
+          disabled={busy}
+          onApply={(draft) => {
+            const next = applyAsoDraft(payload, draft, editing || lockEventType);
+            setPayload(next);
+            setAuditAgents({
+              cpf: String(next.ideVinculo.cpfTrab || ""),
+              value: draft.agentesNocivosRelacionados.join(", "),
+            });
+            setErrors([]);
+          }}
+        />
+      )}
       {form.sections.map((section) => (
         <fieldset key={section.title} className="space-y-3 rounded-xl border p-4">
           <legend className="px-1 text-sm font-semibold">{section.title}</legend>
@@ -552,6 +571,8 @@ export function EventForm({
       ))}
       {eventType === "S2220" && companyId && (
         <S2220AuditPanel
+          agents={auditAgents?.cpf === workerCpf ? auditAgents.value : ""}
+          onAgentsChange={(value) => setAuditAgents({ cpf: workerCpf, value })}
           companyId={companyId}
           payload={payload}
           cleanPayload={() =>

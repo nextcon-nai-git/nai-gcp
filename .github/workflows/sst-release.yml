@@ -1,0 +1,47 @@
+name: Publicar serviço de auditoria SST
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/sst-release.yml"
+      - "functions/audit-s2220/**"
+      - "src/lib/genkit/flows/audit-s2220.ts"
+      - "src/lib/genkit/s2220-contract.ts"
+      - "src/lib/genkit/resilient-runner.ts"
+      - "src/lib/genkit/router.ts"
+      - "src/lib/logging/gcp-logger.ts"
+      - "src/services/esocial/s2220-audit-access.ts"
+      - "scripts/setup-ai-resilience-metrics.mjs"
+permissions:
+  contents: read
+concurrency:
+  group: release-nai-s2220
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GOOGLE_CLOUD_PROJECT: studio-8439299034-125c7
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --prefer-offline --no-audit
+      - run: npm run build:s2220-function
+      - name: Autenticar no projeto do NAI
+        id: credentials
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          project_id: studio-8439299034-125c7
+      - name: Provisionar métricas de resiliência
+        id: metrics
+        run: npm run infra:ai-metrics
+      - name: Publicar somente a função de auditoria S-2220
+        if: ${{ !cancelled() && steps.credentials.outcome == 'success' }}
+        run: npx --yes firebase-tools@15.33.0 deploy --only functions:s2220-audit --project studio-8439299034-125c7 --non-interactive

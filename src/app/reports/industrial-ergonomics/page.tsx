@@ -1,5 +1,6 @@
 "use client";
 
+import { SstAnalysisLink } from "@/components/sst/analysis-link";
 import * as React from "react";
 import {
   ArrowLeft,
@@ -60,6 +61,7 @@ export default function IndustrialErgonomicsPage() {
                   AEP 2026
                 </span>
               </h1>
+              <SstAnalysisLink id="ergonomia" />
             </div>
             <p className="text-sm text-slate-400 mt-2 font-medium">
               Análise Ergonômica Preliminar — {data.setor}
