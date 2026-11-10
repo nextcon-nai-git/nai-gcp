@@ -1,6 +1,9 @@
 // @vitest-environment node
 import { describe, it, expect, vi } from "vitest";
 import { z } from "zod/v3";
+import { jsPDF } from "jspdf";
+import { processAsoPdfAction } from "@/app/actions/ocr-aso";
+import { runSstAnalysis } from "@/app/actions/sst-analysis";
 import { calculateFapReview as fapNtepAuditFlow } from "./flows/fap-ntep-audit";
 import { calculateNr28 as aftNr28SimulatorFlow } from "./flows/aft-nr28-simulator";
 import {
@@ -15,6 +18,18 @@ import { applyAsoDraft, type AsoDraft } from "./aso-draft";
 import { parseSstFields } from "./sst-modules";
 const { request, observed } = vi.hoisted(() => ({ request: vi.fn(), observed: vi.fn() }));
 vi.mock("server-only", () => ({}));
+vi.mock("@/services/sst-analysis-access", () => ({
+  authorizeSst: vi.fn((token: string) => {
+    if (token !== "TESTE") throw new Error("Sessão de teste inválida.");
+  }),
+  healthRoles: ["DOCTOR"],
+  technicalRoles: ["ENGINEER"],
+}));
+function testPdf(lines: string[]) {
+  const pdf = new jsPDF();
+  pdf.text(lines, 12, 20);
+  return new File([pdf.output("arraybuffer")], "TESTE-sintetico.pdf", { type: "application/pdf" });
+}
 vi.mock("googleapis/build/src/apis/aiplatform", () => ({
   auth: {
     GoogleAuth: class {
@@ -202,6 +217,96 @@ describe("TESTE NAI – análises SST", () => {
     agentesNocivosRelacionados: [],
     pendencias: [],
   };
+  it("leva o PDF do formulário ao Vertex e devolve todos os exames no rascunho do ASO", async () => {
+    const exames = ["EXAME TESTE A", "EXAME TESTE B", "EXAME TESTE C", "EXAME TESTE D"].map(
+      (descricao) => ({
+        descricao,
+        codigoProcedimento: null,
+        dataExame: null,
+        ordemExame: null,
+        resultado: null,
+      })
+    );
+    const form = new FormData();
+    const file = testPdf(["ASO TESTE", ...exames.map((e) => e.descricao)]);
+    form.set("asoFile", file);
+    request.mockResolvedValueOnce(vertex({ ...draft, exames }));
+    const r = await processAsoPdfAction("TESTE", "empresa-teste", form);
+    expect(r).toMatchObject({ success: true, data: { exames } });
+    const body = request.mock.lastCall?.[0]?.data;
+    expect(body.contents[0].parts[1].inlineData).toEqual({
+      mimeType: "application/pdf",
+      data: Buffer.from(await file.arrayBuffer()).toString("base64"),
+    });
+    expect(body.systemInstruction.parts[0].text).toContain("Preserve todos os itens legíveis");
+    expect(observed).toHaveBeenCalledWith("ocrIngestFlow", []);
+  });
+  it("conclui a avaliação do formulário de ergonomia com um PNG sintético e a ficha RULA", async () => {
+    const encoded =
+      "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGNMyatgYGBgYmBgYGBgAAAPjgFORhi0IgAAAABJRU5ErkJggg==";
+    const form = new FormData();
+    for (const [key, value] of Object.entries({
+      postoTrabalho: "TESTE",
+      atividadeExecutada: "TESTE",
+      metodo: "RULA",
+      grupoA: "1",
+      grupoB: "1",
+    }))
+      form.set(key, value);
+    form.set(
+      "arquivo",
+      new File([Buffer.from(encoded, "base64")], "TESTE.png", { type: "image/png" })
+    );
+    request.mockResolvedValueOnce(
+      vertex({
+        desviosPosturaisDetectados: [],
+        aspectosBiomecanicos: [],
+        organizacaoTrabalho: [],
+        condicoesAmbientais: [],
+        limitacoes: ["Imagem sintética"],
+        planoAdequacaoAEP: [],
+      })
+    );
+    expect(await runSstAnalysis("TESTE", "empresa-teste", "ergonomia", form)).toMatchObject({
+      success: true,
+      result: { metodo: "RULA", pontuacaoRisco: 1, limitacoes: ["Imagem sintética"] },
+    });
+    expect(request.mock.lastCall?.[0].data.contents[0].parts[1].inlineData).toEqual({
+      mimeType: "image/png",
+      data: encoded,
+    });
+  });
+  it("confere certificado PDF, preserva lacunas e exige revisão antes de liberação", async () => {
+    const file = testPdf(["CERTIFICADO TESTE", "NR-33", "16 horas"]);
+    const form = new FormData();
+    for (const [key, value] of Object.entries(trabalhador)) form.set(key, value);
+    form.set("arquivo", file);
+    request.mockResolvedValueOnce(vertex(cert));
+    expect(await runSstAnalysis("TESTE", "empresa-teste", "capacitacao", form)).toMatchObject({
+      success: true,
+      result: {
+        dadosExtraidos: { cargaHoraria: 16 },
+        conferencia: { titularConfere: null, cargaHorariaAtingida: false },
+        statusControleAcesso: "Aguardando conferência do responsável",
+      },
+    });
+    expect(request.mock.lastCall?.[0].data.contents[0].parts[1].inlineData).toEqual({
+      mimeType: "application/pdf",
+      data: Buffer.from(await file.arrayBuffer()).toString("base64"),
+    });
+  });
+  it("recusa a mídia antes da chamada ao Vertex quando o acesso é negado", async () => {
+    const before = request.mock.calls.length;
+    const form = new FormData();
+    form.set("asoFile", testPdf(["TESTE"]));
+    expect(await processAsoPdfAction("", "empresa-teste", form)).toMatchObject({ success: false });
+    for (const mod of ["ergonomia", "capacitacao"] as const) {
+      expect(await runSstAnalysis("", "empresa-teste", mod, form)).toMatchObject({
+        success: false,
+      });
+    }
+    expect(request).toHaveBeenCalledTimes(before);
+  });
   it("impede troca de vínculo e documento múltiplo; não reaproveita matrícula nem consentimento", () => {
     const orig = {
       ideVinculo: { cpfTrab: "000", matricula: "TESTE" },

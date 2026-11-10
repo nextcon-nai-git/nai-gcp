@@ -14,6 +14,7 @@ on:
       - "src/lib/logging/gcp-logger.ts"
       - "src/services/esocial/s2220-audit-access.ts"
       - "scripts/setup-ai-resilience-metrics.mjs"
+      - "scripts/build-s2220-function.mjs"
 permissions:
   contents: read
 concurrency:
@@ -38,6 +39,25 @@ jobs:
           cache: npm
       - run: npm ci --prefer-offline --no-audit
       - run: npm run build:s2220-function
+      - name: Instalar as dependências isoladas da Cloud Function
+        run: npm ci --prefix functions/audit-s2220 --prefer-offline --no-audit
+      - name: Conferir o manifesto local da função v2
+        run: |
+          node - <<'NODE'
+          const assert = require('node:assert/strict');
+          const { auditS2220 } = require('./functions/audit-s2220');
+          assert.equal(auditS2220.__endpoint.platform, 'gcfv2');
+          assert.ok(auditS2220.__endpoint.callableTrigger);
+          NODE
+      - name: Conferir identidade para publicação em produção
+        if: vars.GCP_WORKLOAD_IDENTITY_PROVIDER == '' || vars.GCP_SST_DEPLOY_SERVICE_ACCOUNT == ''
+        env:
+          HAS_DEPLOY_CREDENTIAL: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON != '' }}
+        run: |
+          if [ "$HAS_DEPLOY_CREDENTIAL" != true ]; then
+            echo "::error::Configure GCP_WORKLOAD_IDENTITY_PROVIDER e GCP_SST_DEPLOY_SERVICE_ACCOUNT no ambiente production ou disponibilize a credencial de deploy já existente. As métricas e a função ainda não foram publicadas."
+            exit 1
+          fi
       - name: Autenticar com identidade federada de SST
         id: federated
         if: vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && vars.GCP_SST_DEPLOY_SERVICE_ACCOUNT != ''
