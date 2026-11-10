@@ -7,6 +7,7 @@ const eslintConfig = [
   {
     ignores: [
       "node_modules/**",
+      "functions/audit-s2220/lib/**",
       ".next/**",
       "out/**",
       "build/**",

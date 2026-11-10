@@ -606,6 +606,7 @@ function CompanyWorkspace({
                 ? `${editor.event.id}:${editor.event.version}`
                 : editor.asoCardId || "new"
             }
+            companyId={company.id}
             initialPayload={editor.payload}
             initialReference={editor.sourceReference}
             employees={payroll.employees}

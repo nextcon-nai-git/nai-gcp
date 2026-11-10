@@ -12,5 +12,13 @@
   },
   "storage": {
     "rules": "storage.rules"
-  }
+  },
+  "functions": [
+    {
+      "source": "functions/audit-s2220",
+      "codebase": "s2220-audit",
+      "runtime": "nodejs22",
+      "predeploy": ["npm --prefix \"$PROJECT_DIR\" run build:s2220-function"]
+    }
+  ]
 }

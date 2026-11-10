@@ -11,6 +11,7 @@ import {
   type EsocialEventType,
   type EsocialFormField,
 } from "@/lib/esocial-events";
+import { S2220AuditPanel } from "./s2220-audit-panel";
 import type { PayrollEmployee, PayrollDirectory } from "./payroll-link-settings";
 
 type Payload = Record<string, unknown>;
@@ -342,6 +343,7 @@ function labelsByPath(fields: readonly EsocialFormField[], prefix = ""): Record<
 }
 
 export function EventForm({
+  companyId,
   initialPayload,
   initialReference = "",
   editing = false,
@@ -352,6 +354,7 @@ export function EventForm({
   onSave,
   onCancel,
 }: {
+  companyId?: string;
   initialPayload?: Payload;
   initialReference?: string;
   editing?: boolean;
@@ -547,6 +550,18 @@ export function EventForm({
           </div>
         </fieldset>
       ))}
+      {eventType === "S2220" && companyId && (
+        <S2220AuditPanel
+          companyId={companyId}
+          payload={payload}
+          cleanPayload={() =>
+            pruneHidden(
+              payload,
+              form.sections.flatMap((s) => s.fields)
+            )
+          }
+        />
+      )}
       {errors.length > 0 && (
         <div
           role="alert"

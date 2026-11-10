@@ -74,3 +74,7 @@ gha-creds-*.json
 __pycache__/
 *.pyc
 
+
+/functions/audit-s2220/lib/
+/functions/audit-s2220/node_modules/
+/functions/audit-s2220/scripts/
