@@ -108,7 +108,8 @@ const observe = privateVertexFlow(
     condicoesAmbientais: listOfNotes,
     limitacoes: listOfNotes,
     planoAdequacaoAEP: listOfNotes,
-  })
+  }),
+  "json-template"
 );
 export async function ergonomicAssessmentFlow(raw: unknown, file: FormDataEntryValue | null) {
   const input = ErgonomicInputSchema.parse(raw),

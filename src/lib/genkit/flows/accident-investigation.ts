@@ -42,17 +42,57 @@ const proposal = privateVertexFlow(
         })
       )
       .max(20),
-  })
+  }),
+  "json-template"
 );
 export async function accidentInvestigationFlow(raw: unknown) {
   const i = AccidentInvestigationInputSchema.parse(raw);
-  const r = await proposal(
-    "Organize uma investigação de acidente para revisão pela equipe. Use somente citações literais do relato para os fatos relatados. Identifique separadamente hipóteses imediatas e organizacionais, medidas de verificação, até cinco porquês encadeados, barreiras preventivas e mitigadoras Bow-Tie e plano 5W2H para o PGR. Evite atribuir culpa, inventar fatos ou concluir diagnóstico. Sugira papéis responsáveis e prazos como propostas. Evidência: " +
-      JSON.stringify(i)
-  );
-  return {
-    ...r,
-    fatosRelatados: r.fatosRelatados.filter((f) => i.relato.includes(f.trechoLiteral)),
-    estado: "Investigação preliminar para validação em campo",
-  };
+  try {
+    const r = await proposal(
+      "Organize uma investigação de acidente para revisão pela equipe. Use somente citações literais do relato para os fatos relatados. Identifique separadamente hipóteses imediatas e organizacionais, medidas de verificação, até cinco porquês encadeados, barreiras preventivas e mitigadoras Bow-Tie e plano 5W2H para o PGR. Evite atribuir culpa, inventar fatos ou concluir diagnóstico. Sugira papéis responsáveis e prazos como propostas. Evidência: " +
+        JSON.stringify(i)
+    );
+    return {
+      ...r,
+      assistenciaIa: "Hipóteses e plano gerados para revisão.",
+      fatosRelatados: r.fatosRelatados.filter((f) => i.relato.includes(f.trechoLiteral)),
+      estado: "Investigação preliminar para validação em campo",
+    };
+  } catch {
+    return {
+      estado: "Roteiro de investigação para preenchimento em campo",
+      assistenciaIa:
+        "A análise de IA não foi concluída. O relato e o roteiro permanecem disponíveis para revisão.",
+      relatoOriginal: i.relato,
+      fatosRelatados: [],
+      hipotesesImediatas: [],
+      hipotesesOrganizacionais: [],
+      cincoPorques: [
+        {
+          pergunta: "Qual sequência de eventos pode ser demonstrada?",
+          respostaProvisoria: null,
+          comoVerificar:
+            "Confrontar o relato com observações, registros e depoimentos independentes.",
+        },
+      ],
+      bowTie: {
+        barreirasPreventivasAConferir: [
+          "Identificar quais controles preventivos estavam previstos para a atividade.",
+        ],
+        barreirasMitigadorasAConferir: ["Verificar quais medidas de resposta estavam disponíveis."],
+      },
+      revisaoInventarioPgr: "Conferir o cenário com o inventário após apurar os fatos.",
+      plano5W2H: [
+        {
+          oQue: "Reconstituir a sequência observada",
+          porQue: "Distinguir relato e evidência confirmada",
+          onde: i.setor,
+          quando: "A definir pelo responsável",
+          quem: "Equipe de investigação a designar",
+          como: "Reunir registros e entrevistas, identificando as fontes",
+          custo: null,
+        },
+      ],
+    };
+  }
 }

@@ -26,7 +26,7 @@ const Certificate = z.object({
   conteudoProgramatico: listOfNotes,
   pendencias: listOfNotes,
 });
-const extract = privateVertexFlow("trainingValidationFlow", Certificate);
+const extract = privateVertexFlow("trainingValidationFlow", Certificate, "json-template");
 export function reviewTraining(
   i: z.infer<typeof TrainingValidationInputSchema>,
   c: z.infer<typeof Certificate>
