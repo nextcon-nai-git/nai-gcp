@@ -1,5 +1,5 @@
 import { z } from "zod/v3";
-import { isoDate, shortText, notes, listOfNotes } from "../sst-fields";
+import { isoDate, shortText, notes } from "../sst-fields";
 import { privateVertexFlow } from "../private-vertex";
 export const AccidentInvestigationInputSchema = z.object({
   dataAcidente: isoDate,
@@ -9,54 +9,69 @@ export const AccidentInvestigationInputSchema = z.object({
   codigoSituacao: shortText.optional(),
   cid10: shortText.optional(),
 });
+const category = z.enum([
+  "trecho",
+  "imediata",
+  "organizacional",
+  "pergunta",
+  "preventiva",
+  "mitigadora",
+  "acao",
+]);
+// Ask Vertex for short, independently checkable observations. The report layout is deterministic.
 const proposal = privateVertexFlow(
   "accidentInvestigationFlow",
   z.object({
-    fatosRelatados: z.array(z.object({ fato: shortText, trechoLiteral: shortText })).max(30),
-    hipotesesImediatas: listOfNotes,
-    hipotesesOrganizacionais: listOfNotes,
-    cincoPorques: z
-      .array(
-        z.object({
-          pergunta: shortText,
-          respostaProvisoria: z.string().nullable(),
-          comoVerificar: shortText,
-        })
-      )
-      .max(5),
-    bowTie: z.object({
-      barreirasPreventivasAConferir: listOfNotes,
-      barreirasMitigadorasAConferir: listOfNotes,
-    }),
-    revisaoInventarioPgr: shortText,
-    plano5W2H: z
-      .array(
-        z.object({
-          oQue: shortText,
-          porQue: shortText,
-          onde: shortText,
-          quando: shortText,
-          quem: shortText,
-          como: shortText,
-          custo: z.string().nullable(),
-        })
-      )
-      .max(20),
+    itens: z
+      .array(z.object({ tipo: category, texto: z.string().trim().min(1).max(400) }))
+      .min(1)
+      .max(16),
   }),
-  "json-template"
+  "compact"
 );
 export async function accidentInvestigationFlow(raw: unknown) {
   const i = AccidentInvestigationInputSchema.parse(raw);
   try {
     const r = await proposal(
-      "Organize uma investigação de acidente para revisão pela equipe. Use somente citações literais do relato para os fatos relatados. Identifique separadamente hipóteses imediatas e organizacionais, medidas de verificação, até cinco porquês encadeados, barreiras preventivas e mitigadoras Bow-Tie e plano 5W2H para o PGR. Evite atribuir culpa, inventar fatos ou concluir diagnóstico. Sugira papéis responsáveis e prazos como propostas. Evidência: " +
+      "Triagem preliminar de acidente. Escreva no máximo dez itens breves. Para trecho, copie literalmente do relato. " +
+        "Imediata e organizacional são apenas hipóteses a investigar. Formule perguntas encadeadas dos cinco porquês e identifique barreiras preventivas e mitigadoras a conferir. " +
+        "Use acao para uma medida concreta de apuração. Use só o que a evidência permitir. Não atribua culpa nem invente causas ou testemunhos. Relato e contexto: " +
         JSON.stringify(i)
     );
+    const values = (type: z.infer<typeof category>) => [
+      ...new Set(r.itens.filter((item) => item.tipo === type).map((item) => item.texto)),
+    ];
     return {
-      ...r,
-      assistenciaIa: "Hipóteses e plano gerados para revisão.",
-      fatosRelatados: r.fatosRelatados.filter((f) => i.relato.includes(f.trechoLiteral)),
       estado: "Investigação preliminar para validação em campo",
+      assistenciaIa: "Hipóteses e plano gerados para revisão.",
+      relatoOriginal: i.relato,
+      fatosRelatados: values("trecho")
+        .filter((trecho) => i.relato.includes(trecho))
+        .map((trechoLiteral) => ({ fato: trechoLiteral, trechoLiteral })),
+      hipotesesImediatas: values("imediata"),
+      hipotesesOrganizacionais: values("organizacional"),
+      cincoPorques: values("pergunta")
+        .slice(0, 5)
+        .map((pergunta) => ({
+          pergunta,
+          respostaProvisoria: null,
+          comoVerificar:
+            "Registrar a fonte e confirmar a resposta antes de avançar para a próxima pergunta.",
+        })),
+      bowTie: {
+        barreirasPreventivasAConferir: values("preventiva"),
+        barreirasMitigadorasAConferir: values("mitigadora"),
+      },
+      revisaoInventarioPgr: "Conferir o cenário com o inventário após apurar os fatos.",
+      plano5W2H: values("acao").map((oQue) => ({
+        oQue,
+        porQue: "Apurar o cenário relatado e verificar as hipóteses",
+        onde: i.setor,
+        quando: "A definir pelo responsável",
+        quem: "Equipe de investigação a designar",
+        como: "Documentar a execução e conferir as evidências em campo",
+        custo: null,
+      })),
     };
   } catch {
     return {
