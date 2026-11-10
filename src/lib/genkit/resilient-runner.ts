@@ -96,11 +96,14 @@ export async function generateWithFallback<S extends z.ZodTypeAny>({
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
         const timeout = new Promise<never>((_, reject) => {
-          timer = setTimeout(() => {
-            const error = new DOMException("Prazo da tentativa excedido.", "TimeoutError");
-            controller.abort(error);
-            reject(error);
-          }, 4500);
+          timer = setTimeout(
+            () => {
+              const error = new DOMException("Prazo da tentativa excedido.", "TimeoutError");
+              controller.abort(error);
+              reject(error);
+            },
+            provider === "gemini" ? 13000 : 4500
+          );
         });
         const response = await Promise.race([
           ai.generate({

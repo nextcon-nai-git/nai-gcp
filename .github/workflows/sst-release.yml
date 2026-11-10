@@ -10,6 +10,7 @@ on:
       - "src/lib/genkit/s2220-contract.ts"
       - "src/lib/genkit/resilient-runner.ts"
       - "src/lib/genkit/router.ts"
+      - "src/lib/genkit/vertex-content.ts"
       - "src/lib/logging/gcp-logger.ts"
       - "src/services/esocial/s2220-audit-access.ts"
       - "scripts/setup-ai-resilience-metrics.mjs"

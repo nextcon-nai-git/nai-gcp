@@ -7,6 +7,7 @@ import {
   executeAuthorizedAudit,
 } from "../../services/esocial/s2220-audit-access";
 import { z } from "genkit";
+import { applicationDefault } from "firebase-admin/app";
 const base = {
   cpfTrabalhador: "12345678909",
   tipoExame: "9",
@@ -27,6 +28,7 @@ const status = (s: number) =>
   Object.assign(new Error("mensagem sensível do provedor"), { status: s });
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   vi.useRealTimers();
 });
@@ -178,7 +180,7 @@ describe("executor resiliente", () => {
       })
       .mockResolvedValueOnce(response([]));
     const pending = ask("gemini");
-    await vi.advanceTimersByTimeAsync(4501);
+    await vi.advanceTimersByTimeAsync(13001);
     expect(signal?.aborted).toBe(true);
     expect(await pending).toMatchObject({ attemptsCount: 2 });
   });
@@ -199,4 +201,46 @@ describe("controle clínico", () => {
       expect(() => checkAuditProfile(profile, "A")).toThrow();
     expect(() => checkAuditProfile({ role: "ADMIN" }, "all")).toThrow();
   });
+});
+
+it("executa o fallback pelo generateContent do Vertex com o Genkit real e somente códigos", async () => {
+  vi.stubEnv("OPENAI_API_KEY", "");
+  vi.stubEnv("ANTHROPIC_API_KEY", "");
+  vi.stubEnv("GOOGLE_CLOUD_PROJECT", "nai-teste");
+  vi.stubEnv("NAI_VERTEX_LOCATION", "us");
+  vi.spyOn(applicationDefault(), "getAccessToken").mockResolvedValue({
+    access_token: "teste",
+    expires_in: 60,
+  });
+  const fetchVertex = vi.fn().mockResolvedValue(
+    Response.json({
+      candidates: [
+        {
+          finishReason: "STOP",
+          content: {
+            parts: [
+              { thought: true, text: "ignorar" },
+              { text: JSON.stringify({ prioridades: ["conclusao"] }) },
+            ],
+          },
+        },
+      ],
+      usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 8 },
+    })
+  );
+  vi.stubGlobal("fetch", fetchVertex);
+  const result = await auditS2220EventFlow({ ...base, selectedProvider: "gpt" });
+  expect(result).toMatchObject({
+    modeloUtilizado: MODEL_MAP.gemini,
+    fallbackAcionado: true,
+    tentativas: 1,
+  });
+  const [url, options] = fetchVertex.mock.calls[0];
+  expect(url).toBe(
+    "https://aiplatform.us.rep.googleapis.com/v1/projects/nai-teste/locations/us/publishers/google/models/gemini-4-argon:generateContent"
+  );
+  const body = JSON.parse(options.body);
+  expect(body.generationConfig.responseJsonSchema.properties).toHaveProperty("prioridades");
+  expect(options.body).not.toContain(base.cpfTrabalhador);
+  expect(options.body).not.toContain(base.medicoEmitente.nome);
 });

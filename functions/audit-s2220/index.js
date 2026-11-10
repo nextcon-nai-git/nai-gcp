@@ -8,7 +8,7 @@ exports.auditS2220 = onCall(
     cpu: 1,
     minInstances: 0,
     maxInstances: 8,
-    timeoutSeconds: 60,
+    timeoutSeconds: 90,
     secrets: ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"],
   },
   async (request) => {
