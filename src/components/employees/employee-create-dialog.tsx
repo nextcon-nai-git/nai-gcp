@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { isValidCpf } from "@/lib/cpf";
+import { parseCpf } from "@/lib/cpf";
 
 export type EmployeeDraftValues = {
   name: string;
@@ -46,7 +46,7 @@ export function EmployeeCreateDialog({
     if (!db || busy) return;
     const values = new FormData(event.currentTarget);
     const name = String(values.get("name") || "").trim();
-    const cpf = String(values.get("cpf") || "").replace(/\D/g, "");
+    const cpf = parseCpf(String(values.get("cpf") || ""));
     const companyId = String(values.get("companyId") || "");
     const jobTitle = String(values.get("jobTitle") || "").trim();
     const birthDate = String(values.get("birthDate") || "");
@@ -57,7 +57,7 @@ export function EmployeeCreateDialog({
     if (
       name.length < 3 ||
       jobTitle.length < 2 ||
-      !isValidCpf(cpf) ||
+      !cpf ||
       !companies.some((c) => c.id === companyId)
     ) {
       setError("Informe nome, CPF válido, cargo e uma unidade autorizada.");

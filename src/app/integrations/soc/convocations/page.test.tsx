@@ -115,3 +115,21 @@ it("descarta a resposta da sessão anterior quando outra conta abre o painel", a
   expect(host.textContent).toContain("Nenhuma base importada");
   expect(host.textContent).not.toContain(demoRow.Nome);
 });
+
+it("avisa se outra importação ficou ativa antes da releitura", async () => {
+  await act(async () => root.render(<ConvocationsPage />));
+  mocks.fetch
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ imported: true, importId: "first", summary: { rows: 42 } }),
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ snapshot: { ...snapshot, importId: "second" } }),
+    });
+  const input = host.querySelector('input[type="file"]')!;
+  Object.defineProperty(input, "files", { value: [new File(["csv"], "teste.csv")] });
+  await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+  expect(host.textContent).toContain("A versão ativa mudou durante a releitura");
+  expect(host.textContent).toContain(demoRow.Nome);
+});

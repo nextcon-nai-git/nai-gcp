@@ -454,6 +454,20 @@ describe("resolução e importação canônica", () => {
     ).toBe(1);
     expect(db.get("companies/ONE/employees/E1")!.status).toBe("fired");
   });
+  it("mantém CPF com caracteres estranhos em conferência mesmo quando os dígitos coincidem", async () => {
+    const invalid = "X" + row.employeeCpf;
+    const batch = input([{ ...row, employeeCpf: invalid }]);
+    expect(await previewAsoFlowImport(user, batch)).toMatchObject({ blocked: 1, ready: 0 });
+    await expect(importAsoFlowRows(user, batch)).rejects.toMatchObject({ status: 409 });
+    const card = await create();
+    Object.assign(db.get("companies/ONE/employees/E1")!, {
+      cpf: invalid,
+      cpfNormalized: "52998224725",
+    });
+    expect(await previewAsoFlowImport(user, input())).toMatchObject({ blocked: 1, existing: 0 });
+    await expect(schedule(card)).rejects.toMatchObject({ status: 409 });
+    expect((await getAsoFlowCard(user, card.id)).version).toBe(card.version);
+  });
   it("preserva pendências por linha e resolve CNPJ/CPF formatados sem associar apenas por nome", async () => {
     const p = await previewAsoFlowImport(
       user,

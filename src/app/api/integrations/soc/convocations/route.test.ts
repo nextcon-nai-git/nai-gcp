@@ -136,6 +136,7 @@ describe("convocation import access and persistence", () => {
     { chunks: [{ index: 1, rows: [row, row] }] },
     { chunks: [{ index: 0, rows: [row] }] },
     { chunks: [{ index: 0, rows: null }] },
+    { chunks: [{ index: 0, rows: [row, { ...row, Nome: null }] }] },
   ])("sinaliza base incompleta sem apresentar resultados parciais", async ({ chunks }) => {
     m.get.mockResolvedValue({
       exists: true,

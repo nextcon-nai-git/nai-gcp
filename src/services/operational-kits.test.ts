@@ -331,6 +331,7 @@ describe("operational kit transactions", () => {
     ["providers/clinic", { address: "" }],
     ["companies/ONE/employees/e1", { companyId: "OTHER" }],
     ["companies/ONE/employees/e1", { cpf: "00000000000" }],
+    ["companies/ONE/employees/e1", { cpf: "529.982.247-25X" }],
     ["companies/ONE/employees/e1", { status: "fired" }],
     [`companies/ONE/sourceDocuments/${input.pcmsoDocumentId}`, { name: "Outro.pdf" }],
     [`companies/ONE/sourceDocuments/${input.pcmsoDocumentId}`, { companyId: "OTHER" }],
