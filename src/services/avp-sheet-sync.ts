@@ -75,7 +75,10 @@ export async function readPrivateAvpSheet() {
   return parseAvpSourceValues(result.data.values || []);
 }
 
-export async function syncAvpSource(force = false, actor = "scheduler") {
+export async function syncAvpSource(
+  force: boolean | "financial-review" = false,
+  actor = "scheduler"
+) {
   const ref = metaRef();
   const lease = randomUUID();
   const now = Date.now();
@@ -84,7 +87,8 @@ export async function syncAvpSource(force = false, actor = "scheduler") {
     const data = snap.data() || {};
     if (
       Number(data.leaseUntil) > now ||
-      now - Number(data.lastAttemptMs || 0) < (force ? 30000 : AVP_SOURCE.intervalSeconds * 1000)
+      (force !== "financial-review" &&
+        now - Number(data.lastAttemptMs || 0) < (force ? 30000 : AVP_SOURCE.intervalSeconds * 1000))
     )
       return false;
     tx.set(ref, { lease, leaseUntil: now + 120000, lastAttemptMs: now }, { merge: true });

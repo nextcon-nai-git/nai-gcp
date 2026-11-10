@@ -217,6 +217,18 @@ describe("leitura privada e publicação da fila AVP", () => {
     expect(mock.values).not.toHaveBeenCalled();
   });
 
+  it("a conferência financeira relê a planilha dentro dos 30 segundos e respeita a sincronização em andamento", async () => {
+    mock.docs.set(meta, { leaseUntil: Date.now() + 1000, lastAttemptMs: Date.now() });
+    expect(await syncAvpSource("financial-review", "revisor")).toEqual({ started: false });
+    expect(mock.values).not.toHaveBeenCalled();
+    mock.docs.set(meta, { lastAttemptMs: Date.now() });
+    expect(await syncAvpSource("financial-review", "revisor")).toEqual({
+      started: true,
+      rowCount: 1,
+    });
+    expect(mock.values).toHaveBeenCalledOnce();
+  });
+
   it("publica todos os lotes antes de ativar a versão e registra a autoria", async () => {
     mock.values.mockResolvedValue({ data: { values: values(401) } });
     mock.commit.mockImplementation(async () => {

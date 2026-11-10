@@ -9,6 +9,7 @@ import { FinanceBookSchema, emptyFinanceBook } from "@/lib/financial/operations"
 import { SupplierBook, qualificationCurrent } from "@/lib/suppliers/qualification";
 import {
   OmieExport,
+  type OmieExportRecord,
   ExportReference,
   ExportSelection,
   omieIntegrationKey,
@@ -17,6 +18,7 @@ import {
 } from "@/lib/financial/omie-export";
 import { brazilToday } from "@/lib/financial/treasury";
 import { toOmieDate } from "@/lib/financial/omie-dre";
+import { clinicBatchForTitle, verifyClinicPayment } from "./clinic-payment-review";
 import { omieConnectorSession } from "./omie-financial";
 import { readPrivate, writePrivate } from "./private-json-store";
 const financePath = "financial-operations/v1/nextcon.json",
@@ -132,8 +134,7 @@ export async function connectorCatalog(u: AuthContext, input: unknown) {
 async function prepare(u: AuthContext, input: unknown) {
   requireFinancialAccess(u);
   const selection = ExportSelection.parse(input),
-    s = await sources(),
-    session = await omieConnectorSession(u);
+    s = await sources();
   const { kind, sourceId } = selection;
   const key = integrationKey(kind, sourceId);
   const old = (kind === "supplier" ? s.suppliers.value : s.finance.value).omieExports.find(
@@ -143,6 +144,14 @@ async function prepare(u: AuthContext, input: unknown) {
     conflict(
       "Já existe um envio reservado ou confirmado para este registro. Consulte o histórico e reconcilie a resposta."
     );
+  const title =
+    kind === "supplier"
+      ? undefined
+      : s.finance.value.titles.find((t) => t.id === sourceId && t.kind === kind);
+  const clinicBatch = title ? clinicBatchForTitle(s.finance.value, title) : undefined;
+  if (clinicBatch && title?.status === "approved")
+    await verifyClinicPayment(u, s.finance.value, clinicBatch);
+  const session = await omieConnectorSession(u);
   let payload: Record<string, unknown>;
   let sourceVersion: number;
   if (kind === "supplier") {
@@ -173,7 +182,7 @@ async function prepare(u: AuthContext, input: unknown) {
     };
     sourceVersion = a.version;
   } else {
-    const t = s.finance.value.titles.find((t) => t.id === sourceId && t.kind === kind);
+    const t = title;
     if (!t || t.status !== "approved" || t.externalReference)
       conflict("Escolha um título aprovado sem referência externa.");
     if (s.finance.value.settlements.some((x) => x.titleId === t.id && !x.reversed))
@@ -200,10 +209,6 @@ async function prepare(u: AuthContext, input: unknown) {
               f.contractId === t.contractId &&
               (!f.migration || t.competence >= f.migration.billingStartMonth)
           )
-        : undefined;
-    const clinicBatch =
-      t.kind === "payable"
-        ? s.finance.value.clinicPaymentBatches.find((batch) => batch.titleId === t.id)
         : undefined;
     const partyId =
       flow?.migration?.partyId ||
@@ -262,7 +267,7 @@ async function prepare(u: AuthContext, input: unknown) {
     sourceVersion = s.finance.value.version;
   }
   const hash = digest(JSON.stringify({ selection, payload, sourceVersion, scope: session.scope }));
-  return { selection, payload, hash, session, s, key };
+  return { selection, payload, hash, session, s, key, clinicBatch };
 }
 export async function previewConnectorExport(u: AuthContext, input: unknown) {
   const p = await prepare(u, input);
@@ -274,6 +279,49 @@ export async function previewConnectorExport(u: AuthContext, input: unknown) {
     cnpj: p.session.cnpj,
   };
 }
+async function releaseUnsentClinicExport(
+  user: AuthContext,
+  record: OmieExportRecord,
+  batchId: string
+) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const latest = await readPrivate(financePath, FinanceBookSchema, emptyFinanceBook);
+    const index = latest.value.omieExports.findIndex(
+      (entry) =>
+        entry.status === "reserved" &&
+        entry.sourceId === record.sourceId &&
+        entry.kind === record.kind &&
+        entry.hash === record.hash &&
+        entry.actor === record.actor &&
+        entry.at === record.at &&
+        entry.scope === record.scope
+    );
+    if (index < 0) return;
+    await requireCurrentFinancialAccess(user);
+    latest.value.omieExports.splice(index, 1);
+    latest.value.version++;
+    latest.value.audit.push({
+      id: randomUUID(),
+      actor: user.uid,
+      at: new Date().toISOString(),
+      action: "omieExportBlocked",
+      hash: record.hash,
+      version: latest.value.version,
+      reason: "Envio interrompido na conferência dos ASOs antes da inclusão no Omie.",
+      details: JSON.stringify({ titleId: record.sourceId, batchId }),
+    });
+    try {
+      await writePrivate(financePath, latest.value, latest.generation);
+      return;
+    } catch (error) {
+      if (!(error instanceof AuthError) || error.status !== 409) throw error;
+    }
+  }
+  conflict(
+    "O NAI interrompeu o envio antes de chamar o Omie. A reserva continua no histórico para conferência."
+  );
+}
+
 export async function executeConnectorExport(u: AuthContext, input: unknown) {
   requireFinancialAccess(u);
   const req = z
@@ -309,6 +357,16 @@ export async function executeConnectorExport(u: AuthContext, input: unknown) {
   );
   // A suspension during reservation must stop the first POST. Preserve the reservation on failure.
   await requireCurrentFinancialAccess(u);
+  if (p.clinicBatch) {
+    try {
+      await verifyClinicPayment(u, p.s.finance.value, p.clinicBatch);
+    } catch (error) {
+      // No provider POST has started. Release only this attempt, preserving concurrent ledger writes.
+      if (!(error instanceof AuthError) || ![409, 503].includes(error.status)) throw error;
+      await releaseUnsentClinicExport(u, record, p.clinicBatch.id);
+      throw error;
+    }
+  }
   // Never repeat this POST. A crash, timeout or provider fault leaves an inspectable reservation.
   try {
     await p.session.call(

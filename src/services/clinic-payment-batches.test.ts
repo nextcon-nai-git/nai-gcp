@@ -15,6 +15,7 @@ vi.mock("./avp-sheet-sync", () => ({ syncAvpSource: io.sync, getAvpSnapshot: io.
 vi.mock("./private-json-store", () => ({ readPrivate: io.read, writePrivate: io.write }));
 vi.mock("./financial-access", () => ({ requireCurrentFinancialAccess: io.access }));
 import { previewClinicPaymentBatches, createClinicPaymentDrafts } from "./clinic-payment-batches";
+import { clinicBatchForTitle, verifyClinicPayment } from "./clinic-payment-review";
 const user: AuthContext = {
   uid: "operator",
   email: "finance@example.invalid",
@@ -56,6 +57,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-11-10T01:15:00Z"));
   vi.resetAllMocks();
+  io.sync.mockResolvedValue({ started: true });
   book = emptyFinanceBook();
   source = {
     status: "CONNECTED",
@@ -142,5 +144,82 @@ describe("rascunhos financeiros de ASOs da fila AVP", () => {
     ).rejects.toMatchObject({ status: 403 });
     expect(io.sync).not.toHaveBeenCalled();
     expect(io.read).not.toHaveBeenCalled();
+  });
+});
+
+describe("reconferência de lote existente", () => {
+  async function draft() {
+    await createClinicPaymentDrafts(user, await request());
+    const batch = clinicBatchForTitle(book, book.titles[0])!;
+    expect(batch.id).toBe(book.clinicPaymentBatches[0].id);
+    return batch;
+  }
+  it.each([
+    [{ pixRealizado: "PAGO" }, "pagamento já realizado"],
+    [{ pixRealizado: "ver comprovante" }, "Confira na origem"],
+    [{ status: "AGENDADO" as const }, "deixou de constar como concluído"],
+    [{ valorAso: "99,00" }, "valor mudou"],
+    [{ cnpjClinica: "11.222.333/0001-81" }, "CNPJ da clínica"],
+    [{ dataAgendadaIso: "2026-10-11" }, "data do exame"],
+  ] as const)("mostra a linha atual e impede que avance após %j", async (fields, reason) => {
+    const batch = await draft();
+    source.items = [{ ...items[0], ...fields, sourceRow: 42 }, items[1]];
+    await expect(verifyClinicPayment(user, book, batch)).rejects.toThrow(
+      "Linha atual 42 · Pessoa 1"
+    );
+    await expect(verifyClinicPayment(user, book, batch)).rejects.toThrow(reason);
+    expect(io.sync).toHaveBeenLastCalledWith("financial-review", user.uid);
+  });
+  it("considera duplicidades fora do lote e conflitos no pagamento", async () => {
+    const batch = await draft();
+    source.items = [...items, { ...items[0], id: "outro-id" }];
+    await expect(verifyClinicPayment(user, book, batch)).rejects.toThrow("duplicidade");
+    source.items = items;
+    source.conflicts = [{ id: items[1].id, field: "pixRealizado" }];
+    await expect(verifyClinicPayment(user, book, batch)).rejects.toThrow("divergência");
+  });
+  it("identifica pedido removido pela linha original e aceita lotes antigos sem linha", async () => {
+    const batch = await draft();
+    source.items = [items[1]];
+    await expect(verifyClinicPayment(user, book, batch)).rejects.toThrow("Linha original 2");
+    delete batch.items[0].sourceRow;
+    delete batch.sourceRevision;
+    await expect(verifyClinicPayment(user, book, batch)).rejects.toThrow("ASO · Pessoa 1");
+    source.items = [items[1], { ...items[0], sourceRow: 88 }];
+    source.revision = "reordenada:8";
+    source.conflicts = [{ id: items[0].id, field: "responsavel" }];
+    await expect(verifyClinicPayment(user, book, batch)).resolves.toBeUndefined();
+  });
+  it("impede verificar com dados parciais, sincronização concorrente ou falha da origem", async () => {
+    const batch = await draft();
+    source.refreshInProgress = true;
+    await expect(verifyClinicPayment(user, book, batch)).rejects.toMatchObject({ status: 409 });
+    source.refreshInProgress = false;
+    source.revision = "";
+    await expect(verifyClinicPayment(user, book, batch)).rejects.toMatchObject({ status: 409 });
+    io.sync.mockResolvedValue({ started: false });
+    io.snapshot.mockClear();
+    await expect(verifyClinicPayment(user, book, batch)).rejects.toMatchObject({ status: 409 });
+    io.sync.mockResolvedValue({ started: true, error: "fonte fora" });
+    await expect(verifyClinicPayment(user, book, batch)).rejects.toMatchObject({ status: 409 });
+    expect(io.snapshot).not.toHaveBeenCalled();
+    io.sync.mockResolvedValue({ started: true });
+    io.snapshot.mockRejectedValue(new Error("falha de leitura"));
+    await expect(verifyClinicPayment(user, book, batch)).rejects.toMatchObject({ status: 503 });
+  });
+  it("recusa vínculos quebrados, valores diferentes e itens repetidos no próprio título", async () => {
+    const batch = await draft();
+    const title = book.titles[0];
+    expect(() => clinicBatchForTitle(book, { ...title, amountCents: 1 })).toThrow("inconsistente");
+    expect(() => clinicBatchForTitle(book, { ...title, sourceKey: "clinic-asos:outro" })).toThrow(
+      "inconsistente"
+    );
+    book.clinicPaymentBatches = [];
+    expect(() => clinicBatchForTitle(book, title)).toThrow("inconsistente");
+    book.clinicPaymentBatches = [batch, batch];
+    expect(() => clinicBatchForTitle(book, title)).toThrow("inconsistente");
+    book.clinicPaymentBatches = [batch];
+    batch.items[0].asoId = batch.items[1].asoId;
+    expect(() => clinicBatchForTitle(book, title)).toThrow("inconsistente");
   });
 });

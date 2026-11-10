@@ -78,6 +78,10 @@ vi.mock("firebase-admin/storage", () => ({
   }),
 }));
 
+const queue = vi.hoisted(() => ({ sync: vi.fn(), snapshot: vi.fn() }));
+vi.mock("./avp-sheet-sync", () => ({ syncAvpSource: queue.sync, getAvpSnapshot: queue.snapshot }));
+import { parseAvpSourceValues } from "@/lib/avp-source-parser";
+import { AVP_SOURCE_HEADERS } from "@/lib/avp-source-config";
 const remote = vi.hoisted(() => ({ call: vi.fn(), scope: "same-app" }));
 vi.mock("./omie-financial", () => ({
   omieConnectorSession: async () => ({
@@ -220,7 +224,61 @@ function seedTitle() {
     issueDate: "2026-10-01",
   };
 }
+function seedClinic() {
+  const cells: Record<string, string> = {
+    Nº: "1",
+    COLABORADOR: "Colaborador teste",
+    CIDADE: "Curitiba/PR",
+    "DATA DO PEDIDO": "01/10/2026",
+    STATUS: "EXAME FEITO",
+    "DATA AGENDADA": "10/10/2026",
+    "NOME CLÍNICA": "Nome operacional da clínica",
+    CNPJ: "11.222.333/0001-81",
+    "PIX REALIZADO?": "NÃO",
+    "VALOR ASO": "100,01",
+  };
+  const row = parseAvpSourceValues([
+    [...AVP_SOURCE_HEADERS],
+    AVP_SOURCE_HEADERS.map((key) => cells[key] || ""),
+  ]).rows[0];
+  const snapshot = {
+    status: "CONNECTED",
+    revision: "origem:1",
+    items: [row],
+    conflicts: [],
+    refreshInProgress: false,
+  };
+  queue.sync.mockResolvedValue({ started: true });
+  queue.snapshot.mockResolvedValue(snapshot);
+  const selection = seedTitle();
+  const book = JSON.parse(storage.files.get(fp)!.bytes.toString());
+  book.titles[0].party = "Nome operacional da clínica";
+  book.clinicPaymentBatches.push({
+    id: "batch_clinic_1",
+    clinicName: "Nome operacional da clínica",
+    clinicDocument: "11222333000181",
+    competence: "2026-10",
+    dueDate: "2099-10-20",
+    amountCents: 10001,
+    titleId: selection.sourceId,
+    items: [
+      {
+        asoId: row.id,
+        collaborator: "Colaborador teste",
+        city: "Curitiba/PR",
+        examDate: "2026-10-10",
+        amountCents: 10001,
+      },
+    ],
+    createdBy: "creator",
+    createdAt: "2026-10-12T12:00:00Z",
+  });
+  put(fp, book);
+  return { selection, row, snapshot };
+}
 beforeEach(() => {
+  queue.sync.mockReset();
+  queue.snapshot.mockReset();
   access.profile = { role: "SUPER_ADMIN", accessEnabled: true };
   storage.files.clear();
   storage.calls = 0;
@@ -343,30 +401,7 @@ describe("Omie controlled exports", () => {
     expect(OmieExport.safeParse({ ...overview.exports[0], kind: "supplier" }).success).toBe(false);
   });
   it("matches clinic payment suppliers by CNPJ even when the Omie legal name differs", async () => {
-    const selection = seedTitle();
-    const book = JSON.parse(storage.files.get(fp)!.bytes.toString());
-    book.titles[0].party = "Nome operacional da clínica";
-    book.clinicPaymentBatches.push({
-      id: "batch_clinic_1",
-      clinicName: "Nome operacional da clínica",
-      clinicDocument: "11222333000181",
-      competence: "2026-10",
-      dueDate: "2099-10-20",
-      amountCents: 10001,
-      titleId: selection.sourceId,
-      items: [
-        {
-          asoId: "avp_" + "a".repeat(32),
-          collaborator: "Colaborador teste",
-          city: "Curitiba/PR",
-          examDate: "2026-10-10",
-          amountCents: 10001,
-        },
-      ],
-      createdBy: "creator",
-      createdAt: "2026-10-12T12:00:00Z",
-    });
-    put(fp, book);
+    const { selection } = seedClinic();
     const lookup = remote.call.getMockImplementation()!;
     remote.call.mockImplementation(async (kind: string, param: Record<string, unknown>) =>
       kind === "partyDetail"
@@ -394,6 +429,74 @@ describe("Omie controlled exports", () => {
     await expect(previewConnectorExport(admin, selection)).rejects.toThrow("CNPJ da clínica");
   });
 
+  it("bloqueia Pix posterior à aprovação antes de consultar o Omie ou gravar reserva", async () => {
+    const { selection, row } = seedClinic();
+    row.pixRealizado = "PAGO";
+    await expect(previewConnectorExport(admin, selection)).rejects.toThrow(
+      "pagamento já realizado"
+    );
+    await expect(
+      executeConnectorExport(admin, { selection, hash: "f".repeat(64) })
+    ).rejects.toMatchObject({ status: 409 });
+    expect(remote.call).not.toHaveBeenCalled();
+    expect(storage.writes).toHaveLength(0);
+  });
+  it("libera apenas a própria reserva se o Pix for registrado durante a preparação do envio", async () => {
+    const { selection, row } = seedClinic();
+    const lookup = remote.call.getMockImplementation()!;
+    remote.call.mockImplementation(async (kind: string, param: Record<string, unknown>) =>
+      kind === "partyDetail"
+        ? { codigo_cliente_omie: 123, cnpj_cpf: "11.222.333/0001-81", inativo: "N" }
+        : lookup(kind, param)
+    );
+    const preview = await previewConnectorExport(admin, selection);
+    storage.beforeWrite = () => {
+      row.pixRealizado = "PAGO";
+    };
+    await expect(executeConnectorExport(admin, { selection, hash: preview.hash })).rejects.toThrow(
+      "Linha atual 2"
+    );
+    const reviewed = JSON.parse(storage.files.get(fp)!.bytes.toString());
+    expect(reviewed.omieExports).toHaveLength(0);
+    expect(reviewed.settlements).toHaveLength(0);
+    expect(reviewed.audit.at(-1).action).toBe("omieExportBlocked");
+    expect(remote.call.mock.calls.some(([method]) => method === "createPayable")).toBe(false);
+  });
+  it.each(["alteração no livro", "reserva substituída"])(
+    "preserva o estado concorrente ao interromper um envio por falha da fonte: %s",
+    async (concurrent) => {
+      const { selection, snapshot } = seedClinic();
+      const lookup = remote.call.getMockImplementation()!;
+      remote.call.mockImplementation(async (kind: string, param: Record<string, unknown>) =>
+        kind === "partyDetail"
+          ? { codigo_cliente_omie: 123, cnpj_cpf: "11.222.333/0001-81", inativo: "N" }
+          : lookup(kind, param)
+      );
+      const preview = await previewConnectorExport(admin, selection);
+      function edit() {
+        const book = JSON.parse(storage.files.get(fp)!.bytes.toString());
+        book.version++;
+        book.accounts.push({ id: "conta_local", name: "Alteração paralela" });
+        if (concurrent === "reserva substituída") book.omieExports[0].actor = "outro-operador";
+        put(fp, book);
+      }
+      queue.snapshot.mockResolvedValueOnce(snapshot).mockImplementationOnce(async () => {
+        if (concurrent === "reserva substituída") edit();
+        else storage.beforeWrite = edit;
+        throw new Error("origem temporariamente indisponível");
+      });
+      await expect(
+        executeConnectorExport(admin, { selection, hash: preview.hash })
+      ).rejects.toMatchObject({ status: 503 });
+      const book = JSON.parse(storage.files.get(fp)!.bytes.toString());
+      expect(book.accounts).toEqual([{ id: "conta_local", name: "Alteração paralela" }]);
+      expect(book.omieExports).toHaveLength(concurrent === "reserva substituída" ? 1 : 0);
+      expect(
+        book.audit.filter((a: { action: string }) => a.action === "omieExportBlocked")
+      ).toHaveLength(concurrent === "reserva substituída" ? 0 : 1);
+      expect(remote.call.mock.calls.some(([method]) => method === "createPayable")).toBe(false);
+    }
+  );
   it("preserves a prior competence using the confirmed emission date", async () => {
     const selection = seedTitle();
     const book = JSON.parse(storage.files.get(fp)!.bytes.toString());
