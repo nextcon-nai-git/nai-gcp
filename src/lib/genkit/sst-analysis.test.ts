@@ -266,4 +266,17 @@ describe("TESTE NAI – análises SST", () => {
     expect(r.registrosMapeados[0].candidatos.map((c) => c.codigo)).not.toContain("99.99.999");
     expect(r.taxaSucessoMapeamentoPercent).toBe(0);
   });
+  it("usa o contrato local em JSON multimodal e não atribui causas quando o provedor falha", async () => {
+    request.mockRejectedValueOnce({ response: { status: 503 } });
+    const r = await accidentInvestigationFlow({
+      dataAcidente: "2026-11-10",
+      setor: "TESTE",
+      relato: "Relato TESTE",
+    });
+    const body = request.mock.lastCall?.[0]?.data;
+    expect(body.generationConfig.responseJsonSchema).toBeUndefined();
+    expect(body.systemInstruction.parts[0].text).toContain("cincoPorques");
+    expect(r.assistenciaIa).toContain("não foi concluída");
+    expect(r.hipotesesImediatas).toEqual([]);
+  });
 });

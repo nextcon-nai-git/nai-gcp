@@ -1,6 +1,6 @@
 import { privateVertexFlow, readMedia } from "../private-vertex";
 import { AsoDraftSchema } from "../aso-draft";
-const extract = privateVertexFlow("ocrIngestFlow", AsoDraftSchema);
+const extract = privateVertexFlow("ocrIngestFlow", AsoDraftSchema, "json-template");
 export async function ocrIngestFlow(file: File) {
   const media = await readMedia(file, ["application/pdf", "image/png", "image/jpeg"]);
   return extract(
