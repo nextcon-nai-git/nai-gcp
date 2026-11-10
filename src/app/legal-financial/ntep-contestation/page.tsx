@@ -1,4 +1,5 @@
 "use client";
+import { SstAnalysisLink } from "@/components/sst/analysis-link";
 import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
@@ -134,6 +135,7 @@ function NtepContestationPage() {
           <Scale className="size-8 text-amber-400" />
           Contestação Jurídico-Tributária de FAP & NTEP
         </h1>
+        <SstAnalysisLink id="fap" />
         <p className="text-slate-400 text-xs md:text-sm mt-1">
           Descaracterização de benefícios acidentários indevidos concedidos pelo INSS com base
           estatística no CNAE.

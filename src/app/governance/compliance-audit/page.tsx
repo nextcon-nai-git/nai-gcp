@@ -1,4 +1,5 @@
 "use client";
+import { SstAnalysisLink } from "@/components/sst/analysis-link";
 import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
@@ -87,6 +88,7 @@ export default function ComplianceAuditPage() {
           <h1 className="text-4xl font-black text-primary uppercase font-headline tracking-tighter leading-none">
             Auditoria de NRs
           </h1>
+          <SstAnalysisLink id="fiscalizacao" />
           <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-[0.3em] mt-2 flex items-center gap-2">
             <Scale className="size-4 text-accent" /> Validação Normativa & Plano de Ação 5W2H.
           </p>

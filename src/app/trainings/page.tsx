@@ -1,5 +1,6 @@
 "use client";
 
+import { SstAnalysisLink } from "@/components/sst/analysis-link";
 import * as React from "react";
 import {
   Users,
@@ -67,6 +68,7 @@ export default function TrainingDashboard() {
           <h1 className="text-3xl font-headline font-black text-primary tracking-tight uppercase">
             Academia NRs & Engenharia
           </h1>
+          <SstAnalysisLink id="capacitacao" />
           <p className="text-muted-foreground font-medium uppercase text-xs tracking-widest">
             Gestão de capacitação técnica e base de conhecimento 2026.
           </p>

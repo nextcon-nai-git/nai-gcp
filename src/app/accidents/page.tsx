@@ -1,5 +1,6 @@
 "use client";
 
+import { SstAnalysisLink } from "@/components/sst/analysis-link";
 import * as React from "react";
 import {
   FileWarning,
@@ -88,6 +89,7 @@ export default function AccidentsCAT() {
           <h1 className="text-3xl font-headline font-black text-primary tracking-tight uppercase leading-none text-left">
             Central de Incidentes & CAT
           </h1>
+          <SstAnalysisLink id="acidente" />
           <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest flex items-center gap-2">
             <FileWarning className="size-3 text-red-500" /> Relatos registrados e análises
             preliminares de IA para revisão da equipe responsável.

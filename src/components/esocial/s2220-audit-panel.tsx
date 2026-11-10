@@ -14,8 +14,12 @@ export function S2220AuditPanel({
   companyId,
   payload,
   cleanPayload,
+  agents = "",
+  onAgentsChange,
 }: {
   companyId: string;
+  agents?: string;
+  onAgentsChange?: (value: string) => void;
   payload: Record<string, unknown>;
   cleanPayload: () => Record<string, unknown>;
 }) {
@@ -25,10 +29,13 @@ export function S2220AuditPanel({
   const [snapshot, setSnapshot] = useState<{
     payload: typeof payload;
     provider: AIProvider;
+    agents: string;
     result: AuditActionResult;
   } | null>(null);
   const result =
-    snapshot?.payload === payload && snapshot.provider === provider ? snapshot.result : null;
+    snapshot?.payload === payload && snapshot.provider === provider && snapshot.agents === agents
+      ? snapshot.result
+      : null;
   async function run() {
     if (busy || !user) return;
     setBusy(true);
@@ -39,20 +46,21 @@ export function S2220AuditPanel({
           new Set(parsed.error.issues.map((issue) => issue.path.join(".")))
         ).slice(0, 8);
         setSnapshot({
+          agents,
           payload,
           provider,
           result: { success: false, error: "Confira os campos do evento: " + fields.join(", ") },
         });
         return;
       }
-      const data = await executeS2220AuditAction(
-        await user.getIdToken(),
-        companyId,
-        auditInputFromEvent(parsed.data, provider)
-      );
-      setSnapshot({ payload, provider, result: data });
+      const data = await executeS2220AuditAction(await user.getIdToken(), companyId, {
+        ...auditInputFromEvent(parsed.data, provider),
+        ...(agents.trim() ? { agentesNocivosRelacionados: agents.trim().split(/[\s,;]+/) } : {}),
+      });
+      setSnapshot({ agents, payload, provider, result: data });
     } catch {
       setSnapshot({
+        agents,
         payload,
         provider,
         result: { success: false, error: "Falha na conexão com a auditoria." },
@@ -64,6 +72,17 @@ export function S2220AuditPanel({
   return (
     <fieldset className="space-y-3 rounded-xl border p-4">
       <legend className="px-1 text-sm font-semibold">Auditoria do S-2220</legend>
+      {onAgentsChange && (
+        <label className="grid gap-1 text-sm">
+          Agentes da Tabela 24 para a auditoria (opcional)
+          <input
+            value={agents}
+            maxLength={2048}
+            onChange={(e) => onAgentsChange(e.target.value)}
+            className="rounded border p-2"
+          />
+        </label>
+      )}
       <div className="flex flex-wrap items-end gap-3">
         <label className="grid gap-1 text-sm">
           Provedor inicial

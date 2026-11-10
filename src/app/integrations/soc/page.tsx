@@ -1,5 +1,6 @@
 "use client";
 
+import { SstAnalysisLink } from "@/components/sst/analysis-link";
 import { useLayoutEffect, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useUser } from "@/firebase";
@@ -194,6 +195,7 @@ function Session() {
           Integrações
         </Link>
         <h1 className="text-3xl font-semibold text-primary">Central SOC</h1>
+        <SstAnalysisLink id="migracao" />
         <p className="text-muted-foreground">
           Acompanhe clientes ativos, relatórios e pendências verificadas da operação.
         </p>
