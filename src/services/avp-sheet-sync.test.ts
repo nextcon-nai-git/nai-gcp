@@ -12,6 +12,7 @@ type TestRef = {
   collection: (name: string) => TestRef;
   doc: (name: string) => TestRef;
   get: () => Promise<TestSnapshot | { docs: TestSnapshot[] }>;
+  count: () => { get: () => Promise<{ data: () => { count: number } }> };
   set: (data: Record<string, unknown>, options?: { merge?: boolean }) => Promise<unknown>;
 };
 type TestTransaction = {
@@ -44,13 +45,23 @@ const mock = vi.hoisted(() => {
               )
               .map(snapshot),
           },
+    count: () => ({
+      get: async () => ({
+        data: () => ({
+          count: [...docs.keys()].filter(
+            (key) =>
+              key.startsWith(path + "/") && key.split("/").length === path.split("/").length + 1
+          ).length,
+        }),
+      }),
+    }),
     set: async (data: Record<string, unknown>, options?: { merge?: boolean }) =>
       save(path, data, options),
   });
   const transaction = vi.fn(async (action: (tx: TestTransaction) => Promise<unknown>) => {
     const pending: Array<() => void> = [];
     const result = await action({
-      get: async (item: TestRef) => snapshot(item.path),
+      get: async (item: TestRef) => (await item.get()) as TestSnapshot,
       getAll: async (...items: TestRef[]) => items.map((item) => snapshot(item.path)),
       set: (item: TestRef, data: Record<string, unknown>, options?: { merge?: boolean }) =>
         pending.push(() => save(item.path, data, options)),
@@ -206,6 +217,18 @@ describe("leitura privada e publicação da fila AVP", () => {
     expect(mock.values).not.toHaveBeenCalled();
   });
 
+  it("a conferência financeira relê a planilha dentro dos 30 segundos e respeita a sincronização em andamento", async () => {
+    mock.docs.set(meta, { leaseUntil: Date.now() + 1000, lastAttemptMs: Date.now() });
+    expect(await syncAvpSource("financial-review", "revisor")).toEqual({ started: false });
+    expect(mock.values).not.toHaveBeenCalled();
+    mock.docs.set(meta, { lastAttemptMs: Date.now() });
+    expect(await syncAvpSource("financial-review", "revisor")).toEqual({
+      started: true,
+      rowCount: 1,
+    });
+    expect(mock.values).toHaveBeenCalledOnce();
+  });
+
   it("publica todos os lotes antes de ativar a versão e registra a autoria", async () => {
     mock.values.mockResolvedValue({ data: { values: values(401) } });
     mock.commit.mockImplementation(async () => {
@@ -253,6 +276,28 @@ describe("leitura privada e publicação da fila AVP", () => {
     expect((await getAvpSnapshot()).items).toHaveLength(1);
   });
 
+  it("mantém a última versão para consulta durante uma atualização concorrente", async () => {
+    seed();
+    mock.docs.set(meta, {
+      ...mock.docs.get(meta),
+      lease: "worker",
+      leaseUntil: Date.now() + 30000,
+    });
+    expect(await getAvpSnapshot()).toMatchObject({
+      refreshInProgress: true,
+      items: [expect.anything()],
+    });
+  });
+  it("recusa uma versão incompleta e restaura as linhas na próxima leitura da mesma planilha", async () => {
+    await syncAvpSource(true);
+    const first = await getAvpSnapshot();
+    const version = mock.docs.get(meta)?.sourceVersion;
+    mock.docs.delete(`${meta}/versions/${version}/rows/${first.items[0].id}`);
+    await expect(getAvpSnapshot()).rejects.toThrow(/incompleta/i);
+    vi.advanceTimersByTime(31000);
+    await syncAvpSource(true);
+    expect((await getAvpSnapshot()).items).toEqual(first.items);
+  });
   it("preserva o ponteiro anterior se um lote falhar", async () => {
     seed();
     mock.commit.mockRejectedValue(new Error("write unavailable"));
@@ -310,6 +355,43 @@ describe("edição manual e conflitos com a planilha", () => {
         .conflicts
     ).toEqual([]);
     expect(original.responsavel).toBe("");
+  });
+
+  it("mantém datas legadas apenas em ISO até a remoção explícita do agendamento", async () => {
+    const item = seed();
+    const path = `${meta}/versions/version-one/rows/${item.id}`;
+    mock.docs.set(path, {
+      ...item,
+      dataPedido: "",
+      dataPedidoIso: "2026-10-31",
+      dataAgendada: "",
+      dataAgendadaIso: "2026-11-01",
+    });
+    const current = await getAvpSnapshot();
+    expect(current.items[0]).toMatchObject({
+      dataPedidoIso: "2026-10-31",
+      dataAgendadaIso: "2026-11-01",
+    });
+    await patchAvpQueue(
+      current.revision,
+      [{ id: item.id, fields: { dataAgendada: "" } }],
+      "operator"
+    );
+    expect((await getAvpSnapshot()).items[0].dataAgendadaIso).toBe("");
+  });
+
+  it("recalcula a competência a partir da data efetiva, inclusive em versões já salvas", async () => {
+    const item = seed();
+    const path = `${meta}/versions/version-one/rows/${item.id}`;
+    mock.docs.set(path, { ...item, dataAgendada: "31/10/2026 08:30", dataAgendadaIso: "" });
+    const initial = await getAvpSnapshot();
+    expect(initial.items[0].dataAgendadaIso).toBe("2026-10-31");
+    const update = (revision: string, dataAgendada: string) =>
+      patchAvpQueue(revision, [{ id: item.id, fields: { dataAgendada } }], "operator");
+    const changed = await update(initial.revision, "02/11/2026");
+    expect((await getAvpSnapshot()).items[0].dataAgendadaIso).toBe("2026-11-02");
+    await update(changed, "");
+    expect((await getAvpSnapshot()).items[0].dataAgendadaIso).toBe("");
   });
 
   it("salva campos permitidos, atualiza a revisão e registra somente nomes de campos na auditoria", async () => {

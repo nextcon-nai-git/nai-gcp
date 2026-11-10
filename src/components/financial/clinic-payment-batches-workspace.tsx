@@ -1,53 +1,36 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import type { User } from "firebase/auth";
+import type { previewClinicPaymentBatches } from "@/services/clinic-payment-batches";
 import { AlertTriangle, CheckCircle2, RefreshCw, WalletCards } from "lucide-react";
 import { useUser } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-type Preview = {
-  hash: string;
-  dueDate: string;
-  cadence: "TUESDAY_FRIDAY";
-  sourceRevision: string;
-  sourceCheckedAt: string | null;
-  sourceStatus: string;
-  sourceError: string | null;
-  closedCompetences: string[];
-  ignored: number;
-  totals: { clinics: number; asos: number; amountCents: number };
-  batches: Array<{
-    key: string;
-    clinicName: string;
-    clinicDocument: string;
-    competence: string;
-    amountCents: number;
-    items: Array<{
-      asoId: string;
-      collaborator: string;
-      city: string;
-      examDate: string;
-      amountCents: number;
-    }>;
-    warnings: string[];
-  }>;
-  blocked: Array<{
-    asoId: string;
-    collaborator: string;
-    clinicName: string;
-    code: string;
-    reason: string;
-  }>;
-};
+type Preview = Awaited<ReturnType<typeof previewClinicPaymentBatches>>;
+const pageSize = 25;
 
 const money = (cents: number) =>
   (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function ClinicPaymentBatchesWorkspace() {
-  const { user } = useUser();
+  const { user, role, tenantId, isUserLoading } = useUser();
+  if (!user || isUserLoading)
+    return (
+      <p className="p-4">
+        {isUserLoading ? "Carregando sessão…" : "Entre no NAI para consultar os pagamentos."}
+      </p>
+    );
+  return <ClinicPaymentReview key={JSON.stringify([user.uid, role, tenantId])} user={user} />;
+}
+
+function ClinicPaymentReview({ user }: { user: User }) {
+  const session = useRef(new AbortController());
+  const saving = useRef(false);
+  const [page, setPage] = useState(0);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [dueDate, setDueDate] = useState("");
   const [busy, setBusy] = useState(false);
@@ -56,50 +39,71 @@ export function ClinicPaymentBatchesWorkspace() {
 
   const load = useCallback(
     async (requestedDate?: string) => {
-      if (!user) return;
+      const { signal } = session.current;
+      if (signal.aborted) return;
       setBusy(true);
       setError("");
       setNotice("");
       try {
         const token = await user.getIdToken();
+        if (signal.aborted) return;
         const query = requestedDate ? `?dueDate=${encodeURIComponent(requestedDate)}` : "";
         const response = await fetch("/api/financial/clinic-payments" + query, {
           headers: { Authorization: `Bearer ${token}` },
           cache: "no-store",
-          signal: AbortSignal.timeout(45000),
+          signal: AbortSignal.any([signal, AbortSignal.timeout(45000)]),
         });
         const data = await response.json().catch(() => ({}));
+        if (signal.aborted) return;
         if (!response.ok) throw new Error(data.error || "Não foi possível preparar os lotes.");
         const next = data as Preview;
         setPreview(next);
+        setPage(0);
         setDueDate(next.dueDate);
       } catch (cause) {
+        if (signal.aborted) return;
         setPreview(null);
         setError(cause instanceof Error ? cause.message : "Não foi possível preparar os lotes.");
       } finally {
-        setBusy(false);
+        if (!signal.aborted) setBusy(false);
       }
     },
     [user]
   );
 
   useEffect(() => {
+    const current = new AbortController();
+    session.current = current;
     void load();
+    return () => current.abort();
   }, [load]);
 
   const blockedSummary = useMemo(() => {
     const rows = new Map<string, number>();
-    for (const item of preview?.blocked || []) rows.set(item.code, (rows.get(item.code) || 0) + 1);
+    for (const item of preview?.blocked || [])
+      rows.set(item.reason, (rows.get(item.reason) || 0) + 1);
     return [...rows.entries()].sort((a, b) => b[1] - a[1]);
   }, [preview]);
 
+  const canCreate =
+    preview &&
+    preview.batches.length > 0 &&
+    !busy &&
+    !preview.closedCompetences.length &&
+    dueDate === preview.dueDate &&
+    preview.sourceStatus === "CONNECTED" &&
+    !preview.sourceError &&
+    !preview.refreshInProgress;
   async function createDrafts() {
-    if (!user || !preview || busy) return;
+    const { signal } = session.current;
+    if (!preview || !canCreate || saving.current || signal.aborted) return;
+    saving.current = true;
     setBusy(true);
     setError("");
     setNotice("");
     try {
       const token = await user.getIdToken();
+      if (signal.aborted) return;
       const response = await fetch("/api/financial/clinic-payments", {
         method: "POST",
         headers: {
@@ -107,17 +111,21 @@ export function ClinicPaymentBatchesWorkspace() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ hash: preview.hash, dueDate }),
-        signal: AbortSignal.timeout(45000),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(45000)]),
       });
       const data = await response.json().catch(() => ({}));
+      if (signal.aborted) return;
       if (!response.ok) throw new Error(data.error || "Não foi possível criar os rascunhos.");
       const message = `${data.created?.length || 0} rascunho(s) criado(s) para ${data.totals?.asos || 0} ASO(s). Revise no financeiro antes de aprovar ou enviar ao Omie.`;
       await load(dueDate);
-      setNotice(message);
+      if (!signal.aborted) setNotice(message);
     } catch (cause) {
+      if (signal.aborted) return;
+      setPreview(null);
       setError(cause instanceof Error ? cause.message : "Não foi possível criar os rascunhos.");
     } finally {
-      setBusy(false);
+      saving.current = false;
+      if (!signal.aborted) setBusy(false);
     }
   }
 
@@ -150,6 +158,7 @@ export function ClinicPaymentBatchesWorkspace() {
             <label className="grid gap-1 text-sm">
               Data prevista para pagamento
               <Input
+                disabled={busy}
                 type="date"
                 value={dueDate}
                 onChange={(event) => setDueDate(event.target.value)}
@@ -160,15 +169,7 @@ export function ClinicPaymentBatchesWorkspace() {
               <RefreshCw className="mr-2 size-4" />
               Atualizar prévia
             </Button>
-            <Button
-              disabled={
-                busy ||
-                !preview?.batches.length ||
-                Boolean(preview?.closedCompetences.length) ||
-                dueDate !== preview?.dueDate
-              }
-              onClick={() => void createDrafts()}
-            >
+            <Button disabled={!canCreate} onClick={() => void createDrafts()}>
               Gerar rascunhos no financeiro
             </Button>
           </div>
@@ -182,9 +183,14 @@ export function ClinicPaymentBatchesWorkspace() {
           {notice && (
             <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>
           )}
-          {preview?.sourceError && (
+          {preview?.refreshInProgress && (
+            <p role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+              A atualização da fila AVP está em andamento. Atualize a prévia quando terminar.
+            </p>
+          )}
+          {preview && (preview.sourceError || preview.sourceStatus !== "CONNECTED") && (
             <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-              Fonte AVP: {preview.sourceError}
+              {preview.sourceError || "Consulte novamente a fila AVP para confirmar a conexão."}
             </p>
           )}
           {preview?.closedCompetences.length ? (
@@ -250,6 +256,7 @@ export function ClinicPaymentBatchesWorkspace() {
                         <div key={item.asoId} className="flex flex-wrap justify-between gap-2">
                           <span>
                             {item.collaborator} · {item.city} · {item.examDate}
+                            {item.sourceRow && ` · Linha ${item.sourceRow}`}
                           </span>
                           <span>{money(item.amountCents)}</span>
                         </div>
@@ -269,20 +276,36 @@ export function ClinicPaymentBatchesWorkspace() {
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <p>{preview.ignored} solicitação(ões) ainda não concluída(s) foram ignoradas.</p>
-              {blockedSummary.map(([code, count]) => (
-                <p key={code}>
-                  {count} bloqueada(s) · {code}
+              {blockedSummary.map(([reason, count]) => (
+                <p key={reason}>
+                  {count} · {reason}
                 </p>
               ))}
-              {preview.blocked.slice(0, 25).map((row) => (
+              {preview.blocked.slice(page * pageSize, (page + 1) * pageSize).map((row) => (
                 <p key={row.asoId} className="text-slate-600">
-                  {row.collaborator}: {row.reason}
+                  {row.sourceRow && `Linha ${row.sourceRow} · `}
+                  {row.collaborator} · {row.clinicName || "Clínica não informada"} — {row.reason}
                 </p>
               ))}
-              {preview.blocked.length > 25 && (
-                <p className="text-slate-500">
-                  + {preview.blocked.length - 25} bloqueio(s) não exibido(s) nesta lista resumida.
-                </p>
+              {preview.blocked.length > pageSize && (
+                <nav
+                  aria-label="Páginas de itens fora do lote"
+                  className="flex flex-wrap items-center gap-3"
+                >
+                  <Button variant="outline" disabled={page === 0} onClick={() => setPage(page - 1)}>
+                    Anterior
+                  </Button>
+                  <span aria-live="polite">
+                    Página {page + 1} de {Math.ceil(preview.blocked.length / pageSize)}
+                  </span>
+                  <Button
+                    variant="outline"
+                    disabled={(page + 1) * pageSize >= preview.blocked.length}
+                    onClick={() => setPage(page + 1)}
+                  >
+                    Próxima
+                  </Button>
+                </nav>
               )}
             </CardContent>
           </Card>

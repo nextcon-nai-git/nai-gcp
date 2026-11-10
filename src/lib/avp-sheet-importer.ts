@@ -1,5 +1,11 @@
 import Papa from "papaparse";
-import { GrupoAvpAso, AsoStatus, AsoUrgency } from "@/lib/grupo-avp-asos-data";
+import {
+  avpCalendarDay,
+  completedAvpStatus,
+  type GrupoAvpAso,
+  type AsoStatus,
+  type AsoUrgency,
+} from "@/lib/grupo-avp-asos-data";
 
 export interface SheetDiffEntry {
   numero: string;
@@ -140,12 +146,7 @@ export function normalizeAsoStatus(rawStatus: string): AsoStatus {
     return "AG. RETORNO DO COLABORADOR";
   if (s.includes("AGENDADO")) return "AGENDADO";
   if (s.includes("NAO INICIADO") || s.includes("PENDENTE")) return "NÃO INICIADO";
-  if (
-    /^(?:(?:EXAME|ASO) (?:FOI )?)?(?:FEITO|CONCLUIDO|REALIZADO)(?: EM \d{1,2}\/\d{1,2}(?:\/\d{2,4})?)?[.!]?$/.test(
-      s
-    )
-  )
-    return "EXAME FEITO";
+  if (completedAvpStatus(s)) return "EXAME FEITO";
   if ((s.includes("2") && s.includes("VIA")) || s.includes("SEGUNDA VIA")) return "2 VIA ASO";
   if (s.includes("SOC") || s.includes("CADASTRANDO")) return "CADASTRANDO NO SOC";
   if (s.includes("REAGENDAMENTO") || s.includes("REAGENDAR")) return "REAGENDAMENTO";
@@ -475,6 +476,8 @@ export function mergeSpreadsheetData(
                 valorNovo: String(newVal),
               });
               (target as any)[field] = newVal;
+              if (field === "dataPedido") target.dataPedidoIso = avpCalendarDay(String(newVal));
+              if (field === "dataAgendada") target.dataAgendadaIso = avpCalendarDay(String(newVal));
               hasChanges = true;
             }
           }
@@ -503,13 +506,14 @@ export function mergeSpreadsheetData(
         reservedNumbers.add(number.trim().toLowerCase());
         // Novo registro!
         const newId = `avp_aso_imported_${Date.now()}_${idx}`;
+        const dataPedido = parsed.dataPedido || new Date().toLocaleDateString("pt-BR");
         const newAso: GrupoAvpAso = {
           id: newId,
           numero: number,
           urgencia: (parsed.urgencia as AsoUrgency) || "NORMAL",
           urgenciaRaw: (parsed.urgencia as string) || "NORMAL",
-          dataPedido: parsed.dataPedido || new Date().toLocaleDateString("pt-BR"),
-          dataPedidoIso: "",
+          dataPedido,
+          dataPedidoIso: avpCalendarDay(dataPedido),
           diasParado: parsed.diasParado || 0,
           cidadeRaw: `${parsed.cidade || "Não Informada"} / ${parsed.uf || "BR"}`,
           cidade: parsed.cidade || "Não Informada",
@@ -523,7 +527,7 @@ export function mergeSpreadsheetData(
           statusRaw: parsed.statusRaw || "",
           responsavel: parsed.responsavel || "NÃO ATRIBUÍDO",
           dataAgendada: parsed.dataAgendada || "",
-          dataAgendadaIso: "",
+          dataAgendadaIso: avpCalendarDay(parsed.dataAgendada || ""),
           tipoSolicitacao: parsed.tipoSolicitacao || "Admissional",
           nomeClinica: parsed.nomeClinica || "",
           telefoneClinica: parsed.telefoneClinica || "",
@@ -531,7 +535,7 @@ export function mergeSpreadsheetData(
           valorAso: parsed.valorAso || "",
           cnpjClinica: parsed.cnpjClinica || "",
           chavePix: parsed.chavePix || "",
-          pixRealizado: parsed.pixRealizado || "NÃO",
+          pixRealizado: parsed.pixRealizado || "",
           enderecoClinica: parsed.enderecoClinica || "",
         };
 
