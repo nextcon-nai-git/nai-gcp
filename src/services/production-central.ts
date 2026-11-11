@@ -17,6 +17,7 @@ import {
 } from "@/lib/production/model";
 import { getFinanceBook } from "./financial-operations";
 import { checkCycleFinance, receiptIndex } from "@/lib/production/finance";
+import { guardServiceAssociations } from "@/lib/production/service-mutation-guard";
 import type { z } from "zod/v3";
 const objectName = "financial-operations/v1/production-central.json";
 const MAX_BYTES = 16 * 1024 * 1024;
@@ -214,6 +215,19 @@ export async function saveProductionCommand(user: AuthContext, payload: unknown)
   let next;
   try {
     next = applyCommand(book, command, user.uid, new Date().toISOString(), hash, companyName);
+    const changesSource = [
+      "revise",
+      "replan",
+      "linkFinance",
+      "task",
+      "billing",
+      "card",
+      "active",
+    ].includes(command.action);
+    if (record?.financeContractId && changesSource) {
+      const currentFinance = finance || (await getFinanceBook(user));
+      guardServiceAssociations(book, next, currentFinance, command);
+    }
   } catch (e) {
     if (e instanceof ProductionError) throw new AuthError(e.message, e.status);
     throw e;

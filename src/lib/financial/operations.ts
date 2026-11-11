@@ -12,6 +12,15 @@ import { isCalendarDate } from "./omie-dre";
 import { ErpSchema, erpCommands, applyErpCommand } from "./erp";
 import { financialLabel } from "./labels";
 import { isValidCnpj } from "@/lib/cnpj";
+import {
+  ServiceBillingAllocationSchema,
+  ServiceSettlementAllocationSchema,
+  ServiceProductionLinkSchema,
+  serviceAllocationCommands,
+  isServiceAllocationCommand,
+  applyServiceAllocationCommand,
+  validateServiceAllocations,
+} from "./service-allocations";
 
 const text = z.string().trim().min(1).max(180);
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
@@ -151,6 +160,9 @@ export const FinanceBookSchema = z.object({
   accounts: z.array(Account).max(100),
   contracts: z.array(Contract).max(3000),
   services: z.array(Service).max(20000),
+  serviceBillingAllocations: z.array(ServiceBillingAllocationSchema).max(40000).default([]),
+  serviceSettlementAllocations: z.array(ServiceSettlementAllocationSchema).max(80000).default([]),
+  serviceProductionLinks: z.array(ServiceProductionLinkSchema).max(20000).default([]),
   titles: z.array(Title).max(20000),
   clinicPaymentBatches: z.array(ClinicPaymentBatch).max(20000).default([]),
   settlements: z.array(Settlement).max(40000),
@@ -172,6 +184,9 @@ export function emptyFinanceBook(): FinanceBook {
     accounts: [],
     contracts: [],
     services: [],
+    serviceBillingAllocations: [],
+    serviceSettlementAllocations: [],
+    serviceProductionLinks: [],
     titles: [],
     clinicPaymentBatches: [],
     settlements: [],
@@ -186,6 +201,7 @@ const common = { requestId: z.string().uuid(), expectedVersion: z.number().int()
 export const FinanceCommandSchema = z.discriminatedUnion("action", [
   ...erpCommands,
   ...flowCommands,
+  ...serviceAllocationCommands,
   z
     .object({
       ...common,
@@ -691,6 +707,14 @@ export function applyFinanceCommand(
   const book = structuredClone(current),
     key = command.requestId;
   switch (command.action) {
+    case "allocateServiceTitle":
+    case "allocateServiceReceipt":
+    case "voidServiceTitleAllocation":
+    case "voidServiceReceiptAllocation":
+    case "linkProductionService":
+    case "unlinkProductionService":
+      applyServiceAllocationCommand(book, command);
+      break;
     case "enrollExistingContract":
     case "contractFromOrder":
     case "contractTerms":
@@ -1100,6 +1124,8 @@ export function applyFinanceCommand(
       break;
     }
   }
+  // Other financial changes must also preserve existing service allocations.
+  if (!isServiceAllocationCommand(command)) validateServiceAllocations(book);
   book.version++;
   book.audit.push({
     id: key,
