@@ -28,7 +28,9 @@ import {
 import { taskComplete } from "@/lib/production/obligations";
 import type { CycleFinanceCheck } from "@/lib/production/finance";
 import type { BillingQueueSnapshot } from "@/lib/production/billing-queue";
+import type { ServiceReceiptsSnapshot } from "@/lib/production/service-receipts";
 import { BillingQueue } from "./billing-queue";
+import { ServiceReceipts, type ServiceReceiptCommand } from "./service-receipts";
 import { PriorityQueue } from "./priority-queue";
 import { SchedulePlanner } from "./schedule-planner";
 import {
@@ -272,9 +274,9 @@ function Workspace() {
     [companies, setCompanies] = React.useState<Company[]>([]);
   const [selectedCycle, setSelectedCycle] = React.useState("");
   const [selected, setSelected] = React.useState(""),
-    [tab, setTab] = React.useState<"work" | "billing" | "training" | "procedure" | "agents">(
-      "work"
-    );
+    [tab, setTab] = React.useState<
+      "work" | "billing" | "receipts" | "training" | "procedure" | "agents"
+    >("work");
   const [busy, setBusy] = React.useState(false),
     [error, setError] = React.useState(""),
     [notice, setNotice] = React.useState("");
@@ -308,6 +310,26 @@ function Workspace() {
         `/api/production/billing-queue?expectedVersion=${expectedVersion}`,
         AbortSignal.any([signal, scopeRef.current.signal]),
         undefined,
+        clearAccess
+      ),
+    [scopeRef, clearAccess]
+  );
+  const loadServiceReceipts = React.useCallback(
+    (signal: AbortSignal, expectedVersion: number): Promise<ServiceReceiptsSnapshot> =>
+      api(
+        `/api/production/service-receipts?expectedVersion=${expectedVersion}`,
+        AbortSignal.any([signal, scopeRef.current.signal]),
+        undefined,
+        clearAccess
+      ),
+    [scopeRef, clearAccess]
+  );
+  const saveServiceReceipt = React.useCallback(
+    (signal: AbortSignal, command: ServiceReceiptCommand) =>
+      api(
+        "/api/production/service-receipts",
+        AbortSignal.any([signal, scopeRef.current.signal]),
+        command,
         clearAccess
       ),
     [scopeRef, clearAccess]
@@ -465,6 +487,7 @@ function Workspace() {
                 [
                   ["work", "Esteira de produção"],
                   ["billing", "Operação e faturamento"],
+                  ["receipts", "Serviços e recebimentos"],
                   ["training", "Instruções de trabalho"],
                   ["procedure", "Procedimento completo"],
                   ["agents", "3 agentes IA"],
@@ -518,6 +541,23 @@ function Workspace() {
               <BillingQueue
                 centralVersion={book.version}
                 loadSnapshot={loadBillingSnapshot}
+                onOpen={(recordId, cycleId) => {
+                  setTab("work");
+                  setSelected(recordId);
+                  setSelectedCycle(cycleId);
+                  setSearch("");
+                  requestAnimationFrame(() =>
+                    document
+                      .getElementById("production-record")
+                      ?.scrollIntoView?.({ behavior: "smooth", block: "start" })
+                  );
+                }}
+              />
+            ) : tab === "receipts" ? (
+              <ServiceReceipts
+                centralVersion={book.version}
+                loadSnapshot={loadServiceReceipts}
+                saveCommand={saveServiceReceipt}
                 onOpen={(recordId, cycleId) => {
                   setTab("work");
                   setSelected(recordId);

@@ -8,6 +8,8 @@ import { requireFinancialAccess } from "@/lib/auth/financial-access";
 import { clinicBatchForTitle, verifyClinicPayment } from "./clinic-payment-review";
 import { verifyOmieTitleReference } from "@/services/omie-financial";
 import { AuthError, badRequest } from "@/lib/auth/errors";
+import { isServiceAllocationCommand } from "@/lib/financial/service-allocations";
+import { validateServiceAllocationCommand } from "@/lib/production/service-allocation-validation";
 import {
   FinanceBookSchema,
   FinanceCommandSchema,
@@ -58,6 +60,13 @@ export async function saveFinanceCommand(user: AuthContext, payload: unknown) {
   let next;
   try {
     next = applyFinanceCommand(book, command, user.uid, new Date().toISOString(), hash);
+    // A confirmed replay must not depend on a later Central version or registry changes.
+    // The allocations and the amounts they consume share this financial book's CAS write.
+    if (next !== book && isServiceAllocationCommand(command)) {
+      const { getProductionBook } = await import("./production-central");
+      const central = await getProductionBook(user);
+      validateServiceAllocationCommand(central, book, command);
+    }
   } catch (error) {
     if (error instanceof FinanceConflict) throw new AuthError(error.message, error.status);
     throw error;
@@ -113,5 +122,16 @@ export async function saveFinanceCommand(user: AuthContext, payload: unknown) {
       );
     throw error;
   }
-  return (await readBook()).book;
+  const confirmed = (await readBook()).book;
+  if (
+    isServiceAllocationCommand(command) &&
+    !confirmed.audit.some(
+      (entry) => entry.id === command.requestId && entry.hash === hash && entry.actor === user.uid
+    )
+  )
+    throw new AuthError(
+      "Não foi possível confirmar esta associação. Repita a mesma solicitação ou atualize e confira o histórico.",
+      503
+    );
+  return confirmed;
 }
