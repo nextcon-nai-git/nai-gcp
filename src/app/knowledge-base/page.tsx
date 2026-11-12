@@ -4,6 +4,7 @@ import { useSgi } from "@/contexts/sgi-context";
 import { getActionIdToken } from "@/lib/auth/action-token";
 
 import * as React from "react";
+import { LoadingLogo } from "@/components/layout/loading-logo";
 import {
   Sparkles,
   Send,
@@ -292,10 +293,11 @@ function KnowledgeBaseSession() {
 
                 {isLoading && (
                   <div className="flex justify-start">
-                    <div className="bg-slate-50 p-6 rounded-3xl animate-pulse flex items-center gap-3">
-                      <div className="size-8 rounded-xl bg-primary flex items-center justify-center animate-bounce text-white text-xs font-black">
-                        N
-                      </div>
+                    <div
+                      role="status"
+                      className="bg-slate-50 p-6 rounded-3xl motion-safe:animate-pulse flex items-center gap-3"
+                    >
+                      <LoadingLogo className="w-8 rounded-lg" />
                       <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary/40">
                         NAI Processando...
                       </span>

@@ -5,6 +5,7 @@ import { signOut } from "firebase/auth";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import * as React from "react";
+import { LoadingLogo } from "@/components/layout/loading-logo";
 import { TopNav } from "@/components/layout/top-nav";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
@@ -58,21 +59,22 @@ export function AppContent({ children }: { children: React.ReactNode }) {
   // 1. Splash Screen durante a verificação de sessão ou montagem
   if (!mounted || (isUserLoading && !isLoginPage)) {
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#001F3F] z-[9999] overflow-hidden">
+      <div
+        role="status"
+        className="fixed inset-0 flex flex-col items-center justify-center bg-[#001F3F] z-[9999] overflow-hidden"
+      >
         <div className="absolute inset-0 opacity-20 pointer-events-none">
           <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_#334155_0%,_transparent_70%)]" />
         </div>
 
-        <div className="relative animate-in zoom-in duration-500">
-          <div className="size-24 rounded-[2.5rem] bg-[#090e24] flex items-center justify-center text-white font-black text-5xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-bounce border-2 border-white/10">
-            N
-          </div>
-          <div className="absolute -inset-4 bg-slate-500/20 blur-2xl rounded-full -z-10 animate-pulse" />
+        <div className="relative animate-in zoom-in duration-500 motion-reduce:animate-none">
+          <LoadingLogo className="w-24 rounded-3xl shadow-2xl" />
+          <div className="absolute -inset-4 bg-slate-500/20 blur-2xl rounded-full -z-10 motion-safe:animate-pulse" />
         </div>
 
-        <div className="mt-12 flex flex-col items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+        <div className="mt-12 flex flex-col items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-1000 motion-reduce:animate-none">
           <div className="flex items-center gap-3">
-            <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+            <Loader2 className="h-5 w-5 text-slate-400 motion-safe:animate-spin" />
             <span className="text-xs font-black text-white/60 uppercase tracking-[0.4em]">
               NextCon Intelligence
             </span>
