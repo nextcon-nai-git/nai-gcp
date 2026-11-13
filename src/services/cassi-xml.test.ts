@@ -78,3 +78,38 @@ it("produz um script CASSI com sintaxe válida mesmo com caracteres em observaç
       )
   ).not.toThrow();
 });
+
+it.each([
+  ["SP_SADT", "COREN", "02"],
+  ["SP_SADT", "CRP", "09"],
+  ["HONORARIOS", "COREN", "02"],
+  ["HONORARIOS", "CRP", "09"],
+] as const)(
+  "exporta %s com o conselho %s = %s e o checksum TISS",
+  async (guideType, requesterCouncilType, expected) => {
+    const { DOMParser } = await import("@xmldom/xmldom");
+    const { createHash } = await import("node:crypto");
+    const requesterName = "Clínica A & B <C> &lt;";
+    const bytes = await generateCassiXml(
+      { ...g, guideType, requesterCouncilType, requesterName, passwordValidity: "2026-12-01" },
+      fields
+    );
+    const doc = new DOMParser().parseFromString(bytes.toString("latin1"), "application/xml");
+    const ns = "http://www.ans.gov.br/padroes/tiss/schemas";
+    const professional = doc.getElementsByTagNameNS(
+      ns,
+      guideType === "SP_SADT" ? "profissionalSolicitante" : "profissionais"
+    )[0];
+    expect(professional.getElementsByTagNameNS(ns, "conselhoProfissional")[0].textContent).toBe(
+      expected
+    );
+    const name = professional.getElementsByTagNameNS(ns, "nomeProfissional")[0];
+    expect(name.textContent).toBe(requesterName);
+    expect(name.getElementsByTagName("*").length).toBe(0);
+    const root = doc.documentElement!;
+    const footer = root.removeChild(doc.getElementsByTagNameNS(ns, "epilogo")[0]);
+    expect(footer.textContent).toBe(
+      createHash("md5").update(root.textContent!, "latin1").digest("hex")
+    );
+  }
+);

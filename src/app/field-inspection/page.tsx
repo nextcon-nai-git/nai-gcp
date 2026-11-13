@@ -59,6 +59,8 @@ function FieldInspectionSession() {
   const active = React.useRef(true);
   const pending = React.useRef(false);
   const imageVersion = React.useRef(0);
+  const analysisVersion = React.useRef(0);
+  const gpsRequest = React.useRef(0);
   React.useEffect(() => {
     active.current = true;
     return () => {
@@ -85,24 +87,41 @@ function FieldInspectionSession() {
     longitude: number;
     accuracy: number;
   } | null>(null);
-  const draftKey = JSON.stringify(["nai-field-inspection", user?.uid, activeClientId]);
+  const scope = React.useMemo(
+    () => ({ userId: user?.uid || "", companyId: activeClientId }),
+    [user?.uid, activeClientId]
+  );
+  const [openingDraft, setOpeningDraft] = React.useState(true);
   const [draftRestored, setDraftRestored] = React.useState(false);
   const [draftStatus, setDraftStatus] = React.useState("");
   React.useEffect(() => {
-    if (!user || ["all", "unauthorized"].includes(activeClientId)) return;
-    try {
-      const draft = JSON.parse(localStorage.getItem(draftKey) || "null");
-      if (draft) {
-        setLocationName(draft.location || "");
-        setNotes(draft.notes || "");
-        setSelectedImage(draft.image || null);
-        setGpsCoords(draft.gps || null);
-      }
-    } catch {
-      setDraftStatus("Não foi possível abrir o rascunho local.");
-    }
-    setDraftRestored(true);
-  }, [draftKey]);
+    if (!scope.userId || ["all", "unauthorized"].includes(scope.companyId)) return;
+    let current = true;
+    offlineStorage
+      .readDraft(scope)
+      .then((draft) => {
+        if (!current) return;
+        if (draft) {
+          setLocationName(draft.location);
+          setNotes(draft.notes);
+          setSelectedImage(draft.image);
+          setGpsCoords(draft.gps);
+        }
+        setDraftRestored(true);
+      })
+      .catch(() => {
+        if (current)
+          setDraftStatus(
+            "Não foi possível abrir o rascunho local. A vistoria pode continuar nesta tela."
+          );
+      })
+      .finally(() => {
+        if (current) setOpeningDraft(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [scope]);
   React.useEffect(() => {
     if ("serviceWorker" in navigator) {
       void navigator.serviceWorker
@@ -119,24 +138,24 @@ function FieldInspectionSession() {
   const [savedLocally, setSavedLocally] = React.useState(false);
   React.useEffect(() => {
     if (!draftRestored) return;
-    if (!locationName && !notes && !selectedImage && !gpsCoords) {
-      try {
-        localStorage.removeItem(draftKey);
-      } catch {
-        setDraftStatus("O dispositivo não conseguiu limpar o rascunho.");
-      }
-      return;
-    }
-    try {
-      localStorage.setItem(
-        draftKey,
-        JSON.stringify({ location: locationName, notes, image: selectedImage, gps: gpsCoords })
-      );
-      setDraftStatus("Rascunho salvo neste dispositivo.");
-    } catch {
-      setDraftStatus("O dispositivo não salvou o rascunho. Mantenha a tela aberta.");
-    }
-  }, [draftRestored, draftKey, locationName, notes, selectedImage, gpsCoords]);
+    let current = true;
+    offlineStorage
+      .saveDraft(scope, { location: locationName, notes, image: selectedImage, gps: gpsCoords })
+      .then(() => {
+        if (current)
+          setDraftStatus(
+            locationName || notes || selectedImage || gpsCoords
+              ? "Rascunho salvo neste dispositivo."
+              : ""
+          );
+      })
+      .catch(() => {
+        if (current) setDraftStatus("O dispositivo não salvou o rascunho. Mantenha a tela aberta.");
+      });
+    return () => {
+      current = false;
+    };
+  }, [draftRestored, scope, locationName, notes, selectedImage, gpsCoords]);
   const [isCapturingGps, setIsCapturingGps] = React.useState(false);
 
   React.useEffect(() => {
@@ -157,6 +176,11 @@ function FieldInspectionSession() {
   }, [activeClientId, companies]);
 
   // Capturar coordenadas GPS do dispositivo
+  const invalidateReport = () => {
+    analysisVersion.current++;
+    setReport(null);
+    setSavedLocally(false);
+  };
   const handleGetGps = () => {
     if (typeof window === "undefined" || !navigator.geolocation) {
       toast({
@@ -167,10 +191,12 @@ function FieldInspectionSession() {
       return;
     }
 
+    const request = ++gpsRequest.current;
     setIsCapturingGps(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        if (!active.current) return;
+        if (!active.current || gpsRequest.current !== request) return;
+        invalidateReport();
         const coords = {
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
@@ -184,7 +210,7 @@ function FieldInspectionSession() {
         });
       },
       (err) => {
-        if (!active.current) return;
+        if (!active.current || gpsRequest.current !== request) return;
         setIsCapturingGps(false);
         toast({
           variant: "destructive",
@@ -232,9 +258,11 @@ function FieldInspectionSession() {
   const handleImageCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    imageVersion.current++;
+    const version = ++imageVersion.current;
+    gpsRequest.current++;
+    setIsCapturingGps(false);
     setSelectedImage(null);
-    setReport(null);
+    invalidateReport();
     if (
       !file.size ||
       file.size > 10 * 1024 * 1024 ||
@@ -249,8 +277,6 @@ function FieldInspectionSession() {
       return;
     }
     setInvalidImage(false);
-    const version = ++imageVersion.current;
-
     const reader = new FileReader();
     reader.onload = async () => {
       const rawData = reader.result as string;
@@ -263,9 +289,12 @@ function FieldInspectionSession() {
 
     // Tentar obter GPS automaticamente se ainda não tiver
     if (!gpsCoords && typeof window !== "undefined" && navigator.geolocation) {
+      const request = ++gpsRequest.current;
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          if (!active.current) return;
+          if (!active.current || gpsRequest.current !== request || imageVersion.current !== version)
+            return;
+          invalidateReport();
           setGpsCoords({
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude,
@@ -289,12 +318,12 @@ function FieldInspectionSession() {
       (!selectedImage && !notes.trim())
     )
       return;
-    const version = imageVersion.current;
+    const version = analysisVersion.current;
     pending.current = true;
     setIsAnalyzing(true);
     try {
       const token = await getActionIdToken();
-      if (!active.current || imageVersion.current !== version) return;
+      if (!active.current || analysisVersion.current !== version) return;
       const result = await analyzeFieldInspectionPhoto(
         {
           imageBase64: selectedImage || undefined,
@@ -306,7 +335,7 @@ function FieldInspectionSession() {
         },
         token
       );
-      if (!active.current || imageVersion.current !== version) return;
+      if (!active.current || analysisVersion.current !== version) return;
       setReport(result);
       setReportGps(gpsCoords);
       setSavedLocally(false);
@@ -316,7 +345,7 @@ function FieldInspectionSession() {
 
       // Salvar cópia local no storage offline (resiliência para canteiros sem sinal)
       try {
-        offlineStorage.addItem(
+        await offlineStorage.addItem(
           "FIELD_INSPECTION",
           {
             report: result,
@@ -327,8 +356,10 @@ function FieldInspectionSession() {
           },
           { userId: user.uid, companyId: activeClientId }
         );
+        if (!active.current || analysisVersion.current !== version) return;
         setSavedLocally(true);
       } catch {
+        if (!active.current || analysisVersion.current !== version) return;
         toast({
           variant: "destructive",
           title: "Análise concluída; cópia local não salva",
@@ -343,7 +374,7 @@ function FieldInspectionSession() {
         description: `Índice de Segurança: ${result.safetyIndex}% | ${result.findings.length} itens analisados.`,
       });
     } catch (err: any) {
-      if (!active.current || imageVersion.current !== version) return;
+      if (!active.current || analysisVersion.current !== version) return;
       toast({
         variant: "destructive",
         title: "Erro na vistoria",
@@ -384,6 +415,8 @@ function FieldInspectionSession() {
     window.open(`https://api.whatsapp.com/send?text=${encoded}`, "_blank", "noopener,noreferrer");
   };
 
+  if (scope.userId && !["all", "unauthorized"].includes(scope.companyId) && openingDraft)
+    return <p role="status">Abrindo a vistoria…</p>;
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 space-y-6 max-w-5xl mx-auto">
       {/* Header */}
@@ -501,7 +534,7 @@ function FieldInspectionSession() {
                     onClick={() => {
                       imageVersion.current++;
                       setSelectedImage(null);
-                      setReport(null);
+                      invalidateReport();
                     }}
                     className="text-xs font-bold rounded-xl shadow-lg"
                   >
@@ -537,8 +570,10 @@ function FieldInspectionSession() {
               <Input
                 value={locationName}
                 onChange={(e) => {
-                  imageVersion.current++;
-                  setReport(null);
+                  invalidateReport();
+                  gpsRequest.current++;
+                  setIsCapturingGps(false);
+                  setGpsCoords(null);
                   setLocationName(e.target.value);
                 }}
                 placeholder="Ex: Torre 2 - Andaime Fachada Norte"
@@ -560,8 +595,7 @@ function FieldInspectionSession() {
               <Input
                 value={notes}
                 onChange={(e) => {
-                  imageVersion.current++;
-                  setReport(null);
+                  invalidateReport();
                   setNotes(e.target.value);
                 }}
                 placeholder="Ex: Colaboradores da empreiteira de pintura sem trava-quedas..."

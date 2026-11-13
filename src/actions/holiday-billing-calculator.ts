@@ -6,7 +6,22 @@
  * e aplica o abatimento automático no contrato dos profissionais alocados em clientes.
  */
 
-import { consultarFeriadosNacionais, NationalHoliday } from "./holidays";
+import { isCalendarDate } from "@/lib/calendar-date";
+import { consultarFeriadosNacionais, type NationalHoliday } from "./holidays";
+
+type DataNaoFaturavel = (
+  | NationalHoliday
+  | {
+      date: string;
+      name: string;
+      weekdayName: string;
+      type: "contractual";
+    }
+) & {
+  origem: "contrato" | "calendario";
+  diaDaSemanaIndex: number;
+  eDiaUtil: boolean;
+};
 
 export interface MonthBillingCalculation {
   ano: number;
@@ -15,7 +30,7 @@ export interface MonthBillingCalculation {
   totalDiasMes: number;
   diasFinaisDeSemana: number;
   totalFeriadosNacionais: number;
-  feriadosNoMes: (NationalHoliday & { diaDaSemanaIndex: number; eDiaUtil: boolean })[];
+  feriadosNoMes: DataNaoFaturavel[];
   diasUteisBrutos: number;
   diasFaturaveisLiquidos: number;
   horasFaturaveisPorProfissional: number; // considerando 8h/dia
@@ -27,6 +42,7 @@ export interface MonthBillingCalculation {
   valorLiquidoFaturavel: number;
 }
 
+const PONTO_FACULTATIVO = /carnaval|corpus christi/i;
 const NORM_MONTH_NAMES = [
   "Janeiro",
   "Fevereiro",
@@ -43,7 +59,7 @@ const NORM_MONTH_NAMES = [
 ];
 
 /**
- * Calcula o faturamento líquido e dias faturáveis descontando feriados nacionais.
+ * Calcula o faturamento descontando feriados nacionais e exclusões contratuais em dias úteis.
  */
 export async function calcularFaturamentoAlocacaoComFeriados(
   ano: number,
@@ -52,45 +68,63 @@ export async function calcularFaturamentoAlocacaoComFeriados(
   quantidadeProfissionais: number = 5,
   datasFacultativasContratadas: string[] = []
 ): Promise<MonthBillingCalculation> {
+  if (
+    !Number.isInteger(mes) ||
+    mes < 1 ||
+    mes > 12 ||
+    !Number.isFinite(taxaDiariaPadrao) ||
+    taxaDiariaPadrao < 0 ||
+    !Number.isSafeInteger(quantidadeProfissionais) ||
+    quantidadeProfissionais < 1
+  )
+    throw new Error("Confira o mês, a diária e a quantidade de profissionais.");
+  if (
+    !Array.isArray(datasFacultativasContratadas) ||
+    datasFacultativasContratadas.some((date) => typeof date !== "string" || !isCalendarDate(date))
+  )
+    throw new Error("Informe datas de contrato válidas no formato AAAA-MM-DD.");
   const resultHolidays = await consultarFeriadosNacionais(ano);
-  const feriadosAno =
-    resultHolidays.sucesso && resultHolidays.dados ? resultHolidays.dados.feriados : [];
+  if (!resultHolidays.sucesso || !resultHolidays.dados) throw new Error("Calendário indisponível.");
+  const feriadosAno = resultHolidays.dados.feriados;
 
   // Dias no mês
-  const totalDiasMes = new Date(ano, mes, 0).getDate();
+  const totalDiasMes = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
   const mesPad = String(mes).padStart(2, "0");
 
   let diasFinaisDeSemana = 0;
   let diasUteisBrutos = 0;
 
-  for (let dia = 1; dia <= totalDiasMes; dia++) {
-    const dataObj = new Date(Date.UTC(ano, mes - 1, dia));
-    const dayOfWeek = dataObj.getUTCDay(); // 0 = Domingo, 6 = Sábado
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      diasFinaisDeSemana++;
-    } else {
-      diasUteisBrutos++;
+  const contratuais = new Set(datasFacultativasContratadas);
+  const porData = new Map<string, NationalHoliday>();
+  for (const feriado of feriadosAno) {
+    const facultativo = PONTO_FACULTATIVO.test(feriado.name);
+    if (!facultativo || (contratuais.has(feriado.date) && !porData.has(feriado.date))) {
+      porData.set(feriado.date, feriado);
     }
   }
+  const feriadosNoMes: DataNaoFaturavel[] = [];
+  for (let dia = 1; dia <= totalDiasMes; dia++) {
+    const date = `${ano}-${mesPad}-${String(dia).padStart(2, "0")}`;
+    const data = new Date(Date.UTC(ano, mes - 1, dia));
+    const diaDaSemanaIndex = data.getUTCDay();
+    const eDiaUtil = diaDaSemanaIndex !== 0 && diaDaSemanaIndex !== 6;
+    if (eDiaUtil) diasUteisBrutos++;
+    else diasFinaisDeSemana++;
 
-  // Filtra feriados do mês especificado
-  const feriadosNoMes = [...new Map(feriadosAno.map((h) => [h.date, h])).values()]
-    .filter(
-      (h) =>
-        !/carnaval|corpus christi/i.test(h.name) || datasFacultativasContratadas.includes(h.date)
-    )
-    .filter((f) => f.date.startsWith(`${ano}-${mesPad}`))
-    .map((f) => {
-      const [y, m, d] = f.date.split("-").map(Number);
-      const dateObj = new Date(Date.UTC(y, m - 1, d));
-      const dayOfWeek = dateObj.getUTCDay();
-      const eDiaUtil = dayOfWeek !== 0 && dayOfWeek !== 6;
-      return {
-        ...f,
-        diaDaSemanaIndex: dayOfWeek,
-        eDiaUtil,
-      };
+    const feriado = porData.get(date);
+    if (!feriado && !contratuais.has(date)) continue;
+    feriadosNoMes.push({
+      ...(feriado ?? {
+        date,
+        name: "Data não faturável do contrato",
+        weekdayName: data.toLocaleDateString("pt-BR", { weekday: "long", timeZone: "UTC" }),
+        type: "contractual" as const,
+      }),
+      origem: feriado && !PONTO_FACULTATIVO.test(feriado.name) ? "calendario" : "contrato",
+      diaDaSemanaIndex,
+      eDiaUtil,
     });
+  }
 
   // Quantidade de feriados que caem em dias úteis (segunda a sexta)
   const feriadosEmDiasUteis = feriadosNoMes.filter((f) => f.eDiaUtil).length;
@@ -110,7 +144,7 @@ export async function calcularFaturamentoAlocacaoComFeriados(
     nomeMes: NORM_MONTH_NAMES[mes - 1] || `Mês ${mes}`,
     totalDiasMes,
     diasFinaisDeSemana,
-    totalFeriadosNacionais: feriadosNoMes.length,
+    totalFeriadosNacionais: feriadosNoMes.filter((dia) => dia.origem === "calendario").length,
     feriadosNoMes,
     diasUteisBrutos,
     diasFaturaveisLiquidos,

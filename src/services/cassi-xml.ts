@@ -65,7 +65,7 @@ const uf: Record<string, string> = {
   GO: "52",
   DF: "53",
 };
-const council: Record<string, string> = { CRM: "06", CREFITO: "05", COREN: "03", CRP: "10" };
+const council: Record<string, string> = { CRM: "06", CREFITO: "05", COREN: "02", CRP: "09" };
 export async function generateCassiXml(
   g: CassiGuideData,
   extra: Record<string, string>,
@@ -281,20 +281,9 @@ export async function generateCassiXml(
       "prestadorParaOperadora",
       wrap("loteGuias", tag("numeroLote", seq) + wrap("guiasTISS", guide))
     );
-  const digest = createHash("md5")
-    .update(
-      body
-        .replace(/<[^>]*>/g, "")
-        .replaceAll("&lt;", "<")
-        .replaceAll("&gt;", ">")
-        .replaceAll("&amp;", "&"),
-      "latin1"
-    )
-    .digest("hex");
   const xml =
     '<?xml version="1.0" encoding="ISO-8859-1"?><ans:mensagemTISS xmlns:ans="http://www.ans.gov.br/padroes/tiss/schemas">' +
     body +
-    wrap("epilogo", tag("hash", digest)) +
     "</ans:mensagemTISS>";
   validation ??= createValidator().catch((e) => {
     validation = undefined;
@@ -304,7 +293,23 @@ export async function generateCassiXml(
   const bytes = Buffer.from(xml, "latin1");
   const doc = lib.XmlDocument.fromBuffer(bytes, { option: lib.ParseOption.XML_PARSE_NONET });
   try {
+    // The ANS TISS wire protocol requires the MD5 of the concatenated text nodes
+    // encoded as ISO-8859-1. This is a message checksum, never a credential.
+    const digest = createHash("md5").update(doc.root.content, "latin1").digest("hex");
+    doc.root.addElement("epilogo", "ans").addElement("hash", "ans").addText(digest);
     validator.validate(doc);
+    const chunks: Buffer[] = [];
+    doc.save(
+      {
+        write(chunk) {
+          chunks.push(Buffer.from(chunk));
+          return chunk.length;
+        },
+        close: () => true,
+      },
+      { encoding: "ISO-8859-1" }
+    );
+    return Buffer.concat(chunks);
   } catch {
     throw badRequest(
       "O XSD TISS 04.01.00 recusou a guia. Confira os códigos, datas e identificadores informados."
@@ -312,5 +317,4 @@ export async function generateCassiXml(
   } finally {
     doc.dispose();
   }
-  return bytes;
 }
