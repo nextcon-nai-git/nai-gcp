@@ -287,7 +287,7 @@ export function GrupoAvpQueueMap({
 
     activeLocality.asos.forEach((a) => {
       if (a.nomeClinica) {
-        const msg = generateWhatsAppAppointmentMessage(a);
+        const msg = (clinic: string) => generateWhatsAppAppointmentMessage(a, clinic);
         const parsed = parseClinicAndPhoneCells(a.nomeClinica, a.telefoneClinica, msg);
         parsed.forEach((p) => {
           if (!seen.has(p.nome)) {

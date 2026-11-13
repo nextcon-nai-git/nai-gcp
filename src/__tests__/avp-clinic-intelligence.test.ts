@@ -44,6 +44,24 @@ describe("NAI Clinic Intelligence 3.8", () => {
     expect(parsed[2].telefoneLimpo).toBe("16982150054");
   });
 
+  it("associa a numeração explícita mesmo fora de ordem e bloqueia ambiguidades", () => {
+    const a = "1. Alfa\n2. Beta",
+      one = "11 90000-0001",
+      two = "11 90000-0002";
+    const pair = (names: string, phones: string) =>
+      parseClinicAndPhoneCells(names, phones).map((c) => c.telefoneLimpo);
+    expect(pair(a, "2. " + two + "\n1. " + one)).toEqual(["11900000001", "11900000002"]);
+    expect(pair(a, "2. " + two)).toEqual(["", "11900000002"]);
+    expect(pair(a, "2. " + two + "\n2. " + one)).toEqual(["", ""]);
+    expect(pair("Alfa\nBeta", one)).toEqual(["", ""]);
+    expect(pair("Alfa\nBeta", one + "\n" + two)).toEqual(["11900000001", "11900000002"]);
+    expect(parseClinicAndPhoneCells("", one)).toEqual([]);
+    expect(pair("Alfa", "11-90000-0001")).toEqual(["11900000001"]);
+    expect(pair("Alfa", "(55) 99999-0001")).toEqual(["55999990001"]);
+    expect(parseClinicAndPhoneCells(a, "1. " + one, (n) => "Olá " + n)[0].whatsappUrl).toContain(
+      "Ol%C3%A1%20Alfa"
+    );
+  });
   it("deve gerar mensagem contextualizada de agendamento de ASO", () => {
     const mockAso: GrupoAvpAso = {
       ...GRUPO_AVP_ASO_LIST[0],

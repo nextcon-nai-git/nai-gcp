@@ -82,17 +82,12 @@ export async function POST(request: NextRequest) {
               .doc(user.uid)
               .collection("asoRequests")
               .doc(input.requestId);
-        if (input.requestId.startsWith("rd-") && (!canManageRdAso(user.role) || user.tenantId))
-          throw forbidden();
+        if (input.requestId.startsWith("rd-") && !canManageRdAso(user)) throw forbidden();
         const id = randomBytes(24).toString("hex");
         const at = new Date().toISOString();
         await adminDb.runTransaction(async (tx) => {
           const currentOwner = await requireCurrentOwner(tx, user.uid);
-          if (
-            input.requestId.startsWith("rd-") &&
-            (!canManageRdAso(currentOwner.role) || currentOwner.tenantId)
-          )
-            throw forbidden();
+          if (input.requestId.startsWith("rd-") && !canManageRdAso(currentOwner)) throw forbidden();
           const snapshot = await tx.get(source);
           if (!snapshot.exists) throw badRequest("Pedido não encontrado.");
           const aso = snapshot.data() as AsoRequest & { clinicPortalId?: string };

@@ -14,11 +14,11 @@ const parse = (text: string) =>
   rdAsoRequestFromText(text, "key", "message", "2026-10-18T12:00:00Z");
 describe("RD completed ASO contract", () => {
   it.each(["SUPER_ADMIN", "ADMIN", "OPERATIONS"])("allows management role %s", (role) =>
-    expect(canManageRdAso(role)).toBe(true)
+    expect(canManageRdAso({ role, tenantId: null })).toBe(true)
   );
   it.each(["DOCTOR", "PROVIDER", "CLIENT", "admin", ""])(
     "does not infer permissions for %s",
-    (role) => expect(canManageRdAso(role)).toBe(false)
+    (role) => expect(canManageRdAso({ role, tenantId: null })).toBe(false)
   );
   it("creates a request with provenance but no inferred examinations or clinical validation", () => {
     const text = completedRdAsoText(fields)!;

@@ -7,8 +7,8 @@ const normalize = (value: string) =>
     .toLowerCase()
     .trim();
 
-export function canManageRdAso(role: string): boolean {
-  return ["SUPER_ADMIN", "ADMIN", "OPERATIONS"].includes(role);
+export function canManageRdAso(user: { role: string; tenantId?: string | null }): boolean {
+  return !user.tenantId && ["SUPER_ADMIN", "ADMIN", "OPERATIONS"].includes(user.role);
 }
 
 /** Explicit adapter contract for the RD collector's completion HTTP action. */

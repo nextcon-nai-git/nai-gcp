@@ -310,7 +310,10 @@ describe("TESTE NAI – análises SST", () => {
   it("impede troca de vínculo e documento múltiplo; não reaproveita matrícula nem consentimento", () => {
     const orig = {
       ideVinculo: { cpfTrab: "000", matricula: "TESTE" },
-      aso: { resultDisclosureAuthorized: true },
+      aso: {
+        resultDisclosureAuthorized: true,
+        medicoResp: { nmMed: "Médico anterior", nrCrm: "12345", ufCrm: "PR" },
+      },
     };
     expect(() => applyAsoDraft(orig, draft, true)).toThrow();
     expect(() =>
@@ -318,6 +321,10 @@ describe("TESTE NAI – análises SST", () => {
     ).toThrow();
     const r = applyAsoDraft(orig, draft, false);
     expect(r.ideVinculo).not.toHaveProperty("matricula");
+    expect(r.aso).not.toHaveProperty("medicoResp");
+    expect(
+      applyAsoDraft({ ...orig, ideVinculo: { cpfTrab: draft.cpfTrabalhador } }, draft, true).aso
+    ).not.toHaveProperty("medicoResp");
     expect(r.aso).toMatchObject({ tpAso: 9, resAso: "", resultDisclosureAuthorized: false });
   });
   it("rejeita tipos disfarçados e arquivo vazio", async () => {

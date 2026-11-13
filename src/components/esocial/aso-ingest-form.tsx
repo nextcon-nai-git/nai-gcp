@@ -107,7 +107,9 @@ export function AsoIngestForm({
               try {
                 onApply(draft);
                 setDraft(null);
-                setMessage("Rascunho aplicado. Revise os campos antes de auditar ou salvar.");
+                setMessage(
+                  "Rascunho aplicado. Confira o vínculo e informe o responsável pelo PCMSO conforme o documento antes de gerar a prévia."
+                );
               } catch {
                 setMessage("Confira o CPF. O documento não corresponde ao vínculo fixado.");
               }

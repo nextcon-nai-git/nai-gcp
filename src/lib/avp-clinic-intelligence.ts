@@ -90,6 +90,19 @@ export function formatBrazilianWhatsApp(
   };
 }
 
+function contactEntries(cell: string): Array<{ key: string | null; value: string }> {
+  const text = (cell || "").trim();
+  if (!text) return [];
+  return text.split(/\r?\n|;|[ \t]+(?=\d{1,3}[.)-][ \t]+)/).map((line) => {
+    const value = line.trim();
+    const mark = /^(\d{1,3})[.)-](?:\s+|(?=[^\s\d])|$)/.exec(value);
+    return {
+      key: mark ? String(Number(mark[1])) : null,
+      value: mark ? value.slice(mark[0].length).trim() : value,
+    };
+  });
+}
+
 /**
  * Desmembra e extrai clínicas e seus respectivos contatos quando agrupados em uma única célula
  * Exemplo real da planilha:
@@ -99,51 +112,33 @@ export function formatBrazilianWhatsApp(
 export function parseClinicAndPhoneCells(
   clinicCell: string,
   phoneCell: string,
-  defaultAsoMessage?: string
+  defaultAsoMessage?: string | ((clinic: string) => string)
 ): ParsedClinicContact[] {
-  if (!clinicCell && !phoneCell) return [];
-
-  const rawClinics = (clinicCell || "").trim();
-  const rawPhones = (phoneCell || "").trim();
-
-  // Divide por padrões numerados "1.", "2.", ou quebra de linha
-  const splitItems = (text: string): string[] => {
-    if (!text) return [];
-    if (/\b[1-9]\s*[\.\-\)]\s*/.test(text)) {
-      return text
-        .split(/(?:^|\n|\s+)(?:[1-9]\s*[\.\-\)]\s*)/)
-        .map((s) => s.trim())
-        .filter(Boolean);
-    }
-    return text
-      .split(/[\n;]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-  };
-
-  const clinicsList = splitItems(rawClinics);
-  const phonesList = splitItems(rawPhones);
-
-  const maxLen = Math.max(clinicsList.length, phonesList.length, 1);
-  const results: ParsedClinicContact[] = [];
-
-  for (let i = 0; i < maxLen; i++) {
-    const nome = clinicsList[i] || (clinicsList.length === 1 ? clinicsList[0] : `Clínica ${i + 1}`);
-    const telRaw = phonesList[i] || (phonesList.length === 1 ? phonesList[0] : "");
-    const waInfo = formatBrazilianWhatsApp(telRaw, defaultAsoMessage);
-
-    results.push({
-      nome: nome.replace(/^[0-9\.\-\)\s]+/, "").trim(),
+  const clinics = contactEntries(clinicCell);
+  const phones = contactEntries(phoneCell);
+  const numbered = [...clinics, ...phones].some((entry) => entry.key !== null);
+  const aligned = !numbered && clinics.length === phones.length;
+  return clinics.map((clinic, index) => {
+    let phone: string | undefined;
+    if (clinic.key !== null && clinics.filter((entry) => entry.key === clinic.key).length === 1) {
+      const candidates = phones.filter((entry) => entry.key === clinic.key);
+      if (candidates.length === 1) phone = candidates[0].value;
+    } else if (aligned) phone = phones[index].value;
+    const telRaw = clinic.value ? phone || "" : "";
+    const parsed = formatBrazilianWhatsApp(
+      telRaw,
+      typeof defaultAsoMessage === "function" ? defaultAsoMessage(clinic.value) : defaultAsoMessage
+    );
+    return {
+      nome: clinic.value,
       telefoneRaw: telRaw,
-      telefoneLimpo: waInfo.clean,
-      telefoneFormatado: waInfo.formatted,
-      isWhatsApp: waInfo.isWhatsApp,
-      isValid: waInfo.isValid,
-      whatsappUrl: waInfo.waUrl,
-    });
-  }
-
-  return results;
+      telefoneLimpo: parsed.clean,
+      telefoneFormatado: parsed.formatted,
+      isWhatsApp: parsed.isWhatsApp,
+      isValid: parsed.isValid,
+      whatsappUrl: parsed.waUrl,
+    };
+  });
 }
 
 /**

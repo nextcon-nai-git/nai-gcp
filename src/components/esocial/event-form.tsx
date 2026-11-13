@@ -79,6 +79,20 @@ export function updateAt(payload: Payload, path: string, value: unknown): Payloa
   return copy;
 }
 
+function editEventField(current: Payload, path: string, value: unknown): Payload {
+  const next = updateAt(current, path, value);
+  if (
+    current.eventType === "S2220" &&
+    (path === "ideVinculo" || path.startsWith("ideVinculo.")) &&
+    ["cpfTrab", "matricula", "codCateg"].some(
+      (key) => valueAt(current, "ideVinculo." + key) !== valueAt(next, "ideVinculo." + key)
+    ) &&
+    valueAt(current, "aso.medicoResp") !== undefined
+  )
+    return updateAt(next, "aso.medicoResp", undefined);
+  return next;
+}
+
 function newItem(fields: readonly EsocialFormField[] = []): Payload {
   return fields.reduce<Payload>((value, field) => {
     if (field.defaultValue !== undefined)
@@ -483,7 +497,7 @@ export function EventForm({
               const employee = employees.find((item) => item.id === event.target.value);
               if (!employee) return;
               setPayload((current) =>
-                updateAt(current, "ideVinculo", {
+                editEventField(current, "ideVinculo", {
                   cpfTrab: employee.cpf,
                   ...(employee.link?.matricula ? { matricula: employee.link.matricula } : {}),
                   ...(employee.link?.category ? { codCateg: employee.link.category } : {}),
@@ -563,7 +577,9 @@ export function EventForm({
                       (path) => field.name === path || field.name.startsWith(`${path}.`)
                     ))
                 }
-                onChange={(path, value) => setPayload((current) => updateAt(current, path, value))}
+                onChange={(path, value) =>
+                  setPayload((current) => editEventField(current, path, value))
+                }
               />
             ))}
           </div>
