@@ -293,11 +293,8 @@ function KnowledgeBaseSession() {
 
                 {isLoading && (
                   <div className="flex justify-start">
-                    <div
-                      role="status"
-                      className="bg-slate-50 p-6 rounded-3xl motion-safe:animate-pulse flex items-center gap-3"
-                    >
-                      <LoadingLogo className="w-8 rounded-lg" />
+                    <div role="status" className="p-6 flex items-center gap-3">
+                      <LoadingLogo className="w-8" />
                       <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary/40">
                         NAI Processando...
                       </span>

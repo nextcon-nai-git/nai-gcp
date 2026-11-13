@@ -387,7 +387,7 @@ function EnterpriseOpsContent() {
       <div className="min-w-0 min-h-[500px] rounded-xl border border-border p-3 md:p-4">
         {loadingTasks && operationalTasks.length === 0 ? (
           <div role="status" className="flex flex-col items-center justify-center gap-6 py-20">
-            <LoadingLogo className="w-20 rounded-2xl shadow-2xl" />
+            <LoadingLogo className="w-20" />
             <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary/40 motion-safe:animate-pulse">
               Sincronizando Operações...
             </p>
