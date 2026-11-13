@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 export function LoadingLogo({ className }: { className: string }) {
   return (
     <Image
-      src="/nextcon-loading.webp"
+      src="/nextcon-loading-3d.webp"
       alt=""
       width={288}
       height={275}

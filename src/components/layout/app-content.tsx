@@ -67,10 +67,7 @@ export function AppContent({ children }: { children: React.ReactNode }) {
           <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_#334155_0%,_transparent_70%)]" />
         </div>
 
-        <div className="relative animate-in zoom-in duration-500 motion-reduce:animate-none">
-          <LoadingLogo className="w-24 rounded-3xl shadow-2xl" />
-          <div className="absolute -inset-4 bg-slate-500/20 blur-2xl rounded-full -z-10 motion-safe:animate-pulse" />
-        </div>
+        <LoadingLogo className="w-24" />
 
         <div className="mt-12 flex flex-col items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-1000 motion-reduce:animate-none">
           <div className="flex items-center gap-3">
