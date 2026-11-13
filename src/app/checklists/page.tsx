@@ -107,9 +107,11 @@ export default function ChecklistsPage() {
 
   const draftKey = (nr: string) =>
     JSON.stringify(["nai-nr-draft", user?.uid, selectedCompanyId, nr]);
+  const [openedScope, setOpenedScope] = React.useState("");
+  const scope = JSON.stringify([user?.uid, selectedCompanyId]);
   const protocolId = React.useRef("");
   const saveDraft = () => {
-    if (!user || !activeNR || !selectedCompanyId) return;
+    if (!user || !activeNR || !selectedCompanyId || openedScope !== scope) return;
     try {
       localStorage.setItem(
         draftKey(activeNR.nr),
@@ -134,6 +136,7 @@ export default function ChecklistsPage() {
       return;
     }
     const config = NR_CHECKLISTS[nrId] || getGenericChecklist(nrId.toUpperCase(), title);
+    setOpenedScope(scope);
     setActiveNR(config);
     let saved;
     try {
@@ -164,7 +167,8 @@ export default function ChecklistsPage() {
   }, [responses, activeNR]);
 
   const handleFinalizeAuditoria = async () => {
-    if (!user || !storage || !db || !activeNR || !selectedCompanyId) return;
+    if (!user || !storage || !db || !activeNR || !selectedCompanyId || openedScope !== scope)
+      return;
 
     if (checklistProgress !== 100 || isFinalizing) return;
     setIsFinalizing(true);
@@ -316,7 +320,7 @@ export default function ChecklistsPage() {
       </div>
 
       <Dialog
-        open={isChecklistOpen}
+        open={isChecklistOpen && openedScope === scope}
         onOpenChange={(open) => !isFinalizing && setIsChecklistOpen(open)}
       >
         <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden flex flex-col p-0 border-none shadow-2xl rounded-4xl">
@@ -394,6 +398,26 @@ export default function ChecklistsPage() {
                 disabled={isFinalizing}
               >
                 Salvar Rascunho
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={isFinalizing}
+                onClick={() => {
+                  if (!activeNR || scope !== openedScope) return;
+                  try {
+                    localStorage.removeItem(draftKey(activeNR.nr));
+                    setResponses({});
+                    setIsChecklistOpen(false);
+                    toast({ title: "Rascunho descartado" });
+                  } catch {
+                    toast({
+                      variant: "destructive",
+                      title: "Não foi possível descartar o rascunho.",
+                    });
+                  }
+                }}
+              >
+                Descartar rascunho
               </Button>
               <Button
                 onClick={handleFinalizeAuditoria}

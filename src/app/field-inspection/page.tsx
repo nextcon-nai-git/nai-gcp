@@ -103,6 +103,13 @@ function FieldInspectionSession() {
     }
     setDraftRestored(true);
   }, [draftKey]);
+  React.useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      void navigator.serviceWorker
+        .register("/field-inspection-worker.js", { scope: "/field-inspection" })
+        .catch(() => {});
+    }
+  }, []);
   // Detecção de Dispositivo (Android, iOS ou Desktop)
   const [devicePlatform, setDevicePlatform] = React.useState<"Android" | "iOS" | "Desktop">(
     "Desktop"

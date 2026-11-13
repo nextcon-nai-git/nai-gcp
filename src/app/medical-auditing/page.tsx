@@ -1,5 +1,5 @@
 "use client";
-import { collection, query, orderBy, limit } from "firebase/firestore";
+import { collection, query, where, orderBy, limit } from "firebase/firestore";
 import { useSgi } from "@/contexts/sgi-context";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 
@@ -10,7 +10,8 @@ export default function MedicalAuditingDashboard() {
     () =>
       db && activeClientId && !["all", "unauthorized"].includes(activeClientId)
         ? query(
-            collection(db, "companies", activeClientId, "medical_audits"),
+            collection(db, "medical_audits"),
+            where("companyId", "==", activeClientId),
             orderBy("createdAt", "desc"),
             limit(20)
           )
