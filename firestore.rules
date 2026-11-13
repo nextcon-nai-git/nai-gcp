@@ -504,8 +504,8 @@ service cloud.firestore {
     }
 
     match /{rootCollection}/{document=**} {
-      allow read: if isSignedIn() && isNextconOfficial() && !isClinicalCollection(rootCollection) && !(rootCollection in ['workPermitsPrivate', 'workAssistantProposals', 'workAssistantUsage', 'clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nxc_employees', 'user_access_audit', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries', 'audit_logs', 'system_audit_logs', 'ai_audit_logs', 'denuncias']);
-      allow write: if isNextconOfficial() && !isClinicalCollection(rootCollection) && !(rootCollection in ['workPermitsPrivate', 'workAssistantProposals', 'workAssistantUsage', 'clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nxc_employees', 'agendamentos', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'expert_access_audit', 'user_access_audit', 'analisesPGR', 'audit_logs', 'system_audit_logs', 'ai_audit_logs', 'denuncias']);
+      allow read: if isSignedIn() && isNextconOfficial() && !isClinicalCollection(rootCollection) && !(rootCollection in ['workAssistantProposals', 'workAssistantUsage', 'clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nxc_employees', 'user_access_audit', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries', 'audit_logs', 'system_audit_logs', 'ai_audit_logs', 'denuncias']);
+      allow write: if isNextconOfficial() && !isClinicalCollection(rootCollection) && !(rootCollection in ['workAssistantProposals', 'workAssistantUsage', 'clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nxc_employees', 'agendamentos', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'expert_access_audit', 'user_access_audit', 'analisesPGR', 'audit_logs', 'system_audit_logs', 'ai_audit_logs', 'denuncias']);
     }
   }
 }

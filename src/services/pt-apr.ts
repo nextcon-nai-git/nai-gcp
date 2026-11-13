@@ -22,7 +22,12 @@ function checkScope(user: AuthContext, companyId: string) {
   requirePgrCompany(user, companyId);
 }
 const permits = (companyId: string) =>
-  adminDb.collection("workPermitsPrivate").doc(companyId).collection("permits");
+  adminDb
+    .collection("clinic_portal_private")
+    .doc("pt-apr")
+    .collection("companies")
+    .doc(companyId)
+    .collection("permits");
 function activeEmployee(d?: DocumentData) {
   return (
     d &&

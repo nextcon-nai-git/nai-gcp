@@ -125,7 +125,15 @@ it("persiste o protocolo, recusa evidência insuficiente, finaliza uma única ve
   ).rejects.toThrow();
   await expect(getPermits({ ...tech, tenantId: "outra" }, companyId)).rejects.toThrow();
   const db = env.authenticatedContext("pt-root").firestore();
-  const ref = doc(db, "workPermitsPrivate", companyId, "permits", c.permitId);
+  const ref = doc(
+    db,
+    "clinic_portal_private",
+    "pt-apr",
+    "companies",
+    companyId,
+    "permits",
+    c.permitId
+  );
   await assertFails(getDoc(ref));
   await assertFails(setDoc(ref, { status: "awaiting_signature" }));
 });

@@ -115,10 +115,12 @@ test("supported exam labels accept accents", () => {
   }
 });
 test("only the operational team can access shared RD requests", () => {
-  for (const role of ["SUPER_ADMIN", "ADMIN", "OPERATIONS"])
-    assert.equal(canManageRdAso(role), true);
+  for (const role of ["SUPER_ADMIN", "ADMIN", "OPERATIONS"]) {
+    assert.equal(canManageRdAso({ role, tenantId: null }), true);
+    assert.equal(canManageRdAso({ role, tenantId: "empresa-teste" }), false);
+  }
   for (const role of ["CLIENT_ADMIN", "GUEST", "DOCTOR", "", "ADMINISTRATOR"])
-    assert.equal(canManageRdAso(role), false);
+    assert.equal(canManageRdAso({ role, tenantId: null }), false);
 });
 test("authorized webhook to card mapping is idempotent for repeated delivery", async () => {
   const secret = "s".repeat(64);
