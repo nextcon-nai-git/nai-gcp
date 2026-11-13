@@ -59,6 +59,7 @@ const report = {
 };
 let v: ReturnType<typeof ui>;
 beforeEach(() => {
+  localStorage.clear();
   v = ui();
   m.user = { uid: "user-a" };
   m.scope = "a";

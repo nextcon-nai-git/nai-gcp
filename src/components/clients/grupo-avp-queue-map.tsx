@@ -50,10 +50,15 @@ import {
 } from "@/lib/brazil-states-paths";
 import { AVP_COST_BANDS, avpCostBand } from "@/lib/avp-evidence";
 import { avpCostSummary, formatBrlCents } from "@/lib/avp-costs";
-import { avpMapCityKey, avpMapClinicCost, type AvpMapClinic } from "@/lib/avp-map-clinics";
+import {
+  avpMapCityKey,
+  avpMapClinicCost,
+  confirmedMapClinics,
+  type AvpMapClinic,
+} from "@/lib/avp-map-clinics";
 import { AvpClinicAlternatives } from "./avp-clinic-alternatives";
 import { buildAvpKml } from "@/lib/avp-kml-export";
-import { GLOBAL_CLINICS_CATALOG } from "@/lib/avp-clinics-data";
+
 import {
   parseClinicAndPhoneCells,
   generateWhatsAppAppointmentMessage,
@@ -197,28 +202,8 @@ export function GrupoAvpQueueMap({
     >();
 
     allAggregates.forEach((loc) => {
-      const clinicNames = new Set<string>(
-        (clinicsByCity.get(loc.key) || [])
-          .filter((clinic) => clinic.identified !== false)
-          .map((clinic) => clinic.nome.toUpperCase())
-      );
-      // 1. Clínicas citadas nos ASOs da comarca
-      loc.asos.forEach((a) => {
-        if (a.nomeClinica && a.nomeClinica.trim()) {
-          const parsed = parseClinicAndPhoneCells(a.nomeClinica, a.telefoneClinica);
-          parsed.forEach((p) => {
-            if (p.nome) clinicNames.add(p.nome.toUpperCase());
-          });
-        }
-      });
-      // 2. Clínicas credenciadas no catálogo global com abrangência para esta cidade
-      GLOBAL_CLINICS_CATALOG.forEach((gc) => {
-        if (gc.cities.some((c) => c.toLowerCase() === loc.cidade.toLowerCase())) {
-          clinicNames.add(gc.displayName.toUpperCase());
-        }
-      });
-
-      const uniqueCount = clinicNames.size;
+      const clinicNames = confirmedMapClinics(clinicsByCity.get(loc.key) || []);
+      const uniqueCount = clinicNames.length;
       let status: "CRITICO" | "VULNERAVEL" | "RESILIENTE" = "CRITICO";
       let color = "#ef4444"; // Vermelho
       let label = "0 Clínicas (Crítico)";

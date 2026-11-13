@@ -28,7 +28,7 @@ const normalized = (value: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toUpperCase();
-const amountPattern = /^R\$\s*(\(?(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}\)?)$/;
+const amountPattern = /^(?:R\$\s*)?(\(?(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}\)?)$/;
 export function balanceMoney(value: string): number {
   const match = value.trim().match(amountPattern);
   if (!match || match[1].startsWith("(") !== match[1].endsWith(")"))
@@ -92,7 +92,10 @@ export function parseBalancePages(pages: BalanceTextItem[][]): Balance {
       );
     // A malformed amount must not make an entire account silently disappear.
     const monetaryItems = clean.filter(
-      (item) => /^R\$/.test(item.text.trim()) && item.y < opening.y - 3
+      (item) =>
+        item.y < opening.y - 3 &&
+        (/^R\$/.test(item.text.trim()) ||
+          (item.x >= opening.x - 25 && /^[-(]?\d[\d.,]*,\d{2}\)?$/.test(item.text.trim())))
     );
     for (const item of monetaryItems) balanceMoney(item.text);
     const values = monetaryItems;

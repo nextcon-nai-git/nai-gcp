@@ -97,83 +97,26 @@ export const NtepContestationReport = ({ data, company, currentUser }: any) => {
           <Text style={styles.infoText}>CPF: {data.cpf || "---"}</Text>
         </View>
 
+        <Text style={styles.title}>MINUTA DE CONTESTAÇÃO ADMINISTRATIVA AO NTEP</Text>
         <Text style={styles.paragraph}>
-          <Text style={styles.bold}>{company?.name || "UNIDADE CONTRATANTE"}</Text>, inscrita no
-          CNPJ sob o nº {company?.cnpj || "---"}, com sede em {company?.city || "---"} -{" "}
-          {company?.state || "---"}, vem, tempestiva e respeitosamente, à presença de Vossa
-          Senhoria, com fulcro no Art. 21-A, §1º da Lei nº 8.213/91 apresentar a presente:
+          Empresa: {company?.name || "Pendente"} · CNPJ: {company?.cnpj || "Pendente"}
         </Text>
-
-        <Text style={styles.title}>CONTESTAÇÃO ADMINISTRATIVA AO NTEP</Text>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionHeader}>1. DA TEMPESTIVIDADE</Text>
-          <Text style={styles.paragraph}>
-            A empresa tomou ciência do deferimento do benefício acidentário (B91) na data de{" "}
-            {data.knowledgeDate
-              ? new Date(data.knowledgeDate).toLocaleDateString("pt-BR")
-              : "[Data da Ciência]"}
-            . Portanto, o presente requerimento encontra-se tempestivo, protocolado dentro do prazo
-            legal de 15 (quinze) dias.
-          </Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionHeader}>2. BREVE SÍNTESE DOS FATOS</Text>
-          <Text style={styles.paragraph}>
-            O segurado foi admitido em{" "}
-            {data.admissionDate ? new Date(data.admissionDate).toLocaleDateString("pt-BR") : "---"}{" "}
-            para exercer a função de {data.jobRole || "---"}. Em virtude do CID-10 {data.cid}, o
-            benefício foi enquadrado na espécie 91 (Acidentário) presumivelmente por aplicação do
-            NTEP. Ressalta-se que a CAT não foi emitida, pois inexiste acidente de trabalho.
-          </Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionHeader}>3. DO DIREITO E DA ELISÃO DO NEXO CAUSAL</Text>
-          <Text style={styles.paragraph}>
-            A requerente demonstra, através dos laudos técnicos de SST vigentes, que o ambiente de
-            trabalho não foi o causador da patologia:
-          </Text>
-          <Text style={styles.paragraph}>
-            <Text style={styles.bold}>AET e PGR:</Text> A função de {data.jobRole} não expõe o
-            segurado a riscos ergonômicos ou físicos capazes de desencadear o CID {data.cid}.
-          </Text>
-          <Text style={styles.paragraph}>
-            <Text style={styles.bold}>Parecer Médico:</Text> O relatório do Médico do Trabalho
-            (PCMSO) atesta o caráter degenerativo/extra-laboral da patologia, neutralizando a
-            presunção do NTEP conforme Art. 20, §1º da Lei 8.213/91.
-          </Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionHeader}>4. DOS PEDIDOS</Text>
-          <Text style={styles.paragraph}>Diante do exposto, REQUER:</Text>
-          <View style={styles.list}>
-            <View style={styles.listItem}>
-              <Text style={styles.bullet}>•</Text>
-              <Text> O recebimento desta contestação por ser própria e tempestiva;</Text>
-            </View>
-            <View style={styles.listItem}>
-              <Text style={styles.bullet}>•</Text>
-              <Text> O AFASTAMENTO do Nexo Técnico Epidemiológico (NTEP);</Text>
-            </View>
-            <View style={styles.listItem}>
-              <Text style={styles.bullet}>•</Text>
-              <Text> A CONVERSÃO do benefício B91 para a espécie B31 (Auxílio Comum).</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.signatureArea}>
-          <View style={styles.signatureLine} />
-          <Text style={styles.signerName}>{currentUser?.name || "Responsável Legal"}</Text>
-          <Text style={styles.signerRole}>{company?.name || "Empresa"}</Text>
-        </View>
-
-        <Text style={styles.footer}>
-          Documento gerado via NextCon Intelligence - NAI Forensic Engine 2026
+        <Text style={styles.paragraph}>
+          Descrição e CID informados: {data.disease || "Pendente"} · {data.cid || "Pendente"}.
+          Função: {data.jobRole || "Pendente"}.
         </Text>
+        <Text style={styles.sectionHeader}>Ciência e protocolo</Text>
+        <Text style={styles.paragraph}>
+          Data de ciência informada: {data.knowledgeDate || "Pendente"}. Conferir decisão, espécie
+          do benefício, prazo aplicável e comprovante de protocolo.
+        </Text>
+        <Text style={styles.sectionHeader}>Fundamentação individual</Text>
+        <Text style={styles.paragraph}>
+          Identificar os documentos efetivamente conferidos, inclusive CAT quando aplicável,
+          exposição ocupacional e parecer médico individual. Fundamentação, pedidos e assinatura do
+          responsável aguardam revisão.
+        </Text>
+        <Text style={styles.footer}>Minuta para revisão · NAI</Text>
       </Page>
     </Document>
   );

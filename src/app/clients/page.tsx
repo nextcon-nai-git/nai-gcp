@@ -1,4 +1,5 @@
 "use client";
+import { isValidCnpj, normalizeCnpj } from "@/lib/cnpj";
 
 import { Company } from "@/types/schema";
 type ClientCompanyItem = Partial<Company> & Record<string, any>;
@@ -77,7 +78,7 @@ import { isBritaniaSite, BRITANIA_GROUP_NAME } from "@/lib/britania-group";
 
 const companySchema = z.object({
   name: z.string().min(3, "Nome ou Razão Social obrigatória"),
-  cnpj: z.string().min(11, "CNPJ inválido"),
+  cnpj: z.string().refine(isValidCnpj, "CNPJ inválido"),
   segment: z.string().min(1, "Segmento obrigatório"),
   cnae: z.string().optional().or(z.literal("")),
   cnaeDescricao: z.string().optional().or(z.literal("")),
@@ -177,9 +178,8 @@ function ClientsSession() {
             (c.displayName || "").toLowerCase().includes(term)) ||
           (c.clientSearchAliases || "").toLowerCase().includes(term) ||
           (c.cnpj || "").includes(term) ||
-          (/^[\d.\/\-\s]+$/.test(term) &&
-            term.replace(/\D/g, "").length > 0 &&
-            (c.cnpj || "").replace(/\D/g, "").includes(term.replace(/\D/g, ""))) ||
+          (normalizeCnpj(term).length > 0 &&
+            normalizeCnpj(c.cnpj || "").includes(normalizeCnpj(term))) ||
           (c.segment || "").toLowerCase().includes(term) ||
           (c.city || "").toLowerCase().includes(term))
     );
@@ -251,11 +251,11 @@ function ClientsSession() {
   // Consulta automática Receita Federal e Website via CNPJ
   async function handleFetchReceita() {
     const rawCnpj = form.getValues("cnpj");
-    if (!rawCnpj || rawCnpj.replace(/\D/g, "").length !== 14) {
+    if (!rawCnpj || !isValidCnpj(rawCnpj)) {
       toast({
         variant: "destructive",
         title: "CNPJ Inválido",
-        description: "Digite um CNPJ válido com 14 dígitos.",
+        description: "Digite um CNPJ válido com 14 caracteres.",
       });
       return;
     }
@@ -299,7 +299,7 @@ function ClientsSession() {
     mutating.current = true;
     setIsSubmitting(true);
     try {
-      const cleanCnpj = values.cnpj.replace(/\D/g, "");
+      const cleanCnpj = normalizeCnpj(values.cnpj);
       const targetId = editingCompany?.id || cleanCnpj || `comp_${Date.now()}`;
 
       const data = {
@@ -324,6 +324,7 @@ function ClientsSession() {
           body: JSON.stringify({
             ...values,
             id: targetId,
+            operation: editingCompany ? "update" : "create",
             risk_degree: Number(values.risk_degree),
           }),
         });
@@ -337,6 +338,12 @@ function ClientsSession() {
           const current = await tx.get(companyRef);
           if (editingCompany && !current.exists())
             throw new Error("O cadastro não existe mais. Recarregue a lista.");
+          if (
+            current.exists() &&
+            current.data().cnpj &&
+            normalizeCnpj(String(current.data().cnpj)) !== cleanCnpj
+          )
+            throw Error("O CNPJ diverge do cadastro existente.");
           tx.set(
             companyRef,
             {
@@ -726,7 +733,7 @@ function ClientsSession() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">
-                            CNPJ do Cliente (14 dígitos)
+                            CNPJ do Cliente (14 caracteres)
                           </FormLabel>
                           <FormControl>
                             <Input

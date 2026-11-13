@@ -68,7 +68,7 @@ export function parseAsoTextWithHeuristics(
           .filter((line) => pattern.test(line));
   };
   const outcomePattern =
-    /^(?:(?:resultado(?: do aso)?|conclusao|parecer(?: medico)?)\s*[:–-]\s*)?(apto com restricoes|inapto|apto)\b/;
+    /^(?:(?:resultado(?: do aso)?|conclusao|parecer(?: medico)?)\s*[:–-]\s*)?(apto com restricoes|inapto|apto)(?: para a funcao)?(?:\s*[:–-]\s*sim)?[.!]?$/;
   const outcomes = choices(outcomePattern)
     .filter((line) => (line.match(/\b(?:apto com restricoes|inapto|apto)\b/g) || []).length === 1)
     .map((line) => line.match(outcomePattern)![1]);
@@ -119,13 +119,14 @@ export function parseAsoTextWithHeuristics(
       row.slice(match.index).split(/\s*[:|;]\s*|\s+\d{2}[/-]\d{2}[/-]\d{4}|\s+\d{4}-\d{2}-\d{2}/)[0]
     );
     const normalized = normalizePgrText(row);
+    const negated = /\b(?:nao|sem)\s+(?:resultado\s+)?(?:alterad[oa]|normal)\b/.test(normalized);
     const normal = /\bnormal\b|\bsem alteracoes\b/.test(normalized);
     const altered = /\balterad[oa]\b/.test(normalized);
     examesRealizados.push({
       nomeExame,
       dataExame: isoDocumentDate(row),
-      resultado: normal === altered ? "Não Informado" : normal ? "Normal" : "Alterado",
-      detalheAlteracao: altered && !normal ? row : "",
+      resultado: negated || normal === altered ? "Não Informado" : normal ? "Normal" : "Alterado",
+      detalheAlteracao: !negated && altered && !normal ? row : "",
     });
   }
 

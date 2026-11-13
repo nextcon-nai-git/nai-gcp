@@ -95,7 +95,7 @@ service cloud.firestore {
     }
 
     function isClinicalCollection(name) {
-      return name in ['aso_attendances', 'medical_records', 'clinical_records', 'prontuarios', 'medical_certificates', 'nursing_attendances'];
+      return name in ['aso_attendances', 'medical_records', 'medical_audits', 'clinical_records', 'prontuarios', 'medical_certificates', 'nursing_attendances'];
     }
 
     function nursingAttendanceCreateIsValid() {
@@ -175,7 +175,11 @@ service cloud.firestore {
         (!('isDeleted' in employee) || employee.isDeleted != true) &&
         (!('companyId' in employee) || employee.companyId == null ||
           employee.companyId == '' || employee.companyId == companyId) &&
-        (!creating || (company.name is string && company.name.size() > 0 &&
+        (!creating || (company.get('active', true) != false &&
+          (data.tipo != 'Periódico' || (employee.get('active',true) != false &&
+          employee.get('isArchived',false) != true &&
+          !(employee.get('status','') in ['fired','desligado','inativo','DESLIGADO','INATIVO']))) &&
+          company.name is string && company.name.size() > 0 &&
           employee.name is string && employee.name.size() > 0 &&
           data.companyName == company.name && data.colaborador_nome == employee.name));
     }

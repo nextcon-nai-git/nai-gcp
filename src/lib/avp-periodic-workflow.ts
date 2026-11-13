@@ -1,3 +1,5 @@
+import { EsocialReceiptSchema } from "./esocial-events";
+import { saoPauloDay } from "./executive-dashboard";
 import { z } from "zod/v3";
 import type { PeriodicPerson } from "./avp-periodic-control";
 
@@ -69,9 +71,14 @@ export const periodicPatchSchema = z
   .strict()
   .superRefine((patch, ctx) => {
     const invalid = (message: string) => ctx.addIssue({ code: "custom", message });
+    if (
+      ["attendance", "aso", "esocial_receipt", "not_applicable"].includes(patch.evidenceKind) &&
+      patch.evidenceDate > saoPauloDay()
+    )
+      invalid("A data da evidência não pode ser futura.");
     if (patch.stage === "concluido") {
       if (patch.evidenceKind === "esocial_receipt") {
-        if (!/^[A-Za-z0-9][A-Za-z0-9./-]{4,119}$/.test(patch.receiptNumber))
+        if (!EsocialReceiptSchema.safeParse(patch.receiptNumber).success)
           invalid("Informe o número do recibo de aceitação do eSocial.");
       } else if (patch.evidenceKind === "not_applicable") {
         if (patch.nonApplicabilityReason.length < 20)

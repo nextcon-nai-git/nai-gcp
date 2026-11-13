@@ -126,6 +126,7 @@ describe("AVP queue action review", () => {
     m.rows[2].valorAso = "0,00";
     await render();
     expect(m.summary).toHaveBeenLastCalledWith({
+      available: true,
       total: 3,
       urgentes: 1,
       cidades: 2,

@@ -40,6 +40,7 @@ export default function GrupoAvpClientHubPage() {
 
   const [activeTab, setActiveTab] = React.useState("asos");
   const [queueSummary, setQueueSummary] = React.useState({
+    available: false,
     total: 0,
     urgentes: 0,
     cidades: 0,
@@ -146,7 +147,7 @@ export default function GrupoAvpClientHubPage() {
                 </span>
                 <span className="text-white/40">•</span>
                 <span className="text-xs font-black tracking-widest text-slate-300 uppercase">
-                  {queueSummary.cidades} Municípios na fila
+                  {queueSummary.available ? queueSummary.cidades : "—"} Municípios na fila
                 </span>
               </div>
               <h1 className="text-2xl sm:text-4xl font-black font-headline uppercase tracking-tight text-white mt-1">
@@ -181,7 +182,7 @@ export default function GrupoAvpClientHubPage() {
               Capilaridade
             </span>
             <strong className="text-xl sm:text-2xl font-black font-headline text-accent">
-              {queueSummary.cidades} Municípios na fila
+              {queueSummary.available ? queueSummary.cidades : "—"} Municípios na fila
             </strong>
             <span className="text-[9px] text-slate-300 block mt-0.5">
               Cidades com solicitações importadas
@@ -193,7 +194,7 @@ export default function GrupoAvpClientHubPage() {
               Exames concluídos
             </span>
             <strong className="text-xl sm:text-2xl font-black font-headline text-white">
-              {queueSummary.concluidos} Exames feitos
+              {queueSummary.available ? queueSummary.concluidos : "—"} Exames feitos
             </strong>
             <span className="text-[9px] text-slate-300 block mt-0.5">
               Conforme o status da fila
@@ -205,10 +206,10 @@ export default function GrupoAvpClientHubPage() {
               Fila de ASOs
             </span>
             <strong className="text-xl sm:text-2xl font-black font-headline text-emerald-400">
-              {queueSummary.total} Solicitações
+              {queueSummary.available ? queueSummary.total : "—"} Solicitações
             </strong>
             <span className="text-[9px] text-emerald-200 block mt-0.5">
-              {queueSummary.cidades} Cidades na fila
+              {queueSummary.available ? queueSummary.cidades : "—"} Cidades na fila
             </span>
           </div>
 
@@ -237,14 +238,15 @@ export default function GrupoAvpClientHubPage() {
       {/* TABS DE NAVEGAÇÃO OPERACIONAL */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-8">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-200 pb-4">
-          <TabsList className="bg-slate-100 p-1.5 rounded-2xl h-auto flex flex-wrap gap-1">
+          <TabsList className="w-full min-w-0 justify-start bg-slate-100 p-1.5 rounded-2xl h-auto flex flex-wrap gap-1">
             <TabsTrigger
               value="asos"
               className="rounded-xl py-2.5 px-4 text-xs font-black uppercase tracking-wider data-[state=active]:bg-primary data-[state=active]:text-white gap-2 transition-all"
             >
-              <FileSpreadsheet size={15} /> Gestão de ASOs ({queueSummary.total})
+              <FileSpreadsheet size={15} /> Gestão de ASOs (
+              {queueSummary.available ? queueSummary.total : "—"})
               <Badge className="bg-rose-500 text-white text-[9px] h-4 px-1.5 rounded-full font-bold">
-                {queueSummary.urgentes} Urgentes
+                {queueSummary.available ? queueSummary.urgentes : "—"} Urgentes
               </Badge>
             </TabsTrigger>
 
@@ -317,9 +319,10 @@ export default function GrupoAvpClientHubPage() {
                 </h2>
               </div>
               <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">
-                {queueSummary.total} solicitações em {queueSummary.cidades} municípios da fila
-                importada • Filtros por status, responsável (Kelly, Letícia, Felipe, Isabelle),
-                urgência e clínicas.
+                {queueSummary.available ? queueSummary.total : "—"} solicitações em{" "}
+                {queueSummary.available ? queueSummary.cidades : "—"} municípios da fila importada •
+                Filtros por status, responsável (Kelly, Letícia, Felipe, Isabelle), urgência e
+                clínicas.
               </p>
             </div>
           </div>

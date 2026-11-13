@@ -45,7 +45,10 @@ function members(
   group: NonNullable<MonthlyBillingView["group"]>
 ) {
   return snapshot.docs.filter(
-    (d) => d.id === group.id || d.data().portfolioClientId === group.portfolioClientId
+    (d) =>
+      !d.data().isDeleted &&
+      d.data().active !== false &&
+      (d.id === group.id || d.data().portfolioClientId === group.portfolioClientId)
   );
 }
 function contractRef(companyId: string) {

@@ -94,7 +94,7 @@ export const MedicalReferralReport = ({ data, company, doctor }: any) => {
             </Text>
             <Text style={{ fontSize: 8, color: "#94a3b8" }}>PLATAFORMA NAI</Text>
           </View>
-          <Text style={styles.title}>RELATÓRIO MÉDICO DE ENCAMINHAMENTO AO INSS</Text>
+          <Text style={styles.title}>MINUTA DE ENCAMINHAMENTO AO INSS</Text>
         </View>
 
         <View style={styles.dateLocation}>
@@ -141,9 +141,8 @@ export const MedicalReferralReport = ({ data, company, doctor }: any) => {
             <Text style={styles.sectionTitle}>2. QUADRO CLÍNICO E DIAGNÓSTICO</Text>
           </View>
           <Text style={styles.paragraph}>
-            O(A) paciente acima qualificado(a) foi avaliado(a) por este serviço de Medicina
-            Ocupacional em {new Date().toLocaleDateString("pt-BR")}, apresentando atestado médico
-            externo.
+            Descrição e CID informados no cadastro. Avaliação médica e documentos de referência
+            pendentes de conferência.
           </Text>
           <View style={styles.grid}>
             <View style={styles.gridItem}>
@@ -164,54 +163,18 @@ export const MedicalReferralReport = ({ data, company, doctor }: any) => {
             <Text style={styles.sectionTitle}>3. ANÁLISE OCUPACIONAL E PROFISSIOGRÁFICA</Text>
           </View>
           <Text style={styles.paragraph}>
-            Na qualidade de Médico(a) do Trabalho Coordenador(a) do PCMSO da{" "}
-            {company?.name || "empresa"}, atesto que as atividades exercidas pelo(a) colaborador(a){" "}
-            <Text style={styles.bold}>
-              NÃO guardam relação de causa e efeito (nexo causal ou concausa)
-            </Text>{" "}
-            com a patologia apresentada, baseando-me nos laudos técnicos vigentes:
-          </Text>
-          <Text style={styles.paragraph}>
-            <Text style={styles.bold}>PGR:</Text> O Grupo Homogêneo de Exposição (GHE) do
-            trabalhador não apresenta riscos físicos, químicos ou biológicos capazes de desencadear
-            a referida patologia.
-          </Text>
-          <Text style={styles.paragraph}>
-            <Text style={styles.bold}>AET:</Text> Conforme a Análise Ergonômica da empresa, o posto
-            de trabalho e a função não exigem movimentos repetitivos de alta frequência ou
-            levantamento de carga fora dos limites de tolerância para este CID.
-          </Text>
-          <Text style={styles.paragraph}>
-            <Text style={styles.bold}>Histórico Ocupacional:</Text> Os Atestados de Saúde
-            Ocupacional (ASOs) anteriores não registram queixas relacionadas, indicando tratar-se de
-            evolução de doença degenerativa ou evento extra-laboral.
+            Registrar a atividade exercida, as exposições documentadas e as referências individuais
+            do PGR, da AET e dos ASOs, após conferência pelo médico.
           </Text>
         </View>
-
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>4. CONCLUSÃO E PARECER DO PCMSO</Text>
-          </View>
+          <Text style={styles.sectionTitle}>4. PARECER MÉDICO</Text>
           <Text style={styles.paragraph}>
-            Considerando a avaliação clínica e o mapeamento rigoroso das atividades, concluímos pela{" "}
-            <Text style={styles.bold}>INEXISTÊNCIA DE NEXO TÉCNICO EPIDEMIOLÓGICO (NTEP)</Text> ou
-            Nexo Causal. Sugerimos a concessão do benefício de Auxílio por Incapacidade Temporária
-            Comum (Espécie B31).
+            Conclusão sobre capacidade e nexo pendente de parecer individual identificado e
+            assinado.
           </Text>
         </View>
-
-        <View style={styles.signatureArea}>
-          <View style={styles.signatureLine} />
-          <Text style={styles.signerName}>{doctor?.name || "Médico do Trabalho"}</Text>
-          <Text style={styles.signerRole}>Médico(a) do Trabalho - Coordenador(a) do PCMSO</Text>
-          <Text style={styles.signerRole}>
-            CRM: {doctor?.crm || "---"} | RQE: {doctor?.rqe || "---"}
-          </Text>
-        </View>
-
-        <Text style={styles.footer}>
-          Relatório gerado via NextCon Intelligence - NAI Forensic Engine 2026
-        </Text>
+        <Text style={styles.footer}>Minuta para revisão e assinatura profissional · NAI</Text>
       </Page>
     </Document>
   );

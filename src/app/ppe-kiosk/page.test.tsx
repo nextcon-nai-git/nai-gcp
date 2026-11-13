@@ -62,6 +62,13 @@ vi.mock("firebase/firestore", () => ({
   },
   query: (q: unknown) => q,
   orderBy: vi.fn(),
+  doc: (_db: unknown, ...parts: string[]) => parts.join("/"),
+  runTransaction: async (_db: unknown, action: (tx: unknown) => Promise<unknown>) =>
+    action({ get: async () => ({ exists: () => false }), set: vi.fn() }),
+  setDoc: (target: string, data: Record<string, unknown>) =>
+    data.status === "PENDENTE_EVIDENCIA"
+      ? Promise.resolve()
+      : m.add(target.slice(0, target.lastIndexOf("/")), data),
   addDoc: m.add,
   serverTimestamp: () => "server-time",
 }));

@@ -62,6 +62,7 @@ export const AsoFlowRowSchema = z
     cycle: text(20),
     roleTitle: text(240).optional(),
     department: text(240).optional(),
+    distinctReason: z.string().trim().min(10).max(500).optional(),
     sourceRow: z.number().int().positive().max(1000000).optional(),
   })
   .strict();

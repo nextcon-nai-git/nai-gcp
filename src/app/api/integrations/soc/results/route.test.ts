@@ -96,7 +96,12 @@ describe("publicação dos resultados SOC", () => {
     const first = await POST(request(rows));
     expect(first.status).toBe(200);
     const result = await first.json();
-    expect(result.summary).toMatchObject({ uniqueRows: 2, realized: 1, absences: 1 });
+    expect(result.summary).toMatchObject({
+      uniqueRows: 2,
+      realized: 0,
+      absences: 1,
+      indeterminate: 1,
+    });
     const metadata = db.write.mock.calls.at(-1)![1];
     db.readActive.mockResolvedValue({ data: () => metadata });
     db.readInTransaction.mockClear();

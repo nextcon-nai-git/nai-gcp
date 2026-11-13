@@ -174,11 +174,10 @@ export function generateCassiRpaScript(guide: CassiGuideData): string {
 
   return `/**
  * AUTOMATIZADOR DE DIGITAÇÃO NO PORTAL CASSI - NEXTCON NAI
- * Guia Nº ${guide.providerGuideNumber} | Beneficiário: ${guide.beneficiaryName}
  * Executar no console (F12) da aba do Portal CASSI logado em "Gestão de Documentos Eletrônicos"
  */
 (function() {
-  logger.debug("[NAI RPA] Iniciando Automação de Guia CASSI");
+  let preenchidos=0;
 
   const guideData = ${guideJson};
 
@@ -193,7 +192,7 @@ export function generateCassiRpaScript(guide: CassiGuideData): string {
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
       el.dispatchEvent(new Event('blur', { bubbles: true }));
-      logger.debug("[NAI RPA] Campo preenchido", { selector: selectorOrName });
+      preenchidos++;
       return true;
     }
     return false;
@@ -208,7 +207,7 @@ export function generateCassiRpaScript(guide: CassiGuideData): string {
         if (opt.value === valueTextOrVal || opt.text.includes(valueTextOrVal)) {
           el.value = opt.value;
           el.dispatchEvent(new Event('change', { bubbles: true }));
-          logger.debug("[NAI RPA] Opção selecionada", { selector: selectorOrName });
+          console.debug("[NAI RPA] Opção selecionada", { selector: selectorOrName });
           return true;
         }
       }
@@ -220,7 +219,7 @@ export function generateCassiRpaScript(guide: CassiGuideData): string {
   if (document.body.innerText.includes("Formulário para Seleção do Tipo de Guia") || document.querySelector('[name*="tipoGuia"]')) {
     setFieldValue("numeroAutorizacao", guideData.authorizationNumber);
     setSelectOption("tipoGuia", guideData.guideType === "SP_SADT" ? "SP/SADT" : guideData.guideType === "INTERNACAO" ? "Internação" : "Honorários");
-    logger.debug("[NAI RPA] Guia inicializada");
+    console.debug("[NAI RPA] Guia inicializada");
     return;
   }
 
@@ -259,94 +258,6 @@ export function generateCassiRpaScript(guide: CassiGuideData): string {
   setFieldValue("diagnosticoPrincipal", guideData.primaryCid);
   if (guideData.secondaryCid) setFieldValue("diagnosticoSecundario", guideData.secondaryCid);
 
-  logger.debug("[NAI RPA] Formulário geral preenchido");
-  
-  alert("✨ [NAI Automation] Dados da Guia CASSI (" + guideData.providerGuideNumber + ") preenchidos com sucesso!\n\nProcedimentos carregados: " + guideData.procedures.length + "\nValor Total: R$ " + guideData.totalGuideValue.toFixed(2) + "\n\nRevise os campos e clique em 'Próximo' para incluir procedimentos e anexar laudos.");
+  alert("Campos preenchidos: " + preenchidos + ". Confira os dados no portal antes de prosseguir.");
 })();`;
-}
-
-/**
- * Gera o arquivo XML padrão TISS (Troca de Informações na Saúde Suplementar)
- * conforme as regras da ANS e layout aceito pela CASSI.
- */
-export function generateTissXml(guide: CassiGuideData): string {
-  const xmlProcedures = guide.procedures
-    .map(
-      (p, idx) => `
-        <ans:procedimentoExecutado>
-          <ans:sequencialItem>${idx + 1}</ans:sequencialItem>
-          <ans:dataExecucao>${p.date}</ans:dataExecucao>
-          <ans:procedimento>
-            <ans:codigoTabela>22</ans:codigoTabela>
-            <ans:codigoProcedimento>${p.code}</ans:codigoProcedimento>
-            <ans:descricaoProcedimento><![CDATA[${p.description}]]></ans:descricaoProcedimento>
-          </ans:procedimento>
-          <ans:quantidadeExecutada>${p.quantity}</ans:quantidadeExecutada>
-          <ans:valorUnitario>${p.unitValue.toFixed(2)}</ans:valorUnitario>
-          <ans:valorTotal>${p.totalValue.toFixed(2)}</ans:valorTotal>
-        </ans:procedimentoExecutado>`
-    )
-    .join("");
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<ans:mensagemTISS xmlns:ans="http://www.ans.gov.br/padroes/tiss/schemas" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <ans:cabecalho>
-    <ans:identificacaoTransacao>
-      <ans:tipoTransacao>ENVIO_LOTE_GUIAS</ans:tipoTransacao>
-      <ans:sequencialTransacao>${Date.now()}</ans:sequencialTransacao>
-      <ans:dataRegistroTransacao>${new Date().toISOString().slice(0, 10)}</ans:dataRegistroTransacao>
-      <ans:horaRegistroTransacao>${new Date().toISOString().slice(11, 19)}</ans:horaRegistroTransacao>
-    </ans:identificacaoTransacao>
-    <ans:origem>
-      <ans:identificacaoPrestador>
-        <ans:codigoPrestadorNaOperadora>${guide.operatorCode}</ans:codigoPrestadorNaOperadora>
-      </ans:identificacaoPrestador>
-    </ans:origem>
-    <ans:destino>
-      <ans:registroANS>346659</ans:registroANS> <!-- CASSI ANS -->
-    </ans:destino>
-    <ans:Padrao>4.01.00</ans:Padrao>
-  </ans:cabecalho>
-  <ans:prestadorParaOperadora>
-    <ans:loteGuias>
-      <ans:numeroLote>1</ans:numeroLote>
-      <ans:guiasTISS>
-        <ans:guiaSP-SADT>
-          <ans:cabecalhoGuia>
-            <ans:registroANS>346659</ans:registroANS>
-            <ans:numeroGuiaPrestador>${guide.providerGuideNumber}</ans:numeroGuiaPrestador>
-            <ans:numeroGuiaOperadora>${guide.authorizationNumber}</ans:numeroGuiaOperadora>
-          </ans:cabecalhoGuia>
-          <ans:dadosBeneficiario>
-            <ans:numeroCarteira>${guide.beneficiaryCardNumber}</ans:numeroCarteira>
-            <ans:nomeBeneficiario><![CDATA[${guide.beneficiaryName}]]></ans:nomeBeneficiario>
-            <ans:numeroCNS>${guide.beneficiaryCns || ""}</ans:numeroCNS>
-          </ans:dadosBeneficiario>
-          <ans:dadosSolicitante>
-            <ans:nomeProfissional><![CDATA[${guide.requesterName}]]></ans:nomeProfissional>
-            <ans:conselhoProfissional>${guide.requesterCouncilType}</ans:conselhoProfissional>
-            <ans:numeroConselhoProfissional>${guide.requesterCouncilNumber}</ans:numeroConselhoProfissional>
-            <ans:UF>${guide.requesterCouncilUf}</ans:UF>
-            <ans:CBOS>${guide.requesterCbo}</ans:CBOS>
-          </ans:dadosSolicitante>
-          <ans:dadosAtendimento>
-            <ans:tipoAtendimento>${guide.attendanceType.slice(0, 2)}</ans:tipoAtendimento>
-            <ans:indicacaoAcidente>${guide.accidentIndication.slice(0, 1)}</ans:indicacaoAcidente>
-            <ans:caraterAtendimento>${guide.careCharacter}</ans:caraterAtendimento>
-            <ans:diagnosticoCID>
-              <ans:diagnosticoPrincipal>${guide.primaryCid}</ans:diagnosticoPrincipal>
-            </ans:diagnosticoCID>
-          </ans:dadosAtendimento>
-          <ans:procedimentosExecutados>
-            ${xmlProcedures}
-          </ans:procedimentosExecutados>
-          <ans:valorTotal>
-            <ans:valorProcessado>${guide.totalGuideValue.toFixed(2)}</ans:valorProcessado>
-            <ans:valorTotalGeral>${guide.totalGuideValue.toFixed(2)}</ans:valorTotalGeral>
-          </ans:valorTotal>
-        </ans:guiaSP-SADT>
-      </ans:guiasTISS>
-    </ans:loteGuias>
-  </ans:prestadorParaOperadora>
-</ans:mensagemTISS>`;
 }

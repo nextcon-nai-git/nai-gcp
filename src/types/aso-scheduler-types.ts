@@ -101,6 +101,8 @@ export interface AsoAgentAlert {
 }
 
 export interface AsoRequest {
+  attendanceMode?: "in_company" | "clinic";
+  onSiteAddress?: string;
   clinicPortalId?: string;
   clinicPortalStatus?: string;
   source?: "rd-conversas";

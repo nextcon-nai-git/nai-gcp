@@ -22,6 +22,7 @@ function VisitForm({ companyId, loadingClient }: { companyId: string; loadingCli
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ id: string; analysis: AnaliseRiscoOutput } | null>(null);
   const submitting = useRef(false);
+  const submission = useRef({ key: "", id: "" });
   const hasClient = !!companyId && !["all", "unauthorized"].includes(companyId);
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -30,8 +31,10 @@ function VisitForm({ companyId, loadingClient }: { companyId: string; loadingCli
     setBusy(true);
     setError("");
     try {
+      const key = JSON.stringify([companyId, title, content]);
+      if (submission.current.key !== key) submission.current = { key, id: crypto.randomUUID() };
       const response = await processarRelatorioSST(
-        { companyId, title, content },
+        { companyId, title, content, submissionId: submission.current.id },
         await getActionIdToken()
       );
       if (!response.sucesso || !response.relatorioId || !response.analise) {

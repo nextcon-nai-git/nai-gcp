@@ -1,14 +1,10 @@
 import { z } from "zod/v3";
-import { isValidPgrCnpj } from "@/lib/pgr-schema";
+import { isValidCnpj, normalizeCnpj } from "@/lib/cnpj";
 
 export const MONTHLY_CONTRACT_ID = "fixed-monthly-billing";
 export const MonthlyBillingRowSchema = z
   .object({
-    cnpj: z
-      .string()
-      .trim()
-      .transform((v) => v.replace(/\D/g, ""))
-      .refine(isValidPgrCnpj, "CNPJ inválido."),
+    cnpj: z.string().trim().refine(isValidCnpj, "CNPJ inválido.").transform(normalizeCnpj),
     name: z.string().trim().min(3).max(300),
     valueCents: z.number().int().min(1).max(100_000_000_000),
   })
@@ -87,15 +83,23 @@ export function billingGroupId(company: { id: string; portfolioClientId?: unknow
 
 export function resolveBillingCompany(
   row: MonthlyBillingRow,
-  companies: { id: string; cnpj?: unknown; portfolioClientId?: unknown; isDeleted?: unknown }[],
+  companies: {
+    id: string;
+    cnpj?: unknown;
+    portfolioClientId?: unknown;
+    active?: unknown;
+    isDeleted?: unknown;
+  }[],
   groupId: string
 ) {
-  const matches = companies.filter((c) => String(c.cnpj || "").replace(/\D/g, "") === row.cnpj);
+  const matches = companies.filter((c) => normalizeCnpj(String(c.cnpj || "")) === row.cnpj);
   if (matches.length > 1)
     throw new Error(`O CNPJ ${row.cnpj} possui cadastros duplicados. Revise antes de importar.`);
   const existing = matches[0];
   if (!existing && companies.some((c) => c.id === row.cnpj))
     throw new Error(`O identificador ${row.cnpj} já pertence a outro cadastro.`);
+  if (existing?.active === false)
+    throw new Error("Unidade inativa. Confira o cadastro antes de importar.");
   if (existing?.isDeleted === true)
     throw new Error(`O CNPJ ${row.cnpj} está excluído. Revise o cadastro antes de importar.`);
   if (existing?.portfolioClientId && existing.portfolioClientId !== groupId)

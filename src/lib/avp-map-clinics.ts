@@ -21,6 +21,7 @@ export type AvpMapClinic = {
   uf: string;
   nome: string;
   identified?: boolean;
+  cnpj?: string;
   telefone: string;
   cents: number | null;
   status: string;
@@ -51,6 +52,10 @@ export function readAvpMapClinics(values: unknown[][]): AvpMapClinic[] {
         cidade,
         uf,
         nome,
+        cnpj:
+          String(values[0]?.[10] ?? "").toUpperCase() === "CNPJ"
+            ? String(row[10] ?? "")
+            : undefined,
         telefone,
         cents: cents !== null && cents > 0 ? cents : null,
         status,
@@ -64,4 +69,21 @@ export function readAvpMapClinics(values: unknown[][]): AvpMapClinic[] {
 export function avpMapClinicCost(clinics: AvpMapClinic[]) {
   const prices = clinics.map((clinic) => clinic.cents).filter((v): v is number => v !== null);
   return prices.length ? Math.max(...prices) : null;
+}
+
+export function confirmedMapClinics(clinics: AvpMapClinic[]) {
+  const names = new Map<string, string>();
+  for (const clinic of clinics) {
+    if (
+      !clinic.source.trim() ||
+      !clinic.id.trim() ||
+      clinic.identified === false ||
+      !/^(fechad[oa]|credenciad[oa]|confirmad[oa])$/i.test(clinic.status.trim()) ||
+      /^(a confirmar|sem cl[ií]nica|pendente)$/i.test(clinic.nome.trim())
+    )
+      continue;
+    const cnpj = clinic.cnpj?.replace(/[.\/\s-]/g, "").toUpperCase();
+    names.set(cnpj && /^[A-Z0-9]{12}[0-9]{2}$/.test(cnpj) ? cnpj : clinic.id, clinic.nome);
+  }
+  return [...names.values()];
 }

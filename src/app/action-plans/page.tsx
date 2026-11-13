@@ -1,4 +1,6 @@
 "use client";
+import { useCompanyTasks } from "@/hooks/use-company-tasks";
+import { useCompanyDirectory } from "@/hooks/use-company-directory";
 
 import * as React from "react";
 import { LoadingLogo } from "@/components/layout/loading-logo";
@@ -137,17 +139,30 @@ function EnterpriseOpsContent() {
     return ["PROVIDER", "ENGINEER", "DOCTOR"].includes(role);
   }, [profile, profileReady]);
 
+  const assigned =
+    profileReady && isProvider && Array.isArray(profile?.servedCompanies)
+      ? Array.from(
+          new Set<string>(
+            [...profile.servedCompanies, ...(ownCompanyId ? [ownCompanyId] : [])].filter(
+              (id): id is string => typeof id === "string" && !!id && !id.includes("/")
+            )
+          )
+        )
+      : [];
+  const multi = assigned.length > 0 && !pgrSource && !isGlobalAdmin;
+  const directory = useCompanyDirectory(db, user?.uid, false, assigned, multi);
+  const scopedTasks = useCompanyTasks(
+    db,
+    user?.uid,
+    assigned,
+    multi && selectedCompanyId === "all"
+  );
   const companiesQuery = useMemoFirebase(() => {
     if (!profileReady || !db || !profile || pgrSource) return null;
     if (isGlobalAdmin) {
       return query(collection(db, "companies"), orderBy("name", "asc"));
     }
-    if (isProvider && profile.servedCompanies && profile.servedCompanies.length > 0) {
-      return query(
-        collection(db, "companies"),
-        where("__name__", "in", profile.servedCompanies.slice(0, 10))
-      );
-    }
+    if (multi) return null;
     if (ownCompanyId) {
       return query(collection(db, "companies"), where("__name__", "==", ownCompanyId));
     }
@@ -158,9 +173,16 @@ function EnterpriseOpsContent() {
     isLoading: legacyLoadingCompanies,
     error: companiesError,
   } = useCollection(companiesQuery);
-  const companies = profileReady ? (pgrSource ? pgrCompanies.data : legacyCompanies) : [];
+  const companies = profileReady
+    ? pgrSource
+      ? pgrCompanies.data
+      : multi
+        ? directory.data
+        : legacyCompanies
+    : [];
   const loadingCompanies =
-    isUserLoading || (pgrSource ? pgrCompanies.loading : legacyLoadingCompanies);
+    isUserLoading ||
+    (pgrSource ? pgrCompanies.loading : multi ? directory.isLoading : legacyLoadingCompanies);
 
   const tasksQuery = useMemoFirebase(() => {
     if (!profileReady || !db || !profile || pgrSource) return null;
@@ -176,14 +198,7 @@ function EnterpriseOpsContent() {
       );
     }
 
-    if (isProvider && profile.servedCompanies && profile.servedCompanies.length > 0) {
-      return query(
-        collectionGroup(db, "tasks"),
-        where("companyId", "in", profile.servedCompanies.slice(0, 10)),
-        orderBy("dueDate", "asc")
-      );
-    }
-
+    if (multi) return null;
     if (ownCompanyId) {
       return query(collection(db, "companies", ownCompanyId, "tasks"), orderBy("dueDate", "asc"));
     }
@@ -205,8 +220,20 @@ function EnterpriseOpsContent() {
     isLoading: legacyLoadingTasks,
     error: tasksError,
   } = useCollection<OpsTask>(tasksQuery);
-  const tasks = profileReady ? (pgrSource ? pgrTasks.data : legacyTasks) : null;
-  const loadingTasks = isUserLoading || (pgrSource ? pgrTasks.loading : legacyLoadingTasks);
+  const tasks = profileReady
+    ? pgrSource
+      ? pgrTasks.data
+      : multi && selectedCompanyId === "all"
+        ? scopedTasks.data
+        : legacyTasks
+    : null;
+  const loadingTasks =
+    isUserLoading ||
+    (pgrSource
+      ? pgrTasks.loading
+      : multi && selectedCompanyId === "all"
+        ? scopedTasks.isLoading
+        : legacyLoadingTasks);
 
   const operationalTasks = React.useMemo(() => {
     if (!tasks) return [];
@@ -370,7 +397,13 @@ function EnterpriseOpsContent() {
         </div>
       </header>
 
-      {(userError || (!pgrSource && (profileError || companiesError || tasksError))) && (
+      {(userError ||
+        (!pgrSource &&
+          (profileError ||
+            directory.error ||
+            scopedTasks.error ||
+            companiesError ||
+            tasksError))) && (
         <p role="alert" className="rounded border border-destructive p-4 text-sm">
           Não foi possível consultar a operação. Verifique sua permissão e atualize antes de
           continuar.

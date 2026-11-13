@@ -49,7 +49,8 @@ export async function calcularFaturamentoAlocacaoComFeriados(
   ano: number,
   mes: number,
   taxaDiariaPadrao: number = 200,
-  quantidadeProfissionais: number = 5
+  quantidadeProfissionais: number = 5,
+  datasFacultativasContratadas: string[] = []
 ): Promise<MonthBillingCalculation> {
   const resultHolidays = await consultarFeriadosNacionais(ano);
   const feriadosAno =
@@ -73,7 +74,11 @@ export async function calcularFaturamentoAlocacaoComFeriados(
   }
 
   // Filtra feriados do mês especificado
-  const feriadosNoMes = feriadosAno
+  const feriadosNoMes = [...new Map(feriadosAno.map((h) => [h.date, h])).values()]
+    .filter(
+      (h) =>
+        !/carnaval|corpus christi/i.test(h.name) || datasFacultativasContratadas.includes(h.date)
+    )
     .filter((f) => f.date.startsWith(`${ano}-${mesPad}`))
     .map((f) => {
       const [y, m, d] = f.date.split("-").map(Number);

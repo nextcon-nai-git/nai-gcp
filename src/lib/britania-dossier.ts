@@ -24,7 +24,7 @@ export const fapCaseSchema = z
     benefits: text,
     dib: text,
     ddb: text,
-    cost: z.number().nonnegative().nullable(),
+    cost: z.number().finite().nullable(),
     alerts: text,
     rhNotes: text,
     leaves: z
@@ -63,6 +63,14 @@ export const fapDossierSchema = z
   });
 export type FapCase = z.infer<typeof fapCaseSchema>;
 export type FapDossier = z.infer<typeof fapDossierSchema>;
+function parseFapCost(value?: string) {
+  const input = (value || "").trim();
+  if (!input || !input.includes("R$")) return null;
+  const m = /^(-)?R\$\s*(\()?((?:\d{1,3}(?:\.\d{3})+|\d+),\d{2})(\))?$/.exec(input);
+  if (!m || Boolean(m[2]) !== Boolean(m[4]) || (m[1] && m[2]))
+    throw Error("Valor de custo pendente de conferência no controle FAP.");
+  return Number(m[3].replace(/\./g, "").replace(",", ".")) * (m[1] || m[2] ? -1 : 1);
+}
 export function isoDate(value: string): string | null {
   const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value.trim());
   if (!m) return null;
@@ -96,6 +104,8 @@ export function parseRegistration(text: string) {
           : /ABONO|FALTA|SUSPENS|TRANSFER|LICEN|COMPENSA/i.test(reason)
             ? "administrativo"
             : "outro";
+    if (!isoDate(m[1]) || (m[2] && !isoDate(m[2])))
+      throw Error("Data de afastamento inválida na ficha de registro.");
     leaves.push({ start: isoDate(m[1]), end: m[2] ? isoDate(m[2]) : null, reason, category });
   }
   return {
@@ -209,9 +219,7 @@ export async function readBritaniaDossier(
         benefits: row?.[6] || "",
         dib: row?.[7] || "",
         ddb: row?.[8] || "",
-        cost: row?.[9]?.includes("R$")
-          ? Number(row[9].replace(/[^\d,]/g, "").replace(",", "."))
-          : null,
+        cost: parseFapCost(row?.[9]),
         alerts: row?.[10] || "",
         rhNotes: row?.[24] || "",
         leaves: [],

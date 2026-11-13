@@ -5,6 +5,7 @@
  */
 
 export interface GlobalClinic {
+  cnpj?: string;
   id: string;
   name: string;
   displayName: string;

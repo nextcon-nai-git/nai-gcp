@@ -143,6 +143,17 @@ export function sameCycleSlot(
   );
 }
 
+export function validateCyclePeriod(record: ProductionRecord, revision: number, period: string) {
+  const ym = month(normalized(period));
+  if (!ym) {
+    if (isCalendarDate(period)) assertAnchor(record, revision, period);
+    return;
+  }
+  const selected = record.revisions[revision];
+  const earliest = [ym + "-01", selected.effectiveOn, selected.terms.startsOn || ""].sort().at(-1)!;
+  if (earliest.slice(0, 7) !== ym) throw Error("Competência anterior à vigência do contrato.");
+  assertAnchor(record, revision, earliest);
+}
 function assertAnchor(record: ProductionRecord, revision: number, anchorOn: string) {
   const selected = record.revisions[revision];
   if (!selected) throw new Error("Versão contratual inexistente.");

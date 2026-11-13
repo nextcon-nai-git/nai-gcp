@@ -20,7 +20,8 @@ import { FirestorePermissionError } from "@/firebase/errors";
  * Does NOT await the write operation internally.
  */
 export function setDocumentNonBlocking(docRef: DocumentReference, data: any, options: SetOptions) {
-  setDoc(docRef, data, options).catch((error) => {
+  const promise = setDoc(docRef, data, options);
+  void promise.catch(() => {
     errorEmitter.emit(
       "permission-error",
       new FirestorePermissionError({
@@ -30,7 +31,7 @@ export function setDocumentNonBlocking(docRef: DocumentReference, data: any, opt
       })
     );
   });
-  // Execution continues immediately
+  return promise;
 }
 
 /**
@@ -39,7 +40,8 @@ export function setDocumentNonBlocking(docRef: DocumentReference, data: any, opt
  * Returns the Promise for the new doc ref, but typically not awaited by caller.
  */
 export function addDocumentNonBlocking(colRef: CollectionReference, data: any) {
-  const promise = addDoc(colRef, data).catch((error) => {
+  const promise = addDoc(colRef, data);
+  void promise.catch(() => {
     errorEmitter.emit(
       "permission-error",
       new FirestorePermissionError({
@@ -57,7 +59,8 @@ export function addDocumentNonBlocking(colRef: CollectionReference, data: any) {
  * Does NOT await the write operation internally.
  */
 export function updateDocumentNonBlocking(docRef: DocumentReference, data: any) {
-  updateDoc(docRef, data).catch((error) => {
+  const promise = updateDoc(docRef, data);
+  void promise.catch(() => {
     errorEmitter.emit(
       "permission-error",
       new FirestorePermissionError({
@@ -67,6 +70,7 @@ export function updateDocumentNonBlocking(docRef: DocumentReference, data: any) 
       })
     );
   });
+  return promise;
 }
 
 /**
@@ -74,7 +78,8 @@ export function updateDocumentNonBlocking(docRef: DocumentReference, data: any) 
  * Does NOT await the write operation internally.
  */
 export function deleteDocumentNonBlocking(docRef: DocumentReference) {
-  deleteDoc(docRef).catch((error) => {
+  const promise = deleteDoc(docRef);
+  void promise.catch(() => {
     errorEmitter.emit(
       "permission-error",
       new FirestorePermissionError({
@@ -83,6 +88,7 @@ export function deleteDocumentNonBlocking(docRef: DocumentReference) {
       })
     );
   });
+  return promise;
 }
 
 export type OptimizedBatchWrite =

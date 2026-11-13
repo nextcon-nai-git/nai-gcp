@@ -15,6 +15,17 @@ on:
       - "src/services/esocial/s2220-audit-access.ts"
       - "scripts/setup-ai-resilience-metrics.mjs"
       - "scripts/build-s2220-function.mjs"
+      - "scripts/security/**"
+      - "src/lib/auth/claims.ts"
+      - "src/lib/esocial-official-tables.json"
+      - "src/lib/esocial-codes.ts"
+      - "src/lib/cpf.ts"
+      - "src/lib/cnpj.ts"
+      - "src/lib/esocial-events.ts"
+      - "src/firebase/config.ts"
+      - "src/lib/genkit/providers.ts"
+      - "package.json"
+      - "package-lock.json"
 permissions:
   contents: read
 concurrency:

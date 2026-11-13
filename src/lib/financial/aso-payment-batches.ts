@@ -34,6 +34,7 @@ export type ClinicPaymentBlocked = {
 };
 
 export type ClinicPaymentCandidateItem = {
+  requestNumber?: string;
   asoId: string;
   sourceRow?: number;
   collaborator: string;
@@ -114,8 +115,15 @@ export function buildClinicPaymentPreview(
   } = {}
 ): ClinicPaymentPreview {
   const contested = new Set(conflicts.filter((c) => paymentFields.has(c.field)).map((c) => c.id));
+  const currentIds = new Set(asos.map((row) => row.id));
+  const numberCounts = new Map<string, number>();
+  const reference = (a: GrupoAvpAso) =>
+    a.numero?.trim() &&
+    [a.numero.trim(), normalizeCnpj(a.cnpjClinica), a.dataAgendadaIso].join("|");
   const identityCounts = new Map<string, number>();
   for (const row of asos) {
+    const key = reference(row);
+    if (key) numberCounts.set(key, (numberCounts.get(key) ?? 0) + 1);
     const identity = avpRequestIdentity(row);
     identityCounts.set(identity, (identityCounts.get(identity) || 0) + 1);
   }
@@ -165,7 +173,10 @@ export function buildClinicPaymentPreview(
       );
       continue;
     }
-    if ((identityCounts.get(avpRequestIdentity(aso)) || 0) > 1) {
+    if (
+      (identityCounts.get(avpRequestIdentity(aso)) || 0) > 1 ||
+      (numberCounts.get(reference(aso) || "") ?? 0) > 1
+    ) {
       blockedRows.push(
         blocked(
           aso,
@@ -215,6 +226,35 @@ export function buildClinicPaymentPreview(
       );
       continue;
     }
+    const requestNumber = aso.numero?.trim();
+    const collision = book.clinicPaymentBatches.some(
+      (batch) =>
+        batch.clinicDocument === clinicDocument &&
+        batch.items.some(
+          (item) =>
+            alreadyBatched.has(item.asoId) &&
+            item.examDate === examDate &&
+            ((requestNumber && item.requestNumber === requestNumber) ||
+              (!item.requestNumber &&
+                ((item.sourceRow !== undefined && item.sourceRow === aso.sourceRow) ||
+                  (!currentIds.has(item.asoId) &&
+                    item.amountCents === amountCents &&
+                    normalizeAvpText(item.city) ===
+                      normalizeAvpText(
+                        [aso.cidade.trim(), aso.uf.trim()].filter(Boolean).join("/")
+                      )))))
+        )
+    );
+    if (collision) {
+      blockedRows.push(
+        blocked(
+          aso,
+          "ALREADY_BATCHED",
+          "Já existe atendimento com a mesma referência no lote. Concilie a retificação antes de criar outro título."
+        )
+      );
+      continue;
+    }
     const competence = examDate.slice(0, 7);
     const key = clinicDocument + ":" + competence;
     const group = groups.get(key) || {
@@ -227,6 +267,7 @@ export function buildClinicPaymentPreview(
     group.names.add(normalizeAvpText(clinicName));
     group.items.push({
       asoId: aso.id,
+      requestNumber,
       sourceRow: aso.sourceRow,
       collaborator: aso.colaborador.trim() || "Colaborador não identificado",
       city: [aso.cidade.trim(), aso.uf.trim()].filter(Boolean).join("/") || "Cidade não informada",

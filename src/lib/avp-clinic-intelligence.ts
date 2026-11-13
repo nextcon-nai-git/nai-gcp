@@ -181,15 +181,24 @@ export function analyzeNetworkRedundancy(
   queueAsos: GrupoAvpAso[],
   globalClinics: GlobalClinic[]
 ): NetworkRedundancySummary {
-  const catalogCityMap = new Map<string, Set<string>>();
+  const catalogCityMap = new Map<string, Map<string, string>>();
 
   globalClinics.forEach((clinic) => {
+    const name = (clinic.displayName || clinic.name).trim();
+    if (
+      clinic.status !== "ACTIVE" ||
+      !clinic.id ||
+      !name ||
+      /^(sem cl[ií]nica|a confirmar)$/i.test(name)
+    )
+      return;
+    const id = clinic.cnpj?.replace(/[.\/\s-]/g, "").toUpperCase() || clinic.id;
     clinic.cities.forEach((cityStr) => {
       const norm = cityStr.trim().toUpperCase();
       if (!catalogCityMap.has(norm)) {
-        catalogCityMap.set(norm, new Set());
+        catalogCityMap.set(norm, new Map());
       }
-      catalogCityMap.get(norm)!.add(clinic.displayName || clinic.name);
+      catalogCityMap.get(norm)!.set(id, name.toUpperCase());
     });
   });
 
@@ -227,9 +236,8 @@ export function analyzeNetworkRedundancy(
 
   asoCityMap.forEach((entry, cityKey) => {
     const [cidade, uf] = cityKey.split("/");
-    const fromCatalog = catalogCityMap.get(cityKey) || new Set();
-    const allUniqueClinics = new Set<string>([...fromCatalog, ...entry.clinicasInSheet]);
-    const count = allUniqueClinics.size;
+    const allUniqueClinics = Array.from(catalogCityMap.get(cityKey)?.values() ?? []);
+    const count = allUniqueClinics.length;
 
     let statusContingencia: CityRedundancyReport["statusContingencia"] = "CRITICO_ZERO";
     if (count === 0) {

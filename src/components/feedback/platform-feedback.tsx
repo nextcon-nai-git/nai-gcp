@@ -82,6 +82,7 @@ export function PlatformFeedback() {
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button
+          aria-label="Enviar feedback"
           variant="ghost"
           size="icon"
           className="relative text-slate-400 hover:bg-slate-50 group"

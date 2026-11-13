@@ -144,7 +144,11 @@ export function normalizeAsoStatus(rawStatus: string): AsoStatus {
   if (s.includes("RETORNO") && s.includes("GESTOR")) return "AG. RETORNO DO GESTOR";
   if (s.includes("RETORNO") && (s.includes("COLABORADOR") || s.includes("CANDIDATO")))
     return "AG. RETORNO DO COLABORADOR";
-  if (s.includes("AGENDADO")) return "AGENDADO";
+  if (/\b(?:CANCELOU|CANCELAD[OA])\b/.test(s) && /DESIST/.test(s)) return "STATUS NÃO RECONHECIDO";
+  if (/DESIST/.test(s)) return "DESISTIU DA VAGA";
+  if (/CANCEL/.test(s)) return "GESTOR CANCELOU";
+  if (/\b(?:DESAGENDAD[OA]|NUNCA AGENDAD[OA])\b/.test(s)) return "NÃO INICIADO";
+  if (/\bAGENDADO\b/.test(s)) return "AGENDADO";
   if (s.includes("NAO INICIADO") || s.includes("PENDENTE")) return "NÃO INICIADO";
   if (completedAvpStatus(s)) return "EXAME FEITO";
   if ((s.includes("2") && s.includes("VIA")) || s.includes("SEGUNDA VIA")) return "2 VIA ASO";

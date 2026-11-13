@@ -36,6 +36,7 @@ export function HolidayBillingWidget() {
   const [ano, setAno] = React.useState(2026);
   const [mes, setMes] = React.useState(2); // Fevereiro por padrão
   const [taxaDiaria, setTaxaDiaria] = React.useState(200);
+  const [facultativos, setFacultativos] = React.useState("");
   const [qtdProfissionais, setQtdProfissionais] = React.useState(5);
   const [calculation, setCalculation] = React.useState<MonthBillingCalculation | null>(null);
   const [loading, setLoading] = React.useState(false);
@@ -47,7 +48,8 @@ export function HolidayBillingWidget() {
         ano,
         mes,
         taxaDiaria,
-        qtdProfissionais
+        qtdProfissionais,
+        facultativos.split(/[,;\s]+/).filter(Boolean)
       );
       setCalculation(res);
     } catch (e) {
@@ -55,7 +57,7 @@ export function HolidayBillingWidget() {
     } finally {
       setLoading(false);
     }
-  }, [ano, mes, taxaDiaria, qtdProfissionais]);
+  }, [ano, mes, taxaDiaria, qtdProfissionais, facultativos]);
 
   React.useEffect(() => {
     fetchCalculation();
@@ -152,6 +154,11 @@ export function HolidayBillingWidget() {
             />
           </div>
 
+          <label className="block text-sm">
+            Pontos facultativos não faturáveis previstos no contrato (AAAA-MM-DD, separados por
+            vírgula)
+            <Input value={facultativos} onChange={(e) => setFacultativos(e.target.value)} />
+          </label>
           <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-3">
             <Info className="size-5 text-amber-600 shrink-0 mt-0.5" />
             <div className="text-[10px] text-amber-900 font-medium leading-relaxed">

@@ -55,7 +55,7 @@ describe("fluxo dos periódicos", () => {
       periodicPatchSchema.safeParse({
         ...completion,
         evidenceKind: "esocial_receipt",
-        receiptNumber: "1.2.123456",
+        receiptNumber: "1.2.1234567890123456789",
       }).success
     ).toBe(true);
     expect(
@@ -99,7 +99,7 @@ describe("fluxo dos periódicos", () => {
         ...patch,
         stage: "concluido",
         evidenceKind: "esocial_receipt",
-        receiptNumber: "1.2.123456",
+        receiptNumber: "1.2.1234567890123456789",
       })
     ).toThrow("uma etapa");
   });

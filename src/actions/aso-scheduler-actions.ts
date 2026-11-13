@@ -39,16 +39,26 @@ function rdRequestStore() {
   return adminDb.collection("integrations").doc("rd-conversas-avp").collection("asoRequests");
 }
 
+async function queuePages(store: FirebaseFirestore.CollectionReference) {
+  const query = store.orderBy("createdAt", "desc").limit(500);
+  const docs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
+  let page = await query.get();
+  while (true) {
+    docs.push(...page.docs);
+    if (page.docs.length < 500) return docs;
+    page = await query.startAfter(page.docs[page.docs.length - 1]).get();
+  }
+}
 export async function getAsoRequestsAction(
   token = ""
 ): Promise<{ success: boolean; data: AsoRequest[] }> {
   const user = await schedulerUser(token);
   const ownStore = adminDb.collection("users").doc(user.uid).collection("asoRequests");
   const [own, rd] = await Promise.all([
-    ownStore.orderBy("createdAt", "desc").limit(500).get(),
-    canManageRdAso(user) ? rdRequestStore().orderBy("createdAt", "desc").limit(500).get() : null,
+    queuePages(ownStore),
+    canManageRdAso(user) ? queuePages(rdRequestStore()) : null,
   ]);
-  const data = [...own.docs, ...(rd?.docs || [])].map((doc) => doc.data() as AsoRequest);
+  const data = [...own, ...(rd || [])].map((doc) => doc.data() as AsoRequest);
   data.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   return { success: true, data };
 }

@@ -99,7 +99,10 @@ export async function preparePgrDraft(
       throw badRequest("Resultado acima do limite; divida o documento por unidade.");
     const companies = await getPgrCompanies(user);
     const safeName = fileName.replace(/[\u0000-\u001f]/g, "").slice(0, 200) || "Documento.pdf";
-    await leaseRef.set({
+    const previewId = createHash("sha256")
+      .update(JSON.stringify([draftId, safeName, mime, analysis]))
+      .digest("hex");
+    await draftRef(user, previewId).set({
       sourceHash,
       fileName: safeName,
       mime,
@@ -109,8 +112,9 @@ export async function preparePgrDraft(
       expiresAtMs: now + 86400000,
       busyUntil: 0,
     });
+    await leaseRef.set({ busyUntil: 0 }, { merge: true });
     return {
-      draftId,
+      draftId: previewId,
       sourceHash,
       fileName: safeName,
       analysis,
