@@ -25,6 +25,13 @@ describe("Britânia source reconciliation", () => {
     ]);
     expect(result.reportedCnpjs).toEqual(["76492701001129"]);
   });
+  it("mantém o texto de retorno inválido para conciliação por linha", () => {
+    const data = parseRegistration(
+      "+--- Histórico de Afastamento ---+\n| 01/02/2026 31/02/2026 ATESTADO |\n| 02/02/2026 ATESTADO |"
+    );
+    expect(data.leaves[0]).toMatchObject({ end: null, invalidEnd: "31/02/2026" });
+    expect(data.leaves[1]).not.toHaveProperty("invalidEnd");
+  });
   it("does not treat administrative reasons as disease or infer diagnosis", () => {
     const result = parseRegistration(
       "+--- Histórico de Afastamento ---+\n| 01/01/2026 01/01/2026 Saida por Transferencia Empr. |\n| 02/01/2026 COVID-19 |"

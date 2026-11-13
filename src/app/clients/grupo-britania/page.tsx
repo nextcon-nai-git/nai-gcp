@@ -309,8 +309,18 @@ function DossierView() {
                       <tbody>
                         {c.leaves.map((a, i) => (
                           <tr key={i} className="border-t border-slate-700">
-                            <td className="py-2 pr-3">{a.start || "Data inválida"}</td>
-                            <td className="pr-3">{a.end || "Não informado"}</td>
+                            <td className="py-2 pr-3">
+                              {a.start ||
+                                (a.invalidStart
+                                  ? "Data inválida: " + a.invalidStart
+                                  : "Não informado")}
+                            </td>
+                            <td className="pr-3">
+                              {a.end ||
+                                (a.invalidEnd
+                                  ? "Data informada inválida: " + a.invalidEnd
+                                  : "Retorno não informado")}
+                            </td>
                             <td className="pr-3">{a.reason}</td>
                             <td>{a.category}</td>
                           </tr>
@@ -318,6 +328,12 @@ function DossierView() {
                       </tbody>
                     </table>
                   </div>
+                  <p>
+                    {c.cost === null
+                      ? "Custo pendente de conciliação" + (c.costSource ? " · " + c.costSource : "")
+                      : (c.cost < 0 ? "Crédito: " : "Custo: ") +
+                        c.cost.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  </p>
                   <p>
                     Medidas: peritos revisam evidências clínicas e previdenciárias; Henrique
                     verifica exposição histórica; Leopold concilia base e custos; Felipe valida

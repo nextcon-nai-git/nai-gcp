@@ -25,6 +25,7 @@ export const fapCaseSchema = z
     dib: text,
     ddb: text,
     cost: z.number().finite().nullable(),
+    costSource: z.string().max(300).optional(),
     alerts: text,
     rhNotes: text,
     leaves: z
@@ -33,6 +34,8 @@ export const fapCaseSchema = z
           .object({
             start: date,
             end: date,
+            invalidStart: z.string().max(10).optional(),
+            invalidEnd: z.string().max(10).optional(),
             reason: text,
             category: z.enum(["atestado", "covid", "previdenciario", "administrativo", "outro"]),
           })
@@ -67,8 +70,7 @@ function parseFapCost(value?: string) {
   const input = (value || "").trim();
   if (!input || !input.includes("R$")) return null;
   const m = /^(-)?R\$\s*(\()?((?:\d{1,3}(?:\.\d{3})+|\d+),\d{2})(\))?$/.exec(input);
-  if (!m || Boolean(m[2]) !== Boolean(m[4]) || (m[1] && m[2]))
-    throw Error("Valor de custo pendente de conferência no controle FAP.");
+  if (!m || Boolean(m[2]) !== Boolean(m[4]) || (m[1] && m[2])) return null;
   return Number(m[3].replace(/\./g, "").replace(",", ".")) * (m[1] || m[2] ? -1 : 1);
 }
 export function isoDate(value: string): string | null {
@@ -104,9 +106,16 @@ export function parseRegistration(text: string) {
           : /ABONO|FALTA|SUSPENS|TRANSFER|LICEN|COMPENSA/i.test(reason)
             ? "administrativo"
             : "outro";
-    if (!isoDate(m[1]) || (m[2] && !isoDate(m[2])))
-      throw Error("Data de afastamento inválida na ficha de registro.");
-    leaves.push({ start: isoDate(m[1]), end: m[2] ? isoDate(m[2]) : null, reason, category });
+    const start = isoDate(m[1]),
+      end = m[2] ? isoDate(m[2]) : null;
+    leaves.push({
+      start,
+      end,
+      reason,
+      category,
+      ...(!start ? { invalidStart: m[1] } : {}),
+      ...(m[2] && !end ? { invalidEnd: m[2] } : {}),
+    });
   }
   return {
     reportedCnpjs: cnpjs,
@@ -220,6 +229,7 @@ export async function readBritaniaDossier(
         dib: row?.[7] || "",
         ddb: row?.[8] || "",
         cost: parseFapCost(row?.[9]),
+        ...(row?.[9]?.trim() ? { costSource: row[9].trim() } : {}),
         alerts: row?.[10] || "",
         rhNotes: row?.[24] || "",
         leaves: [],
