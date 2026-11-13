@@ -22,7 +22,7 @@ export const SOC_EXAM_RESULT_FIELDS = [
 ] as const;
 
 export type SocExamResultRow = Record<(typeof SOC_EXAM_RESULT_FIELDS)[number], string> & {
-  derivedStatus: "REALIZADO" | "FALTA_AUSENCIA";
+  derivedStatus: "REALIZADO" | "FALTA_AUSENCIA" | "INDETERMINADO";
 };
 
 function isValidSocDate(value: string) {
@@ -70,7 +70,16 @@ function normalizeRow(input: unknown): SocExamResultRow {
   const examName = row.NOMEEXAME.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const absence =
     /FALTA|AUSENCIA/i.test(examName) || (row.CODEXAME === "250" && !/CLINIC/i.test(examName));
-  return { ...row, derivedStatus: absence ? "FALTA_AUSENCIA" : "REALIZADO" };
+  return {
+    ...row,
+    derivedStatus: absence
+      ? "FALTA_AUSENCIA"
+      : row.DATAEXAME &&
+          (row.CODEXAME || row.NOMEEXAME) &&
+          (row.CODIGOPRESTADOR || row.NOMEPRESTADOR)
+        ? "REALIZADO"
+        : "INDETERMINADO",
+  };
 }
 
 function canonical(row: SocExamResultRow) {
@@ -118,6 +127,7 @@ export function summarizeSocExamResults(
     uniqueRows: rows.length,
     duplicates,
     companies: companies.length,
+    indeterminate: rows.filter((row) => row.derivedStatus === "INDETERMINADO").length,
     realized: rows.filter((row) => row.derivedStatus === "REALIZADO").length,
     absences: rows.filter((row) => row.derivedStatus === "FALTA_AUSENCIA").length,
     altered: rows.filter((row) => row.EXAMEALTERADO === "1").length,

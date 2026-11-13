@@ -1,4 +1,5 @@
 "use client";
+import { dateOnly, saoPauloDay } from "@/lib/executive-dashboard";
 import {
   EmployeeCreateDialog,
   type EmployeeDraftValues,
@@ -271,10 +272,10 @@ function EmployeesList() {
   };
 
   const getHealthStatus = (nextAsoDate?: string) => {
-    if (!nextAsoDate) return { label: "Pendente", color: "text-slate-400 bg-slate-100" };
-    const today = new Date();
-    const nextDate = new Date(nextAsoDate);
-    const diffDays = Math.ceil((nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const due = dateOnly(nextAsoDate);
+    if (!due) return { label: "Pendente", color: "text-slate-400 bg-slate-100" };
+    const diffDays =
+      (Date.parse(due + "T12:00:00Z") - Date.parse(saoPauloDay() + "T12:00:00Z")) / 86400000;
     if (diffDays < 0)
       return { label: "Vencido", color: "text-red-700 bg-red-100", icon: AlertTriangle };
     if (diffDays <= 30)
@@ -500,7 +501,8 @@ function EmployeesList() {
                           <TableCell>
                             <p className="text-xs font-black text-primary">
                               {emp.nextAsoDate
-                                ? new Date(emp.nextAsoDate).toLocaleDateString("pt-BR")
+                                ? dateOnly(emp.nextAsoDate)?.split("-").reverse().join("/") ||
+                                  "Pendente"
                                 : "---"}
                             </p>
                           </TableCell>

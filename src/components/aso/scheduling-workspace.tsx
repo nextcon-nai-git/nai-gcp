@@ -12,7 +12,7 @@ import {
   advancePipelineStepAction,
   runAsoOrchestratorAnalysisAction,
 } from "@/actions/aso-scheduler-actions";
-import { INITIAL_PARTNER_CLINICS, PIPELINE_STEPS_CONFIG } from "@/lib/aso-scheduler-data";
+import { PIPELINE_STEPS_CONFIG } from "@/lib/aso-scheduler-data";
 import { AsoRequest, AsoPipelineStep, ExamType, DigitalKit } from "@/types/aso-scheduler-types";
 import { AsoSystemOrchestratorOutput } from "@/ai/flows/aso-scheduler-system-flow";
 import {
@@ -64,6 +64,29 @@ function SchedulingSession() {
   const [activeTab, setActiveTab] = useState<
     "kanban" | "nova_solicitacao" | "kit_digital" | "clinicas" | "supervisor"
   >("kanban");
+  const [network, setNetwork] = useState<{ id: string; name: string; email: string }[] | null>(
+    null
+  );
+  const [networkError, setNetworkError] = useState("");
+  useEffect(() => {
+    if (activeTab !== "clinicas" || !user) return;
+    const abort = new AbortController();
+    setNetwork(null);
+    setNetworkError("");
+    (async () => {
+      const res = await fetch("/api/aso-flow?directory=clinics", {
+        headers: { Authorization: "Bearer " + (await user.getIdToken()) },
+        signal: abort.signal,
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok) throw Error(data.error || "Falha ao consultar a rede.");
+      if (!abort.signal.aborted) setNetwork(data.clinics);
+    })().catch((e) => {
+      if (!abort.signal.aborted) setNetworkError(e.message);
+    });
+    return () => abort.abort();
+  }, [activeTab, user]);
   const [queueFilters, setQueueFilters] = useState(initialQueueFilters);
   const [listReady, setListReady] = useState(false);
   const [requests, setRequests] = useState<AsoRequest[]>([]);
@@ -867,80 +890,27 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-white flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-teal-400" />
-                Rede de Clínicas Credenciadas (Match & Algoritmo de IA)
+                Rede de clínicas credenciadas
               </h2>
-              <span className="text-xs text-slate-400">
-                Classificação por score de compatibilidade, nota e tempo de retorno.
-              </span>
+              <span className="text-xs text-slate-400">Prestadores ativos no cadastro do NAI.</span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {INITIAL_PARTNER_CLINICS.map((clinic) => (
-                <div
-                  key={clinic.id}
-                  className="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl space-y-4 shadow-xl"
-                >
-                  <div className="flex items-start justify-between border-b border-slate-800 pb-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-base font-bold text-white">{clinic.name}</h3>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                          Score IA: {clinic.performanceScore}%
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5 text-cyan-400" /> {clinic.address} (
-                        {clinic.distanceKm} km)
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-1 text-amber-400 text-xs font-bold bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
-                      <Star className="w-3.5 h-3.5 fill-amber-400" /> {clinic.rating}
-                    </div>
+              {networkError ? (
+                <p role="alert">{networkError}</p>
+              ) : network === null ? (
+                <p>Consultando credenciamento…</p>
+              ) : !network.length ? (
+                <p>Nenhuma clínica credenciada encontrada no escopo disponível.</p>
+              ) : (
+                network.map((clinic) => (
+                  <div key={clinic.id} className="rounded-xl border p-4">
+                    <strong>{clinic.name}</strong>
+                    <p>{clinic.email}</p>
+                    <p>Disponibilidade de horários pendente de confirmação com a clínica.</p>
                   </div>
-
-                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                    <div className="bg-slate-950 p-2 rounded-xl border border-slate-800">
-                      <span className="text-[10px] text-slate-500 uppercase block font-bold">
-                        Devolução ASO
-                      </span>
-                      <strong className="text-cyan-300 font-mono">
-                        {clinic.turnaroundTimeDays} dia(s)
-                      </strong>
-                    </div>
-                    <div className="bg-slate-950 p-2 rounded-xl border border-slate-800">
-                      <span className="text-[10px] text-slate-500 uppercase block font-bold">
-                        Categoria Preço
-                      </span>
-                      <strong className="text-emerald-300 font-mono">{clinic.priceCategory}</strong>
-                    </div>
-                    <div className="bg-slate-950 p-2 rounded-xl border border-slate-800">
-                      <span className="text-[10px] text-slate-500 uppercase block font-bold">
-                        Horários Hoje
-                      </span>
-                      <strong className="text-purple-300 font-mono">
-                        {clinic.availableTimeSlots.length} vagas
-                      </strong>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      Exames Suportados
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {clinic.supportedExams.map((ex, i) => (
-                        <span
-                          key={i}
-                          className="text-[10px] font-medium bg-slate-950 text-slate-300 border border-slate-800 px-2 py-0.5 rounded"
-                        >
-                          {ex}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         )}

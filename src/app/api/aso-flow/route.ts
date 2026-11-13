@@ -5,6 +5,7 @@ import { limitedJson, privateFailure, privateHeaders } from "@/lib/http/private-
 import {
   importAsoFlowRows,
   listAsoFlowCards,
+  listAsoFlowClinics,
   previewAsoFlowImport,
   requireAsoFlowAccess,
   updateAsoFlowCard,
@@ -16,6 +17,16 @@ export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuth(request);
+    if (request.nextUrl.searchParams.get("directory") === "clinics")
+      return NextResponse.json(
+        {
+          clinics: await listAsoFlowClinics(
+            user,
+            request.nextUrl.searchParams.get("companyId") || undefined
+          ),
+        },
+        { headers: privateHeaders }
+      );
     const data = await listAsoFlowCards(user, {
       companyId: request.nextUrl.searchParams.get("companyId") || undefined,
       cursor: request.nextUrl.searchParams.get("cursor") || undefined,

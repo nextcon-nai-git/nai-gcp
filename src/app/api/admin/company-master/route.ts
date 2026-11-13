@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 const text = z.string().max(1000);
 const schema = z
   .object({
+    operation: z.enum(["create", "update"]).optional(),
     id: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
     name: z.string().trim().min(3).max(300),
     cnpj: z.string().transform(normalizeCnpj).refine(isValidCnpj, "CNPJ inválido."),
@@ -35,12 +36,28 @@ export async function POST(req: NextRequest) {
     const parsed = schema.safeParse(await limitedJson(req));
     if (!parsed.success)
       throw badRequest("Dados mestre inválidos: " + parsed.error.issues[0]?.message);
-    const data = parsed.data;
+    const { operation, ...data } = parsed.data;
     const ref = adminDb.collection("companies").doc(data.id);
     const audit = adminDb.collection("admin_company_changes").doc();
     await adminDb.runTransaction(async (tx) => {
       const current = await tx.get(ref);
       const previous = current.data() || {};
+      if (operation === "create" && current.exists)
+        throw badRequest("Unidade já cadastrada. Abra o cadastro existente.");
+      if (operation === "update" && !current.exists)
+        throw badRequest("Unidade não encontrada. Atualize a carteira.");
+      if (current.exists && previous.cnpj && normalizeCnpj(String(previous.cnpj)) !== data.cnpj)
+        throw badRequest("O identificador está vinculado a outro CNPJ. Confira o cadastro.");
+      if (!current.exists || !previous.cnpj) {
+        const companies = await tx.get(adminDb.collection("companies").select("cnpj"));
+        if (
+          companies.docs.some(
+            (entry) =>
+              entry.id !== data.id && normalizeCnpj(String(entry.data().cnpj || "")) === data.cnpj
+          )
+        )
+          throw badRequest("CNPJ já vinculado a outra unidade. Abra o cadastro existente.");
+      }
       tx.set(
         ref,
         {

@@ -1,4 +1,5 @@
 import "server-only";
+import { withProductionFinanceLock } from "./financial-production-lock";
 import { createHash } from "node:crypto";
 import { getStorage } from "firebase-admin/storage";
 import { adminDb } from "@/lib/firebase-admin";
@@ -127,6 +128,16 @@ export async function saveProductionCommand(user: AuthContext, payload: unknown)
   const parsed = CommandSchema.safeParse(payload);
   if (!parsed.success) throw badRequest("Operação inválida: " + parsed.error.issues[0]?.message);
   const command = parsed.data;
+  const write = () => commitCommand(user, command);
+  if (
+    ["revise", "replan", "linkFinance", "task", "billing", "card", "active"].includes(
+      command.action
+    )
+  )
+    return withProductionFinanceLock(command.requestId, write);
+  return write();
+}
+async function commitCommand(user: AuthContext, command: ReturnType<typeof CommandSchema.parse>) {
   const hash = createHash("sha256").update(JSON.stringify(command)).digest("hex");
   const { book, generation } = await readBook();
   // A confirmed replay must not depend on changes to external registries after the original commit.

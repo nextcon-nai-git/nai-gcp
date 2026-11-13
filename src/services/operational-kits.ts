@@ -74,7 +74,9 @@ function references(companyId: string, input: KitSelectionData) {
   const company = companyRef(companyId);
   return [
     company,
-    adminDb.collection("providers").doc(input.clinicId),
+    ...(input.clinicId === "in-company"
+      ? []
+      : [adminDb.collection("providers").doc(input.clinicId)]),
     company.collection("sourceDocuments").doc(input.pcmsoDocumentId),
     company.collection("sourceDocuments").doc(input.pgrDocumentId),
     ...input.employeeIds.map((id) => company.collection("employees").doc(id)),
@@ -83,23 +85,33 @@ function references(companyId: string, input: KitSelectionData) {
 function validateSources(companyId: string, input: KitSelectionData, docs: DocumentSnapshot[]) {
   if (docs.some((d) => !d.exists || d.data()?.isDeleted === true))
     throw badRequest("Cadastro ou documento não encontrado. Atualize a seleção.");
-  const [company, clinic, pcmso, pgr, ...employees] = docs.map((d) => d.data()!);
+  const [company, ...others] = docs.map((d) => d.data()!);
+  const onSite = input.clinicId === "in-company";
+  const clinic = onSite
+    ? {
+        name: "Sede da empresa · In Company",
+        address: required(input.onSiteAddress, "o local do atendimento In Company"),
+        phone: "",
+      }
+    : others.shift()!;
+  const [pcmso, pgr, ...employees] = others;
   if (company.active !== true || !isValidCnpj(str(company.cnpj)))
     throw badRequest("A empresa precisa estar ativa e possuir CNPJ válido.");
   required(company.name, "o nome da empresa");
   if (
-    clinic.active !== true ||
-    !["CLINIC", "HOSPITAL"].includes(clinic.type) ||
-    !isValidCnpj(str(clinic.cnpj)) ||
-    !Array.isArray(clinic.servedCompanies) ||
-    !clinic.servedCompanies.includes(companyId)
+    !onSite &&
+    (clinic.active !== true ||
+      !["CLINIC", "HOSPITAL"].includes(clinic.type) ||
+      !isValidCnpj(str(clinic.cnpj)) ||
+      !Array.isArray(clinic.servedCompanies) ||
+      !clinic.servedCompanies.includes(companyId))
   )
     throw badRequest(
       "Selecione uma clínica ativa, com CNPJ válido e vínculo com este cliente no credenciamento."
     );
   required(clinic.name, "o nome da clínica");
   required(clinic.address, "o endereço da clínica");
-  required(clinic.phone, "o telefone da clínica");
+  if (!onSite) required(clinic.phone, "o telefone da clínica");
   if (
     pcmso.companyId !== companyId ||
     pgr.companyId !== companyId ||
@@ -112,7 +124,13 @@ function validateSources(companyId: string, input: KitSelectionData, docs: Docum
   const cpfs = new Set<string>();
   for (const employee of employees) {
     const cpf = parseCpf(str(employee.cpf));
-    if (employee.companyId !== companyId || employee.status !== "active" || !cpf)
+    if (
+      employee.companyId !== companyId ||
+      employee.isArchived === true ||
+      employee.active === false ||
+      employee.status !== "active" ||
+      !cpf
+    )
       throw badRequest("Cada colaborador deve estar ativo, vinculado à empresa e com CPF válido.");
     if (cpfs.has(cpf)) throw badRequest("Há cadastros do mesmo CPF no lote. Corrija a seleção.");
     cpfs.add(cpf);
@@ -155,7 +173,13 @@ export async function getKitCatalog(user: AuthContext, companyId: string): Promi
       reused: true,
     })),
     employees: employees.docs
-      .filter((d) => d.data().status === "active" && !d.data().isDeleted)
+      .filter(
+        (d) =>
+          d.data().status === "active" &&
+          !d.data().isArchived &&
+          d.data().active !== false &&
+          !d.data().isDeleted
+      )
       .map((d) => ({
         id: d.id,
         name: str(d.data().name),
@@ -270,15 +294,25 @@ function buildKit(
       address: source.clinic.address,
       phone: source.clinic.phone,
     },
-    appointmentDateTime: "A confirmar com a clínica — este kit não reserva horário",
+    appointmentDateTime:
+      input.clinicId === "in-company"
+        ? "Atendimento na sede · horário a confirmar"
+        : "A confirmar com a clínica — este kit não reserva horário",
     examList: input.exams.map((name, i) => ({
       code: `NAI-${i + 1}`,
       name,
       mandatory: "CONDICIONAL",
       pcmsoJustification: `Conferido pelo operador no PCMSO ${source.pcmso.name}.`,
-      patientPreparo: "Confirmar preparo com a clínica.",
+      patientPreparo:
+        input.clinicId === "in-company"
+          ? "Confirmar preparo com a equipe de agendamento."
+          : "Confirmar preparo com a clínica.",
     })),
-    patientInstructions: ["Confirmar data, horário e preparo com a clínica antes de comparecer."],
+    patientInstructions: [
+      input.clinicId === "in-company"
+        ? "O exame será realizado na sede da empresa. O colaborador não precisará se deslocar para uma clínica."
+        : "Confirmar data, horário e preparo com a clínica antes de comparecer.",
+    ],
     clinicInstructions: [
       "Conferir exames com o PCMSO e preencher os documentos pelo profissional habilitado.",
     ],
@@ -375,8 +409,13 @@ async function confirmTransaction(
       examType: input.examType,
       declaredRisks: input.risks,
       status: "kit_montado",
-      clinicId: input.clinicId,
-      clinicName: source.clinic.name,
+      ...(input.clinicId === "in-company"
+        ? { attendanceMode: "in_company" as const, onSiteAddress: source.clinic.address }
+        : {
+            attendanceMode: "clinic" as const,
+            clinicId: input.clinicId,
+            clinicName: source.clinic.name,
+          }),
       exams: kit.examList,
       digitalKit: kit,
       alerts: [],
@@ -396,7 +435,9 @@ async function confirmTransaction(
         employeeId: input.employeeIds[i],
         cycle: input.cycle,
         examType: input.examType,
-        clinicId: input.clinicId,
+        ...(input.clinicId === "in-company"
+          ? { attendanceMode: "in_company", onSiteAddress: source.clinic.address }
+          : { attendanceMode: "clinic", clinicId: input.clinicId }),
         proposalId,
         fingerprint,
         sourceVersion: saved.sourceVersion,

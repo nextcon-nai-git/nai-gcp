@@ -263,7 +263,9 @@ export function OperationalKitPanel({
                         checked={selection.employeeIds.includes(e.id)}
                         disabled={
                           !selection.employeeIds.includes(e.id) &&
-                          selection.employeeIds.length >= 10
+                          (!e.department?.trim() ||
+                            !e.role?.trim() ||
+                            selection.employeeIds.length >= 10)
                         }
                         onChange={(event) =>
                           update({
@@ -317,9 +319,10 @@ export function OperationalKitPanel({
                   <select
                     className={fieldClass}
                     value={selection.clinicId}
-                    onChange={(e) => update({ clinicId: e.target.value })}
+                    onChange={(e) => update({ clinicId: e.target.value, onSiteAddress: undefined })}
                   >
                     <option value="">Selecione</option>
+                    <option value="in-company">In Company · sede da empresa</option>
                     {catalog.clinics.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name} · {c.city}
@@ -327,6 +330,16 @@ export function OperationalKitPanel({
                     ))}
                   </select>
                 </label>
+                {selection.clinicId === "in-company" && (
+                  <label className="text-sm">
+                    Local do atendimento na sede
+                    <input
+                      className={fieldClass}
+                      value={selection.onSiteAddress || ""}
+                      onChange={(ev) => update({ onSiteAddress: ev.target.value })}
+                    />
+                  </label>
+                )}
                 <label className="text-sm">
                   Competência da campanha
                   <input

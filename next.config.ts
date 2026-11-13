@@ -16,6 +16,7 @@ const nextConfig: NextConfig = {
     "@opentelemetry/instrumentation-winston",
   ],
   outputFileTracingIncludes: {
+    "/api/financial/cassi-xml": ["./assets/tiss/**/*", "./node_modules/libxml2-wasm/lib/**/*"],
     "/api/esocial/*": ["./assets/esocial/**/*", "./node_modules/libxml2-wasm/lib/**/*"],
     "/api/v1/esocial/*": ["./assets/esocial/**/*", "./node_modules/libxml2-wasm/lib/**/*"],
     "/api/internal/esocial-sync": ["./assets/esocial/**/*", "./node_modules/libxml2-wasm/lib/**/*"],

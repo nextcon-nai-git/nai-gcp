@@ -78,6 +78,7 @@ const Title = z.object({
   approvedBy: text.nullable(),
 });
 const ClinicPaymentItem = z.object({
+  requestNumber: z.string().trim().max(180).optional(),
   sourceRow: z.number().int().min(2).max(10001).optional(),
   asoId: z.string().trim().min(1).max(180),
   collaborator: text,

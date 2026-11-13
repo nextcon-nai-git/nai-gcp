@@ -34,7 +34,7 @@ export async function getClientCenter(
   const results = await Promise.allSettled([
     ref
       .collection("employees")
-      .select("name", "department", "nextAsoDate", "status", "isDeleted", "active")
+      .select("name", "department", "nextAsoDate", "status", "isDeleted", "isArchived", "active")
       .limit(2001)
       .get(),
     ref

@@ -796,8 +796,8 @@ function AbsenteeismPage() {
 
                                 <DialogFooter className="p-6 bg-white border-t shrink-0 flex flex-col sm:flex-row justify-between items-center gap-4">
                                   <div className="text-[10px] font-black uppercase text-slate-400 italic flex items-center gap-2">
-                                    <ArrowRight className="size-3 text-accent" /> "Dossiês blindados
-                                    com AET e PGR geram êxito de 91% no INSS."
+                                    <ArrowRight className="size-3 text-accent" /> Confira os
+                                    documentos individuais antes de assinar as minutas.
                                   </div>
                                   <div className="flex gap-2">
                                     {isClient && (
@@ -825,7 +825,7 @@ function AbsenteeismPage() {
                                               ) : (
                                                 <FileText className="size-4" />
                                               )}
-                                              Laudo Médico
+                                              Minuta de encaminhamento
                                             </Button>
                                           )}
                                         </PDFDownloadLink>
@@ -852,7 +852,7 @@ function AbsenteeismPage() {
                                               ) : (
                                                 <Scale className="size-4 text-accent" />
                                               )}
-                                              Peça de Contestação NTEP
+                                              Minuta de contestação NTEP
                                             </Button>
                                           )}
                                         </PDFDownloadLink>

@@ -34,7 +34,7 @@ const root = "companies/" + companyId + "/agendamentos";
 const input = {
   companyId,
   employeeId: "worker-a",
-  date: "2026-10-20",
+  date: "2026-10-19",
   time: "08:30",
   type: "Periódico",
 };
@@ -161,6 +161,22 @@ describe("escritores ativos de agendamento sob as regras reais", () => {
     await assertFails(updateDoc(doc(store, root, "active"), { status: "Concluído" }));
   });
 
+  it("converge duas solicitações simultâneas para um único agendamento", async () => {
+    const store = db();
+    const [a, b] = await Promise.all([
+      createClinicalAppointment(store, input),
+      createClinicalAppointment(store, input),
+    ]);
+    expect(a.id).toBe(b.id);
+    const matching = (await getDocs(collection(store, root))).docs.filter(
+      (x) => x.data().data_hora === "2026-10-19T08:30:00"
+    );
+    expect(matching.map((x) => x.id)).toEqual([a.id]);
+  });
+  it("reutiliza agendamento histórico com identificador aleatório", async () => {
+    await seedAppointment("legacy-random", appointment({ data_hora: "2026-10-19T08:30:00" }));
+    expect((await createClinicalAppointment(db(), input)).id).toBe("legacy-random");
+  });
   it.each(allowedUsers)("preserva criação, check-in e início pelo serviço para %s", async (uid) => {
     const store = db(uid);
     const result = await createClinicalAppointment(store, input);

@@ -21,7 +21,7 @@ export function OfflineSyncBadge() {
 }
 function ScopedOfflineBadge({ userId, companyId }: { userId: string; companyId: string }) {
   const [isOnline, setIsOnline] = React.useState(true);
-  const [pendingCount, setPendingCount] = React.useState(0);
+  const [pendingCount, setPendingCount] = React.useState<number | null>(null);
   const { toast } = useToast();
 
   React.useEffect(() => {
@@ -29,19 +29,25 @@ function ScopedOfflineBadge({ userId, companyId }: { userId: string; companyId: 
 
     setIsOnline(navigator.onLine);
     const scope = { userId, companyId };
-    setPendingCount(offlineStorage.getPendingCount(scope));
-
+    let current = true;
+    const refresh = async (notify = false) => {
+      try {
+        const count = await offlineStorage.getPendingCount(scope);
+        if (!current) return;
+        setPendingCount(count);
+        if (notify && count > 0)
+          toast({
+            title: "Conexão restabelecida",
+            description: `${count} registros continuam salvos neste dispositivo. O envio à nuvem está pendente; nenhum registro foi removido.`,
+          });
+      } catch {
+        if (current) setPendingCount(null);
+      }
+    };
+    void refresh();
     const handleOnline = () => {
       setIsOnline(true);
-      const count = offlineStorage.getPendingCount(scope);
-      setPendingCount(count);
-      if (count > 0) {
-        setPendingCount(count);
-        toast({
-          title: "Conexão restabelecida",
-          description: `${count} registros continuam salvos neste dispositivo. O envio à nuvem está pendente; nenhum registro foi removido.`,
-        });
-      }
+      void refresh(true);
     };
 
     const handleOffline = () => {
@@ -58,10 +64,11 @@ function ScopedOfflineBadge({ userId, companyId }: { userId: string; companyId: 
     window.addEventListener("offline", handleOffline);
 
     const interval = setInterval(() => {
-      setPendingCount(offlineStorage.getPendingCount(scope));
+      void refresh();
     }, 4000);
 
     return () => {
+      current = false;
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
       clearInterval(interval);
@@ -71,14 +78,24 @@ function ScopedOfflineBadge({ userId, companyId }: { userId: string; companyId: 
   if (!isOnline) {
     return (
       <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] font-mono gap-1 px-2 py-0.5 animate-pulse">
-        <WifiOff className="size-3" /> Offline {pendingCount > 0 ? `(${pendingCount})` : ""}
+        <WifiOff className="size-3" /> Offline{" "}
+        {pendingCount === null
+          ? " · pendências indisponíveis"
+          : pendingCount > 0
+            ? `(${pendingCount})`
+            : ""}
       </Badge>
     );
   }
 
   return (
     <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono gap-1 px-2 py-0.5 hidden sm:inline-flex">
-      <Wifi className="size-3" /> Online{pendingCount > 0 ? ` · ${pendingCount} pendentes` : ""}
+      <Wifi className="size-3" /> Online
+      {pendingCount === null
+        ? " · pendências indisponíveis"
+        : pendingCount > 0
+          ? ` · ${pendingCount} pendentes`
+          : ""}
     </Badge>
   );
 }

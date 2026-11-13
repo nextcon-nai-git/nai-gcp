@@ -34,7 +34,7 @@ import {
   collection,
   query,
   orderBy,
-  addDoc,
+  setDoc,
   doc,
   where,
   serverTimestamp,
@@ -105,6 +105,27 @@ export default function ChecklistsPage() {
     }
   }, [availableCompanies]);
 
+  const draftKey = (nr: string) =>
+    JSON.stringify(["nai-nr-draft", user?.uid, selectedCompanyId, nr]);
+  const [openedScope, setOpenedScope] = React.useState("");
+  const scope = JSON.stringify([user?.uid, selectedCompanyId]);
+  const protocolId = React.useRef("");
+  const saveDraft = () => {
+    if (!user || !activeNR || !selectedCompanyId || openedScope !== scope) return;
+    try {
+      localStorage.setItem(
+        draftKey(activeNR.nr),
+        JSON.stringify({ id: protocolId.current, responses, updatedAt: new Date().toISOString() })
+      );
+      setIsChecklistOpen(false);
+      toast({ title: "Rascunho salvo neste dispositivo" });
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Não foi possível salvar o rascunho. Mantenha a janela aberta.",
+      });
+    }
+  };
   const handleOpenChecklist = (nrId: string, title: string) => {
     if (!selectedCompanyId) {
       toast({
@@ -115,8 +136,27 @@ export default function ChecklistsPage() {
       return;
     }
     const config = NR_CHECKLISTS[nrId] || getGenericChecklist(nrId.toUpperCase(), title);
+    setOpenedScope(scope);
     setActiveNR(config);
-    setResponses({});
+    let saved;
+    try {
+      saved = JSON.parse(localStorage.getItem(draftKey(config.nr)) || "null");
+    } catch {
+      saved = null;
+    }
+    protocolId.current =
+      typeof saved?.id === "string" && /^[a-f0-9-]{36}$/.test(saved.id)
+        ? saved.id
+        : crypto.randomUUID();
+    setResponses(
+      Object.fromEntries(
+        config.items
+          .filter((i) =>
+            ["CONFORME", "NÃO CONFORME", "NÃO AVALIADO"].includes(saved?.responses?.[i.id])
+          )
+          .map((i) => [i.id, saved.responses[i.id]])
+      )
+    );
     setIsChecklistOpen(true);
   };
 
@@ -127,8 +167,10 @@ export default function ChecklistsPage() {
   }, [responses, activeNR]);
 
   const handleFinalizeAuditoria = async () => {
-    if (!user || !storage || !db || !activeNR || !selectedCompanyId) return;
+    if (!user || !storage || !db || !activeNR || !selectedCompanyId || openedScope !== scope)
+      return;
 
+    if (checklistProgress !== 100 || isFinalizing) return;
     setIsFinalizing(true);
     try {
       const company = availableCompanies?.find((c) => c.id === selectedCompanyId);
@@ -144,13 +186,32 @@ export default function ChecklistsPage() {
       const storagePath = STORAGE_PATHS.CLIENT_SST_NR(
         selectedCompanyId,
         activeNR.nr.toLowerCase().replace("-", "") as any,
-        `protocolo_${Date.now()}.json`
+        `protocolo_${protocolId.current}.pdf`
       );
       const storageRef = ref(storage, storagePath);
-      const blob = new Blob([JSON.stringify(auditData, null, 2)], { type: "application/json" });
+      const { jsPDF } = await import("jspdf");
+      const pdf = new jsPDF();
+      let y = 20;
+      const write = (text: string) => {
+        for (const line of pdf.splitTextToSize(text, 175)) {
+          if (y > 275) {
+            pdf.addPage();
+            y = 20;
+          }
+          pdf.text(line, 16, y);
+          y += 7;
+        }
+      };
+      write("Protocolo de checklist " + activeNR.nr);
+      write(company?.name || selectedCompanyId);
+      write("Auditor: " + user.uid);
+      write(auditData.timestamp);
+      for (const item of activeNR.items) write(item.question + " — " + responses[item.id]);
+      const blob = pdf.output("blob");
       await uploadBytes(storageRef, blob);
 
-      await addDoc(collection(db, "companies", selectedCompanyId, "reports"), {
+      await setDoc(doc(db, "companies", selectedCompanyId, "reports", protocolId.current), {
+        auditData,
         name: `Laudo Técnico - ${activeNR.nr}`,
         reportType: activeNR.nr.toLowerCase().replace("-", ""),
         companyId: selectedCompanyId,
@@ -160,6 +221,9 @@ export default function ChecklistsPage() {
         serverTimestamp: serverTimestamp(),
       });
 
+      try {
+        localStorage.removeItem(draftKey(activeNR.nr));
+      } catch {}
       toast({ title: "Laudo Protocolado com Sucesso!" });
       setIsChecklistOpen(false);
     } catch (error: any) {
@@ -256,7 +320,7 @@ export default function ChecklistsPage() {
       </div>
 
       <Dialog
-        open={isChecklistOpen}
+        open={isChecklistOpen && openedScope === scope}
         onOpenChange={(open) => !isFinalizing && setIsChecklistOpen(open)}
       >
         <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden flex flex-col p-0 border-none shadow-2xl rounded-4xl">
@@ -330,10 +394,30 @@ export default function ChecklistsPage() {
               <Button
                 variant="ghost"
                 className="font-bold uppercase text-[10px]"
-                onClick={() => setIsChecklistOpen(false)}
+                onClick={saveDraft}
                 disabled={isFinalizing}
               >
                 Salvar Rascunho
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={isFinalizing}
+                onClick={() => {
+                  if (!activeNR || scope !== openedScope) return;
+                  try {
+                    localStorage.removeItem(draftKey(activeNR.nr));
+                    setResponses({});
+                    setIsChecklistOpen(false);
+                    toast({ title: "Rascunho descartado" });
+                  } catch {
+                    toast({
+                      variant: "destructive",
+                      title: "Não foi possível descartar o rascunho.",
+                    });
+                  }
+                }}
+              >
+                Descartar rascunho
               </Button>
               <Button
                 onClick={handleFinalizeAuditoria}

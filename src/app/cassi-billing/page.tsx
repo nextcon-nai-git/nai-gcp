@@ -1,5 +1,6 @@
 "use client";
 
+import { getActionIdToken } from "@/lib/auth/action-token";
 import React, { useState } from "react";
 import {
   FileText,
@@ -41,7 +42,6 @@ import {
   CassiExpenseItem,
   CassiAttachmentItem,
   generateCassiRpaScript,
-  generateTissXml,
 } from "@/lib/cassi-automation";
 import { REAL_PROVIDERS } from "@/lib/real-data";
 
@@ -61,7 +61,9 @@ export default function CassiBillingPage() {
   const [cardValidity, setCardValidity] = useState("");
   const [beneficiaryName, setBeneficiaryName] = useState("");
   const [cns, setCns] = useState("");
-  const [isNewborn] = useState(false);
+  const [isNewborn, setIsNewborn] = useState(false);
+  const [xmlFields, setXmlFields] = useState<Record<string, string>>({});
+  const [exporting, setExporting] = useState(false);
 
   // Executante & Solicitante
   const [selectedProviderId, setSelectedProviderId] = useState("");
@@ -113,8 +115,8 @@ export default function CassiBillingPage() {
     const prov = REAL_PROVIDERS.find((p) => p.id === provId);
     if (prov) {
       setDoctorName(prov.displayName || prov.name);
-      setCouncilNumber(prov.councilNumber?.replace(/\D/g, "") || "30470");
-      setCouncilUf((prov as any).ufCouncil || prov.state || "DF");
+      setCouncilNumber(prov.councilNumber?.replace(/\D/g, "") || "");
+      setCouncilUf(prov.ufCouncil || "");
       if (prov.profession?.includes("Fisioterap")) {
         setCouncilType("CREFITO");
         setCboCode("223605");
@@ -137,7 +139,7 @@ export default function CassiBillingPage() {
       code: proc.code,
       description: proc.description,
       isPackage: false,
-      date: authDate || "2026-09-04",
+      date: "",
       quantity: 1,
       unitValue: proc.defaultPrice,
       totalValue: proc.defaultPrice,
@@ -228,11 +230,15 @@ export default function CassiBillingPage() {
         item.unitValue >= 0
     );
   const rpaScript = guideReady ? generateCassiRpaScript(guidePayload) : "";
-  const tissXml = guideReady ? generateTissXml(guidePayload) : "";
 
-  const copyRpaToClipboard = () => {
+  const copyRpaToClipboard = async () => {
     if (!guideReady) return;
-    navigator.clipboard.writeText(rpaScript);
+    try {
+      await navigator.clipboard.writeText(rpaScript);
+    } catch {
+      toast({ variant: "destructive", title: "Não foi possível copiar." });
+      return;
+    }
     toast({
       title: "Script RPA Copiado! 🚀",
       description:
@@ -240,10 +246,15 @@ export default function CassiBillingPage() {
     });
   };
 
-  const copyBookmarklet = () => {
+  const copyBookmarklet = async () => {
     if (!guideReady) return;
     const bookmarkletCode = `javascript:${encodeURIComponent(rpaScript)}`;
-    navigator.clipboard.writeText(bookmarkletCode);
+    try {
+      await navigator.clipboard.writeText(bookmarkletCode);
+    } catch {
+      toast({ variant: "destructive", title: "Não foi possível copiar." });
+      return;
+    }
     toast({
       title: "Bookmarklet Copiado! 🔖",
       description:
@@ -251,21 +262,84 @@ export default function CassiBillingPage() {
     });
   };
 
-  const downloadXml = () => {
-    if (!guideReady) return;
-    const blob = new Blob([tissXml], { type: "application/xml" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `TISS_CASSI_${providerGuideNumber}.xml`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast({
-      title: "XML TISS Gerado com Sucesso!",
-      description: `Arquivo salvo como TISS_CASSI_${providerGuideNumber}.xml`,
-    });
+  const downloadXml = async () => {
+    if (!guideReady || exporting) return;
+    setExporting(true);
+    try {
+      const res = await fetch("/api/financial/cassi-xml", {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + (await getActionIdToken()),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ guide: guidePayload, fields: xmlFields }),
+      });
+      if (!res.ok) throw Error((await res.json()).error || "Falha na validação do XML.");
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `TISS_CASSI_${providerGuideNumber}.xml`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast({ title: "XML TISS validado e pronto para download" });
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "XML não exportado",
+        description: e instanceof Error ? e.message : "Falha de validação.",
+      });
+    } finally {
+      setExporting(false);
+    }
   };
-
+  const commonXml =
+    guideType === "SP_SADT"
+      ? ["regime", "requesterCode", "requesterUnit", "accident"]
+      : guideType === "INTERNACAO"
+        ? [
+            "admissionGuide",
+            "billing",
+            "start",
+            "end",
+            "startTime",
+            "endTime",
+            "admissionType",
+            "admissionRegime",
+            "endReason",
+            "accident",
+          ]
+        : [
+            "admissionGuide",
+            "start",
+            "end",
+            "participation",
+            "professionalCode",
+            "siteCode",
+            "siteName",
+            "siteCnes",
+            "issued",
+          ];
+  const xmlLabels: Record<string, string> = {
+    regime: "Regime de atendimento (código TISS)",
+    requesterCode: "Código do contratado solicitante",
+    requesterUnit: "Nome do contratado solicitante",
+    accident: "Indicador de acidente (código TISS)",
+    admissionGuide: "Número da guia de solicitação de internação",
+    billing: "Tipo de faturamento (código TISS)",
+    start: "Início do faturamento",
+    end: "Fim do faturamento",
+    startTime: "Hora inicial (HH:MM:SS)",
+    endTime: "Hora final (HH:MM:SS)",
+    admissionType: "Tipo de internação (código TISS)",
+    admissionRegime: "Regime de internação (código TISS)",
+    endReason: "Motivo de saída (código TISS)",
+    participation: "Grau de participação do profissional",
+    professionalCode: "Código do profissional na operadora",
+    siteCode: "Código do local na operadora",
+    siteName: "Nome do local executante",
+    siteCnes: "CNES do local executante",
+    issued: "Emissão da guia",
+  };
   return (
     <div className="container mx-auto p-4 sm:p-6 space-y-6 max-w-7xl animate-in fade-in duration-300">
       {/* Top Banner */}
@@ -319,7 +393,7 @@ export default function CassiBillingPage() {
 
           <Button
             variant="secondary"
-            disabled={!guideReady}
+            disabled={!guideReady || exporting || commonXml.some((k) => !xmlFields[k]?.trim())}
             onClick={downloadXml}
             className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800"
           >
@@ -382,6 +456,27 @@ export default function CassiBillingPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <details className="rounded-lg border p-3">
+                    <summary>Dados complementares para o XML TISS 04.01.00</summary>
+                    <label className="block">
+                      <input
+                        type="checkbox"
+                        checked={isNewborn}
+                        onChange={(ev) => setIsNewborn(ev.target.checked)}
+                      />{" "}
+                      Atendimento a recém-nascido
+                    </label>
+                    {commonXml.map((k) => (
+                      <label className="block" key={k}>
+                        {xmlLabels[k]}
+                        <Input
+                          type={["start", "end", "issued"].includes(k) ? "date" : "text"}
+                          value={xmlFields[k] || ""}
+                          onChange={(ev) => setXmlFields({ ...xmlFields, [k]: ev.target.value })}
+                        />
+                      </label>
+                    ))}
+                  </details>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="space-y-1.5">
                       <Label className="text-xs text-red-500 font-semibold">* Tipo de Guia</Label>
@@ -590,7 +685,8 @@ export default function CassiBillingPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <div className="sm:col-span-2 space-y-1.5">
                       <Label className="text-xs text-red-500 font-semibold">
-                        * Nome do Profissional Executante
+                        * Nome do profissional{" "}
+                        {guideType === "SP_SADT" ? "solicitante" : "executante"}
                       </Label>
                       <Input value={doctorName} onChange={(e) => setDoctorName(e.target.value)} />
                     </div>
@@ -705,6 +801,7 @@ export default function CassiBillingPage() {
                           <th className="p-2.5 text-left font-semibold">
                             Descrição do Procedimento
                           </th>
+                          <th className="p-2.5">Data de execução</th>
                           <th className="p-2.5 text-center font-semibold w-20">Qtd</th>
                           <th className="p-2.5 text-right font-semibold w-28">Valor Unit.</th>
                           <th className="p-2.5 text-right font-semibold w-28">Total</th>
@@ -723,6 +820,23 @@ export default function CassiBillingPage() {
                             <td className="p-2.5 text-slate-800 dark:text-slate-200">
                               {proc.description}
                             </td>
+                            <td>
+                              <Input
+                                aria-label={`Data de execução de ${proc.code}`}
+                                type="date"
+                                value={proc.date}
+                                onChange={(ev) =>
+                                  setProcedures((list) =>
+                                    list.map((item) =>
+                                      item.id === proc.id
+                                        ? { ...item, date: ev.target.value }
+                                        : item
+                                    )
+                                  )
+                                }
+                              />
+                            </td>
+
                             <td className="p-2.5 text-center">
                               <Input
                                 type="number"
@@ -735,7 +849,28 @@ export default function CassiBillingPage() {
                               />
                             </td>
                             <td className="p-2.5 text-right font-mono">
-                              R$ {proc.unitValue.toFixed(2)}
+                              <Input
+                                aria-label={`Valor unitário de ${proc.code}`}
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={proc.unitValue}
+                                onChange={(e) => {
+                                  const v = Number(e.target.value);
+                                  if (Number.isFinite(v) && v >= 0)
+                                    setProcedures((list) =>
+                                      list.map((p) =>
+                                        p.id === proc.id
+                                          ? {
+                                              ...p,
+                                              unitValue: v,
+                                              totalValue: (Math.round(v * 100) * p.quantity) / 100,
+                                            }
+                                          : p
+                                      )
+                                    );
+                                }}
+                              />
                             </td>
                             <td className="p-2.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
                               R$ {proc.totalValue.toFixed(2)}
@@ -879,7 +1014,9 @@ export default function CassiBillingPage() {
                     </Button>
                     <Button
                       variant="secondary"
-                      disabled={!guideReady}
+                      disabled={
+                        !guideReady || exporting || commonXml.some((k) => !xmlFields[k]?.trim())
+                      }
                       onClick={downloadXml}
                       className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
                     >

@@ -1,3 +1,6 @@
+vi.mock("./financial-production-lock", () => ({
+  withProductionFinanceLock: (_id: string, run: () => Promise<unknown>) => run(),
+}));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { randomUUID, createHash } from "node:crypto";
 import type { AuthContext } from "@/lib/auth/auth-context";

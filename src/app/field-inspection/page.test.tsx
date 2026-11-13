@@ -29,7 +29,9 @@ vi.mock("@/hooks/use-company-directory", () => ({
 }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: m.toast }) }));
 vi.mock("@/lib/auth/action-token", () => ({ getActionIdToken: m.token }));
-vi.mock("@/lib/offline-storage", () => ({ offlineStorage: { addItem: m.save } }));
+vi.mock("@/lib/offline-storage", () => ({
+  offlineStorage: { addItem: m.save, readDraft: async () => null, saveDraft: async () => {} },
+}));
 vi.mock("@/ai/flows/field-inspection-flow", () => ({ analyzeFieldInspectionPhoto: m.analyze }));
 import Page from "./page";
 const report = {
@@ -59,6 +61,7 @@ const report = {
 };
 let v: ReturnType<typeof ui>;
 beforeEach(() => {
+  localStorage.clear();
   v = ui();
   m.user = { uid: "user-a" };
   m.scope = "a";
@@ -271,4 +274,18 @@ describe("field inspection boundaries", () => {
     await v.click("Auditar Imagem");
     expect(m.analyze.mock.calls[0][0].gpsCoordinates).toBeUndefined();
   });
+});
+
+it("descarta a análise se o GPS mudar enquanto o relatório está sendo preparado", async () => {
+  await prepare();
+  const response = deferred<any>();
+  m.analyze.mockReturnValueOnce(response.promise);
+  await v.click("Auditar Imagem");
+  await v.click("Obter GPS");
+  await act(async () =>
+    m.geo.mock.calls[0][0]({ coords: { latitude: -19, longitude: -42, accuracy: 5 } })
+  );
+  await act(async () => response.resolve(report));
+  expect(m.save).not.toHaveBeenCalled();
+  expect(v.container.textContent).not.toContain("Risco sintético");
 });

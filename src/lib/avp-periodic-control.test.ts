@@ -163,7 +163,7 @@ describe("controle da campanha periódica e rede AVP", () => {
     const otherCity = person("3", "00000000001", "Marabá", "PA");
     otherCity[19] = "Unidade A";
     const result = build([first, otherUnit, otherCity]);
-    expect(result.summary).toMatchObject({ sourceRows: 3, uniquePeople: 3, duplicates: 0 });
+    expect(result.summary).toMatchObject({ sourceRows: 3, uniquePeople: 1, duplicates: 0 });
     expect(result.people.map((p) => [p.unit, p.cityKey])).toEqual([
       ["Unidade A", "FORTALEZA|CE"],
       ["Unidade B", "FORTALEZA|CE"],
@@ -200,7 +200,7 @@ describe("controle da campanha periódica e rede AVP", () => {
     other[22] = "01/01/2021";
     other[2] = "SP";
     const d = build([person(), other]);
-    expect(d.summary.uniquePeople).toBe(2);
+    expect(d.summary.uniquePeople).toBe(1);
     expect(d.cities).toHaveLength(2);
     expect(d.cities.find((c) => c.uf === "SP")?.contracted).toBe(0);
   });

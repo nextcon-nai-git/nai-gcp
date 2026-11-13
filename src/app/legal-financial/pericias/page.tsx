@@ -1,4 +1,11 @@
 "use client";
+import { dateOnly, saoPauloDay } from "@/lib/executive-dashboard";
+function hearingDays(value: string) {
+  const day = dateOnly(value);
+  return day
+    ? (Date.parse(day + "T12:00Z") - Date.parse(saoPauloDay() + "T12:00Z")) / 86400000
+    : null;
+}
 
 import * as React from "react";
 import Link from "next/link";
@@ -137,7 +144,7 @@ export default function BritaniaPericiasPage() {
               variant="outline"
               className="border-emerald-500 text-emerald-700 bg-emerald-50 font-black uppercase text-[10px] tracking-widest px-3 h-6"
             >
-              EMISSÃO: 04/09/2026 - 08:01:22
+              Agenda de perícias
             </Badge>
           </div>
 
@@ -186,7 +193,7 @@ export default function BritaniaPericiasPage() {
             value="ativas"
             className="rounded-xl text-xs font-bold py-2.5 px-5 data-[state=active]:bg-primary data-[state=active]:text-white"
           >
-            Pauta Emitida Hoje ({activePericias.length})
+            Perícias cadastradas ({activePericias.length})
           </TabsTrigger>
           <TabsTrigger
             value="checklist"
@@ -216,10 +223,18 @@ export default function BritaniaPericiasPage() {
                       <Badge
                         className={cn(
                           "text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5",
-                          idx === 0 ? "bg-rose-500 text-white" : "bg-amber-500 text-slate-950"
+                          hearingDays(item.date) === 0
+                            ? "bg-rose-500 text-white"
+                            : "bg-amber-500 text-slate-950"
                         )}
                       >
-                        {idx === 0 ? "URGENTE • EM 4 DIAS" : "AGENDADA • EM 11 DIAS"}
+                        {hearingDays(item.date) === null
+                          ? "Data a conferir"
+                          : hearingDays(item.date) === 0
+                            ? "Hoje"
+                            : hearingDays(item.date)! < 0
+                              ? "Data passada"
+                              : `Agendada • em ${hearingDays(item.date)} dia(s)`}
                       </Badge>
                       <h3 className="text-xl font-black text-slate-900 leading-tight pt-1">
                         {item.adverseParty}

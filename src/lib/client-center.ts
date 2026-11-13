@@ -62,7 +62,13 @@ export function summarizePeriodics(
     truncated,
   };
   for (const { id, data } of records) {
-    if (data.isDeleted === true || data.status === "fired" || data.active === false) continue;
+    if (
+      data.isArchived === true ||
+      data.isDeleted === true ||
+      data.status === "fired" ||
+      data.active === false
+    )
+      continue;
     const dueDate = dateOnly(data.nextAsoDate);
     const situation = !dueDate
       ? "missing"

@@ -82,6 +82,7 @@ export function GrupoAvpAsoManager({
   onQueueSummaryChange,
 }: {
   onQueueSummaryChange?: (summary: {
+    available: boolean;
     total: number;
     urgentes: number;
     cidades: number;
@@ -212,14 +213,16 @@ export function GrupoAvpAsoManager({
     return { total, agendados, naoIniciados, urgentes, concluidos, emTratamento, cancelados };
   }, [asosList]);
 
+  const available = !!syncState.checkedAt || syncState.status === "CONNECTED";
   React.useEffect(() => {
     onQueueSummaryChange?.({
+      available: !!syncState.checkedAt || syncState.status === "CONNECTED",
       total: metrics.total,
       urgentes: metrics.urgentes,
       concluidos: metrics.concluidos,
       cidades: new Set(asosList.map((item) => item.cidade + "|" + item.uf)).size,
     });
-  }, [metrics, asosList, onQueueSummaryChange]);
+  }, [metrics, asosList, onQueueSummaryChange, syncState.checkedAt, syncState.status]);
 
   // Filtragem
   const filteredList = React.useMemo(() => {
@@ -513,7 +516,9 @@ export function GrupoAvpAsoManager({
             <span className="text-[10px] font-black uppercase tracking-wider">Total ASOs</span>
             <FileSpreadsheet size={16} />
           </div>
-          <div className="text-2xl font-black font-headline text-slate-900">{metrics.total}</div>
+          <div className="text-2xl font-black font-headline text-slate-900">
+            {available ? metrics.total : "—"}
+          </div>
           <span className="text-[10px] text-slate-500 font-medium">
             {new Set(asosList.map((a) => a.cidade + "|" + a.uf)).size} municípios
           </span>
@@ -533,7 +538,7 @@ export function GrupoAvpAsoManager({
             <CheckCircle2 size={16} />
           </div>
           <div className="text-2xl font-black font-headline text-emerald-700">
-            {metrics.agendados}
+            {available ? metrics.agendados : "—"}
           </div>
           <span className="text-[10px] text-emerald-600/80 font-medium">Data Confirmada</span>
         </Card>
@@ -552,7 +557,7 @@ export function GrupoAvpAsoManager({
             <Clock size={16} />
           </div>
           <div className="text-2xl font-black font-headline text-amber-700">
-            {metrics.naoIniciados}
+            {available ? metrics.naoIniciados : "—"}
           </div>
           <span className="text-[10px] text-amber-600/80 font-medium">Fila Operacional</span>
         </Card>
@@ -570,7 +575,9 @@ export function GrupoAvpAsoManager({
             <span className="text-[10px] font-black uppercase tracking-wider">Urgentes</span>
             <AlertTriangle size={16} />
           </div>
-          <div className="text-2xl font-black font-headline text-rose-700">{metrics.urgentes}</div>
+          <div className="text-2xl font-black font-headline text-rose-700">
+            {available ? metrics.urgentes : "—"}
+          </div>
           <span className="text-[10px] text-rose-600/80 font-medium">Prioridade Máxima</span>
         </Card>
 
@@ -588,7 +595,7 @@ export function GrupoAvpAsoManager({
             <Sparkles size={16} />
           </div>
           <div className="text-2xl font-black font-headline text-blue-700">
-            {metrics.concluidos}
+            {available ? metrics.concluidos : "—"}
           </div>
           <span className="text-[10px] text-blue-600/80 font-medium">Concluídos / SOC</span>
         </Card>
@@ -599,7 +606,7 @@ export function GrupoAvpAsoManager({
             <RefreshCw size={16} />
           </div>
           <div className="text-2xl font-black font-headline text-purple-700">
-            {metrics.emTratamento}
+            {available ? metrics.emTratamento : "—"}
           </div>
           <span className="text-[10px] text-purple-600/80 font-medium">SOC / 2ª Via / Retorno</span>
         </Card>
@@ -644,7 +651,7 @@ export function GrupoAvpAsoManager({
           </div>
 
           {/* ACTION BUTTONS */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap max-w-full items-center gap-2">
             <Button
               onClick={() => setIsSyncModalOpen(true)}
               className="rounded-2xl h-11 px-4 gap-2 text-xs font-black uppercase tracking-wider bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
@@ -694,11 +701,21 @@ export function GrupoAvpAsoManager({
                 <SelectValue placeholder="Todos os Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL">Todos os Status ({metrics.total})</SelectItem>
-                <SelectItem value="AGENDADO">Agendado ({metrics.agendados})</SelectItem>
-                <SelectItem value="NÃO INICIADO">Não Iniciado ({metrics.naoIniciados})</SelectItem>
-                <SelectItem value="URGENTES">Urgentes ({metrics.urgentes})</SelectItem>
-                <SelectItem value="EXAME FEITO">Exame Feito ({metrics.concluidos})</SelectItem>
+                <SelectItem value="ALL">
+                  Todos os Status ({available ? metrics.total : "—"})
+                </SelectItem>
+                <SelectItem value="AGENDADO">
+                  Agendado ({available ? metrics.agendados : "—"})
+                </SelectItem>
+                <SelectItem value="NÃO INICIADO">
+                  Não Iniciado ({available ? metrics.naoIniciados : "—"})
+                </SelectItem>
+                <SelectItem value="URGENTES">
+                  Urgentes ({available ? metrics.urgentes : "—"})
+                </SelectItem>
+                <SelectItem value="EXAME FEITO">
+                  Exame Feito ({available ? metrics.concluidos : "—"})
+                </SelectItem>
                 <SelectItem value="2 VIA ASO">2ª Via ASO</SelectItem>
                 <SelectItem value="CADASTRANDO NO SOC">Cadastrando SOC</SelectItem>
                 <SelectItem value="REAGENDAMENTO">Reagendamento</SelectItem>
@@ -774,7 +791,9 @@ export function GrupoAvpAsoManager({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">Todas as Prioridades</SelectItem>
-                <SelectItem value="URGENTE">🔴 Urgente ({metrics.urgentes})</SelectItem>
+                <SelectItem value="URGENTE">
+                  🔴 Urgente ({available ? metrics.urgentes : "—"})
+                </SelectItem>
                 <SelectItem value="E-MAIL">🟡 E-mail</SelectItem>
                 <SelectItem value="NORMAL">🔵 Normal</SelectItem>
               </SelectContent>
@@ -791,7 +810,7 @@ export function GrupoAvpAsoManager({
               Solicitações Filtradas:
             </span>
             <Badge className="bg-primary text-white font-black text-xs px-2.5 h-6">
-              {filteredList.length} de {asosList.length}
+              {available ? filteredList.length : "—"} de {available ? asosList.length : "—"}
             </Badge>
           </div>
 

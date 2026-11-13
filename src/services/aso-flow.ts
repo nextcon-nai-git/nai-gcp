@@ -1,4 +1,5 @@
 import "server-only";
+import { saoPauloDay } from "@/lib/executive-dashboard";
 import { createHash, randomUUID } from "node:crypto";
 import {
   FieldPath,
@@ -305,6 +306,55 @@ async function resolveRows(
     });
     item.employee = employee;
   }
+  const distinct = new Map<string, Set<string>>();
+  const previous = new Map<string, AsoFlowCard[]>();
+  for (const item of resolved) {
+    const preview = item.preview;
+    if (!preview.id || !preview.companyId || !preview.employeeId) continue;
+    const slot = JSON.stringify([
+      preview.companyId,
+      preview.employeeId,
+      preview.row.examType,
+      preview.row.cycle,
+    ]);
+    const ids = distinct.get(slot) || new Set();
+    ids.add(preview.id);
+    distinct.set(slot, ids);
+    if (!previous.has(preview.employeeId)) {
+      const snapshot = await reader.query(cases().where("employeeId", "==", preview.employeeId));
+      previous.set(
+        preview.employeeId,
+        snapshot.docs.map((d) => d.data() as AsoFlowCard)
+      );
+    }
+  }
+  for (const { preview } of resolved) {
+    if (!preview.id || !preview.employeeId) continue;
+    const slot = JSON.stringify([
+      preview.companyId,
+      preview.employeeId,
+      preview.row.examType,
+      preview.row.cycle,
+    ]);
+    const matches = previous.get(preview.employeeId) || [];
+    if (
+      !matches.some((c) => c.id === preview.id) &&
+      (distinct.get(slot)!.size > 1 ||
+        matches.some(
+          (c) =>
+            c.companyId === preview.companyId &&
+            c.cycle === preview.row.cycle &&
+            c.examType === preview.row.examType
+        ))
+    ) {
+      if (!preview.row.distinctReason) {
+        preview.errors.push(
+          "Possível retificação de unidade do mesmo vínculo, exame e competência. Concilie a unidade original ou informe a justificativa de atendimento distinto."
+        );
+        preview.id = undefined;
+      }
+    }
+  }
   const existing = new Map<string, AsoFlowCard | undefined>();
   await inBatches(
     [...new Set(resolved.map((r) => r.preview.id).filter((v): v is string => !!v))],
@@ -427,6 +477,7 @@ export async function importAsoFlowRows(user: AuthContext, input: unknown) {
         status: "pending",
         sourceName: data.sourceName,
         sourceRow: row.sourceRow ?? item.preview.index,
+        ...(row.distinctReason ? { distinctReason: row.distinctReason } : {}),
         clientEmail: email(company.contactEmail) || email(company.email),
         events: [{ action: "import", at, actor: user.uid, version: 1, status: "pending" }],
         createdAt: at,
@@ -544,6 +595,12 @@ function validateClinic(
     );
   return { id: clinicId, name: value(data.name), email: email(data.email) };
 }
+const localTime = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: "America/Sao_Paulo",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
 function requireNotFuture(instant: string) {
   if (!Number.isFinite(Date.parse(instant)) || Date.parse(instant) > Date.now() + 300000)
     throw badRequest("Informe o horário em que o envio efetivamente ocorreu.");
@@ -670,7 +727,7 @@ export async function updateAsoFlowCard(user: AuthContext, input: unknown): Prom
     } else if (data.action === "waiting_aso") {
       if (!["scheduled", "kit_sent"].includes(card.status) || !card.appointment)
         throw conflict("Confirme o agendamento antes de registrar o comparecimento.");
-      if (data.attendedDate > at.slice(0, 10))
+      if (data.attendedDate > saoPauloDay(new Date(at)))
         throw badRequest("O comparecimento não pode ter data futura.");
       card.attendedDate = data.attendedDate;
       card.status = "waiting_aso";
@@ -737,6 +794,13 @@ export async function updateAsoFlowCard(user: AuthContext, input: unknown): Prom
     } else {
       if (data.outcome === "no_show" && !card.appointment)
         throw conflict("Registre o agendamento antes de informar uma falta.");
+      if (
+        data.outcome === "no_show" &&
+        card.appointment &&
+        card.appointment.date + "T" + card.appointment.time >=
+          saoPauloDay(new Date(at)) + "T" + localTime.format(new Date(at))
+      )
+        throw conflict("Aguarde o horário do atendimento antes de registrar falta.");
       if (card.aso)
         throw conflict(
           "Há ASO recebido. Confira o documento antes de cancelar ou registrar falta."
@@ -903,7 +967,7 @@ export async function uploadAsoFlowDocument(
         nativeSocDeclared: true,
       };
     } else {
-      if (data.examDate > at.slice(0, 10))
+      if (data.examDate > saoPauloDay(new Date(at)))
         throw badRequest("A data do ASO recebido não pode ser futura.");
       card.aso = {
         ...base,

@@ -5,6 +5,7 @@
  * Consulta MinhaReceita, BrasilAPI e ReceitaWS; informa falha quando nenhuma fonte responde.
  */
 
+import { normalizeCnpj } from "@/lib/cnpj";
 import { ActionResult } from "@/types/schema";
 
 export interface CompanyEnrichmentData {
@@ -39,11 +40,11 @@ export async function enriquecerDadosEmpresa(
   totalVidas: number = 10
 ): Promise<ActionResult<CompanyEnrichmentData>> {
   try {
-    const cleanCnpj = cnpj.replace(/\D/g, "");
-    if (cleanCnpj.length !== 14) {
+    const cleanCnpj = normalizeCnpj(cnpj);
+    if (!/^[A-Z0-9]{12}[0-9]{2}$/.test(cleanCnpj)) {
       return {
         sucesso: false,
-        mensagem: "CNPJ inválido. Digite exatamente os 14 dígitos numéricos do CNPJ.",
+        mensagem: "CNPJ inválido. Digite exatamente os 14 caracteres do CNPJ.",
       };
     }
 

@@ -1,4 +1,5 @@
 import "server-only";
+import { withProductionFinanceLock } from "./financial-production-lock";
 import { createHash } from "node:crypto";
 import { getStorage } from "firebase-admin/storage";
 import "@/lib/firebase-admin";
@@ -55,6 +56,15 @@ export async function saveFinanceCommand(user: AuthContext, payload: unknown) {
   const parsed = FinanceCommandSchema.safeParse(payload);
   if (!parsed.success) throw badRequest("Operação inválida: " + parsed.error.issues[0]?.message);
   const command = parsed.data;
+  const write = () => commitCommand(user, command);
+  if (isServiceAllocationCommand(command))
+    return withProductionFinanceLock(command.requestId, write);
+  return write();
+}
+async function commitCommand(
+  user: AuthContext,
+  command: ReturnType<typeof FinanceCommandSchema.parse>
+) {
   const hash = createHash("sha256").update(JSON.stringify(command)).digest("hex");
   const { book, generation } = await readBook();
   let next;

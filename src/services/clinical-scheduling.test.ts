@@ -9,6 +9,9 @@ const state = vi.hoisted(() => ({
   transaction: vi.fn(),
 }));
 vi.mock("firebase/firestore", () => ({
+  query: (q: unknown) => q,
+  where: vi.fn(),
+  getDocsFromServer: async () => ({ docs: [] }),
   doc: (base: { path?: string }, ...segments: string[]) => ({
     path: [base.path, ...segments, ...(segments.length ? [] : ["new-appointment"])]
       .filter(Boolean)
@@ -59,7 +62,9 @@ describe("agendamento com vínculo persistido", () => {
       employeeName: "Pessoa sintética",
     });
     expect(state.set).toHaveBeenCalledWith(
-      expect.objectContaining({ path: "companies/company-a/agendamentos/new-appointment" }),
+      expect.objectContaining({
+        path: expect.stringMatching(/^companies\/company-a\/agendamentos\/agenda_[a-f0-9]{64}$/),
+      }),
       expect.objectContaining({
         colaborador_id: "employee-a",
         companyId: "company-a",

@@ -16,6 +16,7 @@ import {
   previewCycleSchedule,
   previewTaskSchedule,
   sameCycleSlot,
+  validateCyclePeriod,
 } from "./scheduling";
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 const label = z.string().trim().min(1).max(180);
@@ -468,6 +469,7 @@ export function applyCommand(
       )
         fail("Este serviço já possui ciclo nesta competência/ordem.");
       if (!record.revisions[command.revision]) fail("Versão contratual inexistente.");
+      validateCyclePeriod(record, command.revision, command.period);
       if (command.advanceEvidence && command.advanceEvidence.trim().length < 3)
         fail("Informe a cláusula e autorização da antecipação.");
       record.cycles.push({

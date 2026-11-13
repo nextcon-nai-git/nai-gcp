@@ -49,6 +49,7 @@ export function EmployeeCreateDialog({
     const cpf = parseCpf(String(values.get("cpf") || ""));
     const companyId = String(values.get("companyId") || "");
     const jobTitle = String(values.get("jobTitle") || "").trim();
+    const department = String(values.get("department") || "").trim();
     const birthDate = String(values.get("birthDate") || "");
     const cnhCategory = String(values.get("cnhCategory") || "")
       .trim()
@@ -75,6 +76,7 @@ export function EmployeeCreateDialog({
           companyId,
           job_role: { title: jobTitle },
           jobTitle,
+          ...(department ? { department } : {}),
           status: "active",
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
@@ -164,6 +166,10 @@ export function EmployeeCreateDialog({
               maxLength={160}
               defaultValue={initialValues?.jobTitle || ""}
             />
+          </div>
+          <div>
+            <Label htmlFor="employee-department">Setor (necessário para emitir kit)</Label>
+            <Input id="employee-department" name="department" maxLength={240} />
           </div>
           {initialValues && (
             <>

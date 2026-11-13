@@ -33,7 +33,15 @@ import { jsPDF } from "jspdf";
 import { useStorage, useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { ref, uploadString } from "firebase/storage";
 import { STORAGE_PATHS } from "@/lib/storage-paths";
-import { collection, query, orderBy, addDoc, serverTimestamp } from "firebase/firestore";
+import {
+  collection,
+  query,
+  orderBy,
+  doc as firestoreDoc,
+  setDoc,
+  runTransaction,
+  serverTimestamp,
+} from "firebase/firestore";
 import { useSgi } from "@/contexts/sgi-context";
 import { cn } from "@/lib/utils";
 import { useCompanyDirectory } from "@/hooks/use-company-directory";
@@ -79,6 +87,8 @@ function PpeKioskSession() {
 
   const [hasCameraPermission, setHasCameraPermission] = React.useState<boolean | null>(null);
   const [isCapturing, setIsCapturing] = React.useState(false);
+  const capturedAttempt = React.useRef<{ imgData: string; deliveredAt: Date } | null>(null);
+  const attempt = React.useRef<string | null>(null);
   const [location, setLocation] = React.useState<string | null>(null);
   const [step, setStep] = React.useState(1);
   const [capturedImage, setCapturedImage] = React.useState<string | null>(null);
@@ -167,9 +177,10 @@ function PpeKioskSession() {
           });
         }
       };
+      setLocation(null);
       getCameraPermission();
       getGeoLocation();
-      setTimestamp(new Date().toLocaleString("pt-BR"));
+      setTimestamp(null);
     }
     return () => {
       closed = true;
@@ -210,35 +221,66 @@ function PpeKioskSession() {
       const context = canvas.getContext("2d");
       if (!context) throw new Error("Não foi possível capturar a imagem.");
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const imgData = canvas.toDataURL("image/png");
-      const deliveryId = crypto.randomUUID();
+      const { imgData, deliveredAt } = (capturedAttempt.current ??= {
+        imgData: canvas.toDataURL("image/png"),
+        deliveredAt: new Date(),
+      });
+      const deliveryId = (attempt.current ??= crypto.randomUUID());
       const evidencePath = STORAGE_PATHS.CLIENT_PPE(
         selectedCompanyId,
         selectedEmployeeId,
         `${deliveryId}.png`
       );
-      await uploadString(ref(storage, evidencePath), imgData, "data_url");
-      if (!active.current) return;
-      await addDoc(collection(db, "companies", selectedCompanyId, "ppe_deliveries"), {
-        id: deliveryId,
-        companyId: selectedCompanyId,
-        companyName: currentCompany?.name || "",
-        employeeId: selectedEmployeeId,
-        employeeName: currentEmployee?.name || "",
-        employeeCpf: currentEmployee?.cpf || "",
-        epiNome: epiDescription,
-        numeroCA: caNumber,
-        evidenceId: deliveryId,
-        evidencePath,
-        evidenceType: "PHOTO",
-        gpsLocation: location || "Não informado",
-        deliveredAt: new Date().toISOString(),
-        createdAt: serverTimestamp(),
-        createdBy: user.uid,
-        status: "ENTREGUE",
-        caStatus: "PENDENTE_VERIFICACAO",
+      const receiptRef = firestoreDoc(
+        db,
+        "companies",
+        selectedCompanyId,
+        "ppe_deliveries",
+        deliveryId
+      );
+      const alreadyDelivered = await runTransaction(db, async (tx) => {
+        const existing = await tx.get(receiptRef);
+        if (existing.exists()) return existing.data().status === "ENTREGUE";
+        tx.set(
+          receiptRef,
+          {
+            id: deliveryId,
+            companyId: selectedCompanyId,
+            employeeId: selectedEmployeeId,
+            evidenceId: deliveryId,
+            evidencePath,
+            status: "PENDENTE_EVIDENCIA",
+            createdBy: user.uid,
+          },
+          { merge: true }
+        );
+        return false;
       });
+      if (!alreadyDelivered) {
+        await uploadString(ref(storage, evidencePath), imgData, "data_url");
+        if (!active.current) return;
+        await setDoc(receiptRef, {
+          id: deliveryId,
+          companyId: selectedCompanyId,
+          companyName: currentCompany?.name || "",
+          employeeId: selectedEmployeeId,
+          employeeName: currentEmployee?.name || "",
+          employeeCpf: currentEmployee?.cpf || "",
+          epiNome: epiDescription,
+          numeroCA: caNumber,
+          evidenceId: deliveryId,
+          evidencePath,
+          evidenceType: "PHOTO",
+          gpsLocation: location || "Não informado",
+          deliveredAt: deliveredAt.toISOString(),
+          createdAt: serverTimestamp(),
+          createdBy: user.uid,
+          status: "ENTREGUE",
+          caStatus: "PENDENTE_VERIFICACAO",
+        });
+      }
       if (!active.current) return;
+      setTimestamp(deliveredAt.toLocaleString("pt-BR"));
       setCapturedImage(imgData);
       setBiometricToken(deliveryId);
       setStep(3);
@@ -452,7 +494,11 @@ function PpeKioskSession() {
                 !!companiesError ||
                 !!employeesError
               }
-              onClick={() => setStep(2)}
+              onClick={() => {
+                attempt.current = null;
+                capturedAttempt.current = null;
+                setStep(2);
+              }}
             >
               Prosseguir para Registro Fotográfico
             </Button>

@@ -1,4 +1,5 @@
 import { parseAvpQuoteCents, isAvpCostAtLeast40 } from "./avp-costs";
+import { saoPauloDay } from "./executive-dashboard";
 import { periodicProgress, type PeriodicProgress } from "./avp-periodic-status";
 import type { AvpMapClinic } from "./avp-map-clinics";
 
@@ -255,7 +256,9 @@ export function buildAvpPeriodicControl(
   }
   const people: PeriodicPerson[] = [...grouped.values()].map((rows) => {
     const row = rows[0];
-    const statuses = new Set(rows.map((r) => periodicProgress(r[6], r[14])));
+    const statuses = new Set(
+      rows.map((r) => periodicProgress(r[6], r[14], saoPauloDay(new Date(checkedAt))))
+    );
     const progress = statuses.size === 1 ? [...statuses][0] : "unknown";
     const needsReview =
       progress === "unknown" ||
@@ -522,7 +525,8 @@ export function buildAvpPeriodicControl(
     unmatchedPrices,
     summary: {
       sourceRows: campaign.length,
-      uniquePeople: people.length,
+      uniquePeople: new Set(campaign.map((row) => taxId(row[4])).filter((cpf) => cpf.length === 11))
+        .size,
       duplicates: campaign.length - people.length,
       cancelled: people.filter((p) => p.classification === "cancelled").length,
       review: people.filter((p) => p.classification === "review").length,

@@ -183,6 +183,7 @@ function titleForBatch(
       titleId,
       items: batch.items.map((item) => ({
         asoId: item.asoId.slice(0, 180),
+        ...(item.requestNumber ? { requestNumber: item.requestNumber } : {}),
         sourceRow: item.sourceRow,
         collaborator: short(item.collaborator, "Colaborador não identificado"),
         city: short(item.city, "Cidade não informada"),

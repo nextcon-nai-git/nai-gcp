@@ -17,6 +17,7 @@ export const KitSelection = z
       .max(10)
       .refine((ids) => new Set(ids).size === ids.length),
     clinicId: KitId,
+    onSiteAddress: z.string().trim().min(3).max(240).optional(),
     // A cycle represents the actual examination campaign; it is not a retry key.
     cycle: z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/),
     examType: z.enum([

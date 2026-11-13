@@ -36,30 +36,27 @@ export function HolidayBillingWidget() {
   const [ano, setAno] = React.useState(2026);
   const [mes, setMes] = React.useState(2); // Fevereiro por padrão
   const [taxaDiaria, setTaxaDiaria] = React.useState(200);
+  const [facultativos, setFacultativos] = React.useState("");
   const [qtdProfissionais, setQtdProfissionais] = React.useState(5);
   const [calculation, setCalculation] = React.useState<MonthBillingCalculation | null>(null);
-  const [loading, setLoading] = React.useState(false);
 
-  const fetchCalculation = React.useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await calcularFaturamentoAlocacaoComFeriados(
-        ano,
-        mes,
-        taxaDiaria,
-        qtdProfissionais
-      );
-      setCalculation(res);
-    } catch (e) {
-      console.error("Erro ao calcular faturamento com feriados:", e);
-    } finally {
-      setLoading(false);
-    }
-  }, [ano, mes, taxaDiaria, qtdProfissionais]);
-
+  const [error, setError] = React.useState("");
   React.useEffect(() => {
-    fetchCalculation();
-  }, [fetchCalculation]);
+    let current = true;
+    setCalculation(null);
+    setError("");
+    const dates = facultativos.split(/[,;\s]+/).filter(Boolean);
+    calcularFaturamentoAlocacaoComFeriados(ano, mes, taxaDiaria, qtdProfissionais, dates)
+      .then((res) => {
+        if (current) setCalculation(res);
+      })
+      .catch(() => {
+        if (current) setError("Confira as datas no formato AAAA-MM-DD e os valores da simulação.");
+      });
+    return () => {
+      current = false;
+    };
+  }, [ano, mes, taxaDiaria, qtdProfissionais, facultativos]);
 
   const handlePrevMonth = () => {
     if (mes === 1) {
@@ -91,7 +88,7 @@ export function HolidayBillingWidget() {
               REGRA DE ABONATÓRIO & FATURAMENTO
             </Badge>
             <CardTitle className="text-2xl font-headline font-black uppercase tracking-tight">
-              Abatimento de Feriados Nacionais em Equipes Alocadas
+              Abatimentos em equipes alocadas
             </CardTitle>
             <CardDescription className="text-slate-300 text-xs font-medium mt-1">
               Desconto automático de dias não faturáveis na locação de profissionais em clientes.
@@ -152,16 +149,20 @@ export function HolidayBillingWidget() {
             />
           </div>
 
+          <label className="block text-sm">
+            Datas não faturáveis previstas no contrato (AAAA-MM-DD, separadas por vírgula)
+            <Input value={facultativos} onChange={(e) => setFacultativos(e.target.value)} />
+          </label>
           <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-3">
             <Info className="size-5 text-amber-600 shrink-0 mt-0.5" />
             <div className="text-[10px] text-amber-900 font-medium leading-relaxed">
-              <strong>Regra de Negócio NAI:</strong> Em feriados nacionais os profissionais alocados
-              não realizam expediente nos clientes. O valor das diárias destes dias é deduzido do
-              faturamento mensal.
+              O cálculo desconta uma diária por profissional para cada dia útil excluído pelo
+              calendário ou pelo contrato. Datas coincidentes contam uma vez.
             </div>
           </div>
         </div>
 
+        {error && <p role="alert">{error}</p>}
         {/* CARDS RESUMO DO MÊS */}
         {calculation && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -187,7 +188,7 @@ export function HolidayBillingWidget() {
             <div className="p-6 bg-red-50/60 rounded-3xl border border-red-100 flex flex-col justify-between">
               <div className="flex justify-between items-start">
                 <p className="text-[9px] font-black uppercase text-red-700 tracking-widest">
-                  Abatimento Feriados
+                  Abatimento no mês
                 </p>
 
                 <Badge className="bg-red-600 text-white border-none text-[8px] font-black">
@@ -227,7 +228,7 @@ export function HolidayBillingWidget() {
                   })}
                 </h3>
                 <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">
-                  Sem considerar feriados
+                  Antes dos abatimentos
                 </p>
               </div>
             </div>
@@ -260,14 +261,14 @@ export function HolidayBillingWidget() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-black text-primary uppercase flex items-center gap-2">
-              <CalendarIcon size={16} className="text-accent" /> Feriados Nacionais em{" "}
+              <CalendarIcon size={16} className="text-accent" /> Datas não faturáveis em{" "}
               {calculation?.nomeMes} / {ano}
             </h4>
             <Badge
               variant="outline"
               className="text-[9px] font-black uppercase tracking-widest border-slate-200"
             >
-              {calculation?.totalFeriadosNacionais || 0} Feriado(s) Encontrado(s)
+              {calculation?.feriadosNoMes.length ?? 0} data(s)
             </Badge>
           </div>
 
@@ -275,8 +276,8 @@ export function HolidayBillingWidget() {
             <Table>
               <TableHeader className="bg-slate-50 text-[8px] uppercase font-black">
                 <TableRow>
-                  <TableHead className="pl-6 py-4">Data do Feriado</TableHead>
-                  <TableHead>Feriado Nacional</TableHead>
+                  <TableHead className="pl-6 py-4">Data</TableHead>
+                  <TableHead>Motivo do abatimento</TableHead>
                   <TableHead>Dia da Semana</TableHead>
                   <TableHead className="text-center">Tipo de Dia</TableHead>
                   <TableHead className="pr-6 text-right">Impacto no Faturamento</TableHead>
@@ -289,7 +290,8 @@ export function HolidayBillingWidget() {
                       {feriado.date.split("-").reverse().join("/")}
                     </TableCell>
                     <TableCell className="font-bold text-xs uppercase text-primary">
-                      {feriado.name}
+                      {feriado.name} ·{" "}
+                      {feriado.origem === "contrato" ? "Contrato" : "Calendário nacional"}
                     </TableCell>
                     <TableCell className="text-xs font-medium text-slate-500">
                       {feriado.weekdayName}
@@ -323,14 +325,13 @@ export function HolidayBillingWidget() {
                   </TableRow>
                 ))}
 
-                {(!calculation?.feriadosNoMes || calculation.feriadosNoMes.length === 0) && (
+                {calculation && calculation.feriadosNoMes.length === 0 && (
                   <TableRow>
                     <TableCell
                       colSpan={5}
                       className="py-12 text-center text-slate-400 font-bold uppercase text-xs tracking-widest"
                     >
-                      Nenhum feriado nacional neste mês ({calculation?.nomeMes}). Faturamento sem
-                      deduções de feriados.
+                      Nenhuma data não faturável neste mês ({calculation.nomeMes}).
                     </TableCell>
                   </TableRow>
                 )}

@@ -59,6 +59,8 @@ function FieldInspectionSession() {
   const active = React.useRef(true);
   const pending = React.useRef(false);
   const imageVersion = React.useRef(0);
+  const analysisVersion = React.useRef(0);
+  const gpsRequest = React.useRef(0);
   React.useEffect(() => {
     active.current = true;
     return () => {
@@ -79,17 +81,81 @@ function FieldInspectionSession() {
   const [report, setReport] = React.useState<FieldInspectionReport | null>(null);
   const [expandedPlanId, setExpandedPlanId] = React.useState<string | null>(null);
 
-  // Detecção de Dispositivo (Android, iOS ou Desktop)
-  const [devicePlatform, setDevicePlatform] = React.useState<"Android" | "iOS" | "Desktop">(
-    "Desktop"
-  );
-
   // Coordenadas GPS
   const [gpsCoords, setGpsCoords] = React.useState<{
     latitude: number;
     longitude: number;
     accuracy: number;
   } | null>(null);
+  const scope = React.useMemo(
+    () => ({ userId: user?.uid || "", companyId: activeClientId }),
+    [user?.uid, activeClientId]
+  );
+  const [openingDraft, setOpeningDraft] = React.useState(true);
+  const [draftRestored, setDraftRestored] = React.useState(false);
+  const [draftStatus, setDraftStatus] = React.useState("");
+  React.useEffect(() => {
+    if (!scope.userId || ["all", "unauthorized"].includes(scope.companyId)) return;
+    let current = true;
+    offlineStorage
+      .readDraft(scope)
+      .then((draft) => {
+        if (!current) return;
+        if (draft) {
+          setLocationName(draft.location);
+          setNotes(draft.notes);
+          setSelectedImage(draft.image);
+          setGpsCoords(draft.gps);
+        }
+        setDraftRestored(true);
+      })
+      .catch(() => {
+        if (current)
+          setDraftStatus(
+            "Não foi possível abrir o rascunho local. A vistoria pode continuar nesta tela."
+          );
+      })
+      .finally(() => {
+        if (current) setOpeningDraft(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [scope]);
+  React.useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      void navigator.serviceWorker
+        .register("/field-inspection-worker.js", { scope: "/field-inspection" })
+        .catch(() => {});
+    }
+  }, []);
+  // Detecção de Dispositivo (Android, iOS ou Desktop)
+  const [devicePlatform, setDevicePlatform] = React.useState<"Android" | "iOS" | "Desktop">(
+    "Desktop"
+  );
+
+  const [reportGps, setReportGps] = React.useState<typeof gpsCoords>(null);
+  const [savedLocally, setSavedLocally] = React.useState(false);
+  React.useEffect(() => {
+    if (!draftRestored) return;
+    let current = true;
+    offlineStorage
+      .saveDraft(scope, { location: locationName, notes, image: selectedImage, gps: gpsCoords })
+      .then(() => {
+        if (current)
+          setDraftStatus(
+            locationName || notes || selectedImage || gpsCoords
+              ? "Rascunho salvo neste dispositivo."
+              : ""
+          );
+      })
+      .catch(() => {
+        if (current) setDraftStatus("O dispositivo não salvou o rascunho. Mantenha a tela aberta.");
+      });
+    return () => {
+      current = false;
+    };
+  }, [draftRestored, scope, locationName, notes, selectedImage, gpsCoords]);
   const [isCapturingGps, setIsCapturingGps] = React.useState(false);
 
   React.useEffect(() => {
@@ -110,6 +176,11 @@ function FieldInspectionSession() {
   }, [activeClientId, companies]);
 
   // Capturar coordenadas GPS do dispositivo
+  const invalidateReport = () => {
+    analysisVersion.current++;
+    setReport(null);
+    setSavedLocally(false);
+  };
   const handleGetGps = () => {
     if (typeof window === "undefined" || !navigator.geolocation) {
       toast({
@@ -120,10 +191,12 @@ function FieldInspectionSession() {
       return;
     }
 
+    const request = ++gpsRequest.current;
     setIsCapturingGps(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        if (!active.current) return;
+        if (!active.current || gpsRequest.current !== request) return;
+        invalidateReport();
         const coords = {
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
@@ -137,7 +210,7 @@ function FieldInspectionSession() {
         });
       },
       (err) => {
-        if (!active.current) return;
+        if (!active.current || gpsRequest.current !== request) return;
         setIsCapturingGps(false);
         toast({
           variant: "destructive",
@@ -185,9 +258,11 @@ function FieldInspectionSession() {
   const handleImageCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    imageVersion.current++;
+    const version = ++imageVersion.current;
+    gpsRequest.current++;
+    setIsCapturingGps(false);
     setSelectedImage(null);
-    setReport(null);
+    invalidateReport();
     if (
       !file.size ||
       file.size > 10 * 1024 * 1024 ||
@@ -202,8 +277,6 @@ function FieldInspectionSession() {
       return;
     }
     setInvalidImage(false);
-    const version = ++imageVersion.current;
-
     const reader = new FileReader();
     reader.onload = async () => {
       const rawData = reader.result as string;
@@ -216,9 +289,12 @@ function FieldInspectionSession() {
 
     // Tentar obter GPS automaticamente se ainda não tiver
     if (!gpsCoords && typeof window !== "undefined" && navigator.geolocation) {
+      const request = ++gpsRequest.current;
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          if (!active.current) return;
+          if (!active.current || gpsRequest.current !== request || imageVersion.current !== version)
+            return;
+          invalidateReport();
           setGpsCoords({
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude,
@@ -242,12 +318,12 @@ function FieldInspectionSession() {
       (!selectedImage && !notes.trim())
     )
       return;
-    const version = imageVersion.current;
+    const version = analysisVersion.current;
     pending.current = true;
     setIsAnalyzing(true);
     try {
       const token = await getActionIdToken();
-      if (!active.current || imageVersion.current !== version) return;
+      if (!active.current || analysisVersion.current !== version) return;
       const result = await analyzeFieldInspectionPhoto(
         {
           imageBase64: selectedImage || undefined,
@@ -259,15 +335,17 @@ function FieldInspectionSession() {
         },
         token
       );
-      if (!active.current || imageVersion.current !== version) return;
+      if (!active.current || analysisVersion.current !== version) return;
       setReport(result);
+      setReportGps(gpsCoords);
+      setSavedLocally(false);
       if (result.findings.length > 0) {
         setExpandedPlanId(result.findings[0].id);
       }
 
       // Salvar cópia local no storage offline (resiliência para canteiros sem sinal)
       try {
-        offlineStorage.addItem(
+        await offlineStorage.addItem(
           "FIELD_INSPECTION",
           {
             report: result,
@@ -278,7 +356,10 @@ function FieldInspectionSession() {
           },
           { userId: user.uid, companyId: activeClientId }
         );
+        if (!active.current || analysisVersion.current !== version) return;
+        setSavedLocally(true);
       } catch {
+        if (!active.current || analysisVersion.current !== version) return;
         toast({
           variant: "destructive",
           title: "Análise concluída; cópia local não salva",
@@ -293,7 +374,7 @@ function FieldInspectionSession() {
         description: `Índice de Segurança: ${result.safetyIndex}% | ${result.findings.length} itens analisados.`,
       });
     } catch (err: any) {
-      if (!active.current || imageVersion.current !== version) return;
+      if (!active.current || analysisVersion.current !== version) return;
       toast({
         variant: "destructive",
         title: "Erro na vistoria",
@@ -312,8 +393,8 @@ function FieldInspectionSession() {
     let text = `🚨 *RELATÓRIO TÉCNICO DE INSPEÇÃO DE CAMPO - NAI*\n`;
     text += `🏢 *Empresa:* ${currentCompany.name}\n`;
     text += `📍 *Local:* ${report.locationDetected}\n`;
-    if (gpsCoords) {
-      text += `🗺️ *GPS:* ${gpsCoords.latitude.toFixed(5)}, ${gpsCoords.longitude.toFixed(5)} (±${gpsCoords.accuracy}m)\n`;
+    if (reportGps) {
+      text += `🗺️ *GPS:* ${reportGps.latitude.toFixed(5)}, ${reportGps.longitude.toFixed(5)} (±${reportGps.accuracy}m)\n`;
     }
     text += `📱 *Dispositivo de Campo:* ${devicePlatform}\n`;
     text += `📊 *Índice de Segurança:* ${report.safetyIndex}%\n`;
@@ -334,6 +415,8 @@ function FieldInspectionSession() {
     window.open(`https://api.whatsapp.com/send?text=${encoded}`, "_blank", "noopener,noreferrer");
   };
 
+  if (scope.userId && !["all", "unauthorized"].includes(scope.companyId) && openingDraft)
+    return <p role="status">Abrindo a vistoria…</p>;
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 space-y-6 max-w-5xl mx-auto">
       {/* Header */}
@@ -451,7 +534,7 @@ function FieldInspectionSession() {
                     onClick={() => {
                       imageVersion.current++;
                       setSelectedImage(null);
-                      setReport(null);
+                      invalidateReport();
                     }}
                     className="text-xs font-bold rounded-xl shadow-lg"
                   >
@@ -462,6 +545,7 @@ function FieldInspectionSession() {
             </div>
           )}
 
+          {draftStatus && <p role="status">{draftStatus}</p>}
           {/* Dados do Local, Observação e GPS */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -485,7 +569,13 @@ function FieldInspectionSession() {
               </div>
               <Input
                 value={locationName}
-                onChange={(e) => setLocationName(e.target.value)}
+                onChange={(e) => {
+                  invalidateReport();
+                  gpsRequest.current++;
+                  setIsCapturingGps(false);
+                  setGpsCoords(null);
+                  setLocationName(e.target.value);
+                }}
                 placeholder="Ex: Torre 2 - Andaime Fachada Norte"
                 className="bg-slate-950 border-slate-800 text-white text-xs h-10"
               />
@@ -504,7 +594,10 @@ function FieldInspectionSession() {
               </label>
               <Input
                 value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                onChange={(e) => {
+                  invalidateReport();
+                  setNotes(e.target.value);
+                }}
                 placeholder="Ex: Colaboradores da empreiteira de pintura sem trava-quedas..."
                 className="bg-slate-950 border-slate-800 text-white text-xs h-10"
               />
@@ -572,7 +665,9 @@ function FieldInspectionSession() {
               </p>
               <div className="flex items-center gap-2 text-[11px] text-emerald-400 font-mono pt-1">
                 <Save className="size-3.5" />
-                Cópia gravada no armazenamento offline do smartphone.
+                {savedLocally
+                  ? "Cópia gravada neste dispositivo."
+                  : "Análise disponível apenas nesta tela."}
               </div>
             </div>
 

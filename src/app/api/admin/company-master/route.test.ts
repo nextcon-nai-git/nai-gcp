@@ -10,7 +10,10 @@ const state = vi.hoisted(() => ({
 vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: state.auth }));
 vi.mock("@/lib/firebase-admin", () => ({
   adminDb: {
-    collection: (name: string) => ({ doc: (id = "audit") => ({ path: `${name}/${id}` }) }),
+    collection: (name: string) => ({
+      select: () => ({ query: true }),
+      doc: (id = "audit") => ({ path: `${name}/${id}` }),
+    }),
     runTransaction: state.transaction,
   },
 }));
@@ -40,10 +43,15 @@ beforeEach(() => {
   state.auth.mockResolvedValue({ uid: "internal-admin", role: "SUPER_ADMIN", tenantId: null });
   state.get.mockResolvedValue({
     exists: true,
-    data: () => ({ cnpj: "previous", createdAt: "original-time" }),
+    data: () => ({ cnpj: "11.222.333/0001-81", createdAt: "original-time" }),
   });
   state.transaction.mockImplementation(async (fn) =>
-    fn({ get: state.get, set: state.set, create: state.create })
+    fn({
+      get: (ref: { query?: boolean }) =>
+        ref.query ? Promise.resolve({ docs: [] }) : state.get(ref),
+      set: state.set,
+      create: state.create,
+    })
   );
 });
 describe("audited company master writes", () => {
@@ -59,7 +67,7 @@ describe("audited company master writes", () => {
       expect(saved.cnpj).toBe("11222333000181");
       expect(state.create.mock.calls[0][1]).toMatchObject({
         actorUid: "internal-admin",
-        previous: { cnpj: "previous" },
+        previous: { cnpj: "11.222.333/0001-81" },
         next: { cnpj: "11222333000181" },
       });
     }

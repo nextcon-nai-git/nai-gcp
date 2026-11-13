@@ -1,5 +1,8 @@
 import {
   collection,
+  query,
+  where,
+  getDocsFromServer,
   doc,
   runTransaction,
   serverTimestamp,
@@ -45,7 +48,22 @@ export async function createClinicalAppointment(db: Firestore, input: ClinicalAp
 
   const companyRef = doc(db, "companies", input.companyId);
   const employeeRef = doc(companyRef, "employees", input.employeeId);
-  const appointmentRef = doc(collection(companyRef, "agendamentos"));
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(JSON.stringify([input.employeeId, input.date, input.time, input.type]))
+  );
+  const id =
+    "agenda_" + Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+  const appointmentRef = doc(collection(companyRef, "agendamentos"), id);
+  const historical = await getDocsFromServer(
+    query(collection(companyRef, "agendamentos"), where("colaborador_id", "==", input.employeeId))
+  );
+  const previous = historical.docs.filter(
+    (entry) =>
+      entry.id !== id &&
+      entry.data().data_hora === input.date + "T" + input.time + ":00" &&
+      entry.data().tipo === input.type
+  );
   return runTransaction(db, async (tx) => {
     const company = await tx.get(companyRef);
     const employee = await tx.get(employeeRef);
@@ -55,6 +73,13 @@ export async function createClinicalAppointment(db: Firestore, input: ClinicalAp
       !company.exists() ||
       !employee.exists() ||
       companyData?.isDeleted === true ||
+      companyData?.active === false ||
+      (input.type === "Periódico" &&
+        (employeeData?.active === false ||
+          employeeData?.isArchived === true ||
+          ["fired", "desligado", "inativo"].includes(
+            String(employeeData?.status).toLowerCase()
+          ))) ||
       employeeData?.isDeleted === true ||
       (employeeData?.companyId && employeeData.companyId !== input.companyId) ||
       typeof companyData?.name !== "string" ||
@@ -66,6 +91,28 @@ export async function createClinicalAppointment(db: Firestore, input: ClinicalAp
         "Empresa ou colaborador não encontrado. Atualize a seleção antes de agendar."
       );
 
+    const existing = await tx.get(appointmentRef);
+    if (existing.exists()) {
+      if (existing.data().status === "Agendado")
+        return { id: appointmentRef.id, employeeName: employeeData.name };
+      throw Error("Já existe atendimento para este trabalhador, tipo, data e horário.");
+    }
+    if (previous.length > 1)
+      throw Error(
+        "Há agendamentos legados duplicados para este horário. Concilie antes de prosseguir."
+      );
+    for (const old of previous) {
+      const snap = await tx.get(old.ref);
+      const record = snap.data();
+      if (
+        record?.colaborador_id === input.employeeId &&
+        record.data_hora === input.date + "T" + input.time + ":00" &&
+        record.tipo === input.type
+      ) {
+        if (record.status === "Agendado") return { id: old.id, employeeName: employeeData.name };
+        throw Error("Já existe atendimento para este trabalhador, tipo, data e horário.");
+      }
+    }
     tx.set(appointmentRef, {
       colaborador_id: input.employeeId,
       colaborador_nome: employeeData.name,
@@ -98,6 +145,18 @@ export async function advanceClinicalAppointment(
     const expected = next === "Em Espera" ? "Agendado" : "Em Espera";
     if (data?.status !== expected)
       throw new Error("O status do agendamento mudou. Atualize a fila antes de continuar.");
+    if (
+      next === "Em Espera" &&
+      typeof data.data_hora === "string" &&
+      data.data_hora.slice(0, 10) >
+        new Intl.DateTimeFormat("en-CA", {
+          timeZone: "America/Sao_Paulo",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date())
+    )
+      throw Error("A data do atendimento ainda não chegou.");
     tx.update(ref, {
       status: next,
       ...(next === "Em Espera"

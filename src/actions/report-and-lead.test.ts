@@ -9,7 +9,22 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: mocks.auth }));
 vi.mock("@/ai/genkit", () => ({ ai: { generate: mocks.generate } }));
-vi.mock("@/lib/firebase-admin", () => ({ adminDb: { collection: mocks.collection } }));
+vi.mock("@/lib/firebase-admin", () => ({
+  adminDb: {
+    collection: mocks.collection,
+    runTransaction: async (fn: (tx: unknown) => Promise<unknown>) => {
+      let commit: Promise<unknown> | undefined;
+      const result = await fn({
+        get: async () => ({ exists: false }),
+        create: (_ref: unknown, data: unknown) => {
+          commit = mocks.add(data);
+        },
+      });
+      await commit;
+      return result;
+    },
+  },
+}));
 import { processarRelatorioSST } from "./sst-report-processor";
 import { salvarLeadNai } from "./save-nai-lead";
 import { AuthError } from "@/lib/auth/errors";
@@ -37,7 +52,11 @@ beforeEach(() => {
     servedCompanies: [],
   });
   mocks.collection.mockReturnValue({ doc: mocks.doc, add: mocks.add });
-  mocks.doc.mockReturnValue({ get: mocks.get, collection: mocks.collection });
+  mocks.doc.mockImplementation((id: string) =>
+    id.startsWith("visit_")
+      ? { id: "saved-id", get: async () => ({ exists: false }) }
+      : { get: mocks.get, collection: mocks.collection }
+  );
   mocks.get.mockResolvedValue({ exists: true });
   mocks.add.mockResolvedValue({ id: "saved-id" });
   mocks.generate.mockResolvedValue({ output: analysis });
