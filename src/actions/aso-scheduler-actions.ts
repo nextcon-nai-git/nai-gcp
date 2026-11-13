@@ -17,6 +17,7 @@ import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { adminDb } from "@/lib/firebase-admin";
 import { canManageRdAso } from "@/lib/integrations/rd-aso-request";
+import { parseClaims } from "@/lib/auth/claims";
 import { forbidden } from "@/lib/auth/errors";
 
 async function schedulerUser(token: string) {
@@ -45,9 +46,7 @@ export async function getAsoRequestsAction(
   const ownStore = adminDb.collection("users").doc(user.uid).collection("asoRequests");
   const [own, rd] = await Promise.all([
     ownStore.orderBy("createdAt", "desc").limit(500).get(),
-    canManageRdAso(user.role)
-      ? rdRequestStore().orderBy("createdAt", "desc").limit(500).get()
-      : null,
+    canManageRdAso(user) ? rdRequestStore().orderBy("createdAt", "desc").limit(500).get() : null,
   ]);
   const data = [...own.docs, ...(rd?.docs || [])].map((doc) => doc.data() as AsoRequest);
   data.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -274,12 +273,22 @@ export async function advancePipelineStepAction(
     if (!step.success) return { success: false, error: "Etapa de ASO inválida." };
     if (typeof requestId !== "string" || !/^[\w-]{1,128}$/.test(requestId))
       return { success: false, error: "Solicitação inválida." };
-    if (requestId.startsWith("rd-") && !canManageRdAso(user.role)) throw forbidden();
+    if (requestId.startsWith("rd-") && !canManageRdAso(user)) throw forbidden();
     const store = requestId.startsWith("rd-")
       ? rdRequestStore()
       : adminDb.collection("users").doc(user.uid).collection("asoRequests");
     const ref = store.doc(requestId);
     return await adminDb.runTransaction(async (tx) => {
+      if (requestId.startsWith("rd-")) {
+        const profile = (await tx.get(adminDb.collection("users").doc(user.uid))).data();
+        if (
+          !profile ||
+          profile.isDeleted ||
+          profile.accessEnabled === false ||
+          !canManageRdAso(parseClaims(profile))
+        )
+          throw forbidden();
+      }
       const snapshot = await tx.get(ref);
       if (!snapshot.exists) return { success: false, error: "Solicitação de ASO não encontrada." };
       const existing = snapshot.data() as AsoRequest;

@@ -30,7 +30,6 @@ export function applyAsoDraft(
 ) {
   if (draft.documento !== "ASO_INDIVIDUAL") throw new Error("Selecione um ASO individual.");
   const currentWorker = (current.ideVinculo || {}) as Record<string, unknown>;
-  const currentAso = (current.aso || {}) as Record<string, unknown>;
   const cpf = (draft.cpfTrabalhador || "").replace(/[^\d]/g, "");
   if (lockWorker && (!cpf || cpf !== String(currentWorker.cpfTrab || "").replace(/[^\d]/g, "")))
     throw new Error("O CPF do arquivo precisa coincidir com o vínculo fixado no evento.");
@@ -41,7 +40,6 @@ export function applyAsoDraft(
       ? currentWorker
       : { ...(workerChanged ? {} : currentWorker), cpfTrab: cpf },
     aso: {
-      ...currentAso,
       dtAso: draft.dataAso || "",
       tpAso: draft.tipoExame === null ? "" : Number(draft.tipoExame),
       resAso: draft.resultadoAso === null ? "" : Number(draft.resultadoAso),

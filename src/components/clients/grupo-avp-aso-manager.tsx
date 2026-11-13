@@ -161,7 +161,7 @@ export function GrupoAvpAsoManager({
   const selectedPixStatus = selectedAso ? avpPixStatus(selectedAso.pixRealizado) : "A CONFERIR";
   const selectedAsoClinics = React.useMemo(() => {
     if (!selectedAso) return [];
-    const defaultMsg = generateWhatsAppAppointmentMessage(selectedAso);
+    const defaultMsg = (clinic: string) => generateWhatsAppAppointmentMessage(selectedAso, clinic);
     return parseClinicAndPhoneCells(
       selectedAso.nomeClinica,
       selectedAso.telefoneClinica,
@@ -1368,7 +1368,11 @@ export function GrupoAvpAsoManager({
                           <MessageSquare size={14} /> WhatsApp: {clinic.nome || "Clínica"}
                         </a>
                       </Button>
-                    ) : null
+                    ) : (
+                      <span key={idx} className="text-sm text-muted-foreground">
+                        {clinic.nome || "Clínica"} · contato pendente de conferência
+                      </span>
+                    )
                   )}
 
                   {/* BUSCA DE ALTERNATIVAS NO GOOGLE MAPS SE NÃO TIVER OU QUISER CONTINGÊNCIA */}

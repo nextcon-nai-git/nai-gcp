@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => {
   const shared = queue(sharedGet, sharedDoc);
   return {
     role: "OPERATIONS",
+    tenantId: null as string | null,
+    profileRead: vi.fn(),
     ownGet,
     sharedGet,
     cardGet,
@@ -23,14 +25,21 @@ const mocks = vi.hoisted(() => {
       runTransaction: async (fn: (tx: any) => Promise<unknown>) =>
         fn({ get: (ref: any) => ref.get(), update: (ref: any, changes: any) => ref.set(changes) }),
       collection: vi.fn((name: string) => ({
-        doc: vi.fn(() => ({ collection: vi.fn(() => (name === "users" ? own : shared)) })),
+        doc: vi.fn(() => ({
+          get: () => mocks.profileRead(),
+          collection: vi.fn(() => (name === "users" ? own : shared)),
+        })),
       })),
     },
   };
 });
 vi.mock("@/lib/firebase-admin", () => ({ adminDb: mocks.db }));
 vi.mock("@/lib/auth/require-auth", () => ({
-  requireAuth: vi.fn(async () => ({ uid: "operator-test", role: mocks.role })),
+  requireAuth: vi.fn(async () => ({
+    uid: "operator-test",
+    role: mocks.role,
+    tenantId: mocks.tenantId,
+  })),
 }));
 vi.mock("next/server", () => ({ NextRequest: class {} }));
 vi.mock("@/ai/flows/aso-scheduler-system-flow", () => ({
@@ -47,7 +56,11 @@ const card = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.tenantId = null;
   mocks.role = "OPERATIONS";
+  mocks.profileRead.mockImplementation(() => ({
+    data: () => ({ role: mocks.role, tenantId: mocks.tenantId }),
+  }));
   mocks.ownGet.mockResolvedValue({
     docs: [{ data: () => ({ id: "own", createdAt: "2026-10-08T12:00:00Z" }) }],
   });
@@ -72,11 +85,31 @@ describe("shared RD ASO queue authorization", () => {
     await expect(getAsoRequestsAction("test-token")).rejects.toThrow();
     expect(mocks.sharedGet).not.toHaveBeenCalled();
   });
+  it.each(["ADMIN", "OPERATIONS", "SUPER_ADMIN"])(
+    "keeps tenant-bound %s out of the shared queue",
+    async (role) => {
+      mocks.role = role;
+      mocks.tenantId = "empresa";
+      expect((await getAsoRequestsAction("token")).data.map((card) => card.id)).toEqual(["own"]);
+      expect((await advancePipelineStepAction("rd-test", "validando", "token")).success).toBe(
+        false
+      );
+      expect(mocks.sharedGet).not.toHaveBeenCalled();
+      expect(mocks.sharedDoc).not.toHaveBeenCalled();
+    }
+  );
   it("client cannot advance a shared card by guessing its ID", async () => {
     mocks.role = "CLIENT_ADMIN";
     const result = await advancePipelineStepAction("rd-test", "validando", "test-token");
     expect(result.success).toBe(false);
     expect(mocks.sharedDoc).not.toHaveBeenCalled();
+    expect(mocks.cardSet).not.toHaveBeenCalled();
+  });
+  it("rechecks the current company scope when committing the move", async () => {
+    mocks.profileRead.mockReturnValue({
+      data: () => ({ role: "OPERATIONS", companyId: "empresa" }),
+    });
+    expect((await advancePipelineStepAction("rd-test", "validando", "token")).success).toBe(false);
     expect(mocks.cardSet).not.toHaveBeenCalled();
   });
   it("operator advances the shared card while preserving its source and identity", async () => {

@@ -5,7 +5,7 @@ const mock = vi.hoisted(() => ({
   doc: vi.fn(),
   where: vi.fn(),
   orderBy: vi.fn(),
-  limit: vi.fn(),
+  select: vi.fn(),
   get: vi.fn(),
 }));
 vi.mock("@/lib/firebase-admin", () => ({ adminDb: { collection: mock.collection } }));
@@ -25,10 +25,10 @@ beforeEach(() => {
     doc: mock.doc,
     where: mock.where,
     orderBy: mock.orderBy,
-    limit: mock.limit,
+    select: mock.select,
     get: mock.get,
   };
-  for (const fn of [mock.collection, mock.doc, mock.where, mock.orderBy, mock.limit])
+  for (const fn of [mock.collection, mock.doc, mock.where, mock.orderBy, mock.select])
     fn.mockReturnValue(chain);
   mock.get.mockResolvedValue({ empty: true, docs: [] });
 });
@@ -44,7 +44,7 @@ describe("authorized clinical history", () => {
     expect(mock.doc).toHaveBeenCalledWith("tenant-a");
     expect(mock.collection).toHaveBeenCalledWith("aso_attendances");
     expect(mock.where).toHaveBeenCalledWith("employeeId", "==", "patient");
-    expect(mock.limit).toHaveBeenCalledWith(1);
+    expect(mock.where).toHaveBeenCalledWith("linkedEmployeeId", "==", "patient");
     expect(result.statusConsulta).toBe("SEM_REGISTROS");
     expect(result.aviso).toContain("Não inferir aptidão");
   });
@@ -70,8 +70,77 @@ describe("authorized clinical history", () => {
     });
     const result = await getAuthorizedMedicalHistory(user, "tenant-a", "patient");
     expect(result).toMatchObject({ statusConsulta: "CONSULTADO", resultado: "Pendente" });
+    if (result.statusConsulta !== "CONSULTADO") throw Error("Histórico ausente");
     expect(result.restricoes).toHaveLength(30);
     expect(result).not.toHaveProperty("privateUnrelated");
+  });
+  const linked = (day: string) => {
+    const hash = "a".repeat(64);
+    return {
+      id: "import_" + hash,
+      data: () => ({
+        documentType: "ASO",
+        restricted: true,
+        companyId: "tenant-a",
+        linkedEmployeeId: "patient",
+        linkedAppointmentId: "visit",
+        linkedAt: { seconds: 1 },
+        sourceHash: hash,
+        storageGeneration: "123",
+        storageSha256: hash,
+        clinicalReview: {
+          status: "reviewed",
+          reviewerUid: "doctor",
+          reviewedAt: { seconds: 1 },
+          companyId: "tenant-a",
+          employeeId: "patient",
+          appointmentId: "visit",
+          sourceHash: hash,
+          storageGeneration: "123",
+          identityConfirmedFromOriginal: true,
+          appointmentSnapshot: {
+            dateTime: day + "T00:15:00",
+            appointmentId: "visit",
+            employeeId: "patient",
+            companyId: "tenant-a",
+          },
+        },
+      }),
+    };
+  };
+  it.each([
+    ["2020-01-01", "clinical_records"],
+    ["2027-01-01", "aso_attendances"],
+    ["2026-11-01", "clinical_records"],
+  ])("concilia o legado de %s e o original revisado", async (day, origin) => {
+    mock.get
+      .mockResolvedValueOnce({
+        docs: [{ id: "antigo", data: () => ({ data_emissao: day, resultado: "Apto" }) }],
+      })
+      .mockResolvedValueOnce({ docs: [linked("2026-11-01")] });
+    const result = await getAuthorizedMedicalHistory(user, "tenant-a", "patient");
+    if (result.statusConsulta !== "CONSULTADO") throw Error("Histórico ausente");
+    expect(result.origem).toBe(origin);
+    if (origin === "clinical_records")
+      expect(result).toMatchObject({
+        data: "2026-11-01",
+        resultado: null,
+        tipoData: "atendimento",
+      });
+    if (day === "2026-11-01") expect(result.aviso).toMatch(/mesma data/);
+  });
+  it("preserva a restrição do acervo importado para o perfil genérico de prestador", async () => {
+    await getAuthorizedMedicalHistory({ ...user, role: "PROVIDER" }, "tenant-a", "patient");
+    expect(mock.collection).not.toHaveBeenCalledWith("clinical_records");
+  });
+  it("não usa um documento sem revisão e vínculo correspondentes", async () => {
+    const dto = linked("2026-11-01");
+    mock.get.mockResolvedValueOnce({ docs: [] }).mockResolvedValueOnce({
+      docs: [{ ...dto, data: () => ({ ...dto.data(), linkedAppointmentId: "outra" }) }],
+    });
+    expect((await getAuthorizedMedicalHistory(user, "tenant-a", "patient")).statusConsulta).toBe(
+      "SEM_REGISTROS"
+    );
   });
   it.each([null, 5, "", " ", "patient/other", "patient\\other", "patient\n", "x".repeat(129)])(
     "rejects malformed patient %j before querying",

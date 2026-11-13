@@ -46,6 +46,53 @@ describe("formulário de eventos", () => {
       expect(host.textContent).not.toContain("Cole JSON");
     }
   });
+  it("limpa o responsável pelo PCMSO ao escolher outro vínculo no formulário", async () => {
+    const payload = {
+      eventType: "S2220",
+      ideEvento: { tpAmb: 2, indRetif: 1 },
+      ideEmpregador: { tpInsc: 1, nrInsc: "00000001" },
+      ideVinculo: { cpfTrab: "00000000191", matricula: "ANTIGA" },
+      aso: {
+        dtAso: "2026-01-10",
+        tpAso: 1,
+        exames: [{ dtExm: "2026-01-10", procRealizado: "0295" }],
+        medico: { nmMed: "Examinador teste", nrCrm: "12345", ufCrm: "SP" },
+        medicoResp: { nmMed: "Coordenador anterior", nrCrm: "99999", ufCrm: "PR" },
+      },
+    };
+    const employee = {
+      id: "novo",
+      cpf: "52998224725",
+      name: "Pessoa de teste",
+      link: { matricula: "NOVA", reference: "Folha", confirmedAt: "2026-01-10" },
+    };
+    await act(async () =>
+      root.render(
+        <EventForm
+          busy={false}
+          initialPayload={payload}
+          employees={[employee]}
+          onSave={save}
+          onCancel={() => {}}
+        />
+      )
+    );
+    const picker = host.querySelector<HTMLSelectElement>('[aria-label="Colaborador do evento"]')!;
+    await act(async () => {
+      picker.value = employee.id;
+      picker.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await act(async () => {
+      host
+        .querySelector("form")!
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect(save).toHaveBeenCalledOnce();
+    expect(save.mock.calls[0][0]).toMatchObject({
+      ideVinculo: { cpfTrab: employee.cpf, matricula: "NOVA" },
+    });
+    expect(save.mock.calls[0][0].aso).not.toHaveProperty("medicoResp");
+  });
   it("salva um S-2220 com campos tipados e preserva grupos opcionais ausentes", async () => {
     // Synthetic identifiers chosen only to exercise check digits; no real record is used.
     const payload = {
