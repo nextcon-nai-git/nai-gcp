@@ -189,9 +189,10 @@ gcloud iam workload-identity-pools providers create-oidc "$NAI_PROVIDER_ID" \
   --attribute-mapping="$NAI_ATTRIBUTE_MAPPING" --attribute-condition="$NAI_ATTRIBUTE_CONDITION"
 ```
 
-Se o provider existir, não repetir `create-oidc`: conferir issuer, audiences, mapping, condition e
-estado; usar `update-oidc` somente para diferenças aprovadas. O action usa o nome canônico do provider
-como audience. Não adicionar uma audience genérica e não confiar em todo o pool.
+Se o provider existir, conferir issuer, audiences, mapping, condition e estado. O action usa
+o nome canônico do provider como audience. A condição acima cobre eSocial e índices.
+Para publicar também a auditoria SST com o mesmo provider, conferir a extensão e o vínculo
+exclusivo da conta descritos em [Publicação da auditoria S-2220](auditoria-s2220.md#publicação-com-identidade-federada).
 
 Cada conta é impersonada somente pelo seu workflow:
 
