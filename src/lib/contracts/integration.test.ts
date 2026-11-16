@@ -380,6 +380,37 @@ describe("contract integration persistence", () => {
     expect(set).not.toHaveBeenCalled();
   });
 
+  it.each([false, true])(
+    "lets the SDK verify an apparently partial concurrent import (changed=%s)",
+    async (changed) => {
+      const registry = { ...persistedContract, contractId: "source_" + sourceHash };
+      const set = vi.fn();
+      let bothPresent = false;
+      mocks.runTransaction.mockImplementation(async (_db, callback) => {
+        const tx = {
+          get: async (ref: { path: string }) => {
+            if (ref.path === "companies/" + company.id) return { data: () => company };
+            const sourceRecord = ref.path.startsWith("contract_import_sources/");
+            return {
+              exists: () => sourceRecord || bothPresent,
+              data: () => (sourceRecord ? registry : persistedContract),
+            };
+          },
+          set,
+        };
+        const candidate = await callback(tx);
+        // On an actual version change Firestore retries the callback before
+        // returning. Throwing inside it would abort this verification.
+        if (!changed) return candidate;
+        bothPresent = true;
+        return callback(tx);
+      });
+      if (changed) await expect(integrate()).resolves.toMatchObject({ created: false });
+      else await expect(integrate()).rejects.toThrow(/dados divergentes/);
+      expect(set).not.toHaveBeenCalled();
+    }
+  );
+
   it("reports a read-after-write failure as pending confirmation", async () => {
     mocks.getDoc.mockRejectedValue(new Error("read failed"));
     await expect(integrate()).rejects.toBeInstanceOf(ContractImportConfirmationPending);
