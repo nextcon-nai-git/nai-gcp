@@ -142,7 +142,7 @@ export function KanbanBoard({ tasks: initialTasks, columns = DEFAULT_COLUMNS }: 
     if (newStatus === currentTask.status) return;
     try {
       if (dropTargetId === "trash") await deleteDoc(taskRef);
-      else await updateDoc(taskRef, { status: newStatus });
+      else await updateDoc(taskRef, { status: newStatus, companyId: currentTask.companyId });
       notifyTaskUpdated();
       setTasks((prev) =>
         dropTargetId === "trash" || newStatus === "archived"

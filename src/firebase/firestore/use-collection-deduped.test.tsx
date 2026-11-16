@@ -1,7 +1,7 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { initializeApp, deleteApp, type FirebaseApp } from "firebase/app";
-import { collection, getFirestore, query, where, type Query } from "firebase/firestore";
+import { collection, doc, getFirestore, query, where, type Query } from "firebase/firestore";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useCollectionDeduped } from "./use-collection-deduped";
 
@@ -32,11 +32,19 @@ function Subscriber({
   label: string;
   permissionErrors?: "global" | "local";
 }) {
-  const { data, isLoading, error } = useCollectionDeduped<{ name: string }>(target, {
-    permissionErrors,
-  });
+  const { data, isLoading, error } = useCollectionDeduped<{ name: string; companyId?: string }>(
+    target,
+    {
+      permissionErrors,
+    }
+  );
   return (
-    <span data-testid={label} data-loading={String(isLoading)} data-error={error?.message || ""}>
+    <span
+      data-testid={label}
+      data-company={data?.[0]?.companyId}
+      data-loading={String(isLoading)}
+      data-error={error?.message || ""}
+    >
       {data === null ? "none" : data.map((doc) => doc.name).join(",") || "empty"}
     </span>
   );
@@ -44,7 +52,13 @@ function Subscriber({
 const read = (label: string) => element.querySelector(`[data-testid="${label}"]`)!;
 async function publish(index: number, name?: string) {
   const onNext = mocks.onSnapshot.mock.calls[index][1];
-  await act(async () => onNext({ docs: name ? [{ id: "doc-1", data: () => ({ name }) }] : [] }));
+  await act(async () =>
+    onNext({
+      docs: name
+        ? [{ id: "doc-1", ref: doc(getFirestore(apps[0]), "shared/doc-1"), data: () => ({ name }) }]
+        : [],
+    })
+  );
 }
 async function fail(index: number, code = "unavailable") {
   const onError = mocks.onSnapshot.mock.calls[index][2];
@@ -75,6 +89,18 @@ afterEach(async () => {
 });
 
 describe("useCollectionDeduped", () => {
+  it("uses the real parent when operational records claim a different company", async () => {
+    await act(async () => root.render(pair()));
+    const onNext = mocks.onSnapshot.mock.calls[0][1];
+    for (const name of ["tasks", "reports", "non_conformities", "legalExpertises"]) {
+      const ref = doc(getFirestore(apps[0]), "companies", "real", name, "same-id");
+      await act(async () =>
+        onNext({ docs: [{ ref, id: ref.id, data: () => ({ companyId: "other", name: "Test" }) }] })
+      );
+      expect(read("first").getAttribute("data-company")).toBe("real");
+    }
+  });
+
   it("shares one listener for equivalent public queries", async () => {
     await act(async () =>
       root.render(

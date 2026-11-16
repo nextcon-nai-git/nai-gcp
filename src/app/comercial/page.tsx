@@ -1,8 +1,6 @@
 "use client";
 
-import { BRITANIA_ANCHOR } from "@/lib/britania-group";
 import { parseClaims } from "@/lib/auth/claims";
-import { isBritaniaFapAdmin } from "@/lib/auth/britania-fap-access";
 import { useOperationalTaskList } from "@/hooks/use-pgr-workspace";
 import * as React from "react";
 import Link from "next/link";
@@ -31,9 +29,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
-import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from "@/firebase";
-import { doc, collection, query, orderBy, collectionGroup, limit } from "firebase/firestore";
+import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
+import { doc } from "firebase/firestore";
 import { SST_CATALOG } from "@/lib/services-data";
 import {
   Accordion,
@@ -42,7 +39,6 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { NaiQuoteComponent } from "@/components/commercial/nai-quote-component";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { COMMERCIAL_COLUMNS } from "@/types/kanban";
@@ -50,13 +46,19 @@ import { OpsTask } from "@/types/schema";
 import { cn } from "@/lib/utils";
 
 export default function ComercialPortal() {
-  const { toast } = useToast();
+  const { user, role, tenantId, companyId } = useUser();
+  return user ? (
+    <ComercialSession key={JSON.stringify([user.uid, role, tenantId, companyId])} />
+  ) : null;
+}
+
+function ComercialSession() {
   const { user } = useUser();
   const db = useFirestore();
 
   const [activeTab, setActiveTab] = React.useState("ai");
   const [selectedServices, setSelectedServices] = React.useState<Record<string, number>>({});
-  const [isSaving, setIsSaving] = React.useState(false);
+  const [quoteScope, setQuoteScope] = React.useState("");
 
   const [licitacoes, setLicitacoes] = React.useState<any[]>([]);
   const [loadingRadar, setLoadingRadar] = React.useState(false);
@@ -80,41 +82,21 @@ export default function ComercialPortal() {
   }, [profile]);
 
   const ownCompany = profile ? parseClaims(profile).tenantId : undefined;
-  const filteredScope =
-    profile && !isBritaniaFapAdmin(parseClaims(profile))
-      ? isGlobalAdmin
-        ? "all"
-        : ownCompany === BRITANIA_ANCHOR
-          ? BRITANIA_ANCHOR
-          : null
-      : null;
-  const filteredTasks = useOperationalTaskList<OpsTask>(filteredScope, true);
-  const commercialTasksQuery = useMemoFirebase(() => {
-    if (!db || !profile || filteredScope) return null;
-    if (isGlobalAdmin) {
-      return query(collectionGroup(db, "tasks"), orderBy("createdAt", "desc"), limit(50));
-    }
-    if (ownCompany) {
-      return query(
-        collection(db, "companies", ownCompany, "tasks"),
-        orderBy("createdAt", "desc"),
-        limit(50)
-      );
-    }
-    return null;
-  }, [db, profile, isGlobalAdmin, filteredScope, ownCompany]);
+  const scope =
+    activeTab === "cards" && profile ? (isGlobalAdmin ? "all" : ownCompany || null) : null;
+  const {
+    data: commercialTasks,
+    error: taskError,
+    loading: loadingTasks,
+  } = useOperationalTaskList<OpsTask>(scope, true, "commercial");
 
-  const directTasks = useCollection<OpsTask>(commercialTasksQuery);
-  const allTasks = filteredScope ? filteredTasks.data : directTasks.data;
-  const taskError = filteredScope ? filteredTasks.error : directTasks.error?.message;
-  const loadingTasks = filteredScope ? filteredTasks.loading : directTasks.isLoading;
-
-  const commercialTasks = React.useMemo(() => {
-    if (!allTasks) return [];
-    return allTasks.filter((t) =>
-      ["to_review", "sent", "approved", "implementation"].includes(t.status)
-    );
-  }, [allTasks]);
+  const configureQuote = () => {
+    const items = SST_CATALOG.flatMap((category) => category.services)
+      .filter((service) => selectedServices[service.id] > 0)
+      .map((service) => `${service.name} — ${selectedServices[service.id]} (${service.unit})`);
+    setQuoteScope(items.join("\n"));
+    setActiveTab("ai");
+  };
 
   const handleUpdateQty = (serviceId: string, delta: number) => {
     setSelectedServices((prev) => {
@@ -360,6 +342,7 @@ export default function ComercialPortal() {
                                 </div>
                                 <div className="flex items-center gap-3 bg-white p-1 rounded-2xl shadow-inner border">
                                   <button
+                                    aria-label={`Diminuir quantidade de ${svc.name}`}
                                     onClick={() => handleUpdateQty(svc.id, -1)}
                                     className="size-9 rounded-xl hover:bg-slate-50 flex items-center justify-center text-slate-400"
                                   >
@@ -369,6 +352,7 @@ export default function ComercialPortal() {
                                     {selectedServices[svc.id] || 0}
                                   </span>
                                   <button
+                                    aria-label={`Aumentar quantidade de ${svc.name}`}
                                     onClick={() => handleUpdateQty(svc.id, 1)}
                                     className="size-9 rounded-xl bg-primary text-white flex items-center justify-center transition-transform active:scale-95 shadow-lg"
                                   >
@@ -413,14 +397,11 @@ export default function ComercialPortal() {
                     </div>
                   </div>
                   <Button
-                    disabled={totalItemsCount === 0 || isSaving}
+                    disabled={totalItemsCount === 0}
+                    onClick={configureQuote}
                     className="w-full h-16 bg-accent text-primary font-black uppercase text-[10px] tracking-widest rounded-2xl shadow-2xl gap-3"
                   >
-                    {isSaving ? (
-                      <Loader2 className="size-5 animate-spin" />
-                    ) : (
-                      <FileText className="size-5" />
-                    )}
+                    <FileText className="size-5" />
                     Configurar Proposta Final
                   </Button>
                 </CardContent>
@@ -429,8 +410,11 @@ export default function ComercialPortal() {
           </div>
         </TabsContent>
 
-        <TabsContent value="ai" className="mt-8">
-          <NaiQuoteComponent />
+        <TabsContent value="ai" forceMount className="mt-8 data-[state=inactive]:hidden">
+          <NaiQuoteComponent
+            selectedScope={quoteScope}
+            onAdjustScope={() => setActiveTab("manual")}
+          />
         </TabsContent>
 
         <TabsContent value="cards" className="mt-8">
@@ -447,11 +431,16 @@ export default function ComercialPortal() {
                 </p>
               </div>
             ) : commercialTasks.length > 0 ? (
-              <KanbanBoard
-                tasks={commercialTasks}
-                columns={COMMERCIAL_COLUMNS}
-                boardType="commercial"
-              />
+              <>
+                {commercialTasks.length === 50 && (
+                  <p className="mb-3 text-sm">Exibindo as 50 propostas mais recentes.</p>
+                )}
+                <KanbanBoard
+                  tasks={commercialTasks}
+                  columns={COMMERCIAL_COLUMNS}
+                  boardType="commercial"
+                />
+              </>
             ) : (
               <div className="text-center py-32 opacity-20 flex flex-col items-center gap-4">
                 <TrendingUp className="size-16" />

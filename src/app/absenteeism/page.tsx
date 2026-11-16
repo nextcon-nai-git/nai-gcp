@@ -70,12 +70,10 @@ import {
   doc,
   where,
   serverTimestamp,
+  addDoc,
+  updateDoc,
+  deleteDoc,
 } from "firebase/firestore";
-import {
-  addDocumentNonBlocking,
-  deleteDocumentNonBlocking,
-  updateDocumentNonBlocking,
-} from "@/firebase/non-blocking-updates";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v3";
@@ -170,7 +168,8 @@ export default function AbsenteeismScope() {
 function AbsenteeismPage() {
   const { toast } = useToast();
   const db = useFirestore();
-  const { user, role, companyId: userCompanyId } = useUser();
+  const { user, tenantId, companyId } = useUser();
+  const userCompanyId = tenantId?.trim() ? tenantId : companyId;
   const { activeClientId, isGlobalStaff, authorizedCompanies } = useSgi();
   const isGlobalAdmin = isGlobalStaff;
 
@@ -264,7 +263,7 @@ function AbsenteeismPage() {
     setIsSubmitting(true);
     try {
       const colRef = collection(db, "companies", values.companyId, "legalExpertises");
-      await addDocumentNonBlocking(colRef, {
+      await addDoc(colRef, {
         ...values,
         createdAt: serverTimestamp(),
         type: "Afastamento Previdenciário",
@@ -280,26 +279,36 @@ function AbsenteeismPage() {
     }
   }
 
-  const handleDeleteRecord = (record: MedicalLeaveRecord) => {
-    if (!db || !record.companyId) return;
-    if (window.confirm(`Deseja remover o registro de ${record.employeeName}?`)) {
-      deleteDocumentNonBlocking(
-        doc(db, "companies", record.companyId, "legalExpertises", record.id)
-      );
-      toast({ title: "Registro Removido" });
+  const handleDeleteRecord = async (record: MedicalLeaveRecord) => {
+    if (
+      !db ||
+      !record.companyId ||
+      !window.confirm(`Deseja remover o registro de ${record.employeeName}?`)
+    )
+      return;
+    try {
+      await deleteDoc(doc(db, "companies", record.companyId, "legalExpertises", record.id));
+      toast({ title: "Registro removido" });
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Não foi possível remover o registro",
+        description: "Confira seu acesso e tente novamente.",
+      });
     }
   };
 
-  const toggleChecklistItem = (record: MedicalLeaveRecord, stepId: string) => {
+  const setChecklistItem = async (record: MedicalLeaveRecord, stepId: string, checked: boolean) => {
     if (!db || !record.companyId) return;
-    const docRef = doc(db, "companies", record.companyId, "legalExpertises", record.id);
-    const currentWorkflow = record.ntepWorkflow || {};
-    const newValue = !currentWorkflow[stepId];
-
-    updateDocumentNonBlocking(docRef, {
-      [`ntepWorkflow.${stepId}`]: newValue,
-      updatedAt: serverTimestamp(),
-    });
+    try {
+      await updateDoc(doc(db, "companies", record.companyId, "legalExpertises", record.id), {
+        companyId: record.companyId,
+        [`ntepWorkflow.${stepId}`]: checked,
+        updatedAt: serverTimestamp(),
+      });
+    } catch {
+      toast({ variant: "destructive", title: "Não foi possível salvar a etapa do checklist" });
+    }
   };
 
   const getWorkflowProgress = (record: MedicalLeaveRecord) => {
@@ -639,7 +648,7 @@ function AbsenteeismPage() {
 
                     return (
                       <TableRow
-                        key={record.id}
+                        key={JSON.stringify([record.companyId, record.id])}
                         className={cn(
                           "hover:bg-slate-50 transition-colors",
                           isNtep && "bg-red-50/20"
@@ -752,7 +761,7 @@ function AbsenteeismPage() {
                                               const isChecked =
                                                 record.ntepWorkflow?.[item.id] === true;
                                               return (
-                                                <div
+                                                <label
                                                   key={item.id}
                                                   className={cn(
                                                     "flex items-center gap-4 p-5 rounded-2xl border-2 transition-all cursor-pointer group",
@@ -760,14 +769,15 @@ function AbsenteeismPage() {
                                                       ? "bg-emerald-50 border-emerald-100"
                                                       : "bg-white border-slate-50 hover:border-primary/10"
                                                   )}
-                                                  onClick={() =>
-                                                    toggleChecklistItem(record, item.id)
-                                                  }
                                                 >
                                                   <Checkbox
                                                     checked={isChecked}
-                                                    onCheckedChange={() =>
-                                                      toggleChecklistItem(record, item.id)
+                                                    onCheckedChange={(checked) =>
+                                                      void setChecklistItem(
+                                                        record,
+                                                        item.id,
+                                                        checked === true
+                                                      )
                                                     }
                                                     className="size-5 rounded-md border-slate-300"
                                                   />
@@ -784,7 +794,7 @@ function AbsenteeismPage() {
                                                   {isChecked && (
                                                     <CheckCircle2 className="size-4 text-emerald-500 ml-auto" />
                                                   )}
-                                                </div>
+                                                </label>
                                               );
                                             })}
                                           </CardContent>

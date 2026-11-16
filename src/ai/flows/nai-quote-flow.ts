@@ -15,7 +15,7 @@ const DadosEmpresaInputSchema = z.object({
   setor: z.string().describe("Setor de atuação (ex: Construção, Indústria, Varejo)"),
   cidade: z.string(),
   estado: z.string(),
-  email: z.string().email(),
+  email: z.union([z.string().email(), z.literal("")]).optional(),
   telefone: z.string(),
   quantidadeFuncionarios: z.number().describe("Número total de funcionários"),
   grauDeRisco: z.number().min(1).max(4).describe("Grau de Risco da empresa (1 a 4)"),

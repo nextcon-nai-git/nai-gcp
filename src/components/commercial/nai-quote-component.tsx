@@ -33,53 +33,27 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useUser, useFirestore, useStorage, useDoc, useMemoFirebase } from "@/firebase";
-import {
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-  addDoc,
-  serverTimestamp,
-  updateDoc,
-  doc,
-} from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
+import { collection, doc, addDoc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
-import jsPDF from "jspdf";
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { parseClaims } from "@/lib/auth/claims";
+import { notifyTaskUpdated } from "@/lib/task-updates";
+import { createQuotePdf, quoteActivities } from "@/lib/commercial/quote-pdf";
+import type { OrcamentoOutput } from "@/ai/flows/nai-quote-flow";
 import { NaiSalesPitch } from "./nai-sales-pitch";
 
-type OrcamentoGerado = {
-  propostaExecutiva: {
-    apresentacao: string;
-    justificativaNormativa: string;
-    analiseImpactoFinanceiro: string;
-  };
-  roiEstimado: {
-    valorEconomiaAnual: number;
-    descricaoBeneficio: string;
-  };
-  cronograma: {
-    fase: string;
-    prazo: string;
-    atividades: string[];
-  }[];
-  pacotes: {
-    nome: string;
-    servicosInclusos: string[];
-    valorImplementacao: number;
-    valorMensal?: number;
-    destaque: string;
-  }[];
-  dicaEstrategica: string;
-};
+type ReviewedQuote = OrcamentoOutput & { company: string; scope: string };
 
-export function NaiQuoteComponent() {
+export function NaiQuoteComponent({
+  selectedScope,
+  onAdjustScope,
+}: {
+  selectedScope: string;
+  onAdjustScope: () => void;
+}) {
   const { toast } = useToast();
   const { user } = useUser();
   const db = useFirestore();
-  const storage = useStorage();
 
   const [formData, setFormData] = React.useState({
     nomeEmpresa: "",
@@ -87,7 +61,6 @@ export function NaiQuoteComponent() {
     setor: "",
     cidade: "",
     estado: "",
-    email: "",
     telefone: "",
     quantidadeFuncionarios: "",
     grauDeRisco: "1",
@@ -95,8 +68,15 @@ export function NaiQuoteComponent() {
   });
 
   const [loading, setLoading] = React.useState(false);
-  const [salvando, setSalvando] = React.useState(false);
-  const [orcamento, setOrcamento] = React.useState<OrcamentoGerado | null>(null);
+  const submitting = React.useRef(false);
+  const mounted = React.useRef(false);
+  React.useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const [orcamento, setOrcamento] = React.useState<ReviewedQuote | null>(null);
 
   const profileRef = useMemoFirebase(() => {
     if (!db || !user) return null;
@@ -106,6 +86,8 @@ export function NaiQuoteComponent() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!user || submitting.current) return;
+    submitting.current = true;
     setLoading(true);
     setOrcamento(null);
 
@@ -113,31 +95,45 @@ export function NaiQuoteComponent() {
       const res = await gerarOrcamentoComNai(
         {
           ...formData,
+          servicosDesejados: selectedScope || undefined,
           quantidadeFuncionarios: Number(formData.quantidadeFuncionarios),
           grauDeRisco: Number(formData.grauDeRisco) as 1 | 2 | 3 | 4,
         },
         await getActionIdToken()
       );
 
+      if (!mounted.current) return;
       if (res.sucesso && res.orcamento) {
-        setOrcamento(res.orcamento as unknown as OrcamentoGerado);
+        setOrcamento({ ...res.orcamento, company: formData.nomeEmpresa, scope: selectedScope });
 
         if (db && profile) {
+          const companyId = parseClaims(profile).tenantId || "leads";
           const taskData = {
             title: `Proposta de Elite: ${formData.nomeEmpresa}`,
-            companyId: profile.companyId || "leads",
+            companyId,
             companyName: formData.nomeEmpresa,
             type: "comercial",
             status: "to_review",
             priority: "high",
             origin: "commercial_ai",
             createdAt: new Date().toISOString(),
-            totalValue:
-              (res.orcamento as unknown as OrcamentoGerado).pacotes[1]?.valorImplementacao || 0,
+            totalValue: res.orcamento.pacotes[1]?.valorImplementacao || 0,
           };
 
-          const tasksRef = collection(db, "companies", profile.companyId || "leads", "tasks");
-          await addDocumentNonBlocking(tasksRef, taskData);
+          const tasksRef = collection(db, "companies", companyId, "tasks");
+          try {
+            await addDoc(tasksRef, taskData);
+            if (!mounted.current) return;
+            notifyTaskUpdated();
+          } catch {
+            if (!mounted.current) return;
+            toast({
+              variant: "destructive",
+              title: "Proposta gerada",
+              description: "O card não foi salvo no funil. A proposta está disponível nesta tela.",
+            });
+            return;
+          }
 
           toast({
             title: "Dossiê Gerado!",
@@ -148,9 +144,10 @@ export function NaiQuoteComponent() {
         toast({ variant: "destructive", title: "Falha na NAI", description: res.mensagem });
       }
     } catch (error) {
-      toast({ variant: "destructive", title: "Erro de Processamento" });
+      if (mounted.current) toast({ variant: "destructive", title: "Erro de Processamento" });
     } finally {
-      setLoading(false);
+      submitting.current = false;
+      if (mounted.current) setLoading(false);
     }
   }
 
@@ -237,6 +234,14 @@ export function NaiQuoteComponent() {
                     <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">
                       Necessidades / Dores
                     </label>
+                    {selectedScope && (
+                      <p
+                        className="whitespace-pre-line text-sm"
+                        aria-label="Escopo selecionado no catálogo"
+                      >
+                        {selectedScope}
+                      </p>
+                    )}
                     <Textarea
                       required
                       placeholder="Ex: Auditoria eSocial pendente, renovação PGR..."
@@ -293,6 +298,12 @@ export function NaiQuoteComponent() {
 
           {orcamento && !loading && (
             <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
+              <Card className="p-8 space-y-3">
+                <CardTitle>Proposta para {orcamento.company}</CardTitle>
+                <p>{orcamento.propostaExecutiva.apresentacao}</p>
+                <p>{orcamento.propostaExecutiva.justificativaNormativa}</p>
+                <p>{orcamento.propostaExecutiva.analiseImpactoFinanceiro}</p>
+              </Card>
               {/* ROI & ECONOMIA */}
               <Card className="border-none shadow-2xl bg-[#090e24] text-white rounded-[2.5rem] p-10 relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-1000">
@@ -434,16 +445,14 @@ export function NaiQuoteComponent() {
                             </Badge>
                           </div>
                           <ul className="space-y-2">
-                            {(item.atividades || (item as any).atactivities || []).map(
-                              (act: string, idx: number) => (
-                                <li
-                                  key={idx}
-                                  className="text-[11px] text-slate-500 font-medium flex items-center gap-2"
-                                >
-                                  <ChevronRight className="size-3 text-accent" /> {act}
-                                </li>
-                              )
-                            )}
+                            {quoteActivities(item).map((act: string, idx: number) => (
+                              <li
+                                key={idx}
+                                className="text-[11px] text-slate-500 font-medium flex items-center gap-2"
+                              >
+                                <ChevronRight className="size-3 text-accent" /> {act}
+                              </li>
+                            ))}
                           </ul>
                         </div>
                       </div>
@@ -468,11 +477,29 @@ export function NaiQuoteComponent() {
               <div className="flex gap-3 pt-4">
                 <Button
                   variant="outline"
+                  onClick={onAdjustScope}
                   className="flex-1 h-14 rounded-2xl font-black uppercase text-[10px] border-primary text-primary"
                 >
                   Ajustar Escopo
                 </Button>
-                <Button className="flex-1 h-14 rounded-2xl bg-primary text-white font-black uppercase text-[10px] shadow-2xl gap-2">
+                <Button
+                  onClick={async () => {
+                    try {
+                      const pdf = await createQuotePdf(
+                        orcamento.company,
+                        orcamento.scope,
+                        orcamento
+                      );
+                      pdf.save("Proposta-NEXTCON.pdf");
+                    } catch {
+                      toast({
+                        variant: "destructive",
+                        title: "Não foi possível exportar a proposta",
+                      });
+                    }
+                  }}
+                  className="flex-1 h-14 rounded-2xl bg-primary text-white font-black uppercase text-[10px] shadow-2xl gap-2"
+                >
                   <Download className="size-4 text-accent" /> Exportar Dossiê PDF
                 </Button>
               </div>

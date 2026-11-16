@@ -123,6 +123,11 @@ service cloud.firestore {
       return profile != null && profile.role in ['SUPER_ADMIN', 'ADMIN'] && profileTenantId(profile) in ['', 'nextcon'];
     }
 
+    function operationalCompanyMatches(companyId, name) {
+      return !(name in ['tasks', 'reports', 'non_conformities', 'legalExpertises']) ||
+        request.resource.data.get('companyId', companyId) == companyId;
+    }
+
     function canAccessCompanyTask(companyId, name, id) {
       return companyId != 'BRITANIA_JOINVILLE' || name != 'tasks' || isBritaniaDossierAdmin() ||
         !id.matches('document_.*');
@@ -431,14 +436,14 @@ service cloud.firestore {
       // Import records are written by authenticated server handlers. Checking
       // both versions of sourceType also blocks changing/removing the marker to
       // bypass checklist, classification or clinical-review validation.
-      allow create: if (subcollection != 'reports' || (!('auditData' in request.resource.data))) && !(subcollection in ['employees', 'agendamentos', 'aso_attendances']) &&
+      allow create: if operationalCompanyMatches(companyId, subcollection) && (subcollection != 'reports' || (!('auditData' in request.resource.data))) && !(subcollection in ['employees', 'agendamentos', 'aso_attendances']) &&
         !isServerManagedCompanyDocument(subcollection, documentId) && canAccessCompanyTask(companyId, subcollection, documentId) &&
         !isServerManagedImportDocument(subcollection, documentId) &&
         !(isImportOperationalCollection(subcollection) && hasImportSource(request.resource.data)) &&
         (isClinicalCollection(subcollection)
           ? hasClinicalAccess(companyId)
           : isCompanyAdmin(companyId) || isNextconOfficial());
-      allow update: if (subcollection != 'reports' || (!('auditData' in resource.data) && !('auditData' in request.resource.data))) && !(subcollection in ['employees', 'agendamentos', 'aso_attendances']) &&
+      allow update: if operationalCompanyMatches(companyId, subcollection) && (subcollection != 'reports' || (!('auditData' in resource.data) && !('auditData' in request.resource.data))) && !(subcollection in ['employees', 'agendamentos', 'aso_attendances']) &&
         !isServerManagedCompanyDocument(subcollection, documentId) && canAccessCompanyTask(companyId, subcollection, documentId) &&
         !isServerManagedImportDocument(subcollection, documentId) &&
         !(isImportOperationalCollection(subcollection) &&
