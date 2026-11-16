@@ -167,7 +167,7 @@ describe("Perfis e prontuários", () => {
       }
     }
   });
-  it("permite ao engenheiro protocolar somente o checklist da sua empresa", async () => {
+  it("protege o protocolo legado contra criação ou adulteração direta", async () => {
     await env.withSecurityRulesDisabled((ctx) =>
       setDoc(doc(ctx.firestore(), "users/engineer"), { role: "ENGINEER", companyId: "avp" })
     );
@@ -193,8 +193,17 @@ describe("Perfis e prontuários", () => {
       setDoc(doc(db("engineer"), path), { ...payload, storagePath: "clientes/foreign/sample.pdf" })
     );
     await assertFails(setDoc(doc(db("engineer"), "companies/foreign/reports/" + id), payload));
-    await assertSucceeds(setDoc(doc(db("engineer"), path), payload));
-    await assertFails(updateDoc(doc(db("engineer"), path), { companyName: "Outra empresa" }));
+    await assertFails(setDoc(doc(db("engineer"), path), payload));
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), path), payload));
+    for (const uid of ["engineer", "client", "super"]) {
+      await assertFails(updateDoc(doc(db(uid), path), { companyName: "Outra empresa" }));
+      await assertFails(deleteDoc(doc(db(uid), path)));
+      await assertFails(
+        uploadBytes(ref(store(uid), payload.storagePath), new Uint8Array([1]), {
+          contentType: "application/pdf",
+        })
+      );
+    }
   });
   it("preserva o ASO registrado e impede o prestador de lançar resultado", async () => {
     const record = "companies/avp/aso_attendances/synthetic";

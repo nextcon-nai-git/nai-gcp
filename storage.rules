@@ -88,14 +88,31 @@ service firebase.storage {
         : category == 'colaboradores' || category == 'prontuarios'
           ? hasClinicalAccess(companyId)
           : isSignedIn() && (isNextconOfficial() || belongsToCompany(companyId));
-      allow create, update: if !isClinicalImport(category, folderOrFile) &&
+      allow create, update: if !(category in ['protocolos_nr','sst_nrs']) && !isClinicalImport(category, folderOrFile) &&
         (category == 'colaboradores' || category == 'prontuarios'
           ? hasClinicalAccess(companyId)
           : isSignedIn() && (isNextconOfficial() || isCompanyAdmin(companyId) || isHealthProfessionalForCompany(companyId))) && isSafeFile();
-      allow delete: if !isClinicalImport(category, folderOrFile) &&
+      allow delete: if !(category in ['protocolos_nr','sst_nrs']) && !isClinicalImport(category, folderOrFile) &&
         (category == 'colaboradores' || category == 'prontuarios'
           ? isSignedIn() && getUserData().role == 'SUPER_ADMIN'
           : isSignedIn() && (isNextconOfficial() || isCompanyAdmin(companyId)));
+    }
+
+    // Preserve regular NR uploads. Issued checklist PDFs are immutable, including
+    // the historical filename used before server-side protocol registration.
+    function canUploadNr(companyId) {
+      return isSignedIn() && (isNextconOfficial() || isCompanyAdmin(companyId) || isHealthProfessionalForCompany(companyId)) && isSafeFile();
+    }
+    function canDeleteNr(companyId) {
+      return isSignedIn() && (isNextconOfficial() || isCompanyAdmin(companyId));
+    }
+    match /clientes/{companyId}/sst_nrs/{rootFile} {
+      allow create, update: if canUploadNr(companyId);
+      allow delete: if canDeleteNr(companyId);
+    }
+    match /clientes/{companyId}/sst_nrs/{folder}/{filename}/{nested=**} {
+      allow create, update: if !filename.matches('protocolo_[a-f0-9-]{36}[.]pdf') && canUploadNr(companyId);
+      allow delete: if !filename.matches('protocolo_[a-f0-9-]{36}[.]pdf') && canDeleteNr(companyId);
     }
 
     match /internos_nextcon/{folder}/{allPaths=**} {

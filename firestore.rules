@@ -80,7 +80,7 @@ service cloud.firestore {
     }
 
     function isServerManagedCompanyDocument(name, id) {
-      return name in ['sourceDocuments', 'access_index', 'audit_logs'] || (name == 'contracts' && id == 'fixed-monthly-billing');
+      return name in ['sourceDocuments', 'access_index', 'audit_logs', 'checklist_reservations'] || (name == 'reports' && id.matches('checklist_.*')) || (name == 'contracts' && id == 'fixed-monthly-billing');
     }
 
     function isBritaniaDossierAdmin() {
@@ -356,26 +356,6 @@ service cloud.firestore {
       allow list: if isNextconOfficial();
     }
 
-    function isEngineerChecklist(companyId, reportId) {
-      let data = request.resource.data;
-      let audit = data.auditData;
-      return getUserProfile().role == 'ENGINEER' && belongsToCompany(companyId) &&
-        reportId.matches('[0-9a-f-]{36}') &&
-        data.keys().hasOnly(['auditData','name','reportType','companyId','companyName','storagePath','createdAt','serverTimestamp']) &&
-        data.companyId == companyId && audit.companyId == companyId &&
-        audit.auditorId == request.auth.uid && audit.progress == 100 && audit.responses is map &&
-        audit.responses.size() > 0 && audit.responses.size() <= 200 &&
-        audit.responses.values().hasOnly(['CONFORME','NÃO CONFORME','NÃO AVALIADO']) &&
-        audit.nr.matches('NR-?[0-9]{2}') && data.reportType == audit.nr.lower().replace('-', '') &&
-        data.name == 'Laudo Técnico - ' + audit.nr &&
-        data.storagePath == 'clientes/' + companyId + '/sst_nrs/' + data.reportType + '/protocolo_' + reportId + '.pdf' &&
-        data.serverTimestamp == request.time;
-    }
-
-    match /companies/{companyId}/reports/{reportId} {
-      allow create: if isEngineerChecklist(companyId, reportId);
-    }
-
     // Historically registered ASOs remain readable. Only a doctor linked to
     // this company may register a new legacy attendance through the client.
     match /companies/{companyId}/aso_attendances/{attendanceId} {
@@ -407,7 +387,7 @@ service cloud.firestore {
     }
 
     match /companies/{companyId}/{subcollection}/{documentId}/{nested=**} {
-      allow read: if canAccessCompanyTask(companyId, subcollection, documentId) && !(subcollection in ['employees', 'sourceDocuments']) && (isClinicalImportDocument(subcollection, documentId)
+      allow read: if canAccessCompanyTask(companyId, subcollection, documentId) && !(subcollection in ['employees', 'sourceDocuments', 'checklist_reservations']) && (isClinicalImportDocument(subcollection, documentId)
         ? hasClinicalImportAccess(companyId)
         : isClinicalCollection(subcollection)
           ? hasClinicalAccess(companyId)
@@ -416,14 +396,14 @@ service cloud.firestore {
       // Import records are written by authenticated server handlers. Checking
       // both versions of sourceType also blocks changing/removing the marker to
       // bypass checklist, classification or clinical-review validation.
-      allow create: if !(subcollection in ['employees', 'agendamentos', 'aso_attendances']) &&
+      allow create: if (subcollection != 'reports' || (!('auditData' in request.resource.data))) && !(subcollection in ['employees', 'agendamentos', 'aso_attendances']) &&
         !isServerManagedCompanyDocument(subcollection, documentId) && canAccessCompanyTask(companyId, subcollection, documentId) &&
         !isServerManagedImportDocument(subcollection, documentId) &&
         !(isImportOperationalCollection(subcollection) && hasImportSource(request.resource.data)) &&
         (isClinicalCollection(subcollection)
           ? hasClinicalAccess(companyId)
           : isCompanyAdmin(companyId) || isNextconOfficial());
-      allow update: if !(subcollection in ['employees', 'agendamentos', 'aso_attendances']) &&
+      allow update: if (subcollection != 'reports' || (!('auditData' in resource.data) && !('auditData' in request.resource.data))) && !(subcollection in ['employees', 'agendamentos', 'aso_attendances']) &&
         !isServerManagedCompanyDocument(subcollection, documentId) && canAccessCompanyTask(companyId, subcollection, documentId) &&
         !isServerManagedImportDocument(subcollection, documentId) &&
         !(isImportOperationalCollection(subcollection) &&
@@ -431,7 +411,7 @@ service cloud.firestore {
         (isClinicalCollection(subcollection)
           ? hasClinicalAccess(companyId)
           : isCompanyAdmin(companyId) || isNextconOfficial());
-      allow delete: if !(subcollection in ['employees', 'agendamentos', 'aso_attendances']) &&
+      allow delete: if (subcollection != 'reports' || (!('auditData' in resource.data))) && !(subcollection in ['employees', 'agendamentos', 'aso_attendances']) &&
         !isServerManagedCompanyDocument(subcollection, documentId) && canAccessCompanyTask(companyId, subcollection, documentId) &&
         !isServerManagedImportDocument(subcollection, documentId) &&
         !(isImportOperationalCollection(subcollection) && hasImportSource(resource.data)) &&

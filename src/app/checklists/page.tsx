@@ -22,25 +22,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import {
-  useUser,
-  useFirestore,
-  useCollection,
-  useMemoFirebase,
-  useStorage,
-  useDoc,
-} from "@/firebase";
-import {
-  collection,
-  query,
-  orderBy,
-  getDoc,
-  setDoc,
-  doc,
-  where,
-  serverTimestamp,
-} from "firebase/firestore";
-import { ref, uploadBytes } from "firebase/storage";
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase";
+import { collection, query, orderBy, doc, where } from "firebase/firestore";
+import { pgrRequestHeaders } from "@/lib/pgr-request-headers";
 import { cn } from "@/lib/utils";
 import {
   Select,
@@ -59,8 +43,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { NR_CHECKLISTS, getGenericChecklist, NRChecklist, ChecklistItem } from "@/lib/nr-data";
-import { STORAGE_PATHS } from "@/lib/storage-paths";
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 type ChecklistStatus = "CONFORME" | "NÃO CONFORME" | "NÃO AVALIADO" | null;
 
@@ -69,7 +51,7 @@ export default function ChecklistsPage() {
   const { user, role, tenantId, companyId } = useUser();
   const userCompanyId = tenantId?.trim() ? tenantId : companyId;
   const db = useFirestore();
-  const storage = useStorage();
+
   const [selectedCompanyId, setSelectedCompanyId] = React.useState<string>("");
 
   const [isChecklistOpen, setIsChecklistOpen] = React.useState(false);
@@ -174,84 +156,47 @@ export default function ChecklistsPage() {
   }, [responses, activeNR]);
 
   const handleFinalizeAuditoria = async () => {
-    if (!user || !storage || !db || !activeNR || !selectedCompanyId || openedScope !== scope)
-      return;
+    if (!user || !db || !activeNR || !selectedCompanyId || openedScope !== scope) return;
 
     if (!canFinalize || checklistProgress !== 100 || isFinalizing) return;
     setIsFinalizing(true);
     try {
       const company = availableCompanies?.find((c) => c.id === selectedCompanyId);
       if (!company) throw new Error("Selecione uma unidade disponível.");
-      const reportRef = doc(db, "companies", selectedCompanyId, "reports", protocolId.current);
-      const previous = await getDoc(reportRef);
-      if (previous.exists()) {
-        const prior = previous.data().auditData;
-        if (
-          prior?.auditorId !== user.uid ||
-          prior.companyId !== selectedCompanyId ||
-          prior.nr !== activeNR.nr ||
-          !activeNR.items.every((item) => prior.responses?.[item.id] === responses[item.id])
-        )
-          throw new Error("Este protocolo já foi registrado com outras respostas.");
-        localStorage.removeItem(draftKey(activeNR.nr));
-        setIsChecklistOpen(false);
-        toast({ title: "Protocolo já registrado" });
-        return;
-      }
-      const auditData = {
-        nr: activeNR.nr,
+      const protocol = {
+        protocolId: protocolId.current,
         companyId: selectedCompanyId,
-        auditorId: user.uid,
-        timestamp: new Date().toISOString(),
-        responses: responses,
-        progress: Math.round(checklistProgress),
+        nr: activeNR.nr.toLowerCase().replace("-", ""),
+        responses,
       };
-
-      const storagePath = STORAGE_PATHS.CLIENT_SST_NR(
-        selectedCompanyId,
-        activeNR.nr.toLowerCase().replace("-", "") as any,
-        `protocolo_${protocolId.current}.pdf`
-      );
-      const storageRef = ref(storage, storagePath);
-      const { jsPDF } = await import("jspdf");
-      const pdf = new jsPDF();
-      let y = 20;
-      const write = (text: string) => {
-        for (const line of pdf.splitTextToSize(text, 175)) {
-          if (y > 275) {
-            pdf.addPage();
-            y = 20;
-          }
-          pdf.text(line, 16, y);
-          y += 7;
-        }
-      };
-      write("Protocolo de checklist " + activeNR.nr);
-      write(company?.name || selectedCompanyId);
-      write("Auditor: " + user.uid);
-      write(auditData.timestamp);
-      for (const item of activeNR.items) write(item.question + " — " + responses[item.id]);
-      const blob = pdf.output("blob");
-      await uploadBytes(storageRef, blob);
-
-      await setDoc(reportRef, {
-        auditData,
-        name: `Laudo Técnico - ${activeNR.nr}`,
-        reportType: activeNR.nr.toLowerCase().replace("-", ""),
-        companyId: selectedCompanyId,
-        companyName: company?.name,
-        storagePath: storagePath,
-        createdAt: new Date().toISOString(),
-        serverTimestamp: serverTimestamp(),
+      try {
+        localStorage.setItem(
+          draftKey(activeNR.nr),
+          JSON.stringify({
+            id: protocol.protocolId,
+            responses,
+            updatedAt: new Date().toISOString(),
+          })
+        );
+      } catch {}
+      const res = await fetch("/api/checklists", {
+        method: "POST",
+        headers: await pgrRequestHeaders(user, true),
+        body: JSON.stringify(protocol),
       });
-
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Não foi possível concluir o protocolo.");
       try {
         localStorage.removeItem(draftKey(activeNR.nr));
       } catch {}
-      toast({ title: "Laudo Protocolado com Sucesso!" });
+      toast({ title: body.alreadyRegistered ? "Protocolo já registrado" : "Laudo protocolado" });
       setIsChecklistOpen(false);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro ao Salvar Protocolo" });
+      toast({
+        variant: "destructive",
+        title: "Erro ao salvar protocolo",
+        description: error instanceof Error ? error.message : "Tente novamente.",
+      });
     } finally {
       setIsFinalizing(false);
     }
