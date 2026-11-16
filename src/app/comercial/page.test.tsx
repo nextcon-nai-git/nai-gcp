@@ -49,6 +49,7 @@ const result = {
 let view: ReturnType<typeof ui>;
 beforeEach(() => {
   vi.clearAllMocks();
+  state.profile = { role: "ADMIN", tenantId: "current", companyId: "previous" };
   view = ui();
   state.quote.mockResolvedValue(result);
 });
@@ -112,4 +113,11 @@ it("loads the authorized sales funnel only when opened", async () => {
   expect(state.tasks).not.toHaveBeenCalledWith("current", true, "commercial");
   await tab("Funil de Vendas");
   expect(state.tasks).toHaveBeenCalledWith("current", true, "commercial");
+});
+
+it("includes internal operations in the global sales funnel", async () => {
+  state.profile = { role: "OPERATIONS", tenantId: "", companyId: "nextcon" };
+  await view.render(<Page />);
+  await tab("Funil de Vendas");
+  expect(state.tasks).toHaveBeenCalledWith("all", true, "commercial");
 });

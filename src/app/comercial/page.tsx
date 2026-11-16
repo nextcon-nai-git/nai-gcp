@@ -68,14 +68,14 @@ function ComercialSession() {
     if (!db || !user) return null;
     return doc(db, "users", user.uid);
   }, [db, user]);
-  const { data: profile } = useDoc(profileRef);
+  const { data: profile, error: profileError, isLoading: profileLoading } = useDoc(profileRef);
 
   const isGlobalAdmin = React.useMemo(() => {
     if (!profile) return false;
     const role = (profile.role || "").toUpperCase();
     return (
       role === "SUPER_ADMIN" ||
-      (role === "ADMIN" &&
+      (["ADMIN", "OPERATIONS"].includes(role) &&
         !profile.tenantId &&
         (!profile.companyId || profile.companyId === "nextcon"))
     );
@@ -86,9 +86,17 @@ function ComercialSession() {
     activeTab === "cards" && profile ? (isGlobalAdmin ? "all" : ownCompany || null) : null;
   const {
     data: commercialTasks,
-    error: taskError,
-    loading: loadingTasks,
+    error: listError,
+    loading: listLoading,
   } = useOperationalTaskList<OpsTask>(scope, true, "commercial");
+
+  const loadingTasks = profileLoading || listLoading;
+  const taskError =
+    profileError?.message ||
+    listError ||
+    (activeTab === "cards" && !loadingTasks && !scope
+      ? "Nenhuma carteira comercial vinculada ao seu perfil."
+      : "");
 
   const configureQuote = () => {
     const items = SST_CATALOG.flatMap((category) => category.services)

@@ -76,7 +76,13 @@ export function NaiQuoteComponent({
       mounted.current = false;
     };
   }, []);
-  const [orcamento, setOrcamento] = React.useState<ReviewedQuote | null>(null);
+  const activeScope = React.useRef(selectedScope);
+  React.useEffect(() => {
+    activeScope.current = selectedScope;
+  }, [selectedScope]);
+  const [generated, setOrcamento] = React.useState<ReviewedQuote | null>(null);
+
+  const orcamento = generated?.scope === selectedScope ? generated : null;
 
   const profileRef = useMemoFirebase(() => {
     if (!db || !user) return null;
@@ -102,7 +108,7 @@ export function NaiQuoteComponent({
         await getActionIdToken()
       );
 
-      if (!mounted.current) return;
+      if (!mounted.current || activeScope.current !== selectedScope) return;
       if (res.sucesso && res.orcamento) {
         setOrcamento({ ...res.orcamento, company: formData.nomeEmpresa, scope: selectedScope });
 
