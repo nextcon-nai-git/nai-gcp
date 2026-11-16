@@ -29,7 +29,7 @@ const row = (id = "1") =>
           Cidade: "Curitiba",
           UF: "PR",
           Nome: "Pessoa sintética",
-          CPF: "00000000001",
+          CPF: "52998224725",
           Status: "Agendado",
           "Dt. admissão": "01/01/2020",
           "Unidade (empresa)": "Unidade sintética",
@@ -44,9 +44,9 @@ describe("vínculo privado da fila à origem", () => {
   it("preserva a liberação ao mover linhas ou inserir outro participante na campanha online", () => {
     const first = row("1");
     const second = row("2");
-    second[4] = "00000000002";
+    second[4] = "11144477735";
     const added = row("3");
-    added[4] = "00000000003";
+    added[4] = "12345678909";
     const liveSource = (rows: string[][]) => {
       const campaign = adaptLiveCampaign([
         [],
@@ -91,17 +91,19 @@ describe("vínculo privado da fila à origem", () => {
     (column) => {
       const original = row();
       const changed = [...original];
-      changed[column] = column === 4 ? "00000000002" : "valor corrigido";
+      changed[column] = column === 4 ? "11144477735" : "valor corrigido";
       expect(source([changed]).workSourceVersion).not.toBe(source([original]).workSourceVersion);
     }
   );
   it("não expõe CPF e não libera identidade incompleta", () => {
     const valid = source([row()]);
     expect(valid.workIdentityComplete).toBe(true);
-    expect(JSON.stringify(valid)).not.toContain("00000000001");
+    expect(JSON.stringify(valid)).not.toContain("52998224725");
     const incomplete = row();
-    incomplete[4] = "";
-    expect(source([incomplete]).workIdentityComplete).toBe(false);
+    for (const cpf of ["", "00000000000", "52998224724", "A52998224725"]) {
+      incomplete[4] = cpf;
+      expect(source([incomplete]).workIdentityComplete).toBe(false);
+    }
   });
   it("isola vínculos do mesmo CPF em organizações diferentes", () => {
     const otherUnit = row();
@@ -110,7 +112,7 @@ describe("vínculo privado da fila à origem", () => {
   });
   it("recusa IDs de origem repetidos entre vínculos diferentes", () => {
     const otherPerson = row();
-    otherPerson[4] = "00000000002";
+    otherPerson[4] = "11144477735";
     expect(() => source([row(), otherPerson])).toThrow("IDs de origem repetidos");
   });
 });

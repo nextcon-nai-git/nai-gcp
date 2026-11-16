@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { requireAvpAccess } from "@/lib/auth/avp-access";
-import { AuthError, handleAuthError } from "@/lib/auth/errors";
+import { canAccessAvpEvidence, requireAvpAccess } from "@/lib/auth/avp-access";
+import type { AuthContext } from "@/lib/auth/auth-context";
+import { AuthError, forbidden, handleAuthError } from "@/lib/auth/errors";
 import { limitedBytes } from "@/lib/http/private-api";
 import { getAvpSnapshot, patchAvpQueue, syncAvpSource } from "@/services/avp-sheet-sync";
 
@@ -25,15 +26,16 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+function requireQueueEditor(user: AuthContext) {
+  requireAvpAccess(user);
+  if (!["SUPER_ADMIN", "ADMIN", "OPERATIONS", "CLIENT_ADMIN", "RH", "HR"].includes(user.role))
+    throw forbidden("Seu perfil pode consultar, mas não editar esta fila.");
+}
+
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuth(req);
-    requireAvpAccess(user);
-    if (!["SUPER_ADMIN", "ADMIN", "OPERATIONS", "CLIENT_ADMIN", "RH", "HR"].includes(user.role))
-      return NextResponse.json(
-        { error: "Seu perfil pode consultar, mas não editar esta fila." },
-        { status: 403 }
-      );
+    requireQueueEditor(user);
     let text: string;
     try {
       text = req.body ? new TextDecoder().decode(await limitedBytes(req, 500000)) : "";
@@ -45,10 +47,33 @@ export async function PATCH(req: NextRequest) {
     if (Buffer.byteLength(text) > 500000)
       return NextResponse.json({ error: "Alterações excedem o limite." }, { status: 413 });
     const body = JSON.parse(text);
+    const current = await requireAuth(req);
+    requireQueueEditor(current);
+    if (
+      !canAccessAvpEvidence(current) &&
+      Array.isArray(body?.changes) &&
+      body.changes.some((change: { fields?: Record<string, unknown> } | null) =>
+        Object.keys(change?.fields || {}).some((field) =>
+          ["valorAso", "cnpjClinica", "chavePix", "pixRealizado"].includes(field)
+        )
+      )
+    )
+      return NextResponse.json(
+        { error: "A edição de valores, CNPJ e Pix exige acesso financeiro da operação AVP." },
+        { status: 403 }
+      );
     const revision = await patchAvpQueue(body.revision, body.changes, user.uid);
     return NextResponse.json({ success: true, revision });
   } catch (error) {
     if (error instanceof AuthError) return handleAuthError(error);
+    if (error instanceof Error && error.message === "AMBIGUOUS_IDENTITY")
+      return NextResponse.json(
+        {
+          error:
+            "Há solicitações com a mesma identificação. Diferencie os pedidos na planilha antes de editar.",
+        },
+        { status: 409 }
+      );
     if (error instanceof Error && error.message === "CONFLICT")
       return NextResponse.json(
         { error: "A fila mudou. Atualize e revise a alteração antes de salvar." },

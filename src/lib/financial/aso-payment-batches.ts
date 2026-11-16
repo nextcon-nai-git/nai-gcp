@@ -235,6 +235,9 @@ export function buildClinicPaymentPreview(
             alreadyBatched.has(item.asoId) &&
             item.examDate === examDate &&
             ((requestNumber && item.requestNumber === requestNumber) ||
+              (!currentIds.has(item.asoId) &&
+                !!aso.colaborador.trim() &&
+                normalizeAvpText(item.collaborator) === normalizeAvpText(aso.colaborador)) ||
               (!item.requestNumber &&
                 ((item.sourceRow !== undefined && item.sourceRow === aso.sourceRow) ||
                   (!currentIds.has(item.asoId) &&

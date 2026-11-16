@@ -3,9 +3,16 @@ import { auth as googleAuth, sheets as googleSheets } from "googleapis/build/src
 import { createHash, randomUUID } from "node:crypto";
 import { adminDb } from "@/lib/firebase-admin";
 import { AVP_SOURCE } from "@/lib/avp-source-config";
-import { parseAvpSourceValues } from "@/lib/avp-source-parser";
+import { avpSourceRowId, parseAvpSourceValues } from "@/lib/avp-source-parser";
 import type { GrupoAvpAso } from "@/lib/grupo-avp-asos-data";
-import { avpCalendarDay, AVP_STATUSES, AVP_EDITABLE_FIELDS } from "@/lib/grupo-avp-asos-data";
+import { normalizeCnpj } from "@/lib/cnpj";
+import {
+  avpRequestIdentity,
+  normalizeAvpText,
+  avpCalendarDay,
+  AVP_STATUSES,
+  AVP_EDITABLE_FIELDS,
+} from "@/lib/grupo-avp-asos-data";
 
 const metaRef = () => adminDb.collection("integrations").doc("grupo-avp");
 const editable = new Set<string>(AVP_EDITABLE_FIELDS);
@@ -13,12 +20,27 @@ type EditFields = Record<string, string>;
 type Override = {
   fields: EditFields;
   baseFields: EditFields;
+  clinicsByField?: EditFields;
   updatedBy: string;
   updatedAt: string;
 };
 
+function sourceClinic(row: GrupoAvpAso) {
+  return JSON.stringify([
+    normalizeCnpj(row.cnpjClinica || ""),
+    normalizeAvpText(row.nomeClinica || ""),
+  ]);
+}
+
 export function applyAvpOverrides(rows: GrupoAvpAso[], overrides: Map<string, Override>) {
   const conflicts: Array<{ id: string; field: string }> = [];
+  const seen = new Set<string>();
+  const ambiguous = new Set<string>();
+  for (const row of rows) {
+    const identity = avpRequestIdentity(row);
+    if (seen.has(identity)) ambiguous.add(identity);
+    seen.add(identity);
+  }
   const items = rows.map((row) => {
     const override = overrides.get(row.id);
     // As primeiras versões podem ter apenas o texto ou apenas a data ISO.
@@ -31,7 +53,12 @@ export function applyAvpOverrides(rows: GrupoAvpAso[], overrides: Map<string, Ov
     for (const [field, value] of Object.entries(override.fields)) {
       if (!editable.has(field)) continue;
       const current = String(row[field as keyof GrupoAvpAso] ?? "");
-      if (current !== override.baseFields[field] && current !== value) {
+      const clinic = override.clinicsByField?.[field];
+      if (
+        ambiguous.has(avpRequestIdentity(row)) ||
+        (clinic !== undefined && clinic !== sourceClinic(row)) ||
+        (current !== override.baseFields[field] && current !== value)
+      ) {
         conflicts.push({ id: row.id, field });
         continue;
       }
@@ -252,17 +279,30 @@ export async function patchAvpQueue(
     );
     const overrideRefs = changes.map((c) => ref.collection("overrides").doc(c.id));
     const snapshots = await tx.getAll(...rowRefs, ...overrideRefs);
+    // Occurrence 1 exists exactly when the source identity is duplicated.
+    // This also works for rows stored before duplicate checks were introduced.
+    const rowsCollection = ref.collection("versions").doc(data.sourceVersion).collection("rows");
+    const peerIds = new Set<string>();
+    for (const snap of snapshots.slice(0, changes.length)) {
+      if (!snap.exists) throw new Error("Solicitação não encontrada na versão atual.");
+      peerIds.add(avpSourceRowId(avpRequestIdentity(snap.data() as GrupoAvpAso), 1));
+    }
+    const peers = await tx.getAll(...[...peerIds].map((id) => rowsCollection.doc(id)));
+    if (peers.some((snap) => snap.exists)) throw new Error("AMBIGUOUS_IDENTITY");
     for (let i = 0; i < changes.length; i++) {
-      if (!snapshots[i].exists) throw new Error("Solicitação não encontrada na versão atual.");
       const source = snapshots[i].data() as Record<string, unknown>;
       const previous = snapshots[i + changes.length].data() as Override | undefined;
       const fields = { ...previous?.fields, ...changes[i].fields };
       const baseFields = { ...previous?.baseFields };
-      for (const field of Object.keys(changes[i].fields))
+      const clinicsByField = { ...previous?.clinicsByField };
+      for (const field of Object.keys(changes[i].fields)) {
         baseFields[field] = String(source[field] ?? "");
+        clinicsByField[field] = sourceClinic(snapshots[i].data() as GrupoAvpAso);
+      }
       tx.set(overrideRefs[i], {
         fields,
         baseFields,
+        clinicsByField,
         updatedBy: actor,
         updatedAt: new Date().toISOString(),
       });

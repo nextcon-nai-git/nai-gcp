@@ -107,6 +107,7 @@ import { z } from "zod/v3";
 import { cn } from "@/lib/utils";
 
 import { enriquecerDadosEmpresa } from "@/actions/company-enrichment";
+import { normalizeCnpj } from "@/lib/cnpj";
 import { analyzeProviderContract } from "@/ai/flows/provider-contract-analysis-flow";
 import Papa from "papaparse";
 import { useSgi } from "@/contexts/sgi-context";
@@ -918,12 +919,12 @@ function ProvidersManagementSession() {
   }
 
   const handleFetchCnpj = async () => {
-    const cnpj = form.getValues("cnpj")?.replace(/\D/g, "");
-    if (!cnpj || cnpj.length < 14) return;
+    const cnpj = normalizeCnpj(form.getValues("cnpj") || "");
+    if (cnpj.length !== 14) return;
     setIsFetchingCnpj(true);
     try {
       const res = await enriquecerDadosEmpresa(cnpj, 0);
-      if (!activeSession.current || form.getValues("cnpj")?.replace(/\D/g, "") !== cnpj) return;
+      if (!activeSession.current || normalizeCnpj(form.getValues("cnpj") || "") !== cnpj) return;
       if (res.sucesso && res.dados) {
         if (res.dados.razaoSocial) form.setValue("name", res.dados.razaoSocial.toUpperCase());
         if (res.dados.municipio) form.setValue("city", res.dados.municipio);

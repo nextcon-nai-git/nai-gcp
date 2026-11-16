@@ -243,6 +243,24 @@ describe("clinic ASO payment batches", () => {
     );
   });
 
+  it("retém para conciliação a renumeração de um atendimento em lote ativo", () => {
+    const book = emptyFinanceBook();
+    const original = aso();
+    const [batch] = buildClinicPaymentPreview([original], book).batches;
+    book.clinicPaymentBatches.push({
+      ...batch,
+      id: "batch_old",
+      titleId: "title_old",
+      dueDate: "2026-11-06",
+      createdBy: "tester",
+      createdAt: "2026-11-05T12:00:00Z",
+    });
+    const renumbered = aso({ id: "new", numero: "2", valorAso: "35,00", sourceRow: 10 });
+    expect(buildClinicPaymentPreview([renumbered], book).blocked[0]?.code).toBe("ALREADY_BATCHED");
+    expect(
+      buildClinicPaymentPreview([{ ...renumbered, colaborador: "Outra pessoa" }], book).totals.asos
+    ).toBe(1);
+  });
   it("allows an ASO to be rebatched after the previous title is cancelled", () => {
     const book = emptyFinanceBook();
     book.titles.push({

@@ -334,6 +334,34 @@ describe("leitura privada e publicação da fila AVP", () => {
 });
 
 describe("edição manual e conflitos com a planilha", () => {
+  it("mantém as observações na origem correta após reordenação de solicitações duplicadas", async () => {
+    const entries = values();
+    const a = [...entries[1]],
+      b = [...a];
+    a[AVP_SOURCE_HEADERS.indexOf("NOME CLÍNICA")] = "Clínica A";
+    b[AVP_SOURCE_HEADERS.indexOf("NOME CLÍNICA")] = "Clínica B";
+    const [first] = parseAvpSourceValues([entries[0], a, b]).rows;
+    const { rows } = parseAvpSourceValues([entries[0], b, a]);
+    const override = {
+      fields: { observacoes: "Destino A" },
+      baseFields: { observacoes: "" },
+      updatedBy: "op",
+      updatedAt: "",
+    };
+    const view = applyAvpOverrides(rows, new Map([[first.id, override]]));
+    expect(view.items[0].observacoes).toBe("");
+    expect(view.conflicts).toContainEqual({ id: first.id, field: "observacoes" });
+    seed();
+    for (const row of rows)
+      mock.docs.set(
+        meta + "/versions/version-one/rows/" + row.id,
+        row as unknown as Record<string, unknown>
+      );
+    await expect(
+      patchAvpQueue("version-one:0", [{ id: first.id, fields: override.fields }], "op")
+    ).rejects.toThrow("AMBIGUOUS_IDENTITY");
+    expect(mock.docs.has(meta + "/overrides/" + first.id)).toBe(false);
+  });
   it("aplica edição apenas quando a fonte base continua compatível", () => {
     const original = row();
     const changed = { ...original, status: "EXAME FEITO" as const };

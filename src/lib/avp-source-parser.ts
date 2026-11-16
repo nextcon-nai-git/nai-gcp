@@ -8,6 +8,13 @@ import {
 } from "./grupo-avp-asos-data";
 import { AVP_SOURCE_HEADERS } from "./avp-source-config";
 
+export const avpSourceRowId = (identity: string, occurrence: number) =>
+  "avp_" +
+  createHash("sha256")
+    .update(identity + "|" + occurrence)
+    .digest("hex")
+    .slice(0, 32);
+
 export function parseAvpSourceValues(values: unknown[][]) {
   if (!Array.isArray(values) || values.length < 2 || values.length > 10001)
     throw new Error("A fonte não contém uma fila válida ou excede 10.000 linhas.");
@@ -46,12 +53,7 @@ export function parseAvpSourceValues(values: unknown[][]) {
     occurrences.set(identity, occurrence + 1);
     if (occurrence)
       warnings.push(`Linha ${index + 1}: identidade repetida; mantida como solicitação separada.`);
-    const id =
-      "avp_" +
-      createHash("sha256")
-        .update(identity + "|" + occurrence)
-        .digest("hex")
-        .slice(0, 32);
+    const id = avpSourceRowId(identity, occurrence);
     rows.push({
       id,
       numero: parsed.numero || "",
