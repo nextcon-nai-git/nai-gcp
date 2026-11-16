@@ -15,6 +15,7 @@ import {
 } from "@/lib/avp-evidence";
 import { formatBrlCents, isAvpCostAtLeast40 } from "@/lib/avp-costs";
 import { z } from "zod/v3";
+import { AvpAsoComparison, type ComparableAso } from "./avp-aso-comparison";
 
 type Stored = AvpEvidence & { uploaded?: boolean };
 export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
@@ -24,6 +25,7 @@ export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
 function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
   const { user } = useUser();
   const [records, setRecords] = React.useState<Stored[]>([]);
+  const [comparisonId, setComparisonId] = React.useState("");
   const [pending, setPending] = React.useState<AvpEvidence[]>([]);
   const [message, setMessage] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -235,6 +237,16 @@ function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
       setMessage(e instanceof Error ? e.message : "Documento indisponível.");
     }
   }
+  // Prefer the stored attachment status when an index is reimported.
+  const comparisonChoices = React.useMemo(() => {
+    if (!comparisonId || kind !== "aso") return [];
+    const byId = new Map<string, ComparableAso>();
+    for (const r of [...pending, ...records]) {
+      if (r.kind === "aso") byId.set(r.id, r);
+    }
+    return Array.from(byId.values());
+  }, [comparisonId, kind, pending, records]);
+  const firstVia = comparisonChoices.find((r) => r.id === comparisonId);
   const payments = records.filter((r): r is AvpPayment => r.kind === "payment");
   const filtered = records
     .filter((r) => {
@@ -414,6 +426,11 @@ function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
                     {r.kind === "payment"
                       ? `${r.clinic} · ${formatBrlCents(r.amountCents)} · ${r.confirmation}`
                       : `${r.employee} · ${r.company} · ${r.review}`}
+                    {r.kind === "aso" && (
+                      <Button variant="link" size="sm" onClick={() => setComparisonId(r.id)}>
+                        Comparar vias
+                      </Button>
+                    )}
                   </p>
                 ))}
               </div>
@@ -504,7 +521,17 @@ function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
                 </tr>
               ) : (
                 <tr key={r.id} className="border-b align-top">
-                  <td className="p-3 font-semibold">{r.employee}</td>
+                  <td className="p-3">
+                    <strong>{r.employee}</strong>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="block px-0"
+                      onClick={() => setComparisonId(r.id)}
+                    >
+                      Comparar vias
+                    </Button>
+                  </td>
                   <td className="p-3">
                     {r.company}
                     <p>{r.examType}</p>
@@ -531,6 +558,15 @@ function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
           </tbody>
         </table>
       </div>
+      {firstVia && (
+        <AvpAsoComparison
+          key={firstVia.id}
+          first={firstVia}
+          choices={comparisonChoices}
+          onClose={() => setComparisonId("")}
+          onOpenPdf={openDocument}
+        />
+      )}
       {!filtered.length && (
         <p className="p-5 text-slate-500">Nenhuma evidência encontrada nesta seleção.</p>
       )}

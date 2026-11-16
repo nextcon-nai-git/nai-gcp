@@ -92,3 +92,66 @@ it("downloads an ASO with its indexed human-readable filename", async () => {
   await act(async () => download.click());
   expect(clicked).toEqual([aso.fileName]);
 });
+
+it("compares manually selected ASO evidence across pages without changing records", async () => {
+  const first = {
+    kind: "aso",
+    id: "1".repeat(64),
+    employee: "Pessoa Exemplo",
+    company: "Empresa A",
+    examType: "Admissional",
+    examDate: "2026-10-16",
+    receivedDate: "2026-10-17",
+    city: "Fortaleza",
+    uf: "CE",
+    fileName: "aso-a.pdf",
+    uploaded: true,
+    fileHash: "d".repeat(64),
+    review: "Conferir retificação",
+    source: "Envio inicial",
+    notes: "",
+  };
+  const second = {
+    ...first,
+    id: "2".repeat(64),
+    employee: "PESSOA EXEMPLO",
+    company: "Empresa B",
+    fileName: "aso-b.pdf",
+    examDate: "",
+    source: "Retorno da unidade",
+    notes: "CNPJ 00000000000100 e CNPJ 00.000.000/0002-00 citados na origem.",
+    uploaded: false,
+  };
+  mocks.fetch
+    .mockResolvedValueOnce(reply({ records: [first], nextCursor: first.id }))
+    .mockResolvedValueOnce(reply({ records: [second], nextCursor: null }));
+  await act(async () => root.render(<AvpEvidencePanel kind="aso" />));
+  const trigger = Array.from(host.querySelectorAll("button")).find(
+    (b) => b.textContent === "Comparar vias"
+  )!;
+  await act(async () => trigger.click());
+  const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+  const select = dialog.querySelector("select")!;
+  expect(select.value).toBe("");
+  const option = Array.from(select.options).find((o) => o.value !== "")!;
+  await act(async () => {
+    select.value = option.value;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  expect(dialog.textContent).toContain("Retorno da unidade");
+  const companyRow = Array.from(dialog.querySelectorAll("tr")).find((r) =>
+    r.textContent?.startsWith("Empregador informado")
+  )!;
+  expect(companyRow.textContent).toContain("Divergência");
+  expect(companyRow.textContent).toContain("Empresa A");
+  expect(companyRow.textContent).toContain("Empresa B");
+  expect(dialog.textContent).toContain("Sem informação");
+  const cnpjRow = Array.from(dialog.querySelectorAll("tr")).find((r) =>
+    r.textContent?.startsWith("CNPJs citados")
+  )!;
+  expect(cnpjRow.textContent).toContain("00.000.000/0001-00, 00.000.000/0002-00");
+  expect(cnpjRow.textContent).toContain("Conferir no PDF e no pedido de retificação");
+  expect(dialog.textContent).toContain("SHA-256 idêntico");
+  expect(dialog.textContent).toContain("Pendente de anexo");
+  expect(mocks.fetch).toHaveBeenCalledTimes(2);
+});
