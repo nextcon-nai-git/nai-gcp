@@ -119,7 +119,20 @@ export function useCollectionDeduped<T = any>(
           target,
           (snapshot) => {
             broadcast(entry, {
-              data: snapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id })),
+              data: snapshot.docs.map((doc) => {
+                const data = { ...doc.data(), id: doc.id };
+                const collection = doc.ref.parent;
+                const company = collection.parent;
+                // These operational boards use companyId to address later edits and deletions.
+                if (
+                  company?.parent.path === "companies" &&
+                  ["tasks", "reports", "non_conformities", "legalExpertises"].includes(
+                    collection.id
+                  )
+                )
+                  return { ...data, companyId: company.id };
+                return data;
+              }),
               isLoading: false,
               error: null,
             });

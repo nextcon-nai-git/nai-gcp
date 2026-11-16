@@ -80,10 +80,10 @@ import {
   serverTimestamp,
   addDoc,
   updateDoc,
+  deleteDoc,
   arrayUnion,
   arrayRemove,
 } from "firebase/firestore";
-import { deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -523,15 +523,27 @@ function NcxTeamSession() {
                           <Pencil size={14} /> Editar
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => {
-                            if (db && emp.id && !emp.id.startsWith("nxc_")) {
-                              deleteDocumentNonBlocking(doc(db, "nxc_employees", emp.id));
-                              toast({ title: "Removido", description: "Colaborador removido." });
-                            } else {
+                          onClick={async () => {
+                            if (!db || !emp.id) return;
+                            if (emp.id.startsWith("nxc_")) {
                               toast({
-                                title: "Item Padrão",
+                                title: "Item padrão",
                                 description: "Item pré-cadastrado do sistema.",
                               });
+                              return;
+                            }
+                            try {
+                              await deleteDoc(doc(db, "nxc_employees", emp.id));
+                              if (mounted.current)
+                                toast({ title: "Removido", description: "Colaborador removido." });
+                            } catch {
+                              if (mounted.current)
+                                toast({
+                                  variant: "destructive",
+                                  title: "Não foi possível remover o colaborador",
+                                  description:
+                                    "Confira a permissão de exclusão e se o cadastro possui uma conta vinculada.",
+                                });
                             }
                           }}
                           className="gap-2 cursor-pointer text-xs font-bold uppercase text-red-400"

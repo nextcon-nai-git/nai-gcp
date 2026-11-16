@@ -130,9 +130,18 @@ export async function updatePgrTask(
   notifyTaskUpdated();
 }
 
-export function useOperationalTaskList<T>(company: string | null, recent = false) {
+export function useOperationalTaskList<T>(
+  company: string | null,
+  recent = false,
+  board?: "commercial"
+) {
   const url = company
-    ? "/api/operational/tasks?" + new URLSearchParams({ company, order: recent ? "recent" : "due" })
+    ? "/api/operational/tasks?" +
+      new URLSearchParams({
+        company,
+        order: recent ? "recent" : "due",
+        ...(board ? { board } : {}),
+      })
     : null;
   return usePgrQuery<T>(url, "tasks", !!company, true);
 }

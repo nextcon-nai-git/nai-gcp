@@ -5,7 +5,15 @@ import { parseClaims } from "@/lib/auth/claims";
 import { badRequest, forbidden } from "@/lib/auth/errors";
 import { privateFailure, privateHeaders } from "@/lib/http/private-api";
 import { canReadDossierTask, isBritaniaFapAdmin } from "@/lib/auth/britania-fap-access";
-import { BRITANIA_ANCHOR } from "@/lib/britania-group";
+import { COMMERCIAL_COLUMNS, normalizeTaskStatus } from "@/types/kanban";
+import { Timestamp } from "firebase-admin/firestore";
+
+function creationTime(task: Record<string, unknown>) {
+  const value = task.createdAt;
+  if (value instanceof Timestamp) return value.toMillis();
+  if (typeof value === "number") return value;
+  return typeof value === "string" ? Date.parse(value) || 0 : 0;
+}
 
 async function scopeFor(request: NextRequest, requested: string) {
   const actor = await requireAuth(request);
@@ -30,7 +38,8 @@ async function scopeFor(request: NextRequest, requested: string) {
     ),
   ].sort();
   if (requested === "all" && !global) throw forbidden();
-  if (requested === BRITANIA_ANCHOR && !global && !assigned.includes(requested)) throw forbidden();
+  if (requested !== "all" && requested !== "assigned" && !global && !assigned.includes(requested))
+    throw forbidden();
   return { uid: actor.uid, global, assigned, dossier: isBritaniaFapAdmin(claims), claims };
 }
 
@@ -39,9 +48,15 @@ async function scopeFor(request: NextRequest, requested: string) {
 export async function GET(request: NextRequest) {
   try {
     const requested = request.nextUrl.searchParams.get("company") || "";
-    if (!["all", "assigned", BRITANIA_ANCHOR].includes(requested))
+    if (
+      !requested ||
+      requested.length > 128 ||
+      requested.includes("/") ||
+      [".", "..", "unauthorized"].includes(requested)
+    )
       throw badRequest("Carteira inválida.");
     const recent = request.nextUrl.searchParams.get("order") === "recent";
+    const commercial = request.nextUrl.searchParams.get("board") === "commercial";
     const scope = await scopeFor(request, requested);
     const sources =
       requested === "all"
@@ -51,10 +66,19 @@ export async function GET(request: NextRequest) {
           );
     const lists = await Promise.all(
       sources.map(async (source) => {
-        const ordered = source.orderBy(recent ? "createdAt" : "dueDate", recent ? "desc" : "asc");
+        const ordered = commercial
+          ? source.where("status", "in", [
+              ...COMMERCIAL_COLUMNS.map((column) => column.id),
+              "propostas",
+              "enviado",
+              "aprovado",
+              "implantacao",
+            ])
+          : source.orderBy(recent ? "createdAt" : "dueDate", recent ? "desc" : "asc");
         const visible: Record<string, unknown>[] = [];
         // Fetch the next page if private records occupy the first fifty slots.
-        let page = await (recent ? ordered.limit(50) : ordered).get();
+        const pageRecent = recent && !commercial;
+        let page = await (pageRecent ? ordered.limit(50) : ordered).get();
         while (true) {
           for (const d of page.docs) {
             const parts = d.ref.path.split("/");
@@ -63,16 +87,23 @@ export async function GET(request: NextRequest) {
               parts[0] === "companies" &&
               parts[2] === "tasks" &&
               canReadDossierTask(scope.claims, parts[1], d.id)
-            )
-              visible.push({ ...d.data(), id: d.id, companyId: parts[1] });
+            ) {
+              const data = d.data();
+              visible.push({
+                ...data,
+                ...(commercial ? { status: normalizeTaskStatus(data.status) } : {}),
+                id: d.id,
+                companyId: parts[1],
+              });
+            }
           }
-          if (!recent || visible.length >= 50 || page.size < 50) break;
+          if (!pageRecent || visible.length >= 50 || page.size < 50) break;
           page = await ordered
             .startAfter(page.docs[page.size - 1])
             .limit(50)
             .get();
         }
-        return recent ? visible.slice(0, 50) : visible;
+        return pageRecent ? visible.slice(0, 50) : visible;
       })
     );
     const latest = await scopeFor(request, requested);
@@ -84,6 +115,15 @@ export async function GET(request: NextRequest) {
     )
       throw forbidden("A carteira mudou. Atualize o quadro.");
     const tasks = lists.flat();
+    if (recent || commercial) {
+      tasks.sort(
+        (a, b) =>
+          creationTime(b) - creationTime(a) ||
+          String(a.companyId).localeCompare(String(b.companyId)) ||
+          String(a.id).localeCompare(String(b.id))
+      );
+      return NextResponse.json({ tasks: tasks.slice(0, 50) }, { headers: privateHeaders });
+    }
     if (lists.length > 1)
       tasks.sort((a, b) => String(a.dueDate || "").localeCompare(String(b.dueDate || "")));
     return NextResponse.json({ tasks }, { headers: privateHeaders });

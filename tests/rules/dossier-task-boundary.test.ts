@@ -6,6 +6,7 @@ import {
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import { getDoc, getDocs, doc, collection, updateDoc } from "firebase/firestore";
+import { Timestamp } from "firebase-admin/firestore";
 import { NextRequest } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { GET } from "@/app/api/operational/tasks/route";
@@ -48,10 +49,10 @@ beforeAll(async () => {
 afterAll(async () => {
   await env?.cleanup();
 });
-const query = (u: string, company: string, order = "due") =>
+const query = (u: string, company: string, order = "due", board = "") =>
   GET(
     new NextRequest(
-      "https://test/api/operational/tasks?" + new URLSearchParams({ company, order }),
+      "https://test/api/operational/tasks?" + new URLSearchParams({ company, order, board }),
       { headers: { tester: u } }
     )
   );
@@ -84,4 +85,56 @@ it("trata a carteira global, a lista multiempresa e a consulta comercial", async
     expect(JSON.stringify(admin)).toContain("INSTRUÇÃO RESTRITA");
   }
   expect((await (await query("provider", "assigned")).json()).tasks).toHaveLength(1);
+});
+
+it("filters sales before limiting, orders timestamps and keeps tenant scope authoritative", async () => {
+  const batch = adminDb.batch();
+  batch.set(adminDb.doc("users/dealer"), {
+    role: "PROVIDER",
+    servedCompanies: [anchor, "foreign"],
+  });
+  const ids: string[] = [];
+  for (let index = 0; index < 56; index++) {
+    const company = index % 2 ? "foreign" : anchor;
+    const id = "sale-" + index;
+    ids.push(id);
+    batch.set(adminDb.doc(`companies/${company}/tasks/${id}`), {
+      status: index % 2 ? "sent" : "aprovado",
+      companyId: "incorrect",
+      createdAt:
+        index === 0
+          ? Timestamp.fromDate(new Date("2026-11-10T10:00:00Z"))
+          : new Date(Date.UTC(2026, 9, 1, 0, index)).toISOString(),
+      dueDate: "2020-01-01",
+    });
+    batch.set(adminDb.doc(`companies/${company}/tasks/work-${index}`), {
+      status: "todo",
+      createdAt: "2026-11-16",
+      dueDate: "",
+    });
+  }
+  batch.set(adminDb.doc(root + "document_private_sale"), {
+    status: "approved",
+    createdAt: "2026-11-16",
+    title: "PRIVADO",
+  });
+  await batch.commit();
+  const result = await query("dealer", "assigned", "recent", "commercial");
+  expect(result.status).toBe(200);
+  const tasks = (await result.json()).tasks;
+  expect(tasks).toHaveLength(50);
+  expect(tasks.map((task: { id: string }) => task.id)).toEqual([
+    ids[0],
+    ...ids.slice(-49).reverse(),
+  ]);
+  expect(tasks[0]).toMatchObject({ companyId: anchor, status: "approved" });
+  expect(JSON.stringify(tasks)).not.toContain("PRIVADO");
+  expect((await query("site", "foreign", "recent", "commercial")).status).toBe(403);
+  const own = await query("foreign", "foreign", "recent", "commercial");
+  expect(own.status).toBe(200);
+  expect(
+    (await own.json()).tasks.every((task: { companyId: string }) => task.companyId === "foreign")
+  ).toBe(true);
+  const global = await query("ops", "all", "recent", "commercial");
+  expect((await global.json()).tasks).toHaveLength(50);
 });

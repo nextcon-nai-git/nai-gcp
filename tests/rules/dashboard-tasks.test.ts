@@ -16,6 +16,7 @@ import {
   orderBy,
   query,
   setDoc,
+  updateDoc,
 } from "firebase/firestore";
 
 let env: RulesTestEnvironment;
@@ -130,3 +131,19 @@ describe("Dashboard task collection group", () => {
     );
   });
 });
+
+it.each(["tasks", "reports", "non_conformities", "legalExpertises"])(
+  "anchors %s writes in the company selected by the document path",
+  async (kind) => {
+    const db = env.authenticatedContext("CLIENT_ADMIN").firestore();
+    const ref = doc(db, "companies", "avp", kind, "identity-check");
+    await assertFails(setDoc(ref, { companyId: "other", title: "Evidência" }));
+    await assertSucceeds(setDoc(ref, { title: "Registro antigo sem empresa" }));
+    await assertFails(updateDoc(ref, { companyId: "other" }));
+    await assertSucceeds(updateDoc(ref, { companyId: "avp" }));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), ref.path), { companyId: "other" });
+    });
+    await assertSucceeds(updateDoc(ref, { companyId: "avp", title: "Corrigido" }));
+  }
+);

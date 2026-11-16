@@ -17,6 +17,8 @@ import {
   getDocs,
   setDoc,
   updateDoc,
+  serverTimestamp,
+  writeBatch,
   deleteDoc,
   type Firestore,
 } from "firebase/firestore";
@@ -189,6 +191,112 @@ describe("Private contract import rules and persistence", () => {
     }
     const { source } = await preserve();
     await assertFails(deleteObject(ref(storage("global"), source.storagePath)));
+  });
+
+  it("requires a matching atomic pair, an internal reviewer and the authenticated identity", async () => {
+    const { sourceHash, source } = await preserve();
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "users/company-admin"), {
+        role: "CLIENT_ADMIN",
+        companyId,
+      });
+      await setDoc(doc(context.firestore(), "users/operations"), {
+        role: "OPERATIONS",
+        companyId: "nextcon",
+      });
+    });
+    const contractId = "source_" + sourceHash;
+    const receipt = {
+      companyId,
+      sourceHash,
+      sourceGeneration: source.generation,
+      sourceSizeBytes: source.sizeBytes,
+      sourceStoragePath: source.storagePath,
+      sourceConfirmed: true,
+      sourceConfirmedBy: "global",
+      sourceConfirmedAt: serverTimestamp(),
+    };
+    const pair = (uid: string, registryOverrides = {}, contractOverrides = {}) => {
+      const store = db(uid);
+      const batch = writeBatch(store);
+      batch.set(doc(store, "contract_import_sources", sourceHash), {
+        ...receipt,
+        contractId,
+        ...registryOverrides,
+      });
+      batch.set(doc(store, "companies", companyId, "contracts", contractId), {
+        ...receipt,
+        ...contractOverrides,
+      });
+      return batch.commit();
+    };
+    await assertFails(
+      setDoc(doc(db("global"), "contract_import_sources", sourceHash), { ...receipt, contractId })
+    );
+    await assertFails(
+      setDoc(doc(db("global"), "companies", companyId, "contracts", contractId), receipt)
+    );
+    await assertFails(
+      pair(
+        "company-admin",
+        { sourceConfirmedBy: "company-admin" },
+        { sourceConfirmedBy: "company-admin" }
+      )
+    );
+    await assertFails(pair("global", { sourceConfirmedBy: "operations" }));
+    await assertFails(pair("global", {}, { sourceSizeBytes: source.sizeBytes + 1 }));
+    await assertFails(pair("global", {}, { companyId: "unrelated" }));
+    const fifteen = {
+      ...analysis,
+      operationalTasks: Array.from({ length: 15 }, () => analysis.operationalTasks[0]),
+    };
+    const imported = await integrateAnalyzedContract(
+      db("operations"),
+      storage("operations"),
+      fifteen,
+      companyId,
+      source,
+      "operations",
+      true
+    );
+    expect(imported.created).toBe(true);
+    expect(
+      (await getDocs(collection(db("operations"), "companies", companyId, "tasks"))).size
+    ).toBe(15);
+  });
+
+  it("preserves the confirmed contract and registry even for direct SDK writes", async () => {
+    const { sourceHash, source } = await preserve();
+    await integrateAnalyzedContract(
+      db("global"),
+      storage("global"),
+      analysis,
+      companyId,
+      source,
+      "global",
+      true
+    );
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "users/client-admin"), {
+        role: "CLIENT_ADMIN",
+        companyId,
+      });
+    });
+    const contract = (uid: string) =>
+      doc(db(uid), "companies", companyId, "contracts", "source_" + sourceHash);
+    const registry = doc(db("global"), "contract_import_sources", sourceHash);
+    for (const uid of ["client-admin", "global"]) {
+      await assertFails(updateDoc(contract(uid), { summary: "Texto substituído" }));
+      await assertFails(updateDoc(contract(uid), { sourceConfirmedBy: "outra-pessoa" }));
+      await assertFails(deleteDoc(contract(uid)));
+    }
+    await assertFails(updateDoc(registry, { companyId: "other-company" }));
+    await assertFails(deleteDoc(registry));
+    // Ordinary contract records still support the client's existing workflow.
+    const ordinary = doc(db("client-admin"), "companies", companyId, "contracts", "manual");
+    await assertSucceeds(setDoc(ordinary, { companyId, summary: "Manual" }));
+    await assertSucceeds(updateDoc(ordinary, { summary: "Revisado" }));
+    await assertSucceeds(deleteDoc(ordinary));
   });
 
   it("allows internal staff to preserve source and atomically link it to an existing legacy ID", async () => {
