@@ -41,7 +41,7 @@ service cloud.firestore {
     function belongsToCompany(companyId) {
       let profile = getUserProfile();
       return isSignedIn() && profile != null &&
-        !(profile.role in ['PROVIDER', 'SCOPED_PROVIDER']) && profileTenantId(profile) == companyId;
+        profile.role in ['SUPER_ADMIN', 'ADMIN', 'CLIENT_ADMIN', 'DOCTOR', 'NURSE', 'ENGINEER', 'COMPLIANCE', 'HEALTH_PROFESSIONAL', 'HR', 'RH', 'OPERATIONS', 'SAFETY_TECH'] && profileTenantId(profile) == companyId;
     }
 
     function isOperationalProvider(companyId, name) {

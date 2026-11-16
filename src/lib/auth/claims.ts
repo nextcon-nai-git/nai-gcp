@@ -1,4 +1,4 @@
-import { UserRole } from "./auth-context";
+import { USER_ROLES, type UserRole } from "./auth-context";
 
 export interface NAIClaims {
   role: UserRole;
@@ -12,7 +12,7 @@ export interface NAIClaims {
  */
 export function parseClaims(claims: Record<string, unknown>): NAIClaims {
   return {
-    role: (claims.role as UserRole) || "GUEST",
+    role: USER_ROLES.find((role) => role === claims.role) ?? "GUEST",
     tenantId:
       typeof claims.tenantId === "string" && claims.tenantId.trim() !== ""
         ? claims.tenantId

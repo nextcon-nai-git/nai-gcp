@@ -39,7 +39,7 @@ service firebase.storage {
     function belongsToCompany(companyId) {
       let user = getUserData();
       return isSignedIn() && user != null &&
-        !(user.role in ['PROVIDER', 'SCOPED_PROVIDER']) && profileTenantId(user) == companyId;
+        user.role in ['SUPER_ADMIN', 'ADMIN', 'CLIENT_ADMIN', 'DOCTOR', 'NURSE', 'ENGINEER', 'COMPLIANCE', 'HEALTH_PROFESSIONAL', 'HR', 'RH', 'OPERATIONS', 'SAFETY_TECH'] && profileTenantId(user) == companyId;
     }
 
     function isCompanyAdmin(companyId) {

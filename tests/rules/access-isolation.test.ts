@@ -79,6 +79,30 @@ const storeWithClaims = (uid: string, claims: Record<string, unknown>) =>
   env.authenticatedContext(uid, { email: `${uid}@example.test`, ...claims }).storage();
 
 describe("Perfis e prontuários", () => {
+  it.each(["GUEST", "UNKNOWN_LEGACY"])(
+    "exige um perfil ativo reconhecido para ler a carteira (%s)",
+    async (role) => {
+      const uid = "unapproved-user";
+      const path = "clientes/avp/docs_legais/documento.pdf";
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), "users", uid), {
+          role,
+          companyId: "avp",
+          servedCompanies: ["avp"],
+        });
+        await setDoc(doc(ctx.firestore(), "companies/avp/reports/sample"), { name: "Restrito" });
+        await uploadBytes(ref(ctx.storage(), path), new Uint8Array([1]), {
+          contentType: "application/pdf",
+        });
+      });
+      await assertSucceeds(getDoc(doc(db(uid), "users", uid)));
+      await assertFails(getDoc(doc(db(uid), "companies/avp")));
+      await assertFails(getDocs(collection(db(uid), "companies/avp/reports")));
+      await assertFails(getBytes(ref(store(uid), path)));
+      await assertSucceeds(getDocs(collection(db("hr"), "companies/avp/reports")));
+      await assertSucceeds(getBytes(ref(store("hr"), path)));
+    }
+  );
   it("CLIENT_ADMIN não promove a si mesmo nem atravessa empresas", async () => {
     await assertFails(updateDoc(doc(db("client"), "users/client"), { role: "SUPER_ADMIN" }));
     await assertFails(getDoc(doc(db("client"), "companies/foreign/private/synthetic")));
