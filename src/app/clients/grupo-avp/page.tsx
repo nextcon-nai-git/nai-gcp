@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   Building2,
@@ -137,9 +138,14 @@ export default function GrupoAvpClientHubPage() {
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-white/10 pb-8">
           <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-3xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-inner">
-              <Building2 className="size-8 text-accent" />
-            </div>
+            <Image
+              src="/clients/grupo-avp.png"
+              alt="Aqui Você Pode"
+              width={64}
+              height={64}
+              unoptimized
+              className="size-14 shrink-0 rounded-xl bg-white p-1 sm:size-16"
+            />
             <div>
               <div className="flex items-center gap-2.5">
                 <span className="text-xs font-black tracking-widest text-accent uppercase">
