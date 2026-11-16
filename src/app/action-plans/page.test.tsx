@@ -7,6 +7,7 @@ const state = vi.hoisted(() => ({
   query: vi.fn(),
   add: vi.fn(),
   toast: vi.fn(),
+  filtered: vi.fn(() => ({ data: [], loading: false, error: "" })),
   error: null as Error | null,
   session: { isUserLoading: false, userError: null as Error | null },
   activeClientId: "all",
@@ -41,6 +42,7 @@ vi.mock("firebase/firestore", () => ({
   serverTimestamp: () => "server-time",
 }));
 vi.mock("@/hooks/use-pgr-workspace", () => ({
+  useOperationalTaskList: state.filtered,
   usePgrCollection: () => ({ data: [] }),
   usePgrCompanies: () => ({ data: [] }),
 }));
@@ -181,7 +183,8 @@ describe("operational handoff", () => {
       await render();
       expect(
         state.query.mock.calls.some(([source]) => source.path === "tasks" && source.group)
-      ).toBe(true);
+      ).toBe(role !== "OPERATIONS");
+      if (role === "OPERATIONS") expect(state.filtered).toHaveBeenCalledWith("all");
     }
   );
   it.each(["ADMIN", "OPERATIONS", "DOCTOR", "ENGINEER"])(

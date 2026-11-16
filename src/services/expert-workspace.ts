@@ -1,3 +1,4 @@
+import { canReadDossierTask } from "@/lib/auth/britania-fap-access";
 import "server-only";
 import { adminDb } from "@/lib/firebase-admin";
 import type { AuthContext } from "@/lib/auth/auth-context";
@@ -52,7 +53,9 @@ export async function readExpertWorkspace(user: AuthContext, requested: string |
     .slice(0, 500)
     .filter(
       (d) =>
-        d.data().isDeleted !== true && (!d.data().companyId || d.data().companyId === companyId)
+        canReadDossierTask(user, companyId, d.id) &&
+        d.data().isDeleted !== true &&
+        (!d.data().companyId || d.data().companyId === companyId)
     )
     .map((d) => projectExpertTask(d.id, d.data()))
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.title.localeCompare(b.title));

@@ -1,5 +1,9 @@
 "use client";
 
+import { BRITANIA_ANCHOR } from "@/lib/britania-group";
+import { parseClaims } from "@/lib/auth/claims";
+import { isBritaniaFapAdmin } from "@/lib/auth/britania-fap-access";
+import { useOperationalTaskList } from "@/hooks/use-pgr-workspace";
 import * as React from "react";
 import Link from "next/link";
 import {
@@ -67,25 +71,42 @@ export default function ComercialPortal() {
   const isGlobalAdmin = React.useMemo(() => {
     if (!profile) return false;
     const role = (profile.role || "").toUpperCase();
-    return ["SUPER_ADMIN", "ADMIN"].includes(role);
+    return (
+      role === "SUPER_ADMIN" ||
+      (role === "ADMIN" &&
+        !profile.tenantId &&
+        (!profile.companyId || profile.companyId === "nextcon"))
+    );
   }, [profile]);
 
+  const ownCompany = profile ? parseClaims(profile).tenantId : undefined;
+  const filteredScope =
+    profile && !isBritaniaFapAdmin(parseClaims(profile))
+      ? isGlobalAdmin
+        ? "all"
+        : ownCompany === BRITANIA_ANCHOR
+          ? BRITANIA_ANCHOR
+          : null
+      : null;
+  const filteredTasks = useOperationalTaskList<OpsTask>(filteredScope, true);
   const commercialTasksQuery = useMemoFirebase(() => {
-    if (!db || !profile) return null;
+    if (!db || !profile || filteredScope) return null;
     if (isGlobalAdmin) {
       return query(collectionGroup(db, "tasks"), orderBy("createdAt", "desc"), limit(50));
     }
-    if (profile.companyId) {
+    if (ownCompany) {
       return query(
-        collection(db, "companies", profile.companyId, "tasks"),
+        collection(db, "companies", ownCompany, "tasks"),
         orderBy("createdAt", "desc"),
         limit(50)
       );
     }
     return null;
-  }, [db, profile, isGlobalAdmin]);
+  }, [db, profile, isGlobalAdmin, filteredScope, ownCompany]);
 
-  const { data: allTasks, isLoading: loadingTasks } = useCollection<OpsTask>(commercialTasksQuery);
+  const directTasks = useCollection<OpsTask>(commercialTasksQuery);
+  const allTasks = filteredScope ? filteredTasks.data : directTasks.data;
+  const loadingTasks = filteredScope ? filteredTasks.loading : directTasks.isLoading;
 
   const commercialTasks = React.useMemo(() => {
     if (!allTasks) return [];

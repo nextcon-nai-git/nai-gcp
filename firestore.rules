@@ -83,6 +83,16 @@ service cloud.firestore {
       return name in ['sourceDocuments', 'access_index', 'audit_logs'] || (name == 'contracts' && id == 'fixed-monthly-billing');
     }
 
+    function isBritaniaDossierAdmin() {
+      let profile = getUserProfile();
+      return profile != null && profile.role in ['SUPER_ADMIN', 'ADMIN'] && profileTenantId(profile) in ['', 'nextcon'];
+    }
+
+    function canAccessCompanyTask(companyId, name, id) {
+      return companyId != 'BRITANIA_JOINVILLE' || name != 'tasks' || isBritaniaDossierAdmin() ||
+        !id.matches('document_.*');
+    }
+
     function isSecurityAdmin() {
       return isSignedIn() && getUserProfile().role == 'SUPER_ADMIN';
     }
@@ -337,7 +347,7 @@ service cloud.firestore {
     // group queries need an explicit recursive match; tenant queries keep their
     // existing company-scoped rules. This grants no additional write access.
     match /{path=**}/tasks/{taskId} {
-      allow list: if isNextconOfficial();
+      allow list: if isNextconOfficial() && isBritaniaDossierAdmin();
     }
 
     // The internal import archive uses a bounded contracts collection-group query.
@@ -397,7 +407,7 @@ service cloud.firestore {
     }
 
     match /companies/{companyId}/{subcollection}/{documentId}/{nested=**} {
-      allow read: if !(subcollection in ['employees', 'sourceDocuments']) && (isClinicalImportDocument(subcollection, documentId)
+      allow read: if canAccessCompanyTask(companyId, subcollection, documentId) && !(subcollection in ['employees', 'sourceDocuments']) && (isClinicalImportDocument(subcollection, documentId)
         ? hasClinicalImportAccess(companyId)
         : isClinicalCollection(subcollection)
           ? hasClinicalAccess(companyId)
@@ -407,14 +417,14 @@ service cloud.firestore {
       // both versions of sourceType also blocks changing/removing the marker to
       // bypass checklist, classification or clinical-review validation.
       allow create: if !(subcollection in ['employees', 'agendamentos', 'aso_attendances']) &&
-        !isServerManagedCompanyDocument(subcollection, documentId) &&
+        !isServerManagedCompanyDocument(subcollection, documentId) && canAccessCompanyTask(companyId, subcollection, documentId) &&
         !isServerManagedImportDocument(subcollection, documentId) &&
         !(isImportOperationalCollection(subcollection) && hasImportSource(request.resource.data)) &&
         (isClinicalCollection(subcollection)
           ? hasClinicalAccess(companyId)
           : isCompanyAdmin(companyId) || isNextconOfficial());
       allow update: if !(subcollection in ['employees', 'agendamentos', 'aso_attendances']) &&
-        !isServerManagedCompanyDocument(subcollection, documentId) &&
+        !isServerManagedCompanyDocument(subcollection, documentId) && canAccessCompanyTask(companyId, subcollection, documentId) &&
         !isServerManagedImportDocument(subcollection, documentId) &&
         !(isImportOperationalCollection(subcollection) &&
           (hasImportSource(resource.data) || hasImportSource(request.resource.data))) &&
@@ -422,7 +432,7 @@ service cloud.firestore {
           ? hasClinicalAccess(companyId)
           : isCompanyAdmin(companyId) || isNextconOfficial());
       allow delete: if !(subcollection in ['employees', 'agendamentos', 'aso_attendances']) &&
-        !isServerManagedCompanyDocument(subcollection, documentId) &&
+        !isServerManagedCompanyDocument(subcollection, documentId) && canAccessCompanyTask(companyId, subcollection, documentId) &&
         !isServerManagedImportDocument(subcollection, documentId) &&
         !(isImportOperationalCollection(subcollection) && hasImportSource(resource.data)) &&
         (isClinicalCollection(subcollection)

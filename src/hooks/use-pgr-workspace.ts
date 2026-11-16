@@ -122,3 +122,10 @@ export async function updatePgrTask(
   if (!r.ok) throw new Error(d.error || "O card não foi atualizado.");
   window.dispatchEvent(new Event("nai:pgr-task-updated"));
 }
+
+export function useOperationalTaskList<T>(company: string | null, recent = false) {
+  const url = company
+    ? "/api/operational/tasks?" + new URLSearchParams({ company, order: recent ? "recent" : "due" })
+    : null;
+  return usePgrQuery<T>(url, "tasks", !!company, true);
+}

@@ -1,3 +1,4 @@
+import { canReadDossierTask } from "@/lib/auth/britania-fap-access";
 import "server-only";
 import { createHash } from "node:crypto";
 import { adminDb } from "@/lib/firebase-admin";
@@ -73,7 +74,10 @@ export async function getClientCenter(
   });
   const taskRecords =
     tasks.status === "fulfilled"
-      ? tasks.value.docs.slice(0, 1000).map((d) => ({ id: d.id, data: d.data() }))
+      ? tasks.value.docs
+          .slice(0, 1000)
+          .filter((d) => canReadDossierTask(user, company.id, d.id))
+          .map((d) => ({ id: d.id, data: d.data() }))
       : null;
   if (employees.status === "fulfilled" && employees.value.size > 2000)
     issues.push(
