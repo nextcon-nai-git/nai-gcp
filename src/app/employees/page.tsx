@@ -132,7 +132,7 @@ const employeeFormSchema = z.object({
 type EmployeeFormValues = z.infer<typeof employeeFormSchema>;
 
 function EmployeesList() {
-  const { user, role, companyId: userCompanyId, servedCompanies } = useUser();
+  const { user, role, tenantId, companyId: userCompanyId, servedCompanies } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
   const { activeClientId, isGlobalStaff, isAuthorizedProvider } = useSgi();
@@ -218,9 +218,18 @@ function EmployeesList() {
   const loadingEmployees =
     activeClientId === "all" ? loadingGlobalEmployees : loadingScopedEmployees;
 
+  const examCompany = selectedEmployee?.companyId;
+  const profileCompany = tenantId?.trim() ? tenantId : userCompanyId;
+  const canAccessExams =
+    !!examCompany &&
+    (role === "SUPER_ADMIN" ||
+      (role === "ADMIN" && !profileCompany) ||
+      (["ADMIN", "DOCTOR", "NURSE", "HEALTH_PROFESSIONAL"].includes(role || "") &&
+        (examCompany === profileCompany || servedCompanies.includes(examCompany))));
+
   // Query para buscar exames do funcionário selecionado
   const examsQuery = useMemoFirebase(() => {
-    if (!db || !selectedEmployee || !selectedEmployee.companyId) return null;
+    if (!db || !selectedEmployee || !canAccessExams) return null;
     return query(
       collection(
         db,
@@ -232,15 +241,16 @@ function EmployeesList() {
       ),
       orderBy("date", "desc")
     );
-  }, [db, selectedEmployee]);
+  }, [db, selectedEmployee, canAccessExams]);
   const { data: employeeExams, isLoading: loadingExams } = useCollection(examsQuery);
 
   const handleAddExam = async () => {
-    if (!db || !selectedEmployee || !newExam.value) return;
+    if (!db || !user || !canAccessExams || !selectedEmployee || !newExam.value.trim()) return;
 
     try {
       const ref = EXAM_REFERENCES[newExam.code];
       const val = Number(newExam.value);
+      if (!Number.isFinite(val)) throw new Error("Resultado inválido.");
       const isAbnormal = val < ref.min || val > ref.max;
 
       const examsRef = collection(
@@ -260,6 +270,7 @@ function EmployeesList() {
         isAbnormal,
         referenceMin: ref.min,
         referenceMax: ref.max,
+        createdBy: user.uid,
         createdAt: serverTimestamp(),
       });
 
@@ -599,7 +610,7 @@ function EmployeesList() {
                                     Checklist Clínico
                                   </TabsTrigger>
                                   <TabsTrigger
-                                    disabled={isAttachmentBusy}
+                                    disabled={isAttachmentBusy || !canAccessExams}
                                     value="analytics"
                                     className="rounded-lg text-[10px] font-black uppercase tracking-widest gap-2"
                                   >
@@ -631,47 +642,49 @@ function EmployeesList() {
                                   </div>
                                 </TabsContent>
 
-                                <TabsContent value="analytics" className="m-0 space-y-10 pb-20">
-                                  <div className="flex justify-between items-center">
-                                    <h4 className="text-[10px] font-black uppercase text-primary tracking-[0.2em] flex items-center gap-2">
-                                      <BarChart3 className="size-4 text-accent" /> Vigilância
-                                      Analítica
-                                    </h4>
-                                    <Button
-                                      size="sm"
-                                      onClick={() => setIsAddExamOpen(true)}
-                                      className="h-8 rounded-lg bg-primary text-white font-black uppercase text-[8px] gap-1.5"
-                                    >
-                                      <Plus className="size-3" /> Lançar Exame
-                                    </Button>
-                                  </div>
+                                {canAccessExams && (
+                                  <TabsContent value="analytics" className="m-0 space-y-10 pb-20">
+                                    <div className="flex justify-between items-center">
+                                      <h4 className="text-[10px] font-black uppercase text-primary tracking-[0.2em] flex items-center gap-2">
+                                        <BarChart3 className="size-4 text-accent" /> Vigilância
+                                        Analítica
+                                      </h4>
+                                      <Button
+                                        size="sm"
+                                        onClick={() => setIsAddExamOpen(true)}
+                                        className="h-8 rounded-lg bg-primary text-white font-black uppercase text-[8px] gap-1.5"
+                                      >
+                                        <Plus className="size-3" /> Lançar Exame
+                                      </Button>
+                                    </div>
 
-                                  {loadingExams ? (
-                                    <div className="py-10 text-center opacity-20">
-                                      <Loader2 className="animate-spin mx-auto" />
-                                    </div>
-                                  ) : employeeExams && employeeExams.length > 0 ? (
-                                    <div className="space-y-12">
-                                      {/* Gráficos Agrupados por Tipo */}
-                                      {Array.from(
-                                        new Set(employeeExams.map((e) => e.examCode))
-                                      ).map((code) => (
-                                        <ExamHistoryChart
-                                          key={code}
-                                          examCode={code}
-                                          data={employeeExams.filter((e) => e.examCode === code)}
-                                        />
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <div className="py-20 text-center opacity-20 border-2 border-dashed rounded-3xl">
-                                      <HeartPulse size={48} className="mx-auto mb-2" />
-                                      <p className="text-[10px] font-black uppercase tracking-widest">
-                                        Nenhum dado analítico protocolado
-                                      </p>
-                                    </div>
-                                  )}
-                                </TabsContent>
+                                    {loadingExams ? (
+                                      <div className="py-10 text-center opacity-20">
+                                        <Loader2 className="animate-spin mx-auto" />
+                                      </div>
+                                    ) : employeeExams && employeeExams.length > 0 ? (
+                                      <div className="space-y-12">
+                                        {/* Gráficos Agrupados por Tipo */}
+                                        {Array.from(
+                                          new Set(employeeExams.map((e) => e.examCode))
+                                        ).map((code) => (
+                                          <ExamHistoryChart
+                                            key={code}
+                                            examCode={code}
+                                            data={employeeExams.filter((e) => e.examCode === code)}
+                                          />
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <div className="py-20 text-center opacity-20 border-2 border-dashed rounded-3xl">
+                                        <HeartPulse size={48} className="mx-auto mb-2" />
+                                        <p className="text-[10px] font-black uppercase tracking-widest">
+                                          Nenhum dado analítico protocolado
+                                        </p>
+                                      </div>
+                                    )}
+                                  </TabsContent>
+                                )}
 
                                 <TabsContent value="docs" className="m-0 space-y-6 pb-20">
                                   <div className="p-2">

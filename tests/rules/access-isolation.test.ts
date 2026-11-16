@@ -6,7 +6,16 @@ import {
   assertSucceeds,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { deleteDoc, doc, setDoc, updateDoc, getDoc } from "firebase/firestore";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  getDoc,
+} from "firebase/firestore";
 import { ref, uploadBytes, getBytes, deleteObject } from "firebase/storage";
 
 let env: RulesTestEnvironment;
@@ -105,6 +114,55 @@ describe("Perfis e prontuários", () => {
         )
       )
     );
+  });
+  it("protege mensalidade, auditoria e PDFs de origem contra escrita direta", async () => {
+    const locked = [
+      "companies/avp/contracts/fixed-monthly-billing",
+      "admin_migrations/import",
+      "companies/avp/sourceDocuments/original",
+    ];
+    for (const path of locked) {
+      await env.withSecurityRulesDisabled((ctx) =>
+        setDoc(doc(ctx.firestore(), path), { valueCents: 500000 })
+      );
+      for (const uid of ["client", "global", "super"]) {
+        await assertFails(updateDoc(doc(db(uid), path), { valueCents: 100 }));
+        await assertFails(deleteDoc(doc(db(uid), path)));
+      }
+    }
+    await assertSucceeds(
+      setDoc(doc(db("client"), "companies/avp/contracts/local"), { title: "Contrato" })
+    );
+    await assertFails(
+      setDoc(doc(db("client"), "companies/avp/sourceDocuments/new"), { name: "PCMSO.pdf" })
+    );
+    await assertFails(getDocs(collection(db("global"), "integrations/grupo-avp/versions/v1/rows")));
+  });
+  it("preserva o ASO registrado e impede o prestador de lançar resultado", async () => {
+    const record = "companies/avp/aso_attendances/synthetic";
+    await assertFails(setDoc(doc(db("provider"), record + "-new"), { resultado: "alterado" }));
+    for (const uid of ["doctor", "provider", "super"]) {
+      await assertFails(updateDoc(doc(db(uid), record), { resultado: "alterado" }));
+      await assertFails(deleteDoc(doc(db(uid), record)));
+    }
+  });
+  it("isola os exames laboratoriais por empresa e perfil clínico", async () => {
+    const worker = "companies/avp/employees/worker";
+    await env.withSecurityRulesDisabled((ctx) =>
+      setDoc(doc(ctx.firestore(), worker), { name: "Teste" })
+    );
+    const path = worker + "/exams/test";
+    const result = { value: 100, createdAt: serverTimestamp(), createdBy: "doctor" };
+    await assertSucceeds(setDoc(doc(db("doctor"), path), result));
+    await assertSucceeds(getDocs(collection(db("doctor"), worker + "/exams")));
+    for (const uid of ["client", "hr", "provider"]) {
+      await assertFails(getDoc(doc(db(uid), path)));
+      await assertFails(getDocs(collection(db(uid), worker + "/exams")));
+      await assertFails(updateDoc(doc(db(uid), path), { value: 1 }));
+    }
+    await assertFails(setDoc(doc(db("doctor"), path + "-fake"), { ...result, createdBy: "other" }));
+    await assertFails(getDoc(doc(db("doctor"), "companies/foreign/employees/e/exams/test")));
+    await assertFails(deleteDoc(doc(db("doctor"), path)));
   });
   it("cliente e operador não alteram a integração e o registro de auditoria", async () => {
     await assertFails(

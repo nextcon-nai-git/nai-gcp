@@ -6,6 +6,7 @@ import type { AuthContext } from "@/lib/auth/auth-context";
 import { parseClaims } from "@/lib/auth/claims";
 import { isPgrGlobalAdmin, requirePgrCompany } from "@/lib/auth/require-pgr-access";
 import { AuthError, badRequest, forbidden } from "@/lib/auth/errors";
+import { verifiedPdf } from "./client-source-pdf";
 import { parseCpf } from "@/lib/cpf";
 import { isValidCnpj } from "@/lib/cnpj";
 import {
@@ -144,6 +145,23 @@ function validateSources(companyId: string, input: KitSelectionData, docs: Docum
     );
   return { company, clinic, pcmso, pgr, employees };
 }
+async function verifyKitOriginals(companyId: string, input: KitSelectionData) {
+  const signal = AbortSignal.timeout(20000);
+  try {
+    for (const id of [input.pcmsoDocumentId, input.pgrDocumentId]) {
+      await verifiedPdf(companyId, id, signal);
+    }
+  } catch (error) {
+    if (error instanceof AuthError) throw error;
+    if (error && typeof error === "object" && "code" in error && Number(error.code) === 404)
+      throw new AuthError(
+        "PDF de origem ausente. Restaure o original no acervo e confira o kit.",
+        409
+      );
+    throw new AuthError("Não foi possível conferir os PDFs de origem. Tente novamente.", 503);
+  }
+}
+
 function sourceVersion(docs: DocumentSnapshot[]) {
   return hash(docs.map((d) => [d.ref.path, d.updateTime?.seconds, d.updateTime?.nanoseconds]));
 }
@@ -225,6 +243,7 @@ export async function prepareKitBatch(
   const input = parseSelection(selection);
   const docs = await adminDb.getAll(...references(companyId, input));
   const source = validateSources(companyId, input, docs);
+  await verifyKitOriginals(companyId, input);
   const proposalId = randomUUID(),
     expiresAt = Date.now() + 30 * 60000;
   const preview: KitPreview = {
@@ -364,6 +383,7 @@ async function confirmTransaction(
       "Os cadastros ou documentos mudaram. Prepare e confira uma nova prévia.",
       409
     );
+  await verifyKitOriginals(companyId, input);
   const ids = source.employees.map((e) =>
     kitOperationId(companyId, e.cpf, input.cycle, input.examType)
   );
