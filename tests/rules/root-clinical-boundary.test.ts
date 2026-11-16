@@ -103,7 +103,7 @@ afterAll(async () => {
 
 describe("root clinical records cannot inherit operational access", () => {
   it.each(roots)("denies operations and HR access to %s", async (root) => {
-    for (const uid of ["clinical-operations", "clinical-hr"]) {
+    for (const uid of ["clinical-operations", "clinical-hr", "clinical-served-provider"]) {
       const db = env.authenticatedContext(uid).firestore();
       await assertFails(getDoc(doc(db, root, "clinical-a")));
       await assertFails(setDoc(doc(db, root, `unauthorized-${uid}`), payload(uid)));
@@ -185,23 +185,21 @@ describe("root clinical records cannot inherit operational access", () => {
 });
 
 describe("clinical prerequisites and company lifecycle", () => {
-  it.each([
-    "clinical-served-admin",
-    "clinical-served-nurse",
-    "clinical-served-health",
-    "clinical-served-provider",
-  ])("allows prerequisite reads only for companies explicitly served by %s", async (uid) => {
-    const db = env.authenticatedContext(uid).firestore();
-    await assertSucceeds(getDoc(doc(db, "companies/clinical-a")));
-    await assertSucceeds(getDoc(doc(db, "companies/clinical-a/employees/patient")));
-    await assertSucceeds(
-      getDocs(query(collection(db, "companies"), where("__name__", "in", ["clinical-a"])))
-    );
-    await assertSucceeds(getDocs(collection(db, "companies/clinical-a/employees")));
-    await assertSucceeds(setDoc(doc(db, `nursing_attendances/served-${uid}`), payload(uid)));
-    await assertFails(getDoc(doc(db, "companies/clinical-b")));
-    await assertFails(getDoc(doc(db, "companies/clinical-b/employees/patient")));
-  });
+  it.each(["clinical-served-admin", "clinical-served-nurse", "clinical-served-health"])(
+    "allows prerequisite reads only for companies explicitly served by %s",
+    async (uid) => {
+      const db = env.authenticatedContext(uid).firestore();
+      await assertSucceeds(getDoc(doc(db, "companies/clinical-a")));
+      await assertSucceeds(getDoc(doc(db, "companies/clinical-a/employees/patient")));
+      await assertSucceeds(
+        getDocs(query(collection(db, "companies"), where("__name__", "in", ["clinical-a"])))
+      );
+      await assertSucceeds(getDocs(collection(db, "companies/clinical-a/employees")));
+      await assertSucceeds(setDoc(doc(db, `nursing_attendances/served-${uid}`), payload(uid)));
+      await assertFails(getDoc(doc(db, "companies/clinical-b")));
+      await assertFails(getDoc(doc(db, "companies/clinical-b/employees/patient")));
+    }
+  );
   it.each(["missing", "deleted"])(
     "rejects a company that is %s even with an employee document",
     async (state) => {

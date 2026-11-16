@@ -6,6 +6,7 @@ vi.mock("@/lib/firebase-admin", () => ({
   adminDb: { collection: () => ({ doc: () => ({ get: mocks.get }) }) },
 }));
 import { requireAuth } from "./require-auth";
+import { requireFinancialAccess } from "./financial-access";
 beforeEach(() => {
   mocks.verify
     .mockReset()
@@ -26,6 +27,18 @@ const request = (path: string, method = "GET") =>
     method,
     headers: { authorization: "Bearer synthetic" },
   });
+it.each([undefined, null, ""])(
+  "preserves legacy internal ADMIN access with tenant %j from the stored profile",
+  async (tenantId) => {
+    mocks.get.mockResolvedValue({
+      exists: true,
+      data: () => ({ role: "ADMIN", companyId: "nextcon", tenantId }),
+    });
+    const user = await requireAuth(request("/api/financial/reports"));
+    expect(user.tenantId).toBeNull();
+    expect(() => requireFinancialAccess(user)).not.toThrow();
+  }
+);
 it("allows only GET on the exclusive workspace using the stored role", async () => {
   expect((await requireAuth(request("/api/expert/workspace?company=allowed"))).role).toBe(
     "SCOPED_PROVIDER"

@@ -151,11 +151,11 @@ describe("NAI importa: fronteiras de dados clínicos", () => {
         contentType: "application/pdf",
       })
     );
-    // The stricter gate is confined to the new import paths.
-    await assertSucceeds(
+    // Legacy paths require the same clinical qualification as new imports.
+    await assertFails(
       getDoc(doc(db("provider-engineer"), "companies/company-a/clinical_records/legacy"))
     );
-    await assertSucceeds(
+    await assertFails(
       getBytes(ref(storage("provider-engineer"), "clientes/company-a/prontuarios/legacy.pdf"))
     );
   });

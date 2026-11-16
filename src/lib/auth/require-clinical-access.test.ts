@@ -14,7 +14,7 @@ const context = (
   permissions: [],
 });
 describe("clinical authorization", () => {
-  it.each(["ADMIN", "DOCTOR", "NURSE", "HEALTH_PROFESSIONAL", "PROVIDER"] as const)(
+  it.each(["ADMIN", "DOCTOR", "NURSE", "HEALTH_PROFESSIONAL"] as const)(
     "requires scope for %s",
     (role) => {
       expect(() => requireClinicalAccess(context(role), "tenant-a")).not.toThrow();
@@ -35,6 +35,7 @@ describe("clinical authorization", () => {
     "GUEST",
     "SAFETY_TECH",
     "COMPLIANCE",
+    "PROVIDER",
   ] as const)("denies nonclinical %s even with a served company", (role) => {
     expect(() => requireClinicalAccess(context(role, null, ["tenant-a"]), "tenant-a")).toThrow(
       "Seu perfil"

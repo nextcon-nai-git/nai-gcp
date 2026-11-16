@@ -11,11 +11,7 @@ export function requireClinicalAccess(user: AuthContext, companyId: string) {
     ["all", "unauthorized"].includes(companyId)
   )
     throw badRequest("Selecione uma empresa válida.");
-  if (
-    !["SUPER_ADMIN", "ADMIN", "DOCTOR", "NURSE", "HEALTH_PROFESSIONAL", "PROVIDER"].includes(
-      user.role
-    )
-  )
+  if (!["SUPER_ADMIN", "ADMIN", "DOCTOR", "NURSE", "HEALTH_PROFESSIONAL"].includes(user.role))
     throw forbidden("Seu perfil não pode consultar dados clínicos.");
   if (
     !(user.role === "SUPER_ADMIN" || (user.role === "ADMIN" && !user.tenantId)) &&
