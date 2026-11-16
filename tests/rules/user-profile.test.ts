@@ -31,6 +31,34 @@ function ownProfile() {
 }
 
 describe("self-managed profile security rules", () => {
+  it("authorizes profile reads and edits against the target's current tenant", async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, "users/moved"), {
+        role: "HR",
+        tenantId: "new",
+        companyId: "old",
+        name: "Teste",
+      });
+      await setDoc(doc(db, "users/legacy"), { role: "HR", companyId: "old", name: "Legado" });
+      await setDoc(doc(db, "users/unassigned"), { role: "GUEST", name: "Sem empresa" });
+      for (const companyId of ["old", "new", ""])
+        await setDoc(doc(db, "users/admin-" + (companyId || "empty")), {
+          role: "CLIENT_ADMIN",
+          companyId,
+        });
+    });
+    const target = (uid: string, id: string) =>
+      doc(env.authenticatedContext(uid).firestore(), "users/" + id);
+    await assertFails(getDoc(target("admin-old", "moved")));
+    await assertFails(updateDoc(target("admin-old", "moved"), { name: "Incorreto" }));
+    await assertSucceeds(getDoc(target("admin-new", "moved")));
+    await assertSucceeds(updateDoc(target("admin-new", "moved"), { name: "Conferido" }));
+    await assertSucceeds(getDoc(target("admin-old", "legacy")));
+    await assertFails(getDoc(target("admin-new", "legacy")));
+    await assertFails(getDoc(target("admin-empty", "unassigned")));
+  });
+
   it("allows basic creation and later editing before roles are provisioned", async () => {
     const ref = ownProfile();
     await assertSucceeds(setDoc(ref, basic));

@@ -80,7 +80,42 @@ service cloud.firestore {
     }
 
     function isServerManagedCompanyDocument(name, id) {
-      return name in ['sourceDocuments', 'access_index', 'audit_logs', 'checklist_reservations'] || (name == 'reports' && id.matches('checklist_.*')) || (name == 'contracts' && id == 'fixed-monthly-billing');
+      return name in ['sourceDocuments', 'access_index', 'audit_logs', 'checklist_reservations'] || (name == 'reports' && id.matches('checklist_.*')) || (name == 'contracts' && (id == 'fixed-monthly-billing' || id.matches('source_[0-9a-f]{64}')));
+    }
+
+    // Both halves of a PDF confirmation must be created in the same transaction.
+    // Later edits to operational tasks do not rewrite the reviewed source.
+    function validContractReceipt(data, companyId, hash) {
+      return hash.matches('[0-9a-f]{64}') && companyId is string &&
+        companyId.size() > 0 && companyId.size() <= 128 && !companyId.matches('.*/.*') &&
+        data.companyId == companyId && data.sourceHash == hash &&
+        data.sourceStoragePath == 'internos_nextcon/contract-sources/' + hash &&
+        data.sourceGeneration is string && data.sourceGeneration.matches('[0-9]+') &&
+        data.sourceSizeBytes is int && data.sourceSizeBytes > 0 && data.sourceSizeBytes < 10485760 &&
+        data.sourceConfirmed == true && data.sourceConfirmedBy == request.auth.uid &&
+        data.sourceConfirmedAt == request.time;
+    }
+
+    function receiptMatches(other, data) {
+      return other.sourceGeneration == data.sourceGeneration &&
+        other.sourceSizeBytes == data.sourceSizeBytes;
+    }
+
+    function createContractRegistry(hash) {
+      let data = request.resource.data;
+      let contractId = 'source_' + hash;
+      let contract = /databases/$(database)/documents/companies/$(data.companyId)/contracts/$(contractId);
+      return validContractReceipt(data, data.companyId, hash) &&
+        data.contractId == contractId && !exists(contract) &&
+        receiptMatches(getAfter(contract).data, data);
+    }
+
+    function createConfirmedContract(companyId, id) {
+      let data = request.resource.data;
+      let registry = /databases/$(database)/documents/contract_import_sources/$(data.sourceHash);
+      return validContractReceipt(data, companyId, data.sourceHash) && id == 'source_' + data.sourceHash &&
+        !exists(registry) && getAfter(registry).data.companyId == companyId &&
+        receiptMatches(getAfter(registry).data, data);
     }
 
     function isBritaniaDossierAdmin() {
@@ -420,11 +455,22 @@ service cloud.firestore {
           : isCompanyAdmin(companyId) || isNextconOfficial());
     }
 
+    match /contract_import_sources/{hash} {
+      allow read: if isNextconOfficial();
+      allow create: if isNextconOfficial() && createContractRegistry(hash);
+    }
+
+    match /companies/{companyId}/contracts/{id} {
+      allow create: if id.matches('source_[0-9a-f]{64}') && isNextconOfficial() && createConfirmedContract(companyId, id);
+    }
+
     match /users/{userId} {
-      allow read: if isSignedIn() && (request.auth.uid == userId || isNextconOfficial() || belongsToCompany(resource.data.companyId));
+      allow read: if isSignedIn() && (request.auth.uid == userId || isNextconOfficial() ||
+        (profileTenantId(resource.data) != '' && belongsToCompany(profileTenantId(resource.data))));
       allow create: if (isSelf(userId) && userSelfManagedCreateKeysAreValid(userId)) || isSecurityAdmin();
       allow update: if (isSelf(userId) && userSelfManagedUpdateKeysAreValid()) || isSecurityAdmin() ||
-        ((isNextconOfficial() || isCompanyAdmin(resource.data.companyId)) && userSelfManagedUpdateKeysAreValid());
+        ((isNextconOfficial() ||
+          (profileTenantId(resource.data) != '' && isCompanyAdmin(profileTenantId(resource.data)))) && userSelfManagedUpdateKeysAreValid());
       allow delete: if isSecurityAdmin();
     }
 
@@ -569,8 +615,8 @@ service cloud.firestore {
     }
 
     match /{rootCollection}/{document=**} {
-      allow read: if isSignedIn() && isNextconOfficial() && !(rootCollection in ['integrations', 'admin_migrations', 'admin_company_changes', 'access_cards', 'nxc_daily_reports']) && !isClinicalCollection(rootCollection) && !(rootCollection in ['workAssistantProposals', 'workAssistantUsage', 'clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nxc_employees', 'user_access_audit', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries', 'audit_logs', 'system_audit_logs', 'ai_audit_logs', 'denuncias']);
-      allow write: if isNextconOfficial() && !(rootCollection in ['admin_migrations', 'admin_company_changes', 'access_cards', 'nxc_daily_reports']) && !isClinicalCollection(rootCollection) && !(rootCollection in ['workAssistantProposals', 'workAssistantUsage', 'clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nxc_employees', 'agendamentos', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'expert_access_audit', 'user_access_audit', 'analisesPGR', 'audit_logs', 'system_audit_logs', 'ai_audit_logs', 'denuncias']);
+      allow read: if isSignedIn() && isNextconOfficial() && !(rootCollection in ['integrations', 'admin_migrations', 'admin_company_changes', 'access_cards', 'nxc_daily_reports']) && !isClinicalCollection(rootCollection) && !(rootCollection in ['workAssistantProposals', 'workAssistantUsage', 'contract_import_sources', 'clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nxc_employees', 'user_access_audit', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries', 'audit_logs', 'system_audit_logs', 'ai_audit_logs', 'denuncias']);
+      allow write: if isNextconOfficial() && !(rootCollection in ['admin_migrations', 'admin_company_changes', 'access_cards', 'nxc_daily_reports']) && !isClinicalCollection(rootCollection) && !(rootCollection in ['workAssistantProposals', 'workAssistantUsage', 'contract_import_sources', 'clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nxc_employees', 'agendamentos', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'expert_access_audit', 'user_access_audit', 'analisesPGR', 'audit_logs', 'system_audit_logs', 'ai_audit_logs', 'denuncias']);
     }
   }
 }
