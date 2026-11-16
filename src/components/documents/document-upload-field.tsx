@@ -12,13 +12,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getBlob } from "firebase/storage";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { firebaseConfig } from "@/firebase/config";
+import { employeeAttachmentPath } from "@/lib/employee-attachment-path";
 import { useStorage, useUser } from "@/firebase";
 import { canManageEmployeeDocuments } from "@/lib/auth/employee-document-access";
 
-function safeDocumentUrl(raw: string): string | undefined {
+function safeDocumentUrl(raw?: string): string | undefined {
   try {
+    if (!raw) return;
     const url = new URL(raw);
+    if (["firebasestorage.googleapis.com", "storage.googleapis.com"].includes(url.hostname)) return;
     return url.protocol === "https:" && !url.username && !url.password ? url.href : undefined;
   } catch {
     return undefined;
@@ -29,7 +34,8 @@ export interface EmployeeDocument {
   id: string;
   name: string;
   category: string;
-  url: string;
+  url?: string;
+  storagePath?: string;
   size?: string;
   type?: string;
   uploadedAt: string;
@@ -94,6 +100,19 @@ function DocumentUploadSession({
   const [docList, setDocList] = React.useState<EmployeeDocument[]>(documents);
   const [selectedCategory, setSelectedCategory] = React.useState<string>("RG / CPF");
   const [isUploading, setIsUploading] = React.useState(false);
+  const [preview, setPreview] = React.useState<{
+    name: string;
+    url: string;
+    inline: boolean;
+  } | null>(null);
+  const [opening, setOpening] = React.useState("");
+  const readSequence = React.useRef(0);
+  React.useEffect(
+    () => () => {
+      if (preview) URL.revokeObjectURL(preview.url);
+    },
+    [preview]
+  );
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const busy = React.useRef(false);
   const mounted = React.useRef(true);
@@ -144,19 +163,16 @@ function DocumentUploadSession({
       const prefix = internal
         ? `internos_nextcon/colaboradores/${owner}`
         : `clientes/${companyId}/colaboradores/${owner}`;
-      const snapshot = await uploadBytes(ref(storage, `${prefix}/${fileId}`), file);
+      const storagePath = `${prefix}/${fileId}`;
+      await uploadBytes(ref(storage, storagePath), file);
       if (!mounted.current) return;
-      const url = await getDownloadURL(snapshot.ref);
-      if (!mounted.current) return;
-      if (!safeDocumentUrl(url))
-        throw new Error("O armazenamento não retornou um endereço válido.");
       const updated = [
         ...docList,
         {
           id: fileId,
           name: file.name,
           category: selectedCategory,
-          url,
+          storagePath,
           size: (file.size / 1024 / 1024).toFixed(2) + " MB",
           type: file.type,
           uploadedAt: new Date().toISOString(),
@@ -184,6 +200,33 @@ function DocumentUploadSession({
         });
     } finally {
       finish();
+    }
+  };
+
+  const openStoredFile = async (item: EmployeeDocument, path: string) => {
+    if (!user) return;
+    const sequence = ++readSequence.current;
+    setOpening(item.id);
+    try {
+      const blob = await getBlob(ref(storage, path), 10 * 1024 * 1024);
+      if (!mounted.current || sequence !== readSequence.current) return;
+      const inline = ["application/pdf", "image/png", "image/jpeg"].includes(blob.type);
+      setPreview({
+        name: item.name,
+        inline,
+        url: URL.createObjectURL(
+          inline ? blob : new Blob([blob], { type: "application/octet-stream" })
+        ),
+      });
+    } catch {
+      if (mounted.current && sequence === readSequence.current)
+        toast({
+          variant: "destructive",
+          title: "Anexo indisponível",
+          description: "Confira o acesso ao documento e tente novamente.",
+        });
+    } finally {
+      if (mounted.current && sequence === readSequence.current) setOpening("");
     }
   };
 
@@ -294,57 +337,107 @@ function DocumentUploadSession({
         </div>
       ) : (
         <div className="divide-y divide-slate-800/60 border border-slate-800 rounded-2xl bg-slate-950/60 overflow-hidden shadow-lg">
-          {docList.map((doc) => (
-            <div
-              key={doc.id}
-              className="p-3.5 flex items-center justify-between hover:bg-slate-900/50 transition-colors"
-            >
-              <div className="flex items-center gap-3 overflow-hidden">
-                <div className="size-9 rounded-xl bg-accent/10 border border-accent/20 text-accent flex items-center justify-center shrink-0">
-                  <FileCheck size={18} />
-                </div>
-                <div className="truncate">
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-xs text-white truncate max-w-[200px] sm:max-w-[300px]">
-                      {doc.name}
-                    </span>
-                    <Badge className="bg-slate-800 text-slate-300 text-[8px] font-black uppercase shrink-0">
-                      {doc.category}
-                    </Badge>
+          {docList.map((doc) => {
+            const path = employeeAttachmentPath(
+              doc,
+              { companyId, employeeId, internal },
+              firebaseConfig.storageBucket
+            );
+            return (
+              <div
+                key={doc.id}
+                className="p-3.5 flex items-center justify-between hover:bg-slate-900/50 transition-colors"
+              >
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <div className="size-9 rounded-xl bg-accent/10 border border-accent/20 text-accent flex items-center justify-center shrink-0">
+                    <FileCheck size={18} />
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    {doc.uploadedAt} {doc.size ? `• ${doc.size}` : ""}
-                  </p>
+                  <div className="truncate">
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-xs text-white truncate max-w-[200px] sm:max-w-[300px]">
+                        {doc.name}
+                      </span>
+                      <Badge className="bg-slate-800 text-slate-300 text-[8px] font-black uppercase shrink-0">
+                        {doc.category}
+                      </Badge>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {doc.uploadedAt} {doc.size ? `• ${doc.size}` : ""}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {path ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={!user || !!opening}
+                      onClick={() => void openStoredFile(doc, path)}
+                      aria-label={`Ver ${doc.name}`}
+                    >
+                      {opening === doc.id ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <Eye size={12} />
+                      )}{" "}
+                      Ver
+                    </Button>
+                  ) : safeDocumentUrl(doc.url) ? (
+                    <a
+                      href={safeDocumentUrl(doc.url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center h-8 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-bold uppercase gap-1"
+                    >
+                      <Eye size={12} /> Ver
+                    </a>
+                  ) : (
+                    <span className="text-xs">Arquivo indisponível</span>
+                  )}
+                  {canEdit && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(doc.id)}
+                      disabled={isUploading}
+                      aria-label={`Remover vínculo de ${doc.name}`}
+                      className="size-8 text-slate-400 hover:text-red-400 hover:bg-red-950/30 rounded-lg"
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  )}
                 </div>
               </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <a
-                  href={safeDocumentUrl(doc.url)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center h-8 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-bold uppercase gap-1 transition-all"
-                >
-                  <Eye size={12} /> Ver
-                </a>
-                {canEdit && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(doc.id)}
-                    disabled={isUploading}
-                    aria-label={`Remover vínculo de ${doc.name}`}
-                    className="size-8 text-slate-400 hover:text-red-400 hover:bg-red-950/30 rounded-lg"
-                  >
-                    <Trash2 size={14} />
-                  </Button>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+      <Dialog
+        open={!!preview}
+        onOpenChange={(open) => {
+          if (!open) setPreview(null);
+        }}
+      >
+        <DialogContent className="max-w-4xl">
+          <DialogTitle>{preview?.name}</DialogTitle>
+          {preview?.inline && (
+            <iframe
+              sandbox=""
+              src={preview.url}
+              title={preview.name}
+              className="w-full h-[65vh] border-0"
+            />
+          )}
+          {preview && (
+            <a href={preview.url} download={preview.name} className="underline">
+              Baixar arquivo
+            </a>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
