@@ -130,6 +130,18 @@ describe("Perfis e prontuários", () => {
         await assertFails(deleteDoc(doc(db(uid), path)));
       }
     }
+    await env.withSecurityRulesDisabled((ctx) =>
+      setDoc(doc(ctx.firestore(), "companies/avp"), { active: true, portfolioClientId: "avp" })
+    );
+    for (const change of [
+      { active: false },
+      { portfolioClientId: "other" },
+      { isDeleted: true },
+      { cnpj: "changed" },
+    ])
+      await assertFails(updateDoc(doc(db("client"), "companies/avp"), change));
+    await assertFails(deleteDoc(doc(db("client"), "companies/avp")));
+    await assertSucceeds(updateDoc(doc(db("client"), "companies/avp"), { phone: "0000" }));
     await assertSucceeds(
       setDoc(doc(db("client"), "companies/avp/contracts/local"), { title: "Contrato" })
     );
@@ -137,6 +149,52 @@ describe("Perfis e prontuários", () => {
       setDoc(doc(db("client"), "companies/avp/sourceDocuments/new"), { name: "PCMSO.pdf" })
     );
     await assertFails(getDocs(collection(db("global"), "integrations/grupo-avp/versions/v1/rows")));
+  });
+  it("preserva as trilhas e relatos internos da administração", async () => {
+    for (const path of [
+      "nxc_daily_reports/day",
+      "admin_company_changes/event",
+      "access_cards/badge",
+      "companies/avp/audit_logs/event",
+      "companies/avp/access_index/badge",
+    ]) {
+      await env.withSecurityRulesDisabled((ctx) =>
+        setDoc(doc(ctx.firestore(), path), { source: "server" })
+      );
+      for (const uid of ["global", "super", "client"]) {
+        await assertFails(updateDoc(doc(db(uid), path), { source: "client" }));
+        await assertFails(deleteDoc(doc(db(uid), path)));
+      }
+    }
+  });
+  it("permite ao engenheiro protocolar somente o checklist da sua empresa", async () => {
+    await env.withSecurityRulesDisabled((ctx) =>
+      setDoc(doc(ctx.firestore(), "users/engineer"), { role: "ENGINEER", companyId: "avp" })
+    );
+    const id = "11111111-1234-4567-8123-111111111111";
+    const path = "companies/avp/reports/" + id;
+    const payload = {
+      name: "Laudo Técnico - NR-01",
+      companyId: "avp",
+      companyName: "AVP",
+      reportType: "nr01",
+      auditData: {
+        nr: "NR-01",
+        companyId: "avp",
+        auditorId: "engineer",
+        progress: 100,
+        responses: { "1.1": "CONFORME" },
+      },
+      createdAt: new Date().toISOString(),
+      serverTimestamp: serverTimestamp(),
+      storagePath: "clientes/avp/sst_nrs/nr01/protocolo_" + id + ".pdf",
+    };
+    await assertFails(
+      setDoc(doc(db("engineer"), path), { ...payload, storagePath: "clientes/foreign/sample.pdf" })
+    );
+    await assertFails(setDoc(doc(db("engineer"), "companies/foreign/reports/" + id), payload));
+    await assertSucceeds(setDoc(doc(db("engineer"), path), payload));
+    await assertFails(updateDoc(doc(db("engineer"), path), { companyName: "Outra empresa" }));
   });
   it("preserva o ASO registrado e impede o prestador de lançar resultado", async () => {
     const record = "companies/avp/aso_attendances/synthetic";

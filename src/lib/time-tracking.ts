@@ -6,6 +6,8 @@ export interface TimeClockEmployee {
   type?: string;
   status?: string;
   active?: boolean;
+  isArchived?: boolean;
+  isDeleted?: boolean;
   cpf?: string;
   admissionDate?: string;
   workSchedule?: string;
@@ -43,6 +45,8 @@ export function eligibleCltEmployee(employee: TimeClockEmployee): boolean {
     typeof regime === "string" &&
     regime.trim().toUpperCase() === "CLT" &&
     employee.active !== false &&
+    employee.isArchived !== true &&
+    employee.isDeleted !== true &&
     (!status || ["ATIVO", "ATIVA", "ACTIVE"].includes(status))
   );
 }
@@ -54,4 +58,33 @@ export function brasiliaDay(date: Date): string {
     month: "2-digit",
     day: "2-digit",
   }).format(date);
+}
+
+export function canRecordClockPunch(
+  profile: {
+    role?: unknown;
+    tenantId?: unknown;
+    companyId?: unknown;
+    accessEnabled?: unknown;
+    isDeleted?: unknown;
+  },
+  companyId: string
+) {
+  if (profile.accessEnabled === false || profile.isDeleted === true) return false;
+  if (profile.role === "SUPER_ADMIN") return true;
+  if (
+    (profile.role === "ADMIN" || profile.role === "OPERATIONS") &&
+    !profile.tenantId &&
+    (!profile.companyId || profile.companyId === "nextcon")
+  )
+    return true;
+  const tenant =
+    typeof profile.tenantId === "string" && profile.tenantId.trim()
+      ? profile.tenantId
+      : profile.companyId;
+  return (
+    companyId !== "all" &&
+    tenant === companyId &&
+    (profile.role === "ADMIN" || profile.role === "CLIENT_ADMIN")
+  );
 }

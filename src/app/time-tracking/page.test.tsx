@@ -4,19 +4,21 @@ import { ui, deferred } from "../../../tests/ui/harness";
 import { brasiliaDay, eligibleCltEmployee, employeeCollectionPath } from "@/lib/time-tracking";
 
 const m = vi.hoisted(() => ({
-  user: { uid: "staff-a" } as { uid: string } | null,
+  user: { uid: "staff-a", getIdToken: async () => "token" } as {
+    uid: string;
+    getIdToken: () => Promise<string>;
+  } | null,
   scope: { activeClientId: "all", isGlobalStaff: true },
   employees: [] as Record<string, unknown>[],
   punches: {} as Record<string, Record<string, unknown>[]>,
   paths: [] as string[],
   error: null as Error | null,
-  get: vi.fn(),
-  set: vi.fn(),
+  post: vi.fn(),
   toast: vi.fn(),
 }));
 const db = {};
 vi.mock("@/firebase", () => ({
-  useUser: () => ({ user: m.user }),
+  useUser: () => ({ user: m.user, role: "OPERATIONS", tenantId: null, companyId: null }),
   useFirestore: () => db,
   useDoc: () => ({ data: null, isLoading: false, error: null }),
   useMemoFirebase: (fn: () => unknown) => fn(),
@@ -40,9 +42,6 @@ vi.mock("firebase/firestore", () => ({
   doc: (_db: unknown, ...segments: string[]) => segments.join("/"),
   query: (path: string, constraint: string) => `${path}?${constraint}`,
   where: (_field: string, _op: string, value: string) => value,
-  serverTimestamp: () => "server-time",
-  runTransaction: (_db: unknown, fn: (tx: unknown) => Promise<void>) =>
-    fn({ get: m.get, set: m.set }),
 }));
 vi.mock("@/components/ui/select", () => {
   const Selection = React.createContext<(id: string) => void>(() => {});
@@ -74,18 +73,21 @@ const person = {
 };
 beforeEach(() => {
   v = ui();
-  m.user = { uid: "staff-a" };
+  m.user = { uid: "staff-a", getIdToken: async () => "token" };
   m.scope = { activeClientId: "all", isGlobalStaff: true };
   m.employees = [person];
   m.punches = {};
   m.paths = [];
   m.error = null;
-  m.get.mockReset().mockResolvedValue({ exists: () => false });
-  m.set.mockReset();
+  m.post
+    .mockReset()
+    .mockResolvedValue(Response.json({ punch: { time: "08:00:00", reference: "server-ref" } }));
+  vi.stubGlobal("fetch", m.post);
   m.toast.mockReset();
 });
 afterEach(async () => {
   await v.cleanup();
+  vi.unstubAllGlobals();
 });
 
 describe("ponto do cadastro interno", () => {
@@ -111,30 +113,25 @@ describe("ponto do cadastro interno", () => {
     await v.render(<Page />);
     await v.click(person.name);
     await v.click("1. Entrada");
-    expect(m.get.mock.calls[0][0]).toMatch(
-      /^nxc_employees\/internal-6\/time_clock_entries\/\d{4}-\d{2}-\d{2}_entrada$/
+    expect(m.post).toHaveBeenCalledWith(
+      "/api/time-tracking/punch",
+      expect.objectContaining({ method: "POST" })
     );
-    expect(m.set).toHaveBeenCalledWith(
-      m.get.mock.calls[0][0],
-      expect.objectContaining({
-        employeeId: person.id,
-        employeeCpf: "",
-        createdBy: "staff-a",
-        createdAt: "server-time",
-      })
-    );
-    expect(m.set.mock.calls[0][1]).not.toHaveProperty("compliancePortaria671");
-    expect(m.set.mock.calls[0][1]).not.toHaveProperty("ipLocation");
+    expect(JSON.parse(m.post.mock.calls[0][1].body)).toEqual({
+      companyId: "all",
+      employeeId: person.id,
+      type: "entrada",
+    });
     expect(m.toast).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Entrada Registrada 🌅" })
     );
   });
   it("never overwrites an existing punch or reports a failed write as successful", async () => {
-    m.get.mockResolvedValue({ exists: () => true });
+    m.post.mockResolvedValue(Response.json({ error: "Batida já registrada." }, { status: 409 }));
     await v.render(<Page />);
     await v.click(person.name);
     await v.click("1. Entrada");
-    expect(m.set).not.toHaveBeenCalled();
+    expect(m.post).toHaveBeenCalledOnce();
     expect(m.toast).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Erro ao registrar ponto" })
     );
@@ -148,9 +145,10 @@ describe("ponto do cadastro interno", () => {
     expect(m.paths).toContain("companies/client-a/employees");
     await v.click(person.name);
     await v.click("1. Entrada");
-    expect(m.set.mock.calls[0][0]).toMatch(
-      /^companies\/client-a\/employees\/internal-6\/time_clock_entries\//
-    );
+    expect(JSON.parse(m.post.mock.calls[0][1].body)).toMatchObject({
+      companyId: "client-a",
+      employeeId: person.id,
+    });
   });
   it("reads saved punches and separates them on employee changes", async () => {
     m.employees.push({ ...person, id: "second", name: "Outra pessoa" });
@@ -178,14 +176,16 @@ describe("ponto do cadastro interno", () => {
     expect(v.button("1. Entrada").disabled).toBe(true);
   });
   it("does not carry an in-flight success into another account", async () => {
-    const save = deferred<{ exists: () => boolean }>();
-    m.get.mockReturnValue(save.promise);
+    const save = deferred<Response>();
+    m.post.mockReturnValue(save.promise);
     await v.render(<Page />);
     await v.click(person.name);
     await v.click("1. Entrada");
-    m.user = { uid: "staff-b" };
+    m.user = { uid: "staff-b", getIdToken: async () => "token-b" };
     await v.render(<Page />);
-    await act(async () => save.resolve({ exists: () => false }));
+    await act(async () =>
+      save.resolve(Response.json({ punch: { time: "08:00:00", reference: "test" } }))
+    );
     expect(m.toast).not.toHaveBeenCalled();
     expect(v.button("1. Entrada").disabled).toBe(true);
   });

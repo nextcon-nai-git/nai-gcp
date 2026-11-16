@@ -34,6 +34,7 @@ import {
   collection,
   query,
   orderBy,
+  getDoc,
   setDoc,
   doc,
   where,
@@ -65,7 +66,8 @@ type ChecklistStatus = "CONFORME" | "NÃO CONFORME" | "NÃO AVALIADO" | null;
 
 export default function ChecklistsPage() {
   const { toast } = useToast();
-  const { user, role, companyId: userCompanyId } = useUser();
+  const { user, role, tenantId, companyId } = useUser();
+  const userCompanyId = tenantId?.trim() ? tenantId : companyId;
   const db = useFirestore();
   const storage = useStorage();
   const [selectedCompanyId, setSelectedCompanyId] = React.useState<string>("");
@@ -81,10 +83,15 @@ export default function ChecklistsPage() {
   }, [db, user]);
   const { data: profile } = useDoc(profileRef);
 
-  const isGlobalAdmin = React.useMemo(
-    () => ["SUPER_ADMIN", "ADMIN", "ENGINEER"].includes(role || ""),
-    [role]
-  );
+  const isGlobalAdmin =
+    role === "SUPER_ADMIN" ||
+    (["ADMIN", "OPERATIONS"].includes(role || "") &&
+      !tenantId &&
+      (!companyId || companyId === "nextcon"));
+  const canFinalize =
+    isGlobalAdmin ||
+    (selectedCompanyId === userCompanyId &&
+      ["ADMIN", "CLIENT_ADMIN", "ENGINEER"].includes(role || ""));
 
   const companiesQuery = useMemoFirebase(() => {
     if (!db || !role) return null;
@@ -170,10 +177,27 @@ export default function ChecklistsPage() {
     if (!user || !storage || !db || !activeNR || !selectedCompanyId || openedScope !== scope)
       return;
 
-    if (checklistProgress !== 100 || isFinalizing) return;
+    if (!canFinalize || checklistProgress !== 100 || isFinalizing) return;
     setIsFinalizing(true);
     try {
       const company = availableCompanies?.find((c) => c.id === selectedCompanyId);
+      if (!company) throw new Error("Selecione uma unidade disponível.");
+      const reportRef = doc(db, "companies", selectedCompanyId, "reports", protocolId.current);
+      const previous = await getDoc(reportRef);
+      if (previous.exists()) {
+        const prior = previous.data().auditData;
+        if (
+          prior?.auditorId !== user.uid ||
+          prior.companyId !== selectedCompanyId ||
+          prior.nr !== activeNR.nr ||
+          !activeNR.items.every((item) => prior.responses?.[item.id] === responses[item.id])
+        )
+          throw new Error("Este protocolo já foi registrado com outras respostas.");
+        localStorage.removeItem(draftKey(activeNR.nr));
+        setIsChecklistOpen(false);
+        toast({ title: "Protocolo já registrado" });
+        return;
+      }
       const auditData = {
         nr: activeNR.nr,
         companyId: selectedCompanyId,
@@ -210,7 +234,7 @@ export default function ChecklistsPage() {
       const blob = pdf.output("blob");
       await uploadBytes(storageRef, blob);
 
-      await setDoc(doc(db, "companies", selectedCompanyId, "reports", protocolId.current), {
+      await setDoc(reportRef, {
         auditData,
         name: `Laudo Técnico - ${activeNR.nr}`,
         reportType: activeNR.nr.toLowerCase().replace("-", ""),
@@ -421,7 +445,7 @@ export default function ChecklistsPage() {
               </Button>
               <Button
                 onClick={handleFinalizeAuditoria}
-                disabled={checklistProgress < 100 || isFinalizing}
+                disabled={!canFinalize || checklistProgress < 100 || isFinalizing}
                 className="bg-primary hover:bg-primary/90 text-white font-black uppercase text-[10px] tracking-widest px-8 rounded-xl shadow-lg"
               >
                 {isFinalizing ? (
