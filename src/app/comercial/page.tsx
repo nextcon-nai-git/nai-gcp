@@ -106,6 +106,7 @@ export default function ComercialPortal() {
 
   const directTasks = useCollection<OpsTask>(commercialTasksQuery);
   const allTasks = filteredScope ? filteredTasks.data : directTasks.data;
+  const taskError = filteredScope ? filteredTasks.error : directTasks.error?.message;
   const loadingTasks = filteredScope ? filteredTasks.loading : directTasks.isLoading;
 
   const commercialTasks = React.useMemo(() => {
@@ -434,7 +435,11 @@ export default function ComercialPortal() {
 
         <TabsContent value="cards" className="mt-8">
           <div className="min-h-[600px] glass-panel rounded-[3rem] p-8 relative">
-            {loadingTasks ? (
+            {taskError ? (
+              <p role="alert" className="p-6 text-destructive">
+                Não foi possível carregar os cards. {taskError}
+              </p>
+            ) : loadingTasks ? (
               <div className="flex flex-col items-center justify-center gap-6 py-24">
                 <Loader2 className="size-12 animate-spin text-primary opacity-20" />
                 <p className="text-[10px] font-black uppercase tracking-widest text-primary/40">

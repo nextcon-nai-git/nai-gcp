@@ -1,4 +1,5 @@
 "use client";
+import { notifyTaskUpdated } from "@/lib/task-updates";
 import { BRITANIA_ANCHOR } from "@/lib/britania-group";
 import { isBritaniaFapAdmin } from "@/lib/auth/britania-fap-access";
 import { useOperationalTaskList } from "@/hooks/use-pgr-workspace";
@@ -139,7 +140,7 @@ function EnterpriseOpsContent() {
   const isProvider = React.useMemo(() => {
     if (!profileReady || !profile) return false;
     const role = (profile.role || "").toUpperCase();
-    return ["PROVIDER", "ENGINEER", "DOCTOR"].includes(role);
+    return role === "PROVIDER";
   }, [profile, profileReady]);
 
   const assigned =
@@ -301,6 +302,7 @@ function EnterpriseOpsContent() {
         createdAt: serverTimestamp(),
         createdBy: user.uid,
       });
+      notifyTaskUpdated();
       if (!active.current) return;
       setIsCreateOpen(false);
       setTaskForm((previous) => ({ ...previous, title: "", companyId: "" }));

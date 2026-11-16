@@ -1,4 +1,5 @@
 "use client";
+import { notifyTaskUpdated } from "@/lib/task-updates";
 
 import * as React from "react";
 import type { OpsTask, Priority, TaskType } from "@/types/schema";
@@ -278,7 +279,10 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
           checklist: updateData.checklist,
           lastComment: updateData.lastComment,
         });
-      } else await updateDoc(taskRef, updateData);
+      } else {
+        await updateDoc(taskRef, updateData);
+        notifyTaskUpdated();
+      }
       toast({ title: "Task Atualizada", description: "Alterações protocoladas no SGI." });
       onOpenChange(false);
     } catch (e) {
@@ -299,6 +303,7 @@ export function TaskEditDialog({ isOpen, onOpenChange, task }: TaskEditDialogPro
       try {
         const taskRef = doc(db, "companies", task.companyId, "tasks", task.id);
         await deleteDoc(taskRef);
+        notifyTaskUpdated();
         toast({ title: "Task Removida" });
         onOpenChange(false);
       } catch {

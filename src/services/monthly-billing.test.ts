@@ -39,10 +39,11 @@ function snapshot(id: string, data?: Record<string, unknown>, contract = false) 
     exists: !!data,
     ref: ref(path),
     data: () => data,
-    updateTime: data ? { toMillis: () => 100 } : undefined,
+    updateTime: data ? { seconds: 100, nanoseconds: 1000 } : undefined,
   };
 }
 function read(target: { path: string }) {
+  if (target.path === "users/admin") return { data: () => ({ role: "SUPER_ADMIN" }) };
   if (target.path === "companies") return { docs: companies, size: companies.length };
   const id = target.path.split("/")[1];
   return contracts.get(id) || snapshot(id, undefined, true);
@@ -113,6 +114,10 @@ describe("monthly billing transaction", () => {
         "legacy",
         {
           companyName: "Empresa Exemplo",
+          companyId: "legacy",
+          value: 123.45,
+          frequency: "monthly",
+          currency: "BRL",
           cnpj: "11222333000181",
           valueCents: 12345,
           portfolioClientId: "group",
@@ -134,6 +139,12 @@ describe("monthly billing transaction", () => {
     await expect(saveMonthlyBilling(user, await input())).rejects.toMatchObject({ status: 409 });
     expect(mocks.set).not.toHaveBeenCalled();
     expect(mocks.create).not.toHaveBeenCalled();
+  });
+  it("rejects a change within the same millisecond before committing", async () => {
+    const stale = await input();
+    companies[0].updateTime!.nanoseconds += 1000;
+    await expect(saveMonthlyBilling(user, stale)).rejects.toMatchObject({ status: 409 });
+    expect(mocks.set).not.toHaveBeenCalled();
   });
   it("does not read or write data for a tenant administrator", async () => {
     const payload = await input();

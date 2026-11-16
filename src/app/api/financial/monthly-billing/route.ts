@@ -23,7 +23,10 @@ export async function GET(request: NextRequest) {
     if (user.role !== "SUPER_ADMIN") throw forbidden();
     const id = request.nextUrl.searchParams.get("group") || "";
     if (id.length > 128 || /[\/\u0000]/.test(id)) throw new AuthError("Grupo inválido.", 400);
-    return NextResponse.json(await listMonthlyBilling(user, id), { headers });
+    const result = await listMonthlyBilling(user, id);
+    const current = await requireAuth(request);
+    if (current.role !== "SUPER_ADMIN" || current.uid !== user.uid) throw forbidden();
+    return NextResponse.json(result, { headers });
   } catch (error) {
     return failure(error);
   }
