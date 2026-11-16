@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { attachmentReplacements } from "../../scripts/security/migrate-employee-attachments";
-import { employeeAttachmentPath } from "./employee-attachment-path";
+import { employeeAttachmentPath, employeeAttachmentMime } from "./employee-attachment-path";
 const target = { companyId: "c", employeeId: "e" },
   path = "clientes/c/colaboradores/e/abc";
 const legacy = (p: string, b = "bucket") =>
@@ -22,13 +22,14 @@ describe("employee file references", () => {
       { id: "c", storagePath: path },
     ];
     const first = attachmentReplacements(rows, target, "bucket");
-    expect([...first.paths]).toEqual([path]);
+    expect([...first.tokensByPath.keys()]).toEqual([path]);
+    expect([...first.tokensByPath.get(path)!]).toEqual(["private"]);
     expect(first.updated).toEqual([
       { id: "a", name: "A.pdf", storagePath: path },
       rows[1],
       rows[2],
     ]);
-    expect(attachmentReplacements(first.updated, target, "bucket").paths.size).toBe(0);
+    expect(attachmentReplacements(first.updated, target, "bucket").tokensByPath.size).toBe(0);
   });
   it("rejects a different bucket, company, employee or malformed path", () => {
     for (const url of [
@@ -51,4 +52,12 @@ describe("employee file references", () => {
     ).toBe(draft);
     expect(employeeAttachmentPath({ storagePath: draft }, target, "bucket")).toBeUndefined();
   });
+});
+
+it("detects a PDF, JPEG or PNG without MIME and forces other content to download", () => {
+  expect(employeeAttachmentMime(Buffer.from("%PDF-1.7"))).toBe("application/pdf");
+  expect(employeeAttachmentMime(Uint8Array.of(255, 216, 255, 224))).toBe("image/jpeg");
+  expect(employeeAttachmentMime(Uint8Array.of(137, 80, 78, 71, 13, 10, 26, 10))).toBe("image/png");
+  for (const text of ["<svg", "<html>", "%PD", ""])
+    expect(employeeAttachmentMime(Buffer.from(text))).toBe("application/octet-stream");
 });

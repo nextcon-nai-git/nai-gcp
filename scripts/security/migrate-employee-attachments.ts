@@ -15,7 +15,7 @@ export function attachmentReplacements(
   target: { companyId?: string; employeeId: string; internal?: boolean },
   bucket: string
 ) {
-  const paths = new Set<string>();
+  const tokensByPath = new Map<string, Set<string>>();
   let skipped = 0;
   const updated = documents.map((item) => {
     if (!item || typeof item !== "object" || !("url" in item) || typeof item.url !== "string")
@@ -25,11 +25,15 @@ export function attachmentReplacements(
       skipped++;
       return item;
     }
-    paths.add(path);
-    const { url: _url, ...fields } = item;
+    const tokens = tokensByPath.get(path) ?? new Set<string>();
+    for (const token of new URL(item.url).searchParams.getAll("token"))
+      if (token) tokens.add(token);
+    tokensByPath.set(path, tokens);
+    const fields: Record<string, unknown> = { ...item };
+    delete fields.url;
     return { ...fields, storagePath: path };
   });
-  return { paths, updated, skipped };
+  return { tokensByPath, updated, skipped };
 }
 
 async function main() {
@@ -55,6 +59,7 @@ async function main() {
     migratedProfiles: 0,
     objectsChecked: 0,
     revoked: 0,
+    pendingRevocations: 0,
     skippedLinks: 0,
     failedProfiles: 0,
   };
@@ -75,13 +80,20 @@ async function main() {
       bucket.name
     );
     report.skippedLinks += changes.skipped;
-    if (!changes.paths.size) return;
+    if (!changes.tokensByPath.size) return;
     report.matchingProfiles++;
-    for (const path of changes.paths) {
+    for (const [path, tokens] of changes.tokensByPath) {
       const file = bucket.file(path);
       const [metadata] = await file.getMetadata();
       report.objectsChecked++;
-      if (!values.apply || !metadata.metadata?.firebaseStorageDownloadTokens) continue;
+      // Firebase can issue a replacement token. Only handles embedded in legacy
+      // references need revocation. A link without a token is reconciled
+      // conservatively against every token initially present on the object.
+      const active = String(metadata.metadata?.firebaseStorageDownloadTokens || "")
+        .split(",")
+        .filter(Boolean);
+      const legacy = tokens.size ? tokens : new Set(active);
+      if (!values.apply || !active.some((token) => legacy.has(token))) continue;
       if (!metadata.generation || !metadata.metageneration) throw new Error("Objeto sem geração.");
       await file.setMetadata(
         { metadata: { firebaseStorageDownloadTokens: null } },
@@ -91,11 +103,14 @@ async function main() {
         }
       );
       const [verified] = await file.getMetadata();
+      const remaining = String(verified.metadata?.firebaseStorageDownloadTokens || "").split(",");
       if (
         verified.generation !== metadata.generation ||
-        verified.metadata?.firebaseStorageDownloadTokens
-      )
-        throw new Error("A revogação precisa de nova conferência.");
+        remaining.some((token) => legacy.has(token))
+      ) {
+        report.pendingRevocations++;
+        throw new Error("Revogue o link antigo no Firebase e repita a conferência.");
+      }
       report.revoked++;
     }
     // Old metadata is preserved on a concurrent change. A retry also completes
@@ -122,7 +137,11 @@ async function main() {
         }
       }
     }
-    console.log(JSON.stringify(report));
+    process.stdout.write(JSON.stringify(report) + "\n");
+    if (report.pendingRevocations)
+      console.error(
+        "Há links antigos ainda ativos ou objetos alterados. Confira a geração e revogue os links pendentes em Storage > Files no Firebase antes de repetir."
+      );
     if (report.failedProfiles) process.exitCode = 1;
   } finally {
     await deleteApp(app);

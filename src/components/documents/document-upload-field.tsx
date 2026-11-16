@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ref, uploadBytes, getBlob } from "firebase/storage";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { firebaseConfig } from "@/firebase/config";
-import { employeeAttachmentPath } from "@/lib/employee-attachment-path";
+import { employeeAttachmentPath, employeeAttachmentMime } from "@/lib/employee-attachment-path";
 import { useStorage, useUser } from "@/firebase";
 import { canManageEmployeeDocuments } from "@/lib/auth/employee-document-access";
 
@@ -209,14 +209,14 @@ function DocumentUploadSession({
     setOpening(item.id);
     try {
       const blob = await getBlob(ref(storage, path), 10 * 1024 * 1024);
+      const header = new Uint8Array(await blob.slice(0, 8).arrayBuffer());
+      const type = employeeAttachmentMime(header);
       if (!mounted.current || sequence !== readSequence.current) return;
-      const inline = ["application/pdf", "image/png", "image/jpeg"].includes(blob.type);
+      const inline = type !== "application/octet-stream";
       setPreview({
         name: item.name,
         inline,
-        url: URL.createObjectURL(
-          inline ? blob : new Blob([blob], { type: "application/octet-stream" })
-        ),
+        url: URL.createObjectURL(blob.slice(0, blob.size, type)),
       });
     } catch {
       if (mounted.current && sequence === readSequence.current)

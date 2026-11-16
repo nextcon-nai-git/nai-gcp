@@ -191,7 +191,7 @@ export default function ChecklistsPage() {
       } catch {}
       toast({ title: body.alreadyRegistered ? "Protocolo já registrado" : "Laudo protocolado" });
       setIsChecklistOpen(false);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         variant: "destructive",
         title: "Erro ao salvar protocolo",

@@ -5,7 +5,7 @@ import {
   assertFails,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { getDoc, getDocs, doc, setDoc, collection, updateDoc } from "firebase/firestore";
+import { getDoc, getDocs, doc, collection, updateDoc } from "firebase/firestore";
 import { NextRequest } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { GET } from "@/app/api/operational/tasks/route";
