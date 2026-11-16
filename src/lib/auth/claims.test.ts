@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 import { parseClaims } from "./claims";
+import { requireAvpAccess } from "./avp-access";
 import { dashboardScope } from "./dashboard-access";
 import type { AuthContext } from "./auth-context";
 it("preserves company isolation when legacy tenantId is empty", () => {
@@ -19,4 +20,21 @@ it("preserves company isolation when legacy tenantId is empty", () => {
 });
 it("retains an explicit tenant over the legacy company field", () => {
   expect(parseClaims({ tenantId: "tenant-a", companyId: "tenant-b" }).tenantId).toBe("tenant-a");
+});
+
+it("unrecognized role strings never inherit tenant API access", () => {
+  for (const role of ["UNKNOWN_LEGACY", 0, false, "", null]) {
+    const claims = parseClaims({ role, companyId: "GRUPO_AVP" });
+    expect(claims.role).toBe("GUEST");
+    expect(() =>
+      requireAvpAccess({
+        ...claims,
+        uid: "legacy",
+        email: "",
+        permissions: [],
+        servedCompanies: [],
+        tenantId: "GRUPO_AVP",
+      })
+    ).toThrow();
+  }
 });

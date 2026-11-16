@@ -6,10 +6,12 @@ const m = vi.hoisted(() => ({
   getAll: vi.fn(),
   transaction: vi.fn(),
   pdf: vi.fn(),
+  original: vi.fn(),
 }));
 vi.mock("@/lib/firebase-admin", () => ({
   adminDb: { collection: m.collection, getAll: m.getAll, runTransaction: m.transaction },
 }));
+vi.mock("./client-source-pdf", () => ({ verifiedPdf: m.original }));
 vi.mock("./occupational-kit-pdf", () => ({
   generateOccupationalKitPdf: m.pdf,
   occupationalKitFilename: () => "Kit-NAI-Teste.pdf",
@@ -160,6 +162,21 @@ beforeEach(() => {
   });
 });
 describe("operational kit transactions", () => {
+  it("requires both original PDFs before saving a preview or issuing a kit", async () => {
+    m.original.mockResolvedValueOnce(Buffer.from("%PDF-")).mockRejectedValueOnce({ code: 404 });
+    await expect(prepareKitBatch(user, "ONE", input)).rejects.toMatchObject({ status: 409 });
+    expect(m.original).toHaveBeenCalledWith("ONE", input.pgrDocumentId, expect.any(AbortSignal));
+    const preview = await prepareKitBatch(user, "ONE", input);
+    m.original.mockRejectedValueOnce({ code: 404 });
+    await expect(confirmKitBatch(user, "ONE", preview.proposalId)).rejects.toMatchObject({
+      status: 409,
+    });
+    expect(m.pdf).not.toHaveBeenCalled();
+    expect(
+      db.get(`workAssistantProposals/${preview.proposalId}`)?.value.confirmedAt
+    ).toBeUndefined();
+  });
+
   it("blocks issuance when access is suspended during PDF generation without partial records", async () => {
     const preview = await prepareKitBatch(user, "ONE", input);
     m.pdf.mockImplementationOnce(() => {

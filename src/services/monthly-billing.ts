@@ -24,7 +24,13 @@ function revision(docs: FirebaseFirestore.DocumentSnapshot[]) {
   return createHash("sha256")
     .update(
       docs
-        .map((d) => `${d.ref.path}:${d.updateTime?.toMillis() || 0}`)
+        .map((d) =>
+          JSON.stringify([
+            d.ref.path,
+            d.updateTime?.seconds ?? null,
+            d.updateTime?.nanoseconds ?? null,
+          ])
+        )
         .sort()
         .join("|")
     )
@@ -102,6 +108,14 @@ export async function saveMonthlyBilling(user: AuthContext, input: MonthlyBillin
   requireAdmin(user);
   const auditRef = adminDb.collection("admin_migrations").doc();
   return adminDb.runTransaction(async (tx) => {
+    const profile = (await tx.get(adminDb.collection("users").doc(user.uid))).data();
+    if (
+      !profile ||
+      profile.role !== "SUPER_ADMIN" ||
+      profile.isDeleted === true ||
+      profile.accessEnabled === false
+    )
+      throw forbidden("A importação comercial exige um administrador global ativo.");
     const snapshot = await tx.get(adminDb.collection("companies").limit(5001));
     const companies = directory(snapshot);
     const group = groupFrom(snapshot, input.groupCompanyId);
@@ -145,6 +159,11 @@ export async function saveMonthlyBilling(user: AuthContext, input: MonthlyBillin
         previous[index].company?.data().active === true &&
         previous[index].company?.data().portfolioClientId === group.portfolioClientId &&
         previous[index].contract.data()?.valueCents === row.valueCents &&
+        previous[index].contract.data()?.value === row.valueCents / 100 &&
+        previous[index].contract.data()?.cnpj === row.cnpj &&
+        previous[index].contract.data()?.frequency === "monthly" &&
+        previous[index].contract.data()?.currency === "BRL" &&
+        previous[index].contract.data()?.companyId === id &&
         previous[index].contract.data()?.companyName === row.name &&
         previous[index].contract.data()?.status === "active",
     }));

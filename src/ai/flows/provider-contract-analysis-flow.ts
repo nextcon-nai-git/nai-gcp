@@ -5,6 +5,7 @@ import { requireAiAction, FINANCIAL_AI_ROLES } from "@/lib/auth/ai-action";
  * Extrai dados do prestador (Clínica/Profissional) para automação de cadastro.
  */
 
+import { normalizeCnpj } from "@/lib/cnpj";
 import { ai } from "@/ai/genkit";
 import { z } from "genkit";
 
@@ -17,7 +18,7 @@ const ProviderContractInputSchema = z.object({
 
 const ProviderContractOutputSchema = z.object({
   name: z.string().describe("Razão Social ou Nome do Profissional."),
-  cnpj: z.string().describe("CNPJ ou CPF identificado (apenas números)."),
+  cnpj: z.string().describe("CNPJ ou CPF identificado, sem pontuação. Preserve as letras do CNPJ."),
   type: z
     .enum(["CLINIC", "LAB", "DOCTOR", "HOSPITAL", "NURSE", "ENGINEER", "TECH_NURSE"])
     .describe("Tipo de prestador identificado."),
@@ -46,10 +47,9 @@ export async function analyzeProviderContract(input: { pdfDataUri: string }, idT
       "A NAI falhou ao estruturar os dados do contrato. O documento pode estar ilegível ou protegido."
     );
 
-  // Limpeza final de CNPJ para garantir que apenas números cheguem ao sistema
   return {
     ...output,
-    cnpj: output.cnpj.replace(/\D/g, ""),
+    cnpj: normalizeCnpj(output.cnpj),
   };
 }
 
@@ -66,7 +66,7 @@ Sua tarefa é analisar o contrato de prestação de serviços anexado e extrair 
 
 INSTRUÇÕES:
 1. IDENTIFICAÇÃO: Localize a Razão Social ou Nome do Profissional contratado no campo 'name'.
-2. DOCUMENTO: Extraia o CNPJ ou CPF. Retorne APENAS os números (sem pontos, traços ou barras) no campo 'cnpj'.
+2. DOCUMENTO: Extraia o CNPJ ou CPF. Preserve as letras e os dígitos do identificador e retire apenas a pontuação no campo 'cnpj'.
 3. CATEGORIA (type): Determine o tipo exato do prestador com base no objeto social ou conselho de classe citado:
    - 'CLINIC': Clínicas médicas, centros de exames ou empresas de medicina ocupacional.
    - 'LAB': Laboratórios de análises clínicas.

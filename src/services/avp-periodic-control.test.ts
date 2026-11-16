@@ -90,7 +90,7 @@ beforeEach(() => {
         Cidade: "Curitiba",
         UF: "PR",
         Nome: "Pessoa sintética",
-        CPF: "00000000001",
+        CPF: "52998224725",
         Status: "Agendado",
         "Dt. admissão": "01/01/2020",
         Conferência: "OK - vence",
@@ -150,7 +150,7 @@ it("consulta as duas fontes atuais com escopo de leitura, conserva histórico e 
     expect.anything()
   );
   expect(result.people[0].progress).toBe("scheduled");
-  expect(JSON.stringify(result)).not.toContain('"00000000001"');
+  expect(JSON.stringify(result)).not.toContain('"52998224725"');
   expect(result.clinics.flatMap((c) => c.prices).map((p) => p.cents)).toEqual([8000, 7000]);
   expect(result.cities[0].minClinicalCents).toBe(7000);
   expect(result.mapClinics?.[0].cents).toBe(7000);

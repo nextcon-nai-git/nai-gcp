@@ -6,7 +6,7 @@ import {
   PROVIDER_HEADERS,
   PRICE_HEADERS,
 } from "./avp-periodic-control";
-const person = (id = "1", cpf = "00000000001", city = "Fortaleza - ASCEC", uf = "CE") => {
+const person = (id = "1", cpf = "52998224725", city = "Fortaleza - ASCEC", uf = "CE") => {
   const r = Array<string>(31).fill("");
   r[0] = id;
   r[1] = city;
@@ -140,6 +140,30 @@ describe("controle da campanha periódica e rede AVP", () => {
     expect(result.clinics[0].contractConflict).toBe(conflict);
     expect(result.cities[0].contracted).toBe(conflict ? 0 : 1);
   });
+  it("mantém CPFs inválidos para revisão, sem contá-los como pessoas confirmadas", () => {
+    const control = build([person("1", "00000000000"), person("2", "52998224724")]);
+    expect(control.summary).toMatchObject({ uniquePeople: 0, review: 2, duplicates: 0 });
+  });
+  it("vincula o preço e o cadastro da clínica com CNPJ alfanumérico formatado", () => {
+    const formatted = "12.ABC.345/01DE-35";
+    const d = buildAvpPeriodicControl(
+      [CAMPAIGN_HEADERS, person()],
+      [PROVIDER_HEADERS, provider(formatted)],
+      [PRICE_HEADERS, price("50", "12abc34501de35")],
+      [
+        {
+          name: "Clínica A",
+          cnpj: formatted,
+          city: "Fortaleza",
+          state: "CE",
+          type: "CLINIC",
+          active: true,
+        },
+      ]
+    );
+    expect(d.clinics).toHaveLength(1);
+    expect(d.unmatchedPrices).toHaveLength(0);
+  });
   it("deduplica o mesmo CPF, admissão, unidade e município sem expor CPF", () => {
     const duplicate = person("2");
     duplicate[1] = "Fortaleza - ASSOBES Jóquei";
@@ -152,7 +176,7 @@ describe("controle da campanha periódica e rede AVP", () => {
       cities: 1,
     });
     expect(d.people[0].sourceRows).toEqual([5, 6]);
-    expect(JSON.stringify(d.people)).not.toContain("00000000001");
+    expect(JSON.stringify(d.people)).not.toContain("52998224725");
     expect(d.cities[0].contracted).toBe(1);
   });
   it("preserva vínculos de unidades e municípios distintos para o mesmo CPF e admissão", () => {
@@ -160,7 +184,7 @@ describe("controle da campanha periódica e rede AVP", () => {
     first[19] = "Unidade A";
     const otherUnit = person("2");
     otherUnit[19] = "Unidade B";
-    const otherCity = person("3", "00000000001", "Marabá", "PA");
+    const otherCity = person("3", "52998224725", "Marabá", "PA");
     otherCity[19] = "Unidade A";
     const result = build([first, otherUnit, otherCity]);
     expect(result.summary).toMatchObject({ sourceRows: 3, uniquePeople: 1, duplicates: 0 });
@@ -173,9 +197,9 @@ describe("controle da campanha periódica e rede AVP", () => {
   it("mantém cancelamentos e em-dia da fonte fora do grupo sem ressalvas", () => {
     const cancelled = person();
     cancelled[6] = "Cancelado / N/A";
-    const review = person("2", "00000000002");
+    const review = person("2", "11144477735");
     review[28] = "Conferir - em dia pela base do cliente";
-    const d = build([cancelled, review, person("3", "00000000003")]);
+    const d = build([cancelled, review, person("3", "12345678909")]);
     expect(d.summary).toMatchObject({ cancelled: 1, review: 1, listed: 1 });
   });
   it("conta só a ausência explícita como falta na cidade", () => {
@@ -242,7 +266,7 @@ describe("controle da campanha periódica e rede AVP", () => {
   });
   it("conserva clínicas do histórico sem lhes atribuir contrato ou tarifa de outro município", () => {
     const d = build(
-      [person("1", "00000000001", "Recife", "PE")],
+      [person("1", "52998224725", "Recife", "PE")],
       [provider()],
       [price("60", "00000000000002", "Recife/PE")]
     );

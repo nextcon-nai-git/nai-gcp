@@ -1,4 +1,5 @@
 "use client";
+import { notifyTaskUpdated } from "@/lib/task-updates";
 
 import { useState, useEffect } from "react";
 import {
@@ -142,6 +143,7 @@ export function KanbanBoard({ tasks: initialTasks, columns = DEFAULT_COLUMNS }: 
     try {
       if (dropTargetId === "trash") await deleteDoc(taskRef);
       else await updateDoc(taskRef, { status: newStatus });
+      notifyTaskUpdated();
       setTasks((prev) =>
         dropTargetId === "trash" || newStatus === "archived"
           ? prev.filter((t) => taskKey(t) !== taskId)

@@ -1,4 +1,6 @@
 import { parseAvpQuoteCents, isAvpCostAtLeast40 } from "./avp-costs";
+import { normalizeCnpj } from "./cnpj";
+import { parseCpf } from "./cpf";
 import { saoPauloDay } from "./executive-dashboard";
 import { periodicProgress, type PeriodicProgress } from "./avp-periodic-status";
 import type { AvpMapClinic } from "./avp-map-clinics";
@@ -75,7 +77,6 @@ export const normalizeAvpText = (value: string) =>
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, " ")
     .trim();
-const taxId = (v: string) => v.replace(/\D/g, "");
 const cityName = (city: string) =>
   city.trim().replace(/^Fortaleza\s+-\s+(?:ASCEC|ASSOBES|CEUDESP).*$/i, "Fortaleza");
 export const periodicCityKey = (city: string, uf: string) =>
@@ -93,8 +94,8 @@ function readRows(values: unknown[][], headers: readonly string[]) {
 /** Canonical campaign rows are consumed only by the server source reader. */
 export const readPeriodicCampaignRows = (values: unknown[][]) => readRows(values, CAMPAIGN_HEADERS);
 export function periodicCampaignIdentity(row: string[]) {
-  const cpf = taxId(row[4]);
-  return cpf.length === 11 && row[22]
+  const cpf = parseCpf(row[4]);
+  return cpf && row[22]
     ? JSON.stringify([cpf, row[22], row[19], periodicCityKey(row[1], row[2])])
     : `source:${row[30] || row[0]}`;
 }
@@ -263,9 +264,7 @@ export function buildAvpPeriodicControl(
     const needsReview =
       progress === "unknown" ||
       rows.length > 1 ||
-      rows.some(
-        (r) => taxId(r[4]).length !== 11 || !r[22] || !normalizeAvpText(r[28]).startsWith("OK ")
-      );
+      rows.some((r) => !parseCpf(r[4]) || !r[22] || !normalizeAvpText(r[28]).startsWith("OK "));
     const classification =
       progress === "cancelled" ? "cancelled" : needsReview ? "review" : "listed";
     const sourceAppointments = new Map(
@@ -308,7 +307,7 @@ export function buildAvpPeriodicControl(
   const contractEvidence = new Map<string, Set<boolean>>();
   for (const row of providers) {
     if (!row[0]) throw new Error("Há prestador sem nome.");
-    const cnpj = taxId(row[2]),
+    const cnpj = normalizeCnpj(row[2]),
       key = `${cnpj.length === 14 ? cnpj : normalizeAvpText(row[0])}|${periodicCityKey(row[3], row[4])}`;
     const existing = clinicMap.get(key);
     const contract = normalizeAvpText(row[10]);
@@ -329,7 +328,7 @@ export function buildAvpPeriodicControl(
         cnpj.length === 14
           ? existingProviders.filter(
               (p) =>
-                taxId(p.cnpj || "") === cnpj &&
+                normalizeCnpj(p.cnpj || "") === cnpj &&
                 periodicCityKey(p.city || "", p.state || "") === periodicCityKey(row[3], row[4])
             )
           : [];
@@ -364,13 +363,13 @@ export function buildAvpPeriodicControl(
       !/^[A-Z]{2}$/.test(provider.state || "")
     )
       continue;
-    const cnpj = taxId(provider.cnpj || "");
+    const cnpj = normalizeCnpj(provider.cnpj || "");
     const cityKey = periodicCityKey(provider.city, provider.state!);
     if (
       clinics.some(
         (c) =>
           c.cityKey === cityKey &&
-          ((cnpj.length === 14 && taxId(c.cnpj) === cnpj) ||
+          ((cnpj.length === 14 && normalizeCnpj(c.cnpj) === cnpj) ||
             (!cnpj && normalizeAvpText(c.name) === normalizeAvpText(provider.name!)))
       )
     )
@@ -397,8 +396,9 @@ export function buildAvpPeriodicControl(
   const unmatchedPrices: AvpObservedPrice[] = [];
   for (const row of prices) {
     const location = row[1].match(/^(.+)\/([A-Z]{2})$/);
-    const cnpj = taxId(row[8]);
-    let candidates = cnpj.length === 14 ? clinics.filter((c) => taxId(c.cnpj) === cnpj) : [];
+    const cnpj = normalizeCnpj(row[8]);
+    let candidates =
+      cnpj.length === 14 ? clinics.filter((c) => normalizeCnpj(c.cnpj) === cnpj) : [];
     if (location)
       candidates = candidates.filter(
         (c) => c.cityKey === periodicCityKey(location[1], location[2])
@@ -525,8 +525,7 @@ export function buildAvpPeriodicControl(
     unmatchedPrices,
     summary: {
       sourceRows: campaign.length,
-      uniquePeople: new Set(campaign.map((row) => taxId(row[4])).filter((cpf) => cpf.length === 11))
-        .size,
+      uniquePeople: new Set(campaign.map((row) => parseCpf(row[4])).filter(Boolean)).size,
       duplicates: campaign.length - people.length,
       cancelled: people.filter((p) => p.classification === "cancelled").length,
       review: people.filter((p) => p.classification === "review").length,

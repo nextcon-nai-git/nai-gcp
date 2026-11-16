@@ -41,7 +41,7 @@ service cloud.firestore {
     function belongsToCompany(companyId) {
       let profile = getUserProfile();
       return isSignedIn() && profile != null &&
-        !(profile.role in ['PROVIDER', 'SCOPED_PROVIDER']) && profileTenantId(profile) == companyId;
+        profile.role in ['SUPER_ADMIN', 'ADMIN', 'CLIENT_ADMIN', 'DOCTOR', 'NURSE', 'ENGINEER', 'COMPLIANCE', 'HEALTH_PROFESSIONAL', 'HR', 'RH', 'OPERATIONS', 'SAFETY_TECH'] && profileTenantId(profile) == companyId;
     }
 
     function isOperationalProvider(companyId, name) {
@@ -77,6 +77,20 @@ service cloud.firestore {
 
     function accessFieldsUnchanged() {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['accessUid', 'accessVersion', 'accessOperationId']);
+    }
+
+    function isServerManagedCompanyDocument(name, id) {
+      return name in ['sourceDocuments', 'access_index', 'audit_logs', 'checklist_reservations'] || (name == 'reports' && id.matches('checklist_.*')) || (name == 'contracts' && id == 'fixed-monthly-billing');
+    }
+
+    function isBritaniaDossierAdmin() {
+      let profile = getUserProfile();
+      return profile != null && profile.role in ['SUPER_ADMIN', 'ADMIN'] && profileTenantId(profile) in ['', 'nextcon'];
+    }
+
+    function canAccessCompanyTask(companyId, name, id) {
+      return companyId != 'BRITANIA_JOINVILLE' || name != 'tasks' || isBritaniaDossierAdmin() ||
+        !id.matches('document_.*');
     }
 
     function isSecurityAdmin() {
@@ -300,24 +314,63 @@ service cloud.firestore {
     match /companies/{companyId} {
       allow read: if isSignedIn() && (belongsToCompany(companyId) || isNextconOfficial() ||
         hasClinicalAccess(companyId));
-      allow write: if isCompanyAdmin(companyId);
+      allow create: if isCompanyAdmin(companyId) &&
+        !request.resource.data.keys().hasAny(['portfolioClientId','portfolioClientName']);
+      allow update: if isCompanyAdmin(companyId) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['portfolioClientId','portfolioClientName']) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['active','isDeleted','cnpj']) ||
+          !exists(/databases/$(database)/documents/companies/$(companyId)/contracts/fixed-monthly-billing));
+      allow delete: if isCompanyAdmin(companyId) &&
+        !exists(/databases/$(database)/documents/companies/$(companyId)/contracts/fixed-monthly-billing);
     }
 
     match /companies/{companyId}/employees/{employeeId} {
       allow read: if belongsToCompany(companyId) || isNextconOfficial() ||
         hasClinicalAccess(companyId);
+      allow write: if isCompanyAdmin(companyId) || isNextconOfficial();
+
+      match /exams/{examId} {
+        allow read: if hasClinicalImportAccess(companyId);
+        allow create: if hasClinicalImportAccess(companyId) &&
+          exists(/databases/$(database)/documents/companies/$(companyId)/employees/$(employeeId)) &&
+          request.resource.data.createdBy == request.auth.uid && request.resource.data.createdAt == request.time;
+      }
+
+      // Existing operational subcollections retain their company scope.
+      match /{name}/{childId}/{nested=**} {
+        allow read: if name != 'exams' && (belongsToCompany(companyId) || isNextconOfficial());
+        allow write: if !(name in ['exams', 'time_clock_entries']) && (isCompanyAdmin(companyId) || isNextconOfficial());
+      }
     }
 
     // The dashboard aggregates operational tasks across companies. Collection
     // group queries need an explicit recursive match; tenant queries keep their
     // existing company-scoped rules. This grants no additional write access.
     match /{path=**}/tasks/{taskId} {
-      allow list: if isNextconOfficial();
+      allow list: if isNextconOfficial() && isBritaniaDossierAdmin();
     }
 
     // The internal import archive uses a bounded contracts collection-group query.
     // Keep this list permission internal; tenant reads remain company-scoped below.
     match /{path=**}/contracts/{contractId} {
+      allow list: if isNextconOfficial();
+    }
+
+    // Historically registered ASOs remain readable. Only a doctor linked to
+    // this company may register a new legacy attendance through the client.
+    match /companies/{companyId}/aso_attendances/{attendanceId} {
+      allow create: if isAuthorizedDoctorForCompany(companyId) &&
+        request.resource.data.get('companyId', companyId) == companyId;
+    }
+
+    // The three operational registers use global, read-only lists for internal staff.
+    match /{path=**}/reports/{reportId} {
+      allow list: if isNextconOfficial();
+    }
+    match /{path=**}/non_conformities/{recordId} {
+      allow list: if isNextconOfficial();
+    }
+    match /{path=**}/legalExpertises/{recordId} {
       allow list: if isNextconOfficial();
     }
 
@@ -334,29 +387,32 @@ service cloud.firestore {
     }
 
     match /companies/{companyId}/{subcollection}/{documentId}/{nested=**} {
-      allow read: if isClinicalImportDocument(subcollection, documentId)
+      allow read: if canAccessCompanyTask(companyId, subcollection, documentId) && !(subcollection in ['employees', 'sourceDocuments', 'checklist_reservations']) && (isClinicalImportDocument(subcollection, documentId)
         ? hasClinicalImportAccess(companyId)
         : isClinicalCollection(subcollection)
           ? hasClinicalAccess(companyId)
           : isSignedIn() && (belongsToCompany(companyId) || isNextconOfficial() ||
-            isOperationalProvider(companyId, subcollection));
+            isOperationalProvider(companyId, subcollection)));
       // Import records are written by authenticated server handlers. Checking
       // both versions of sourceType also blocks changing/removing the marker to
       // bypass checklist, classification or clinical-review validation.
-      allow create: if subcollection != 'agendamentos' &&
+      allow create: if (subcollection != 'reports' || (!('auditData' in request.resource.data))) && !(subcollection in ['employees', 'agendamentos', 'aso_attendances']) &&
+        !isServerManagedCompanyDocument(subcollection, documentId) && canAccessCompanyTask(companyId, subcollection, documentId) &&
         !isServerManagedImportDocument(subcollection, documentId) &&
         !(isImportOperationalCollection(subcollection) && hasImportSource(request.resource.data)) &&
         (isClinicalCollection(subcollection)
           ? hasClinicalAccess(companyId)
           : isCompanyAdmin(companyId) || isNextconOfficial());
-      allow update: if subcollection != 'agendamentos' &&
+      allow update: if (subcollection != 'reports' || (!('auditData' in resource.data) && !('auditData' in request.resource.data))) && !(subcollection in ['employees', 'agendamentos', 'aso_attendances']) &&
+        !isServerManagedCompanyDocument(subcollection, documentId) && canAccessCompanyTask(companyId, subcollection, documentId) &&
         !isServerManagedImportDocument(subcollection, documentId) &&
         !(isImportOperationalCollection(subcollection) &&
           (hasImportSource(resource.data) || hasImportSource(request.resource.data))) &&
         (isClinicalCollection(subcollection)
           ? hasClinicalAccess(companyId)
           : isCompanyAdmin(companyId) || isNextconOfficial());
-      allow delete: if subcollection != 'agendamentos' &&
+      allow delete: if (subcollection != 'reports' || (!('auditData' in resource.data))) && !(subcollection in ['employees', 'agendamentos', 'aso_attendances']) &&
+        !isServerManagedCompanyDocument(subcollection, documentId) && canAccessCompanyTask(companyId, subcollection, documentId) &&
         !isServerManagedImportDocument(subcollection, documentId) &&
         !(isImportOperationalCollection(subcollection) && hasImportSource(resource.data)) &&
         (isClinicalCollection(subcollection)
@@ -384,6 +440,11 @@ service cloud.firestore {
       allow create: if isNextconOfficial() && !request.resource.data.keys().hasAny(['accessUid', 'accessVersion', 'accessOperationId']);
       allow update: if isNextconOfficial() && accessFieldsUnchanged();
       allow delete: if isSecurityAdmin() && !('accessUid' in resource.data);
+    }
+
+    match /nxc_employees/{employeeId}/time_clock_entries/{entryId} {
+      allow read: if isNextconOfficial();
+      // Punches are created by the time-tracking API using the server clock.
     }
 
     match /user_access_audit/{auditId} {
@@ -508,8 +569,8 @@ service cloud.firestore {
     }
 
     match /{rootCollection}/{document=**} {
-      allow read: if isSignedIn() && isNextconOfficial() && !isClinicalCollection(rootCollection) && !(rootCollection in ['workAssistantProposals', 'workAssistantUsage', 'clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nxc_employees', 'user_access_audit', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries', 'audit_logs', 'system_audit_logs', 'ai_audit_logs', 'denuncias']);
-      allow write: if isNextconOfficial() && !isClinicalCollection(rootCollection) && !(rootCollection in ['workAssistantProposals', 'workAssistantUsage', 'clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nxc_employees', 'agendamentos', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'expert_access_audit', 'user_access_audit', 'analisesPGR', 'audit_logs', 'system_audit_logs', 'ai_audit_logs', 'denuncias']);
+      allow read: if isSignedIn() && isNextconOfficial() && !(rootCollection in ['integrations', 'admin_migrations', 'admin_company_changes', 'access_cards', 'nxc_daily_reports']) && !isClinicalCollection(rootCollection) && !(rootCollection in ['workAssistantProposals', 'workAssistantUsage', 'clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nxc_employees', 'user_access_audit', 'nai_importa_drafts', 'api_keys', 'webhooks', 'webhook_deliveries', 'audit_logs', 'system_audit_logs', 'ai_audit_logs', 'denuncias']);
+      allow write: if isNextconOfficial() && !(rootCollection in ['admin_migrations', 'admin_company_changes', 'access_cards', 'nxc_daily_reports']) && !isClinicalCollection(rootCollection) && !(rootCollection in ['workAssistantProposals', 'workAssistantUsage', 'clinic_portal_private', 'users', 'companies', 'providers', 'provider_tax_id_reservations', 'nxc_employees', 'agendamentos', 'nai_importa_drafts', 'integrations', 'api_keys', 'webhooks', 'webhook_deliveries', 'phi_audit_logs', 'expert_access_audit', 'user_access_audit', 'analisesPGR', 'audit_logs', 'system_audit_logs', 'ai_audit_logs', 'denuncias']);
     }
   }
 }

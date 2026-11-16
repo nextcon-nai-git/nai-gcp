@@ -218,7 +218,7 @@ export async function integrateAnalyzedContract(
 
   let outcome: { companyId: string; contractId: string; created: boolean };
   try {
-    outcome = await runTransaction(db, async (transaction) => {
+    const committed = await runTransaction(db, async (transaction) => {
       signal?.throwIfAborted();
       const [companySnapshot, registrySnapshot, contractSnapshot] = await Promise.all([
         transaction.get(companyRef),
@@ -227,6 +227,9 @@ export async function integrateAnalyzedContract(
       ]);
       signal?.throwIfAborted();
       const companyName = validateCompany(companyId, companySnapshot.data(), extractedCnpj);
+      // Separate Web SDK reads may straddle another client's atomic commit.
+      // Return an apparent mismatch so Firestore verifies the read versions
+      // and retries on contention before we report a permanent conflict.
       if (registrySnapshot.exists()) {
         const registry = registrySnapshot.data();
         if (
@@ -238,13 +241,13 @@ export async function integrateAnalyzedContract(
           !hasSourceConfirmation(contractSnapshot.data()) ||
           !storedSourceMatches(contractSnapshot.data(), companyId, verifiedSource)
         )
-          throw new ContractImportRejected(
+          return new ContractImportRejected(
             "Esta fonte já está vinculada a outro cadastro ou a dados divergentes."
           );
         return { companyId, contractId, created: false };
       }
       if (contractSnapshot.exists())
-        throw new ContractImportRejected(
+        return new ContractImportRejected(
           "O contrato existe sem vínculo de origem consistente. Solicite conferência."
         );
 
@@ -295,6 +298,8 @@ export async function integrateAnalyzedContract(
       });
       return { companyId, contractId, created: true };
     });
+    if (committed instanceof ContractImportRejected) throw committed;
+    outcome = committed;
   } catch (transactionError) {
     signal?.throwIfAborted();
     if (transactionError instanceof ContractImportRejected) throw transactionError;

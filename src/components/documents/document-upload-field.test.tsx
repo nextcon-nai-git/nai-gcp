@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DocumentUploadField, type EmployeeDocument } from "./document-upload-field";
 const mocks = vi.hoisted(() => ({
   upload: vi.fn(),
-  url: vi.fn(),
+  blob: vi.fn(),
   ref: vi.fn(),
   toast: vi.fn(),
   profile: {
@@ -22,7 +22,7 @@ vi.mock("@/firebase", () => ({
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: mocks.toast }) }));
 vi.mock("firebase/storage", () => ({
   uploadBytes: mocks.upload,
-  getDownloadURL: mocks.url,
+  getBlob: mocks.blob,
   ref: mocks.ref,
 }));
 const original: EmployeeDocument = {
@@ -69,7 +69,7 @@ beforeEach(() => {
   mocks.user = { uid: "user-1" };
   mocks.profile = { role: "SUPER_ADMIN", companyId: null, tenantId: null, isUserLoading: false };
   mocks.upload.mockResolvedValue({ ref: {} });
-  mocks.url.mockResolvedValue("https://example.com/new.pdf");
+  mocks.blob.mockResolvedValue(new Blob(["%PDF-test"], { type: "application/pdf" }));
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -160,7 +160,7 @@ describe("employee document persistence", () => {
     });
     await act(async () => pending.resolve({ ref: {} }));
     expect(save).not.toHaveBeenCalled();
-    expect(mocks.url).not.toHaveBeenCalled();
+    expect(mocks.blob).not.toHaveBeenCalled();
     expect(mocks.toast).not.toHaveBeenCalled();
   });
   it("disables repeated operations while saving", async () => {
@@ -179,20 +179,33 @@ describe("employee document persistence", () => {
     ).toBe(true);
     await act(async () => pending.reject(new Error("offline")));
   });
-  it("does not persist metadata if URL retrieval fails", async () => {
+  it("saves the object path without storing a bearer download URL", async () => {
     const save = vi.fn();
-    mocks.url.mockRejectedValue(new Error("unavailable"));
     await render({ onDocumentsChange: save });
     await upload();
-    expect(save).not.toHaveBeenCalled();
-    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" }));
+    const added = save.mock.calls[0][1].document;
+    expect(added.storagePath).toMatch(/^clientes\/company-1\/colaboradores\/employee-1\//);
+    expect(added).not.toHaveProperty("url");
   });
-  it("rejects a local URL returned instead of a durable address", async () => {
-    const save = vi.fn();
-    mocks.url.mockResolvedValue("blob:local-only");
-    await render({ onDocumentsChange: save });
-    await upload();
-    expect(save).not.toHaveBeenCalled();
+
+  it("requires an authenticated read for an existing private attachment", async () => {
+    mocks.blob.mockRejectedValue(new Error("permission-denied"));
+    await render({
+      documents: [
+        {
+          ...original,
+          url: undefined,
+          storagePath: "clientes/company-1/colaboradores/employee-1/file",
+        },
+      ],
+    });
+    await act(async () =>
+      (container.querySelector('[aria-label="Ver existing.pdf"]') as HTMLButtonElement).click()
+    );
+    expect(mocks.blob).toHaveBeenCalledOnce();
+    expect(mocks.toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Anexo indisponível" })
+    );
   });
   it("keeps removal pending until metadata is saved", async () => {
     const pending = deferred();
@@ -232,17 +245,6 @@ describe("employee document persistence", () => {
     await act(async () => pending.resolve(undefined));
     expect(container.textContent).toContain("new.pdf");
     expect(container.textContent).toContain("concurrent.pdf");
-  });
-  it("does not write metadata after leaving during URL retrieval", async () => {
-    const pending = deferred();
-    const save = vi.fn();
-    mocks.url.mockReturnValue(pending.promise);
-    await render({ onDocumentsChange: save });
-    await upload();
-    await render({ employeeId: "other", onDocumentsChange: save });
-    await act(async () => pending.resolve("https://example.com/new.pdf"));
-    expect(save).not.toHaveBeenCalled();
-    expect(mocks.toast).not.toHaveBeenCalled();
   });
   it.each(["DOCTOR", "NURSE", "HEALTH_PROFESSIONAL", "PROVIDER", "CLIENT_ADMIN", "OPERATIONS"])(
     "does not offer uploads for %s without permission in both stores",

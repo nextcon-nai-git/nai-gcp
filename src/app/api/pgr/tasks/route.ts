@@ -1,3 +1,4 @@
+import { canReadDossierTask } from "@/lib/auth/britania-fap-access";
 import { requirePgrAppCheck } from "@/lib/auth/require-pgr-app-check";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod/v3";
@@ -43,7 +44,12 @@ export async function GET(request: NextRequest) {
       .limit(500)
       .get();
     return NextResponse.json(
-      { tasks: snap.docs.map((d) => ({ ...d.data(), id: d.id })), limited: snap.size === 500 },
+      {
+        tasks: snap.docs
+          .filter((d) => canReadDossierTask(user, companyId, d.id))
+          .map((d) => ({ ...d.data(), id: d.id })),
+        limited: snap.size === 500,
+      },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (e) {

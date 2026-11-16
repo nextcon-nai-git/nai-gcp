@@ -38,6 +38,14 @@ describe("monthly billing authorization and validation", () => {
     expect(mocks.list).not.toHaveBeenCalled();
     expect(result.headers.get("cache-control")).toBe("private, no-store");
   });
+  it("withholds the financial preview when global access is revoked during the query", async () => {
+    mocks.list.mockResolvedValue({ totalCents: 500000 });
+    mocks.auth.mockResolvedValueOnce({ uid: "admin", role: "SUPER_ADMIN" });
+    mocks.auth.mockResolvedValueOnce({ uid: "admin", role: "CLIENT_ADMIN" });
+    const result = await GET(new NextRequest("https://test/api/financial/monthly-billing"));
+    expect(result.status).toBe(403);
+    expect(await result.text()).not.toContain("500000");
+  });
   it("rejects duplicate CNPJs and unreviewed submissions", async () => {
     expect((await POST(request({ ...input, rows: [...input.rows, ...input.rows] }))).status).toBe(
       400

@@ -1,5 +1,9 @@
 "use client";
 
+import { BRITANIA_ANCHOR } from "@/lib/britania-group";
+import { parseClaims } from "@/lib/auth/claims";
+import { isBritaniaFapAdmin } from "@/lib/auth/britania-fap-access";
+import { useOperationalTaskList } from "@/hooks/use-pgr-workspace";
 import * as React from "react";
 import Link from "next/link";
 import {
@@ -67,25 +71,43 @@ export default function ComercialPortal() {
   const isGlobalAdmin = React.useMemo(() => {
     if (!profile) return false;
     const role = (profile.role || "").toUpperCase();
-    return ["SUPER_ADMIN", "ADMIN"].includes(role);
+    return (
+      role === "SUPER_ADMIN" ||
+      (role === "ADMIN" &&
+        !profile.tenantId &&
+        (!profile.companyId || profile.companyId === "nextcon"))
+    );
   }, [profile]);
 
+  const ownCompany = profile ? parseClaims(profile).tenantId : undefined;
+  const filteredScope =
+    profile && !isBritaniaFapAdmin(parseClaims(profile))
+      ? isGlobalAdmin
+        ? "all"
+        : ownCompany === BRITANIA_ANCHOR
+          ? BRITANIA_ANCHOR
+          : null
+      : null;
+  const filteredTasks = useOperationalTaskList<OpsTask>(filteredScope, true);
   const commercialTasksQuery = useMemoFirebase(() => {
-    if (!db || !profile) return null;
+    if (!db || !profile || filteredScope) return null;
     if (isGlobalAdmin) {
       return query(collectionGroup(db, "tasks"), orderBy("createdAt", "desc"), limit(50));
     }
-    if (profile.companyId) {
+    if (ownCompany) {
       return query(
-        collection(db, "companies", profile.companyId, "tasks"),
+        collection(db, "companies", ownCompany, "tasks"),
         orderBy("createdAt", "desc"),
         limit(50)
       );
     }
     return null;
-  }, [db, profile, isGlobalAdmin]);
+  }, [db, profile, isGlobalAdmin, filteredScope, ownCompany]);
 
-  const { data: allTasks, isLoading: loadingTasks } = useCollection<OpsTask>(commercialTasksQuery);
+  const directTasks = useCollection<OpsTask>(commercialTasksQuery);
+  const allTasks = filteredScope ? filteredTasks.data : directTasks.data;
+  const taskError = filteredScope ? filteredTasks.error : directTasks.error?.message;
+  const loadingTasks = filteredScope ? filteredTasks.loading : directTasks.isLoading;
 
   const commercialTasks = React.useMemo(() => {
     if (!allTasks) return [];
@@ -413,7 +435,11 @@ export default function ComercialPortal() {
 
         <TabsContent value="cards" className="mt-8">
           <div className="min-h-[600px] glass-panel rounded-[3rem] p-8 relative">
-            {loadingTasks ? (
+            {taskError ? (
+              <p role="alert" className="p-6 text-destructive">
+                Não foi possível carregar os cards. {taskError}
+              </p>
+            ) : loadingTasks ? (
               <div className="flex flex-col items-center justify-center gap-6 py-24">
                 <Loader2 className="size-12 animate-spin text-primary opacity-20" />
                 <p className="text-[10px] font-black uppercase tracking-widest text-primary/40">

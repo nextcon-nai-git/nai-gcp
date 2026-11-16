@@ -32,6 +32,7 @@ import {
   NAI_VISUAL_CLASSIFICATION_PROMPT,
 } from "@/lib/pgr-agent-prompts";
 import { forbidden } from "@/lib/auth/errors";
+import { normalizeCnpj } from "@/lib/cnpj";
 import { readPgrPdfPages } from "./pgr-pdf-text";
 import { isNaiVisualEvidence, mergeNaiIdentity } from "@/lib/nai-import-evidence";
 
@@ -66,10 +67,7 @@ function validatedProviders(
   companyCnpj: string
 ) {
   return providers.filter((provider) => {
-    if (
-      companyCnpj.replace(/\D/g, "") &&
-      provider.cnpj.replace(/\D/g, "") === companyCnpj.replace(/\D/g, "")
-    )
+    if (normalizeCnpj(companyCnpj) && normalizeCnpj(provider.cnpj) === normalizeCnpj(companyCnpj))
       return false;
     if (
       !provider.evidencias.every(
@@ -457,7 +455,7 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
         providerCandidates.map((provider) => [
           normalizePgrText(provider.nome) +
             "|" +
-            provider.cnpj.replace(/\D/g, "") +
+            normalizeCnpj(provider.cnpj) +
             "|" +
             normalizePgrText(provider.registroProfissional),
           provider,

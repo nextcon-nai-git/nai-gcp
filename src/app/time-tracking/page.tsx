@@ -25,10 +25,11 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, where, doc, runTransaction, serverTimestamp } from "firebase/firestore";
+import { collection, query, where } from "firebase/firestore";
 import { useSgi } from "@/contexts/sgi-context";
 import { cn } from "@/lib/utils";
 import {
+  canRecordClockPunch,
   eligibleCltEmployee,
   employeeCollectionPath,
   brasiliaDay,
@@ -47,21 +48,32 @@ interface ClockPunch {
 }
 
 export default function TimeTrackingCLTPage() {
-  const { user } = useUser();
-  const { activeClientId, isGlobalStaff } = useSgi();
-  const employeePath = employeeCollectionPath(activeClientId, isGlobalStaff);
+  const profile = useUser();
+  const { user } = profile;
+  const { activeClientId } = useSgi();
+  const employeePath = employeeCollectionPath(activeClientId, canRecordClockPunch(profile, "all"));
   if (!user || !employeePath)
     return <p role="alert">Selecione uma empresa autorizada para consultar o ponto.</p>;
   return (
     <TimeTrackingSession
       key={`${user.uid}:${employeePath}`}
       employeePath={employeePath}
-      userId={user.uid}
+      companyId={activeClientId}
+      canRecord={canRecordClockPunch(profile, activeClientId)}
     />
   );
 }
 
-function TimeTrackingSession({ employeePath, userId }: { employeePath: string; userId: string }) {
+function TimeTrackingSession({
+  employeePath,
+  companyId,
+  canRecord,
+}: {
+  employeePath: string;
+  companyId: string;
+  canRecord: boolean;
+}) {
+  const { user } = useUser();
   const { toast } = useToast();
   const db = useFirestore();
   const mounted = React.useRef(true);
@@ -126,6 +138,7 @@ function TimeTrackingSession({ employeePath, userId }: { employeePath: string; u
     [savedPunches]
   );
   const canPunch =
+    canRecord &&
     !!db &&
     !!selectedEmployee &&
     !loadingEmployees &&
@@ -136,7 +149,7 @@ function TimeTrackingSession({ employeePath, userId }: { employeePath: string; u
 
   // Handle Punch Registration
   const handlePunch = async (type: "entrada" | "almoco_saida" | "almoco_retorno" | "saida") => {
-    if (!canPunch || !selectedEmployee || !db || submitting.current) {
+    if (!user || !canPunch || !selectedEmployee || !db || submitting.current) {
       toast({
         variant: "destructive",
         title: "Seleção Obrigatória",
@@ -147,46 +160,18 @@ function TimeTrackingSession({ employeePath, userId }: { employeePath: string; u
 
     submitting.current = true;
     setIsSubmitting(true);
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString("pt-BR", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      timeZone: "America/Sao_Paulo",
-    });
-    const dateStr = brasiliaDay(now);
-    const newPunch: ClockPunch = {
-      id: `${dateStr}_${type}`,
-      type,
-      time: timeStr,
-      date: dateStr,
-      timestamp: now.toISOString(),
-      reference: crypto.randomUUID(),
-    };
-
     try {
-      const punchRef = doc(
-        db,
-        employeePath,
-        selectedEmployee.id,
-        "time_clock_entries",
-        newPunch.id
-      );
-      await runTransaction(db, async (transaction) => {
-        const existing = await transaction.get(punchRef);
-        if (existing.exists()) throw new Error("Batida já registrada.");
-        transaction.set(punchRef, {
-          ...newPunch,
-          employeeId: selectedEmployee.id,
-          employeeName: selectedEmployee.name,
-          employeeCpf: selectedEmployee.cpf || "",
-          contractType: "CLT",
-          createdBy: userId,
-          createdAt: serverTimestamp(),
-        });
-      });
+      const token = await user.getIdToken();
       if (!mounted.current) return;
-
+      const response = await fetch("/api/time-tracking/punch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ companyId, employeeId: selectedEmployee.id, type }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Não foi possível registrar a batida.");
+      if (!mounted.current) return;
+      const newPunch: ClockPunch = result.punch;
       const typeLabels = {
         entrada: "Entrada Registrada 🌅",
         almoco_saida: "Saída para Almoço 🥗",
@@ -196,7 +181,7 @@ function TimeTrackingSession({ employeePath, userId }: { employeePath: string; u
 
       toast({
         title: typeLabels[type],
-        description: `Ponto registrado às ${timeStr} para ${selectedEmployee.name}. Referência: ${newPunch.reference}`,
+        description: `Ponto registrado às ${newPunch.time} para ${selectedEmployee.name}. Referência: ${newPunch.reference}`,
       });
     } catch {
       if (!mounted.current) return;

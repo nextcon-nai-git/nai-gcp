@@ -119,3 +119,20 @@ it("retains safe validation and revision conflict responses", async () => {
   m.patch.mockRejectedValueOnce(new Error("CONFLICT"));
   expect((await PATCH(request('{"revision":"old","changes":[]}'))).status).toBe(409);
 });
+
+it.each(["valorAso", "cnpjClinica", "pixRealizado", "chavePix"])(
+  "mantém %s fora das edições do RH do cliente",
+  async (field) => {
+    m.auth.mockResolvedValue({ uid: "rh", role: "HR", tenantId: "GRUPO_AVP", servedCompanies: [] });
+    const patch = (fields: Record<string, string>) =>
+      PATCH(
+        new NextRequest("https://nai.test/api/clients/grupo-avp/queue", {
+          method: "PATCH",
+          body: JSON.stringify({ revision: "v", changes: [{ id: "id", fields }] }),
+        })
+      );
+    expect((await patch({ observacoes: "Revisado", [field]: "alterado" })).status).toBe(403);
+    expect(m.patch).not.toHaveBeenCalled();
+    expect((await patch({ observacoes: "Revisado" })).status).toBe(200);
+  }
+);

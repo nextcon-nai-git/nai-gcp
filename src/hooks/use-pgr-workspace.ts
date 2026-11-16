@@ -1,4 +1,5 @@
 "use client";
+import { notifyTaskUpdated, taskUpdatedEvent } from "@/lib/task-updates";
 import { pgrRequestHeaders } from "@/lib/pgr-request-headers";
 import * as React from "react";
 import { useUser } from "@/firebase";
@@ -81,12 +82,18 @@ function usePgrQuery<T>(
     }
     void load();
     const timer = target.refresh ? setInterval(load, 30000) : undefined;
-    if (target.refresh) window.addEventListener("nai:pgr-task-updated", load);
+    if (target.refresh) {
+      window.addEventListener(taskUpdatedEvent, load);
+      window.addEventListener("focus", load);
+    }
     return () => {
       stopped = true;
       controller?.abort();
       if (timer !== undefined) clearInterval(timer);
-      if (target.refresh) window.removeEventListener("nai:pgr-task-updated", load);
+      if (target.refresh) {
+        window.removeEventListener(taskUpdatedEvent, load);
+        window.removeEventListener("focus", load);
+      }
     };
   }, [target]);
   // Passive-effect resets expose one render of the previous scope. Derive the
@@ -120,5 +127,12 @@ export async function updatePgrTask(
   });
   const d = await r.json();
   if (!r.ok) throw new Error(d.error || "O card não foi atualizado.");
-  window.dispatchEvent(new Event("nai:pgr-task-updated"));
+  notifyTaskUpdated();
+}
+
+export function useOperationalTaskList<T>(company: string | null, recent = false) {
+  const url = company
+    ? "/api/operational/tasks?" + new URLSearchParams({ company, order: recent ? "recent" : "due" })
+    : null;
+  return usePgrQuery<T>(url, "tasks", !!company, true);
 }

@@ -38,6 +38,7 @@ beforeEach(async () => {
         servedCompanies: [],
       });
     }
+    await setDoc(doc(ctx.firestore(), "users/global-super"), { role: "SUPER_ADMIN" });
     for (const role of ["ADMIN", "OPERATIONS"]) {
       await setDoc(doc(ctx.firestore(), "users", `internal-${role}`), {
         role,
@@ -66,7 +67,7 @@ const dashboardQuery = (context: RulesTestContext) =>
   query(collectionGroup(context.firestore(), "tasks"), orderBy("dueDate", "asc"), limit(5));
 
 describe("Dashboard task collection group", () => {
-  it.each(["SUPER_ADMIN", "internal-ADMIN", "internal-OPERATIONS"])(
+  it.each(["global-super", "internal-ADMIN"])(
     "allows authorized internal global reader %s",
     async (role) => {
       const result = await assertSucceeds(getDocs(dashboardQuery(env.authenticatedContext(role))));
@@ -77,13 +78,37 @@ describe("Dashboard task collection group", () => {
     }
   );
 
-  it.each(["ADMIN", "OPERATIONS", "CLIENT_ADMIN", "HR", "PROVIDER", "USER", "unprovisioned"])(
-    "denies global tasks to %s",
-    async (role) => {
-      await assertFails(getDocs(dashboardQuery(env.authenticatedContext(role))));
+  it.each([
+    "SUPER_ADMIN",
+    "internal-OPERATIONS",
+    "ADMIN",
+    "OPERATIONS",
+    "CLIENT_ADMIN",
+    "HR",
+    "PROVIDER",
+    "USER",
+    "unprovisioned",
+  ])("denies global tasks to %s", async (role) => {
+    await assertFails(getDocs(dashboardQuery(env.authenticatedContext(role))));
+  });
+
+  it.each(["reports", "non_conformities", "legalExpertises"])(
+    "limita a consulta global do cadastro %s à equipe interna",
+    async (name) => {
+      await env.withSecurityRulesDisabled((ctx) =>
+        setDoc(doc(ctx.firestore(), "companies/avp/" + name + "/test"), { createdAt: "2026-11-01" })
+      );
+      const list = (uid: string) =>
+        getDocs(
+          query(
+            collectionGroup(env.authenticatedContext(uid).firestore(), name),
+            orderBy("createdAt", "desc")
+          )
+        );
+      expect((await assertSucceeds(list("internal-OPERATIONS"))).size).toBeGreaterThan(0);
+      await assertFails(list("CLIENT_ADMIN"));
     }
   );
-
   it("denies unauthenticated global reads", async () => {
     await assertFails(getDocs(dashboardQuery(env.unauthenticatedContext())));
   });

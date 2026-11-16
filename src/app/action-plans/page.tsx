@@ -1,4 +1,8 @@
 "use client";
+import { notifyTaskUpdated } from "@/lib/task-updates";
+import { BRITANIA_ANCHOR } from "@/lib/britania-group";
+import { isBritaniaFapAdmin } from "@/lib/auth/britania-fap-access";
+import { useOperationalTaskList } from "@/hooks/use-pgr-workspace";
 import { useCompanyTasks } from "@/hooks/use-company-tasks";
 import { useCompanyDirectory } from "@/hooks/use-company-directory";
 
@@ -136,7 +140,7 @@ function EnterpriseOpsContent() {
   const isProvider = React.useMemo(() => {
     if (!profileReady || !profile) return false;
     const role = (profile.role || "").toUpperCase();
-    return ["PROVIDER", "ENGINEER", "DOCTOR"].includes(role);
+    return role === "PROVIDER";
   }, [profile, profileReady]);
 
   const assigned =
@@ -150,12 +154,25 @@ function EnterpriseOpsContent() {
         )
       : [];
   const multi = assigned.length > 0 && !pgrSource && !isGlobalAdmin;
+  const filterDossier = !!profile && !isBritaniaFapAdmin(parseClaims(profile));
+  const filteredScope =
+    !pgrSource && profileReady && filterDossier
+      ? selectedCompanyId === "all" && isGlobalAdmin
+        ? "all"
+        : selectedCompanyId === "all" && multi && assigned.includes(BRITANIA_ANCHOR)
+          ? "assigned"
+          : selectedCompanyId === BRITANIA_ANCHOR ||
+              (selectedCompanyId === "all" && !multi && ownCompanyId === BRITANIA_ANCHOR)
+            ? BRITANIA_ANCHOR
+            : null
+      : null;
+  const filteredTasks = useOperationalTaskList<OpsTask>(filteredScope);
   const directory = useCompanyDirectory(db, user?.uid, false, assigned, multi);
   const scopedTasks = useCompanyTasks(
     db,
     user?.uid,
     assigned,
-    multi && selectedCompanyId === "all"
+    multi && selectedCompanyId === "all" && !filteredScope
   );
   const companiesQuery = useMemoFirebase(() => {
     if (!profileReady || !db || !profile || pgrSource) return null;
@@ -185,7 +202,7 @@ function EnterpriseOpsContent() {
     (pgrSource ? pgrCompanies.loading : multi ? directory.isLoading : legacyLoadingCompanies);
 
   const tasksQuery = useMemoFirebase(() => {
-    if (!profileReady || !db || !profile || pgrSource) return null;
+    if (!profileReady || !db || !profile || pgrSource || filteredScope) return null;
 
     if (selectedCompanyId === "all" && isGlobalAdmin) {
       return query(collectionGroup(db, "tasks"), orderBy("dueDate", "asc"));
@@ -213,27 +230,34 @@ function EnterpriseOpsContent() {
     pgrSource,
     ownCompanyId,
     profileReady,
+    filteredScope,
+    multi,
   ]);
 
   const {
     data: legacyTasks,
     isLoading: legacyLoadingTasks,
-    error: tasksError,
+    error: legacyTasksError,
   } = useCollection<OpsTask>(tasksQuery);
+  const tasksError = filteredScope ? filteredTasks.error : legacyTasksError;
   const tasks = profileReady
     ? pgrSource
       ? pgrTasks.data
-      : multi && selectedCompanyId === "all"
-        ? scopedTasks.data
-        : legacyTasks
+      : filteredScope
+        ? filteredTasks.data
+        : multi && selectedCompanyId === "all"
+          ? scopedTasks.data
+          : legacyTasks
     : null;
   const loadingTasks =
     isUserLoading ||
     (pgrSource
       ? pgrTasks.loading
-      : multi && selectedCompanyId === "all"
-        ? scopedTasks.isLoading
-        : legacyLoadingTasks);
+      : filteredScope
+        ? filteredTasks.loading
+        : multi && selectedCompanyId === "all"
+          ? scopedTasks.isLoading
+          : legacyLoadingTasks);
 
   const operationalTasks = React.useMemo(() => {
     if (!tasks) return [];
@@ -278,6 +302,7 @@ function EnterpriseOpsContent() {
         createdAt: serverTimestamp(),
         createdBy: user.uid,
       });
+      notifyTaskUpdated();
       if (!active.current) return;
       setIsCreateOpen(false);
       setTaskForm((previous) => ({ ...previous, title: "", companyId: "" }));

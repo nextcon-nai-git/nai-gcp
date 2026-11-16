@@ -38,7 +38,7 @@ import {
   serverTimestamp,
   collectionGroup,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL, getBlob } from "firebase/storage";
 import { cn } from "@/lib/utils";
 import { classifyDocument } from "@/ai/flows/document-classifier-flow";
 import { type ReportAnalysisOutput } from "@/ai/flows/report-analysis-flow";
@@ -99,6 +99,23 @@ function ReportsSession() {
     }
     return reports;
   }, [reports, activeClientId]);
+
+  const downloadProtocol = async (path: string, name: string) => {
+    if (!storage || !path.startsWith("clientes/" + activeClientId + "/")) return;
+    try {
+      const blob = await getBlob(ref(storage, path), 10 * 1024 * 1024);
+      if (!mounted.current) return;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = name + ".pdf";
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch {
+      if (mounted.current)
+        toast({ variant: "destructive", title: "Não foi possível baixar o protocolo." });
+    }
+  };
 
   const handleAiClassification = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -394,6 +411,14 @@ function ReportsSession() {
                 )}
               </CardHeader>
               <CardContent className="p-6 space-y-4 flex-1 flex flex-col justify-between">
+                {report.auditData && report.storagePath && (
+                  <Button
+                    variant="outline"
+                    onClick={() => downloadProtocol(report.storagePath, report.name)}
+                  >
+                    Baixar protocolo em PDF
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   className="w-full h-11 rounded-xl text-[9px] font-black uppercase gap-2 border-primary/10"

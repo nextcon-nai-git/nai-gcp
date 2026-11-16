@@ -1,3 +1,4 @@
+import { canReadDossierTask } from "@/lib/auth/britania-fap-access";
 import "server-only";
 import { adminDb } from "@/lib/firebase-admin";
 import type { AuthContext } from "@/lib/auth/auth-context";
@@ -100,7 +101,10 @@ export async function getExecutiveDashboard(
           tasks:
             tasks.status === "fulfilled"
               ? summarizeTasks(
-                  tasks.value.docs.slice(0, 500).map((d) => ({ id: d.id, data: d.data() })),
+                  tasks.value.docs
+                    .slice(0, 500)
+                    .filter((d) => canReadDossierTask(user, company.id, d.id))
+                    .map((d) => ({ id: d.id, data: d.data() })),
                   company,
                   now,
                   tasks.value.size > 500
