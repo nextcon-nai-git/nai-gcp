@@ -49,6 +49,27 @@ const importRows = async (rows: GrupoAvpAso[]) => {
 const row = (name: string): GrupoAvpAso => ({ ...AVP_TEST_ASOS[0], id: name, colaborador: name });
 
 describe("Fila visível após atualizações", () => {
+  it("consolida a fila inteira antes da paginação e reconhece grafias da planilha", async () => {
+    const report = vi.fn();
+    await act(async () => root.render(<GrupoAvpAsoManager onQueueSummaryChange={report} />));
+    const types = [
+      ...Array<string>(26).fill(" periódico "),
+      "ASO ADIMISSIONAL",
+      "DEMISSIO",
+      "RETORNO_TRABALHO",
+      "Ag. retorno clínica",
+      "",
+    ];
+    await importRows(types.map((tipoExame, i) => ({ ...row(String(i)), tipoExame })));
+    expect(report.mock.lastCall?.[0]).toMatchObject({
+      total: 31,
+      exams: {
+        total: 29,
+        excluded: 2,
+        byType: { periodico: 26, admissional: 1, demissional: 1, retorno: 1 },
+      },
+    });
+  });
   it("atualiza as linhas e a exportação quando a importação substitui a fila", async () => {
     await render();
     await importRows([row("Pessoa fictícia nova")]);

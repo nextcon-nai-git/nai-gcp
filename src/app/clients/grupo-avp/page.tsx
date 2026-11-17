@@ -31,7 +31,10 @@ import { AvpEvidencePanel } from "@/components/clients/avp-evidence-panel";
 import { AvpWorkflowPanel } from "@/components/clients/avp-workflow-panel";
 import { AvpPeriodicControlPanel } from "@/components/clients/avp-periodic-control";
 import { useUser } from "@/firebase";
+import { avpQueueExamTypes, countAvpQueueExams } from "@/lib/avp-queue-exam-counts";
 import { canAccessAvpEvidence } from "@/lib/auth/avp-access";
+
+const formatCount = new Intl.NumberFormat("pt-BR");
 
 export default function GrupoAvpClientHubPage() {
   const session = useUser();
@@ -40,13 +43,14 @@ export default function GrupoAvpClientHubPage() {
   const [copiedChannel, setCopiedChannel] = React.useState<string | null>(null);
 
   const [activeTab, setActiveTab] = React.useState("asos");
-  const [queueSummary, setQueueSummary] = React.useState({
+  const [queueSummary, setQueueSummary] = React.useState(() => ({
+    exams: countAvpQueueExams([]),
     available: false,
     total: 0,
     urgentes: 0,
     cidades: 0,
     concluidos: 0,
-  });
+  }));
 
   // Checklist de Ações do Workshop
   const [tasks, setTasks] = React.useState([
@@ -182,7 +186,7 @@ export default function GrupoAvpClientHubPage() {
         </div>
 
         {/* METRICS STRIP */}
-        <div className="relative z-10 pt-8 grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="relative z-10 pt-8 grid grid-cols-2 lg:grid-cols-5 gap-3">
           <div className="p-4 rounded-2xl bg-white/5 backdrop-blur-xs border border-white/10">
             <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">
               Capilaridade
@@ -207,16 +211,35 @@ export default function GrupoAvpClientHubPage() {
             </span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-emerald-500/10 backdrop-blur-xs border border-emerald-400/30">
+          <div className="col-span-2 lg:col-span-1 p-4 rounded-2xl bg-emerald-500/10 backdrop-blur-xs border border-emerald-400/30">
             <span className="text-[9px] font-black uppercase tracking-wider text-emerald-300 block">
               Fila de ASOs
             </span>
             <strong className="text-xl sm:text-2xl font-black font-headline text-emerald-400">
-              {queueSummary.available ? queueSummary.total : "—"} Solicitações
+              {queueSummary.available ? formatCount.format(queueSummary.exams.total) : "—"}{" "}
+              {queueSummary.available && queueSummary.exams.total === 1 ? "ASO" : "ASOs"}
             </strong>
-            <span className="text-[9px] text-emerald-200 block mt-0.5">
-              {queueSummary.available ? queueSummary.cidades : "—"} Cidades na fila
-            </span>
+            <dl
+              aria-label="ASOs por tipo de exame"
+              className="mt-2 space-y-1 text-xs text-emerald-100"
+            >
+              {avpQueueExamTypes.map(([type, label]) => (
+                <div key={type} className="flex items-baseline justify-between gap-2">
+                  <dt>{label}</dt>
+                  <dd className="font-semibold tabular-nums">
+                    {queueSummary.available
+                      ? formatCount.format(queueSummary.exams.byType[type])
+                      : "—"}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            {queueSummary.available && queueSummary.exams.excluded > 0 && (
+              <p className="mt-2 border-t border-emerald-400/30 pt-2 text-xs text-slate-300">
+                {formatCount.format(queueSummary.exams.excluded)} fora do total · outros tipos ou
+                sem classificação
+              </p>
+            )}
           </div>
 
           <div className="p-4 rounded-2xl bg-white/5 backdrop-blur-xs border border-white/10">

@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/dialog";
 import { useUser } from "@/firebase";
 import { useAvpQueue } from "@/hooks/use-avp-queue";
+import { countAvpQueueExams } from "@/lib/avp-queue-exam-counts";
 import { buildAvpQueueCsv } from "@/lib/avp-queue-export";
 import {
   avpCostSummary,
@@ -87,6 +88,7 @@ export function GrupoAvpAsoManager({
     urgentes: number;
     cidades: number;
     concluidos: number;
+    exams: ReturnType<typeof countAvpQueueExams>;
   }) => void;
 } = {}) {
   const { toast } = useToast();
@@ -210,19 +212,29 @@ export function GrupoAvpAsoManager({
       else emTratamento++;
     });
 
-    return { total, agendados, naoIniciados, urgentes, concluidos, emTratamento, cancelados };
+    return {
+      total,
+      agendados,
+      naoIniciados,
+      urgentes,
+      concluidos,
+      emTratamento,
+      cancelados,
+      exams: countAvpQueueExams(asosList),
+    };
   }, [asosList]);
 
   const available = !!syncState.checkedAt || syncState.status === "CONNECTED";
   React.useEffect(() => {
     onQueueSummaryChange?.({
-      available: !!syncState.checkedAt || syncState.status === "CONNECTED",
+      available,
+      exams: metrics.exams,
       total: metrics.total,
       urgentes: metrics.urgentes,
       concluidos: metrics.concluidos,
       cidades: new Set(asosList.map((item) => item.cidade + "|" + item.uf)).size,
     });
-  }, [metrics, asosList, onQueueSummaryChange, syncState.checkedAt, syncState.status]);
+  }, [metrics, asosList, onQueueSummaryChange, available]);
 
   // Filtragem
   const filteredList = React.useMemo(() => {

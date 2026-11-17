@@ -250,6 +250,7 @@ describe("AVP Sheet Sync & Importer Suite", () => {
       const newItem = result.mergedAsos.find((a) => a.colaborador === "Novo Candidato Teste");
       expect(newItem).toBeDefined();
       expect(newItem?.status).toBe("AGENDADO");
+      expect(newItem?.tipoExame).toBe("");
       expect(newItem?.cidade).toBe("Sobral");
       expect(newItem?.uf).toBe("CE");
     });
