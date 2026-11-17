@@ -222,7 +222,7 @@ export function TopNav() {
           >
             <SelectTrigger
               aria-label="Selecionar empresa"
-              className="h-10 min-w-[190px] max-w-[280px] bg-slate-50 border border-slate-200/70 rounded-xl font-black uppercase text-[9px] tracking-wider shadow-inner focus:ring-primary/10 flex items-center justify-between w-full"
+              className="h-10 min-w-0 max-w-[280px] bg-slate-50 border border-slate-200/70 rounded-xl font-black uppercase text-[9px] tracking-wider shadow-inner focus:ring-primary/10 flex items-center justify-between w-full"
             >
               <div className="flex items-center gap-2 truncate">
                 <Building2 className="size-3.5 text-primary/60 shrink-0" />

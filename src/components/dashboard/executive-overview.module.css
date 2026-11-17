@@ -1,0 +1,51 @@
+.hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: clamp(1.2rem, 3.2vw, 2.75rem);
+  border: 1px solid #315b83;
+  border-radius: 1.35rem;
+  color: #f5faff;
+  background:
+    radial-gradient(ellipse at 100% 0%, #14568a 0%, transparent 62%),
+    linear-gradient(135deg, #102744, #103657 65%, #114653);
+}
+.hero::before,
+.hero::after {
+  content: "";
+  pointer-events: none;
+  z-index: -1;
+  position: absolute;
+  width: 13rem;
+  height: 20rem;
+  right: -5rem;
+  top: -10rem;
+  transform: rotate(-37deg);
+  border: 1px solid rgb(149 222 255 / 18%);
+}
+.hero::after {
+  right: -3.9rem;
+  top: -9.3rem;
+}
+.scope {
+  max-width: 100%;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid #547896;
+  border-radius: 0.5rem;
+  color: #f5faff;
+  background-color: #173a59;
+}
+.figure {
+  margin: 0.15rem 0 0.35rem;
+  font-size: clamp(3.5rem, 7vw, 5.75rem);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.065em;
+  font-variant-numeric: tabular-nums;
+}
+.breakdown {
+  border-radius: 0.9rem;
+  border: 1px solid rgb(174 218 244 / 24%);
+  background: rgb(4 24 43 / 46%);
+  padding: 1rem 1.15rem;
+}

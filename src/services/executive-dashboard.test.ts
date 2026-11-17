@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthContext } from "@/lib/auth/auth-context";
-const mock = vi.hoisted(() => ({ collection: vi.fn(), avp: vi.fn(), failEmployees: false }));
+const mock = vi.hoisted(() => ({
+  collection: vi.fn(),
+  avp: vi.fn(),
+  roster: vi.fn(),
+  failEmployees: false,
+}));
 vi.mock("@/lib/firebase-admin", () => ({ adminDb: { collection: mock.collection } }));
+vi.mock("./avp-workforce", () => ({ getAvpWorkforce: mock.roster }));
 vi.mock("@/services/avp-sheet-sync", () => ({ getAvpSnapshot: mock.avp }));
 import { getExecutiveDashboard } from "./executive-dashboard";
 const user = (role: AuthContext["role"], tenantId: string | null = null): AuthContext => ({
@@ -55,7 +61,7 @@ beforeEach(() => {
   });
   mock.collection.mockImplementation(() => ({
     select: () => ({
-      get: async () => ({ docs: [company("a"), company("b")] }),
+      get: async () => ({ docs: [company("a"), company("b"), company("GRUPO_AVP")] }),
     }),
     doc: (id: string) => ({ get: async () => company(id), collection: subcollection }),
   }));
@@ -73,6 +79,24 @@ describe("Dashboard server data boundary", () => {
     expect(result.clients[0]).toMatchObject({ employees: 12, pgr: 2, risksToReview: 3 });
     expect(JSON.stringify(result)).not.toMatch(/NEVER_SERIALIZE|PRIVATE_DESCRIPTION/);
     expect(mock.avp).not.toHaveBeenCalled();
+    expect(mock.roster).not.toHaveBeenCalled();
+  });
+  it("keeps the AVP roster independent of the ASO queue", async () => {
+    const source = { records: 3200, observedOn: "2026-11-16", source: "connector" };
+    mock.roster.mockResolvedValue(source);
+    mock.avp.mockRejectedValueOnce(new Error("offline"));
+    expect((await getExecutiveDashboard(user("SUPER_ADMIN"), "all")).avpWorkforce).toEqual(source);
+    expect((await getExecutiveDashboard(user("ADMIN"), "GRUPO_AVP")).avpWorkforce).toEqual(source);
+  });
+  it("does not read the internal SOC source in unrelated scopes or on a tenant profile", async () => {
+    for (const [viewer, scope] of [
+      [user("SUPER_ADMIN"), "a"],
+      [user("HR", "GRUPO_AVP"), "all"],
+      [user("OPERATIONS"), "all"],
+    ] as const) {
+      expect((await getExecutiveDashboard(viewer, scope)).avpWorkforce).toBeNull();
+    }
+    expect(mock.roster).not.toHaveBeenCalled();
   });
   it("keeps failed sources null and flags the incomplete view", async () => {
     mock.failEmployees = true;

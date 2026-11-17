@@ -1,5 +1,6 @@
 "use client";
 import { SstJourney } from "@/components/dashboard/sst-journey";
+import styles from "./executive-overview.module.css";
 import { activeClientCount } from "@/lib/client-portfolio";
 
 import { useMemo, useState, type ReactNode } from "react";
@@ -20,12 +21,15 @@ import {
   Search,
   ShieldCheck,
   SlidersHorizontal,
-  Users,
 } from "lucide-react";
 import { useUser } from "@/firebase";
 import { useSgi } from "@/contexts/sgi-context";
 import { useExecutiveDashboard } from "@/hooks/use-executive-dashboard";
-import type { DashboardClient, ExecutiveDashboard } from "@/lib/executive-dashboard";
+import {
+  workforceSource,
+  type DashboardClient,
+  type ExecutiveDashboard,
+} from "@/lib/executive-dashboard";
 import { cn } from "@/lib/utils";
 import { csvTextCell } from "@/lib/csv-cell";
 
@@ -45,7 +49,7 @@ const date = (value: string | null) => (value ? value.split("-").reverse().join(
 const panel =
   "rounded-2xl border border-slate-200/80 bg-white shadow-[0_3px_16px_-10px_rgba(15,23,42,0.15)]";
 const action =
-  "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2";
+  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-2.5 py-2 text-xs sm:gap-2 sm:px-4 sm:text-sm font-semibold transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2";
 
 function sum(
   clients: DashboardClient[],
@@ -72,12 +76,12 @@ function Metric({
   children?: ReactNode;
 }) {
   return (
-    <section className={cn(panel, "relative overflow-hidden p-5 lg:p-6")}>
+    <section className={cn(panel, "relative min-w-0 overflow-hidden px-2.5 py-3 sm:p-5 lg:p-6")}>
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-medium text-slate-500">{label}</h2>
+        <h2 className="text-xs font-medium leading-4 text-slate-500 sm:text-sm">{label}</h2>
         <span
           className={cn(
-            "rounded-lg p-2",
+            "hidden rounded-lg p-2 sm:inline-flex",
             alert ? "bg-rose-50 text-rose-600" : "bg-slate-50 text-slate-400"
           )}
         >
@@ -86,14 +90,14 @@ function Metric({
       </div>
       <p
         className={cn(
-          "mt-3 text-4xl font-semibold tracking-tight tabular-nums",
+          "mt-1.5 text-3xl font-semibold sm:mt-3 sm:text-4xl tracking-tight tabular-nums",
           alert ? "text-rose-600" : "text-slate-900"
         )}
       >
         {number(value)}
       </p>
-      <div className="mt-3 flex min-h-5 items-center justify-between gap-2">
-        <p className="text-xs leading-5 text-slate-500">{detail}</p>
+      <div className="mt-2 flex min-h-5 items-center justify-between gap-2">
+        <p className="text-xs leading-4 text-slate-500">{detail}</p>
         {children}
       </div>
     </section>
@@ -142,7 +146,10 @@ function downloadSnapshot(data: ExecutiveDashboard) {
     [
       "Cliente",
       "Localidade",
-      "Cadastros de colaboradores",
+      "Cadastros locais NAI",
+      "Vínculos na composição do painel",
+      "Fonte da composição",
+      "Data de referência da fonte",
       "PGRs registrados",
       "Ações abertas",
       "Ações vencidas",
@@ -150,17 +157,34 @@ function downloadSnapshot(data: ExecutiveDashboard) {
       "Consultado em",
       "Dados parciais",
     ],
-    ...data.clients.map((c) => [
-      c.name,
-      c.location,
-      c.employees,
-      c.pgr,
-      c.tasks?.open,
-      c.tasks?.overdue,
-      c.risksToReview,
-      data.generatedAt,
-      c.tasks?.truncated || data.clientsTruncated ? "Sim" : "Não",
-    ]),
+    ...data.clients.map((c) => {
+      const source = workforceSource(c, data);
+      return [
+        c.name,
+        c.location,
+        c.employees,
+        source === "soc" ? data.avpWorkforce!.records : source === "nai" ? c.employees : null,
+        source === "soc"
+          ? `SOC · ASSOBES · ${data.avpWorkforce!.source === "manual" ? "referência histórica" : "conector"}`
+          : source === "group"
+            ? "Incluído no Grupo AVP"
+            : "NAI",
+        source === "nai" ? data.generatedAt : data.avpWorkforce!.observedOn,
+        c.pgr,
+        c.tasks?.open,
+        c.tasks?.overdue,
+        c.risksToReview,
+        data.generatedAt,
+        c.tasks?.truncated ||
+        data.clientsTruncated ||
+        c.tasks == null ||
+        c.pgr == null ||
+        c.risksToReview == null ||
+        c.employees == null
+          ? "Sim"
+          : "Não",
+      ];
+    }),
   ];
   const blob = new Blob(
     ["\uFEFF" + rows.map((row) => row.map(csvTextCell).join(";")).join("\r\n")],
@@ -205,7 +229,10 @@ export function ExecutiveDashboardView() {
   const overdue = data ? sum(clients, (c) => c.tasks?.overdue) : null;
   const open = data ? sum(clients, (c) => c.tasks?.open) : null;
   const dueSoon = data ? sum(clients, (c) => c.tasks?.dueSoon) : null;
-  const employees = data ? sum(clients, (c) => c.employees) : null;
+  const roster = data?.avpWorkforce;
+  const localClients = data ? clients.filter((c) => workforceSource(c, data) === "nai") : [];
+  const localRecords = data ? sum(localClients, (c) => c.employees) : null;
+  const employees = localRecords == null ? null : localRecords + (roster?.records ?? 0);
   const pgr = data ? sum(clients, (c) => c.pgr) : null;
   const risks = data ? sum(clients, (c) => c.risksToReview) : null;
   const undated = data ? sum(clients, (c) => c.tasks?.undated) : null;
@@ -232,12 +259,117 @@ export function ExecutiveDashboardView() {
       className="mx-auto max-w-[1600px] space-y-6 pb-16 text-left text-slate-900"
       data-testid="real-executive-dashboard"
     >
-      <header className="flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            NAI Painel Estratégico
+      <header className={styles.hero}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
+            <span className="mr-2 border-r border-white/30 pr-2 text-cyan-200">NAI</span>Painel
+            estratégico
           </h1>
+          <label className="flex min-w-0 max-w-full items-center gap-2 text-sm">
+            <span className="sr-only">Cliente do painel</span>
+            <select
+              aria-label="Cliente do painel"
+              value={activeClientId}
+              onChange={(e) => setActiveClientId(e.target.value)}
+              className={styles.scope}
+            >
+              {global && <option value="all">Toda a carteira</option>}
+              {!data?.choices.some((c) => c.id === activeClientId) && activeClientId !== "all" && (
+                <option value={activeClientId}>Cliente selecionado</option>
+              )}
+              {!global && activeClientId === "all" && <option value="all">Minha empresa</option>}
+              {data?.choices.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
+        <div className="mt-6 grid items-end gap-5 lg:grid-cols-[1.05fr_1fr] lg:gap-10">
+          <div>
+            <h2 className="text-sm font-medium text-cyan-100">
+              {roster ? "Vínculos de colaboradores" : "Cadastros de colaboradores no NAI"}
+            </h2>
+            <p className={styles.figure} data-testid="workforce-total">
+              {number(employees)}
+            </p>
+            <p className="text-xs leading-5 text-blue-100">
+              {!data
+                ? "Aguardando leitura da carteira"
+                : employees == null
+                  ? "Total indisponível · leitura parcial"
+                  : "Inclui vínculos históricos"}
+            </p>
+          </div>
+          {roster ? (
+            <div className={styles.breakdown}>
+              <dl className="space-y-2 text-sm">
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="font-medium">
+                    <Link
+                      href="/clients/grupo-avp"
+                      className="inline-flex items-center gap-1 underline decoration-cyan-200/50 underline-offset-4"
+                    >
+                      Grupo AVP <ArrowUpRight aria-hidden="true" className="size-3.5" />
+                    </Link>{" "}
+                    <span className="text-xs text-cyan-200">· SOC</span>
+                  </dt>
+                  <dd className="text-lg font-semibold tabular-nums">{number(roster.records)}</dd>
+                </div>
+                {!!localClients.length && (
+                  <div className="flex items-baseline justify-between gap-3">
+                    <dt>
+                      Demais clientes <span className="text-xs text-blue-100">· NAI</span>
+                    </dt>
+                    <dd className="font-semibold tabular-nums">{number(localRecords)}</dd>
+                  </div>
+                )}
+              </dl>
+              {employees != null && employees > 0 && (
+                <div
+                  aria-hidden="true"
+                  className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-blue-300"
+                >
+                  <span
+                    className="bg-teal-300"
+                    style={{ width: `${(100 * roster.records) / employees}%` }}
+                  />
+                </div>
+              )}
+              <p className="mt-2 text-xs leading-5 text-blue-100">
+                ASSOBES · {roster.source === "manual" ? "referência histórica" : "consulta SOC"} de{" "}
+                {date(roster.observedOn)}
+              </p>
+            </div>
+          ) : (
+            data && (
+              <div className="lg:justify-self-end">
+                <a
+                  href="#carteira"
+                  className="inline-flex min-h-10 items-center gap-2 font-medium text-cyan-100 underline underline-offset-4"
+                >
+                  Ver cadastros por cliente <ArrowRight className="size-4" />
+                </a>
+              </div>
+            )
+          )}
+        </div>
+      </header>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p role="status" className="flex items-center gap-2 text-xs text-slate-500">
+          <span
+            className={cn(
+              "size-1.5 rounded-full",
+              error || hasPartial ? "bg-amber-500" : data ? "bg-teal-500" : "bg-slate-300"
+            )}
+          />
+          {loading
+            ? "Consultando fontes…"
+            : data
+              ? `Consultado em ${time(data.generatedAt)} · Brasília`
+              : "Aguardando leitura"}
+        </p>
         <div className="flex flex-wrap items-center gap-2">
           <button
             className={cn(
@@ -270,43 +402,6 @@ export function ExecutiveDashboardView() {
             NAI importa
           </Link>
         </div>
-      </header>
-
-      <div className="flex flex-col justify-between gap-3 rounded-xl border border-slate-200/70 bg-white/70 px-4 py-3 sm:flex-row sm:items-center">
-        <label className="flex min-w-0 items-center gap-2 text-sm">
-          <Building2 className="size-4 shrink-0 text-slate-400" />
-          <span className="sr-only">Cliente do painel</span>
-          <select
-            aria-label="Cliente do painel"
-            value={activeClientId}
-            onChange={(e) => setActiveClientId(e.target.value)}
-            className="max-w-full bg-transparent pr-6 font-medium focus:outline-teal-600"
-          >
-            {global && <option value="all">Toda a carteira</option>}
-            {!data?.choices.some((c) => c.id === activeClientId) && activeClientId !== "all" && (
-              <option value={activeClientId}>Cliente selecionado</option>
-            )}
-            {!global && activeClientId === "all" && <option value="all">Minha empresa</option>}
-            {data?.choices.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p role="status" className="flex items-center gap-2 text-xs text-slate-500">
-          <span
-            className={cn(
-              "size-1.5 rounded-full",
-              error || hasPartial ? "bg-amber-500" : data ? "bg-teal-500" : "bg-slate-300"
-            )}
-          />
-          {loading
-            ? "Consultando fontes…"
-            : data
-              ? `Consultado em ${time(data.generatedAt)} · Brasília`
-              : "Aguardando leitura"}
-        </p>
       </div>
       {error && (
         <div
@@ -332,43 +427,30 @@ export function ExecutiveDashboardView() {
         </div>
       )}
       {!data && !error ? (
-        <div
-          aria-label="Carregando indicadores"
-          className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
-        >
-          {[1, 2, 3, 4].map((i) => (
+        <div aria-label="Carregando indicadores" className="grid grid-cols-3 gap-1.5 sm:gap-4">
+          {[1, 2, 3].map((i) => (
             <div key={i} className={cn(panel, "h-44 animate-pulse bg-slate-100")} />
           ))}
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-4">
           <Metric
             label="Clientes ativos"
             value={data ? activeClientCount(clients) : null}
-            detail={`${clients.length} registros e unidades vinculados`}
+            detail={data ? `${clients.length} registros e unidades` : "Aguardando leitura"}
             icon={<Building2 className="size-4" />}
           />
           <Metric
-            label="Ações com prazo vencido"
+            label="Ações vencidas"
             value={overdue}
-            detail={
-              open == null
-                ? "Fonte de ações indisponível"
-                : `De ${number(open)} ações abertas registradas`
-            }
+            detail={open == null ? "Fonte de ações indisponível" : `De ${number(open)} abertas`}
             icon={<CalendarClock className="size-4" />}
             alert={!!overdue}
           />
           <Metric
-            label="Colaboradores cadastrados"
-            value={employees}
-            detail="Cadastros totais, incluindo históricos"
-            icon={<Users className="size-4" />}
-          />
-          <Metric
             label="PGRs registrados"
             value={pgr}
-            detail="Documentos importados e salvos"
+            detail="Documentos salvos"
             icon={<FileText className="size-4" />}
           />
         </div>
@@ -598,7 +680,7 @@ export function ExecutiveDashboardView() {
         </section>
       </div>
 
-      <section className={cn(panel, "overflow-hidden")}>
+      <section id="carteira" className={cn(panel, "scroll-mt-20 overflow-hidden")}>
         <div className="p-5 pb-0 sm:p-6 sm:pb-0">
           <SectionTitle eyebrow="Carteira conectada" title="Onde concentrar sua atenção">
             <Link
@@ -639,7 +721,7 @@ export function ExecutiveDashboardView() {
             <thead className="border-y border-slate-100 bg-slate-50/70 text-[10px] uppercase tracking-wider text-slate-400">
               <tr>
                 <th className="px-6 py-3 text-left font-medium">Cliente / unidade</th>
-                <th className="px-3 py-3 text-right font-medium">Colaboradores</th>
+                <th className="px-3 py-3 text-right font-medium">Vínculos de colaboradores</th>
                 <th className="px-3 py-3 text-right font-medium">PGRs</th>
                 <th className="px-3 py-3 text-right font-medium">Ações abertas</th>
                 <th className="px-3 py-3 text-right font-medium">Vencidas</th>
@@ -649,6 +731,7 @@ export function ExecutiveDashboardView() {
             <tbody className="divide-y divide-slate-100">
               {filtered.map((client) => {
                 const signal = clientSignal(client);
+                const source = data ? workforceSource(client, data) : "nai";
                 return (
                   <tr key={client.id} className="transition-colors hover:bg-slate-50/70">
                     <td className="px-6 py-4">
@@ -664,7 +747,14 @@ export function ExecutiveDashboardView() {
                       </p>
                     </td>
                     <td className="px-3 py-4 text-right tabular-nums text-slate-600">
-                      {number(client.employees)}
+                      {source === "group"
+                        ? "Incluído no grupo"
+                        : number(source === "soc" ? roster?.records : client.employees)}
+                      {source === "soc" && (
+                        <span className="block text-xs text-slate-500">
+                          SOC · {date(roster!.observedOn)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-4 text-right tabular-nums text-slate-600">
                       {number(client.pgr)}
@@ -788,7 +878,9 @@ export function ExecutiveDashboardView() {
             {[
               [
                 "Carteira e colaboradores",
-                "Cadastros persistidos por empresa. Colaboradores incluem registros históricos.",
+                roster
+                  ? "A composição usa o cadastro de funcionários da ASSOBES no SOC para o Grupo AVP e os cadastros locais do NAI para os demais clientes. O total inclui vínculos históricos. Uma pessoa pode ter mais de um vínculo."
+                  : "Cadastros de colaboradores salvos no NAI, incluindo históricos.",
               ],
               [
                 "PGRs, ações e riscos",

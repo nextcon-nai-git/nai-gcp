@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebase-admin";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import { dashboardScope, isDashboardGlobal } from "@/lib/auth/dashboard-access";
 import { requireAvpAccess } from "@/lib/auth/avp-access";
+import { getAvpWorkforce } from "./avp-workforce";
 import { getAvpSnapshot } from "@/services/avp-sheet-sync";
 import {
   summarizeTasks,
@@ -120,6 +121,7 @@ export async function getExecutiveDashboard(
   }
   let avp: ExecutiveDashboard["avp"] = null;
   let avpAvailable = false;
+  let avpWorkforce: ExecutiveDashboard["avpWorkforce"] = null;
   if (!scope || scope === "GRUPO_AVP") {
     try {
       requireAvpAccess(user);
@@ -128,19 +130,23 @@ export async function getExecutiveDashboard(
       /* No AVP data for unauthorized profiles. */
     }
     if (avpAvailable) {
-      try {
-        const snapshot = await getAvpSnapshot();
-        if (snapshot.revision)
-          avp = summarizeAvp(
-            snapshot.items,
-            snapshot.checkedAt || null,
-            snapshot.status || "UNKNOWN",
-            now
-          );
-        else issues.push("AVP: nenhuma leitura da planilha foi concluída.");
-      } catch {
+      const [sheet, workforce] = await Promise.allSettled([
+        getAvpSnapshot(),
+        global && clients.some((c) => c.id === "GRUPO_AVP") ? getAvpWorkforce() : null,
+      ]);
+      if (workforce.status === "fulfilled") avpWorkforce = workforce.value;
+      else issues.push("Grupo AVP: cobertura de colaboradores indisponível.");
+      if (sheet.status === "rejected") {
         issues.push("AVP: não foi possível consultar a última leitura da planilha.");
-      }
+      } else if (sheet.value.revision) {
+        const snapshot = sheet.value;
+        avp = summarizeAvp(
+          snapshot.items,
+          snapshot.checkedAt || null,
+          snapshot.status || "UNKNOWN",
+          now
+        );
+      } else issues.push("AVP: nenhuma leitura da planilha foi concluída.");
     }
   }
   if (clients.some((c) => c.tasks?.truncated))
@@ -152,6 +158,7 @@ export async function getExecutiveDashboard(
     clients,
     avp,
     avpAvailable,
+    avpWorkforce,
     issues,
     clientsTruncated,
   };

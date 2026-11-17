@@ -54,7 +54,13 @@ export type AvpSummary = {
   invalidDates: number;
   stages: { label: string; count: number; color: string }[];
 };
+export type AvpWorkforce = {
+  records: number;
+  observedOn: string;
+  source: "manual" | "connector";
+};
 export type ExecutiveDashboard = {
+  avpWorkforce: AvpWorkforce | null;
   generatedAt: string;
   scope: string;
   choices: { id: string; name: string }[];
@@ -64,6 +70,23 @@ export type ExecutiveDashboard = {
   issues: string[];
   clientsTruncated: boolean;
 };
+
+/** The SOC roster covers the group. Local records of its linked units are already represented. */
+export function workforceSource(client: DashboardClient, data: ExecutiveDashboard) {
+  if (data.avpWorkforce) {
+    if (client.id === "GRUPO_AVP") return "soc";
+    if (
+      client.portfolioClientId === "avp" ||
+      client.portfolioClientId === "GRUPO_AVP" ||
+      (client.portfolioClientId &&
+        data.clients.some(
+          (c) => c.id === "GRUPO_AVP" && c.portfolioClientId === client.portfolioClientId
+        ))
+    )
+      return "group";
+  }
+  return "nai";
+}
 
 export function saoPauloDay(date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
