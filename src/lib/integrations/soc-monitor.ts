@@ -14,7 +14,7 @@ const validPeriodDate = (value?: string) =>
 export async function monitoredSocRead(
   resource: SocResource,
   input: SocReadInput,
-  source: "manual" | "schedule"
+  source: "manual" | "schedule" | "dashboard"
 ) {
   const startedAt = new Date().toISOString();
   const runId = randomUUID();

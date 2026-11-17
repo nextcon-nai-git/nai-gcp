@@ -47,6 +47,7 @@ function fixture(): ExecutiveDashboard {
     choices: [{ id: "a", name: "Empresa a" }],
     clients: [client("a"), client("b", { risksToReview: 2 }), client("c", { pgr: 0 })],
     avp: null,
+    avpWorkforce: null,
     avpAvailable: false,
     issues: [],
     clientsTruncated: false,
@@ -91,6 +92,24 @@ describe("executive metrics evidence", () => {
     expect(v.container.querySelector("tbody")?.textContent).not.toContain("Empresa a");
     await v.input('input[aria-label="Buscar cliente na carteira"]', "not found");
     expect(v.container.querySelector("tbody")?.textContent || "").not.toContain("Empresa b");
+  });
+  it("counts the group roster once and sums only other clients, preserving a missing local count", async () => {
+    m.data!.avpWorkforce = { records: 4000, observedOn: "2026-10-16", source: "manual" };
+    m.data!.clients = [
+      client("GRUPO_AVP", { employees: 150 }),
+      client("unit", { portfolioClientId: "avp", employees: 62 }),
+      client("other", { employees: 96 }),
+    ];
+    await v.render(<ExecutiveDashboardView />);
+    expect(v.container.querySelector('[data-testid="workforce-total"]')?.textContent).toBe("4.096");
+    expect(v.container.querySelector("header")?.textContent).toContain(
+      "referência histórica de 16/10/2026"
+    );
+    expect(v.container.querySelector("tbody")?.textContent).toContain("Incluído no grupo");
+    m.data = { ...m.data!, clients: [...m.data!.clients, client("missing", { employees: null })] };
+    await v.render(<ExecutiveDashboardView />);
+    expect(v.container.querySelector('[data-testid="workforce-total"]')?.textContent).toBe("—");
+    expect(v.container.querySelector("header")?.textContent).toContain("4.000");
   });
   it("changes the dashboard scope using registered client options", async () => {
     await v.render(<ExecutiveDashboardView />);
