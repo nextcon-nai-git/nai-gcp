@@ -17,7 +17,7 @@ vi.mock("googleapis/build/src/apis/sheets", () => ({
     spreadsheets: { get: m.metadata, values: { batchGet: m.batch, get: m.values } },
   }),
 }));
-import { readAvpPeriodicControl } from "./avp-periodic-control";
+import { readAvpPeriodicControl, readAvpCampaignRows } from "./avp-periodic-control";
 const sources = {
   campaignSpreadsheetId: "a".repeat(30),
   accreditationSpreadsheetId: "b".repeat(30),
@@ -209,4 +209,17 @@ it("rejeita fontes com largura acima do limite antes de buscar os valores", asyn
   expect(
     m.values.mock.calls.some(([arg]) => arg.spreadsheetId === sources.campaignSpreadsheetId)
   ).toBe(false);
+});
+
+it("lê apenas a campanha atual para o resumo ou a aba oficial da fila para configuração anterior", async () => {
+  const live = await readAvpCampaignRows(sources.campaignSpreadsheetId);
+  expect(live).toHaveLength(1);
+  expect(live[0][3]).toBe("Pessoa sintética");
+  expect(m.metadata).toHaveBeenCalledTimes(1);
+  expect(m.batch).not.toHaveBeenCalled();
+  m.metadata.mockResolvedValue({
+    data: { sheets: [property(2026102001, "Campanha Periódicos 2026", 31)] },
+  });
+  m.values.mockResolvedValue({ data: { values: [CAMPAIGN_HEADERS, live[0]] } });
+  expect(await readAvpCampaignRows()).toEqual(live);
 });

@@ -1,7 +1,11 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { adminDb } from "@/lib/firebase-admin";
-import { readAvpPeriodicControl, getAvpReaderEmail } from "./avp-periodic-control";
+import {
+  readAvpPeriodicControl,
+  getAvpReaderEmail,
+  readAvpCampaignRows,
+} from "./avp-periodic-control";
 import { PeriodicSourcesSchema, type PeriodicSources } from "@/lib/avp-periodic-live";
 import { AVP_PERIODIC_INTERVAL_MS } from "@/lib/avp-periodic-status";
 import type { AvpPeriodicControl } from "@/lib/avp-periodic-control";
@@ -210,4 +214,10 @@ export async function readAvpPeriodicMapSource() {
   if (!(await ref().get()).data()?.sources) return null;
   const data = await readAvpPeriodicSnapshot();
   return { clinics: data.mapClinics || [], checkedAt: data.checkedAt, sync: data.sync };
+}
+
+export async function readAvpQueueCampaign() {
+  const meta = (await ref().get()).data();
+  const sources = meta?.sources ? PeriodicSourcesSchema.parse(meta.sources) : null;
+  return readAvpCampaignRows(sources?.campaignSpreadsheetId);
 }

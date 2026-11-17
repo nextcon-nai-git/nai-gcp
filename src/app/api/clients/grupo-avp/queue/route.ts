@@ -4,6 +4,8 @@ import { canAccessAvpEvidence, requireAvpAccess } from "@/lib/auth/avp-access";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import { AuthError, forbidden, handleAuthError } from "@/lib/auth/errors";
 import { limitedBytes } from "@/lib/http/private-api";
+import { readAvpQueueCampaign } from "@/services/avp-periodic-sync";
+import { countAdditionalCampaignExams } from "@/lib/avp-queue-campaign";
 import { getAvpSnapshot, patchAvpQueue, syncAvpSource } from "@/services/avp-sheet-sync";
 
 export const dynamic = "force-dynamic";
@@ -11,11 +13,18 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuth(req);
     requireAvpAccess(user);
-    await syncAvpSource(req.nextUrl.searchParams.get("force") === "1", user.uid);
-    const snapshot = await getAvpSnapshot();
+    const includeCampaign = req.nextUrl.searchParams.get("campaign") === "1";
+    const [snapshot, campaign] = await Promise.all([
+      syncAvpSource(req.nextUrl.searchParams.get("force") === "1", user.uid).then(() =>
+        getAvpSnapshot()
+      ),
+      includeCampaign ? readAvpQueueCampaign().catch(() => null) : null,
+    ]);
     // The source refresh can outlive suspension or removal from the AVP portfolio.
     requireAvpAccess(await requireAuth(req));
-    return NextResponse.json(snapshot, {
+    const campaignCount =
+      campaign && snapshot.revision ? countAdditionalCampaignExams(snapshot.items, campaign) : null;
+    return NextResponse.json(includeCampaign ? { ...snapshot, campaignCount } : snapshot, {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (error) {

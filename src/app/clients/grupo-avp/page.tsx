@@ -31,7 +31,11 @@ import { AvpEvidencePanel } from "@/components/clients/avp-evidence-panel";
 import { AvpWorkflowPanel } from "@/components/clients/avp-workflow-panel";
 import { AvpPeriodicControlPanel } from "@/components/clients/avp-periodic-control";
 import { useUser } from "@/firebase";
-import { avpQueueExamTypes, countAvpQueueExams } from "@/lib/avp-queue-exam-counts";
+import {
+  avpQueueExamTypes,
+  countAvpQueueExams,
+  type AvpCampaignCount,
+} from "@/lib/avp-queue-exam-counts";
 import { canAccessAvpEvidence } from "@/lib/auth/avp-access";
 
 const formatCount = new Intl.NumberFormat("pt-BR");
@@ -45,6 +49,7 @@ export default function GrupoAvpClientHubPage() {
   const [activeTab, setActiveTab] = React.useState("asos");
   const [queueSummary, setQueueSummary] = React.useState(() => ({
     exams: countAvpQueueExams([]),
+    campaign: null as AvpCampaignCount | null,
     available: false,
     total: 0,
     urgentes: 0,
@@ -219,6 +224,13 @@ export default function GrupoAvpClientHubPage() {
               {queueSummary.available ? formatCount.format(queueSummary.exams.total) : "—"}{" "}
               {queueSummary.available && queueSummary.exams.total === 1 ? "ASO" : "ASOs"}
             </strong>
+            {queueSummary.available && (
+              <p className="text-xs text-emerald-200">
+                {queueSummary.campaign
+                  ? "Fila e campanha de periódicos"
+                  : "Parcial da fila · campanha indisponível"}
+              </p>
+            )}
             <dl
               aria-label="ASOs por tipo de exame"
               className="mt-2 space-y-1 text-xs text-emerald-100"
@@ -234,6 +246,12 @@ export default function GrupoAvpClientHubPage() {
                 </div>
               ))}
             </dl>
+            {queueSummary.available && !!queueSummary.campaign?.pending && (
+              <p className="mt-2 text-xs text-amber-200">
+                Registros da campanha a conciliar ·{" "}
+                {formatCount.format(queueSummary.campaign.pending)}
+              </p>
+            )}
             {queueSummary.available && queueSummary.exams.excluded > 0 && (
               <p className="mt-2 border-t border-emerald-400/30 pt-2 text-xs text-slate-300">
                 {formatCount.format(queueSummary.exams.excluded)} fora do total · outros tipos ou

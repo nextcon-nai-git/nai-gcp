@@ -60,13 +60,21 @@ describe("hub AVP: evidências e conferência de entregas", () => {
 
     const update = manager.mock.lastCall![0].onQueueSummaryChange!;
     const rows = [
-      ...Array(1500).fill({ tipoExame: "PERIÓDICO" }),
       ...Array(350).fill({ tipoExame: "Admissional" }),
       ...Array(150).fill({ tipoExame: "Demissional" }),
       { tipoExame: "Mudança de função" },
     ];
-    const summary = { available: true, total: rows.length, urgentes: 0, cidades: 1, concluidos: 0 };
-    await act(async () => update({ ...summary, exams: countAvpQueueExams(rows) }));
+    const summary = {
+      campaign: { additional: 1500, pending: 0 },
+      available: true,
+      total: rows.length,
+      urgentes: 0,
+      cidades: 1,
+      concluidos: 0,
+    };
+    await act(async () =>
+      update({ ...summary, exams: countAvpQueueExams(rows, summary.campaign) })
+    );
     expect(card.querySelector("strong")?.textContent).toBe("2.000 ASOs");
     expect(
       [...details.children].map((node) => [
@@ -80,15 +88,18 @@ describe("hub AVP: evidências e conferência de entregas", () => {
       ["Retorno ao trabalho", "0"],
     ]);
     expect(card.textContent).toContain("1 fora do total");
+    expect(card.textContent).toContain("Fila e campanha de periódicos");
 
     await act(async () =>
       update({
         ...summary,
+        campaign: null,
         total: 1,
         exams: countAvpQueueExams([{ tipoExame: "Retorno do Trabalho" }]),
       })
     );
     expect(card.querySelector("strong")?.textContent).toBe("1 ASO");
+    expect(card.textContent).toContain("Parcial da fila");
     expect(details.lastElementChild?.lastChild?.textContent).toBe("1");
     expect(card.textContent).not.toContain("fora do total");
   });

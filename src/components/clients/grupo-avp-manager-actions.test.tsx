@@ -23,6 +23,7 @@ vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: m.toast }) }));
 vi.mock("@/hooks/use-avp-queue", () => ({
   useAvpQueue: () => ({
     asosList: m.rows,
+    campaignCount: { additional: 2, pending: 1 },
     updateAsos: m.update,
     refresh: m.refresh,
     syncState: m.sync,
@@ -126,6 +127,12 @@ describe("AVP queue action review", () => {
     m.rows[2].valorAso = "0,00";
     await render();
     expect(m.summary).toHaveBeenLastCalledWith({
+      campaign: { additional: 2, pending: 1 },
+      exams: {
+        total: 5,
+        excluded: 0,
+        byType: { periodico: 2, admissional: 3, demissional: 0, retorno: 0 },
+      },
       available: true,
       total: 3,
       urgentes: 1,

@@ -32,13 +32,29 @@ const examAliases = new Map<string, ExamType>([
   ["RETORNO TRABALHO", "retorno"],
 ]);
 
-export function countAvpQueueExams(items: ReadonlyArray<Pick<GrupoAvpAso, "tipoExame">>) {
-  const byType = { periodico: 0, admissional: 0, demissional: 0, retorno: 0 };
+export function avpQueueExamType(tipoExame: string) {
+  const label = normalizeAvpText(tipoExame.replace(/[_-]+/g, " ")).replace(/^(?:ASO|EXAME) /, "");
+  return examAliases.get(label);
+}
+
+export type AvpCampaignCount = { additional: number; pending: number };
+
+export function countAvpQueueExams(
+  items: ReadonlyArray<Pick<GrupoAvpAso, "tipoExame">>,
+  campaign?: AvpCampaignCount | null
+) {
+  const byType = {
+    periodico: campaign?.additional ?? 0,
+    admissional: 0,
+    demissional: 0,
+    retorno: 0,
+  };
+  let excluded = 0;
   for (const { tipoExame } of items) {
-    const label = normalizeAvpText(tipoExame.replace(/[_-]+/g, " ")).replace(/^(?:ASO|EXAME) /, "");
-    const type = examAliases.get(label);
+    const type = avpQueueExamType(tipoExame);
     if (type) byType[type]++;
+    else excluded++;
   }
   const total = Object.values(byType).reduce((sum, count) => sum + count, 0);
-  return { byType, total, excluded: items.length - total };
+  return { byType, total, excluded };
 }

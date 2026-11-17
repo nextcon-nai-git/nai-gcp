@@ -3,7 +3,14 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { AuthError } from "@/lib/auth/errors";
 
-const m = vi.hoisted(() => ({ auth: vi.fn(), patch: vi.fn(), snapshot: vi.fn(), sync: vi.fn() }));
+const m = vi.hoisted(() => ({
+  auth: vi.fn(),
+  patch: vi.fn(),
+  snapshot: vi.fn(),
+  sync: vi.fn(),
+  campaign: vi.fn(),
+}));
+vi.mock("@/services/avp-periodic-sync", () => ({ readAvpQueueCampaign: m.campaign }));
 vi.mock("@/lib/auth/require-auth", () => ({ requireAuth: m.auth }));
 vi.mock("@/services/avp-sheet-sync", () => ({
   patchAvpQueue: m.patch,
@@ -136,3 +143,21 @@ it.each(["valorAso", "cnpjClinica", "pixRealizado", "chavePix"])(
     expect((await patch({ observacoes: "Revisado" })).status).toBe(200);
   }
 );
+
+it("acrescenta apenas os totais da campanha ao resumo autorizado e preserva a fila se a campanha falhar", async () => {
+  m.sync.mockResolvedValue({});
+  m.snapshot.mockResolvedValue({ items: [], revision: "v1" });
+  m.campaign.mockResolvedValue([
+    ["id", "Recife", "PE", "Pessoa apenas na campanha", "52998224725"],
+  ]);
+  const req = () => new NextRequest("https://nai.test/api/clients/grupo-avp/queue?campaign=1");
+  const data = await (await GET(req())).json();
+  expect(data).toEqual({ items: [], revision: "v1", campaignCount: { additional: 1, pending: 0 } });
+  m.campaign.mockRejectedValue(new Error("source unavailable"));
+  expect(await (await GET(req())).json()).toEqual({
+    items: [],
+    revision: "v1",
+    campaignCount: null,
+  });
+  expect(m.auth).toHaveBeenCalledTimes(4);
+});
