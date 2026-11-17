@@ -523,7 +523,7 @@ export function mergeSpreadsheetData(
           cidade: parsed.cidade || "Não Informada",
           uf: parsed.uf || "BR",
           colaborador: parsed.colaborador || `Novo Colaborador ${idx + 1}`,
-          tipoExame: parsed.tipoExame || "Admissional",
+          tipoExame: parsed.tipoExame || "",
           telefoneGestor: parsed.telefoneGestor || "",
           oQueFazer: parsed.oQueFazer || "",
           observacoes: parsed.observacoes || "",

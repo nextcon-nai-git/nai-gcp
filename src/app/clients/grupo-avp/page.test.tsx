@@ -1,6 +1,11 @@
-import { act, type ReactNode } from "react";
+import { act, type ComponentProps, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { GrupoAvpAsoManager } from "@/components/clients/grupo-avp-aso-manager";
+import { countAvpQueueExams } from "@/lib/avp-queue-exam-counts";
+const manager = vi.hoisted(() =>
+  vi.fn<(props: NonNullable<ComponentProps<typeof GrupoAvpAsoManager>>) => null>(() => null)
+);
 const session = vi.hoisted(() => ({
   user: { uid: "reviewer" },
   role: "SUPER_ADMIN",
@@ -9,7 +14,7 @@ const session = vi.hoisted(() => ({
 }));
 vi.mock("@/firebase", () => ({ useUser: () => session }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
-vi.mock("@/components/clients/grupo-avp-aso-manager", () => ({ GrupoAvpAsoManager: () => null }));
+vi.mock("@/components/clients/grupo-avp-aso-manager", () => ({ GrupoAvpAsoManager: manager }));
 vi.mock("@/components/clients/avp-scheduling-request-form", () => ({
   AvpSchedulingRequestForm: () => null,
 }));
@@ -44,6 +49,60 @@ afterEach(async () => {
 });
 
 describe("hub AVP: evidências e conferência de entregas", () => {
+  it("mostra o total dos quatro tipos e os atualiza com a fila", async () => {
+    await act(async () => root.render(<GrupoAvpClientHubPage />));
+    const details = host.querySelector('dl[aria-label="ASOs por tipo de exame"]')!;
+    const card = details.parentElement!;
+    expect(card.querySelector("strong")?.textContent).toBe("— ASOs");
+    expect([...details.querySelectorAll("dd")].map((node) => node.textContent)).toEqual(
+      Array(4).fill("—")
+    );
+
+    const update = manager.mock.lastCall![0].onQueueSummaryChange!;
+    const rows = [
+      ...Array(350).fill({ tipoExame: "Admissional" }),
+      ...Array(150).fill({ tipoExame: "Demissional" }),
+      { tipoExame: "Mudança de função" },
+    ];
+    const summary = {
+      campaign: { additional: 1500, pending: 0 },
+      available: true,
+      total: rows.length,
+      urgentes: 0,
+      cidades: 1,
+      concluidos: 0,
+    };
+    await act(async () =>
+      update({ ...summary, exams: countAvpQueueExams(rows, summary.campaign) })
+    );
+    expect(card.querySelector("strong")?.textContent).toBe("2.000 ASOs");
+    expect(
+      [...details.children].map((node) => [
+        node.firstChild?.textContent,
+        node.lastChild?.textContent,
+      ])
+    ).toEqual([
+      ["Periódicos", "1.500"],
+      ["Admissionais", "350"],
+      ["Demissionais", "150"],
+      ["Retorno ao trabalho", "0"],
+    ]);
+    expect(card.textContent).toContain("1 fora do total");
+    expect(card.textContent).toContain("Fila e campanha de periódicos");
+
+    await act(async () =>
+      update({
+        ...summary,
+        campaign: null,
+        total: 1,
+        exams: countAvpQueueExams([{ tipoExame: "Retorno do Trabalho" }]),
+      })
+    );
+    expect(card.querySelector("strong")?.textContent).toBe("1 ASO");
+    expect(card.textContent).toContain("Parcial da fila");
+    expect(details.lastElementChild?.lastChild?.textContent).toBe("1");
+    expect(card.textContent).not.toContain("fora do total");
+  });
   it("inicia sem entregas presumidas e identifica marcações como conferência local", async () => {
     await act(async () => root.render(<GrupoAvpClientHubPage />));
     expect(host.textContent).toContain("0 de 9 conferidos nesta sessão");

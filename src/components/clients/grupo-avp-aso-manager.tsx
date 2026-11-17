@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/dialog";
 import { useUser } from "@/firebase";
 import { useAvpQueue } from "@/hooks/use-avp-queue";
+import { countAvpQueueExams, type AvpCampaignCount } from "@/lib/avp-queue-exam-counts";
 import { buildAvpQueueCsv } from "@/lib/avp-queue-export";
 import {
   avpCostSummary,
@@ -87,11 +88,15 @@ export function GrupoAvpAsoManager({
     urgentes: number;
     cidades: number;
     concluidos: number;
+    campaign: AvpCampaignCount | null;
+    exams: ReturnType<typeof countAvpQueueExams>;
   }) => void;
 } = {}) {
   const { toast } = useToast();
   const { user } = useUser();
-  const { asosList, updateAsos, syncState, refresh, source } = useAvpQueue(user?.uid ?? null);
+  const { asosList, campaignCount, updateAsos, syncState, refresh, source } = useAvpQueue(
+    user?.uid ?? null
+  );
   const [costFilter, setCostFilter] = React.useState("ALL");
   const costSummary = React.useMemo(() => avpCostSummary(asosList), [asosList]);
 
@@ -210,19 +215,30 @@ export function GrupoAvpAsoManager({
       else emTratamento++;
     });
 
-    return { total, agendados, naoIniciados, urgentes, concluidos, emTratamento, cancelados };
-  }, [asosList]);
+    return {
+      total,
+      agendados,
+      naoIniciados,
+      urgentes,
+      concluidos,
+      emTratamento,
+      cancelados,
+      exams: countAvpQueueExams(asosList, campaignCount),
+    };
+  }, [asosList, campaignCount]);
 
   const available = !!syncState.checkedAt || syncState.status === "CONNECTED";
   React.useEffect(() => {
     onQueueSummaryChange?.({
-      available: !!syncState.checkedAt || syncState.status === "CONNECTED",
+      available,
+      exams: metrics.exams,
+      campaign: campaignCount,
       total: metrics.total,
       urgentes: metrics.urgentes,
       concluidos: metrics.concluidos,
       cidades: new Set(asosList.map((item) => item.cidade + "|" + item.uf)).size,
     });
-  }, [metrics, asosList, onQueueSummaryChange, syncState.checkedAt, syncState.status]);
+  }, [metrics, asosList, onQueueSummaryChange, available, campaignCount]);
 
   // Filtragem
   const filteredList = React.useMemo(() => {

@@ -8,6 +8,7 @@ import {
 } from "@/lib/grupo-avp-asos-data";
 import { useUser } from "@/firebase";
 import { AVP_SOURCE } from "@/lib/avp-source-config";
+import type { AvpCampaignCount } from "@/lib/avp-queue-exam-counts";
 import { avpElapsedDays } from "@/lib/avp-costs";
 
 const stringFields: (keyof GrupoAvpAso)[] = [
@@ -65,7 +66,11 @@ function readQueue(userId: string | null): GrupoAvpAso[] {
 
 export function useAvpQueue(userId: string | null) {
   const { user } = useUser();
-  const [queue, setQueue] = useState<{ owner: string | null; items: GrupoAvpAso[] }>({
+  const [queue, setQueue] = useState<{
+    owner: string | null;
+    items: GrupoAvpAso[];
+    campaignCount?: AvpCampaignCount | null;
+  }>({
     owner: null,
     items: GRUPO_AVP_ASO_LIST,
   });
@@ -112,11 +117,14 @@ export function useAvpQueue(userId: string | null) {
       const epoch = identityEpoch.current;
       try {
         const token = await user.getIdToken();
-        const response = await fetch("/api/clients/grupo-avp/queue" + (force ? "?force=1" : ""), {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: "no-store",
-          signal: AbortSignal.timeout(60000),
-        });
+        const response = await fetch(
+          "/api/clients/grupo-avp/queue?campaign=1" + (force ? "&force=1" : ""),
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: "no-store",
+            signal: AbortSignal.timeout(60000),
+          }
+        );
         const result = await response.json();
         if (
           identity.current !== userId ||
@@ -127,6 +135,7 @@ export function useAvpQueue(userId: string | null) {
           return;
         if (response.status === 401 || response.status === 403) {
           revision.current = "";
+          setSyncState((old) => ({ ...old, checkedAt: null }));
           const empty = { owner: userId, items: [] as GrupoAvpAso[] };
           current.current = empty;
           setQueue(empty);
@@ -147,7 +156,11 @@ export function useAvpQueue(userId: string | null) {
         });
         if (result.revision && Array.isArray(result.items)) {
           revision.current = result.revision;
-          const next = { owner: userId, items: result.items as GrupoAvpAso[] };
+          const next = {
+            owner: userId,
+            items: result.items as GrupoAvpAso[],
+            campaignCount: result.campaignCount ?? null,
+          };
           current.current = next;
           setQueue(next);
           try {
@@ -200,6 +213,8 @@ export function useAvpQueue(userId: string | null) {
         return false;
       }
       const epoch = identityEpoch.current;
+      const campaignCount =
+        current.current.owner === userId && revision.current ? current.current.campaignCount : null;
       const existing = current.current.owner === userId ? current.current.items : readQueue(userId);
       const items = typeof update === "function" ? update(existing) : update;
       if (revision.current && user?.uid === userId) {
@@ -262,7 +277,7 @@ export function useAvpQueue(userId: string | null) {
               revision.current = result.revision;
             } catch (error) {
               if (identity.current === userId && epoch === identityEpoch.current) {
-                const rollback = { owner: userId, items: existing };
+                const rollback = { owner: userId, items: existing, campaignCount };
                 current.current = rollback;
                 setQueue(rollback);
                 try {
@@ -287,7 +302,7 @@ export function useAvpQueue(userId: string | null) {
           });
         }
       }
-      const next = { owner: userId, items };
+      const next = { owner: userId, items, campaignCount };
       current.current = next;
       setQueue(next);
       try {
@@ -305,5 +320,12 @@ export function useAvpQueue(userId: string | null) {
     () => items.map((item) => ({ ...item, diasParado: avpElapsedDays(item, clock) })),
     [items, clock]
   );
-  return { asosList: visibleItems, updateAsos, syncState, refresh, source: AVP_SOURCE };
+  return {
+    campaignCount: queue.owner === userId ? (queue.campaignCount ?? null) : null,
+    asosList: visibleItems,
+    updateAsos,
+    syncState,
+    refresh,
+    source: AVP_SOURCE,
+  };
 }

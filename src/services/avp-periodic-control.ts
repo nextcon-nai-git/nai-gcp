@@ -2,7 +2,11 @@ import "server-only";
 import { auth as googleAuth, sheets as googleSheets } from "googleapis/build/src/apis/sheets";
 import { adminDb } from "@/lib/firebase-admin";
 import { AVP_SOURCE } from "@/lib/avp-source-config";
-import { AVP_PERIODIC_TABS, buildAvpPeriodicControl } from "@/lib/avp-periodic-control";
+import {
+  AVP_PERIODIC_TABS,
+  buildAvpPeriodicControl,
+  readPeriodicCampaignRows,
+} from "@/lib/avp-periodic-control";
 import { attachPeriodicWorkSource } from "./avp-periodic-work-source";
 import {
   adaptLiveCampaign,
@@ -16,6 +20,65 @@ export async function getAvpReaderEmail() {
   });
   const credentials = await auth.getCredentials();
   return credentials.client_email || null;
+}
+
+async function readLiveTab(
+  sheets: ReturnType<typeof googleSheets>,
+  spreadsheetId: string,
+  title: string,
+  width: number,
+  expectedSheetId?: number
+) {
+  const metadata = await sheets.spreadsheets.get(
+    { spreadsheetId, fields: "sheets.properties" },
+    { timeout: 20000 }
+  );
+  const sheet = metadata.data.sheets?.find((s) => s.properties?.title === title)?.properties;
+  const grid = sheet?.gridProperties;
+  const columnCount = grid?.columnCount || 0;
+  if (
+    (expectedSheetId !== undefined && sheet?.sheetId !== expectedSheetId) ||
+    !grid?.rowCount ||
+    grid.rowCount > (expectedSheetId === undefined ? 10000 : 10001) ||
+    columnCount < width ||
+    columnCount > 256
+  )
+    throw new Error("Aba da campanha ou do credenciamento não encontrada ou fora dos limites.");
+  let last = "";
+  for (let n = columnCount; n > 0; n = Math.floor((n - 1) / 26))
+    last = String.fromCharCode(65 + ((n - 1) % 26)) + last;
+  const result = await sheets.spreadsheets.values.get(
+    {
+      spreadsheetId,
+      range: `'${title}'!A1:${last}${grid.rowCount}`,
+      valueRenderOption: "FORMATTED_VALUE",
+    },
+    { timeout: 25000 }
+  );
+  return result.data.values || [];
+}
+
+export async function readAvpCampaignRows(spreadsheetId?: string) {
+  const auth = new googleAuth.GoogleAuth({
+    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+  });
+  const sheets = googleSheets({ version: "v4", auth });
+  const values = spreadsheetId
+    ? adaptLiveCampaign(await readLiveTab(sheets, spreadsheetId, "Controle", 32))
+    : await readLiveTab(
+        sheets,
+        AVP_SOURCE.spreadsheetId,
+        AVP_PERIODIC_TABS.campaign,
+        31,
+        2026102001
+      );
+  const rows = readPeriodicCampaignRows(values);
+  if (
+    !rows.length ||
+    rows.some((row) => !row[0] || !row[3] || !row[1] || !/^[A-Z]{2}$/.test(row[2]))
+  )
+    throw new Error("Participantes da campanha incompletos.");
+  return rows;
 }
 
 export async function readAvpPeriodicControl(sources?: PeriodicSources) {
@@ -54,34 +117,11 @@ export async function readAvpPeriodicControl(sources?: PeriodicSources) {
   if (providers.size > 5000) throw new Error("Cadastro de prestadores excede o limite de leitura.");
   const values = result.data.valueRanges;
   if (values?.length !== specs.length) throw new Error("Fontes AVP incompletas.");
-  async function readLiveTab(spreadsheetId: string, title: string, width: number) {
-    const metadata = await sheets.spreadsheets.get(
-      { spreadsheetId, fields: "sheets.properties" },
-      { timeout: 20000 }
-    );
-    const sheet = metadata.data.sheets?.find((s) => s.properties?.title === title)?.properties;
-    const grid = sheet?.gridProperties;
-    const columnCount = grid?.columnCount || 0;
-    if (!grid?.rowCount || grid.rowCount > 10000 || columnCount < width || columnCount > 256)
-      throw new Error("Aba da campanha ou do credenciamento não encontrada ou fora dos limites.");
-    let last = "";
-    for (let n = columnCount; n > 0; n = Math.floor((n - 1) / 26))
-      last = String.fromCharCode(65 + ((n - 1) % 26)) + last;
-    const result = await sheets.spreadsheets.values.get(
-      {
-        spreadsheetId,
-        range: `'${title}'!A1:${last}${grid.rowCount}`,
-        valueRenderOption: "FORMATTED_VALUE",
-      },
-      { timeout: 25000 }
-    );
-    return result.data.values || [];
-  }
   const checkedAt = new Date().toISOString();
   const live = sources
     ? await Promise.all([
-        readLiveTab(sources.campaignSpreadsheetId, "Controle", 32),
-        readLiveTab(sources.accreditationSpreadsheetId, "NAI Credenciamento", 24),
+        readLiveTab(sheets, sources.campaignSpreadsheetId, "Controle", 32),
+        readLiveTab(sheets, sources.accreditationSpreadsheetId, "NAI Credenciamento", 24),
       ])
     : null;
   const accreditation = live ? adaptLiveAccreditation(live[1], checkedAt) : null;
