@@ -23,7 +23,7 @@ const totals = () => host.querySelector('[aria-label="Totais da fila no mapa"]')
 describe("indicadores reais no mapa AVP", () => {
   it("não mostra contagens fixas quando a fila está vazia", async () => {
     await act(async () => root.render(<GrupoAvpQueueMap asos={[]} />));
-    expect(totals()).toBe("0 Agendados0 Não Iniciados0 Urgentes");
+    expect(totals()).toBe("0 Agendados0 Não Iniciados0 urgentes em aberto");
   });
   it("recalcula os totais ao receber uma nova fila, incluindo registros sem coordenadas", async () => {
     const items = [
@@ -40,13 +40,13 @@ describe("indicadores reais no mapa AVP", () => {
         ...AVP_TEST_ASOS[0],
         id: "three",
         status: "EXAME FEITO" as const,
-        urgencia: "NORMAL" as const,
+        urgencia: "URGENTE" as const,
       },
     ];
     await act(async () => root.render(<GrupoAvpQueueMap asos={items} />));
-    expect(totals()).toBe("1 Agendados1 Não Iniciados1 Urgentes");
+    expect(totals()).toBe("1 Agendados1 Não Iniciados1 urgentes em aberto");
     await act(async () => root.render(<GrupoAvpQueueMap asos={items.slice(1)} />));
-    expect(totals()).toBe("0 Agendados1 Não Iniciados0 Urgentes");
+    expect(totals()).toBe("0 Agendados1 Não Iniciados0 urgentes em aberto");
   });
 });
 
@@ -69,5 +69,5 @@ it("exibe clínica nova sem ASOs e aplica seu preço atual ao pin", async () => 
   expect(
     host.querySelector(`#locality-pins circle[fill="${AVP_COST_BANDS.red.color}"]`)
   ).not.toBeNull();
-  expect(totals()).toBe("0 Agendados0 Não Iniciados0 Urgentes");
+  expect(totals()).toBe("0 Agendados0 Não Iniciados0 urgentes em aberto");
 });

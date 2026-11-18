@@ -21,6 +21,10 @@ export type WorkItem = {
   unplanned: boolean;
 };
 const complete = (status: ProductionCard["status"]) => status === "done" || status === "na";
+export function workItemKey(recordId: string, cycleId: string, kind: "card" | "task", id: string) {
+  return `production:${recordId}:${cycleId}:${kind}:${id}`;
+}
+
 export function workQueue(records: ProductionRecord[], today: string): WorkItem[] {
   const result: WorkItem[] = [];
   for (const record of records) {
@@ -36,7 +40,7 @@ export function workQueue(records: ProductionRecord[], today: string): WorkItem[
       if (complete(item.status)) return;
       result.push({
         ...item,
-        key: `${record.id}:${cycleId}:${key}`,
+        key,
         recordId: record.id,
         cycleId,
         company: record.companyName,
@@ -52,7 +56,14 @@ export function workQueue(records: ProductionRecord[], today: string): WorkItem[
     };
     const addCard = (card: ProductionCard, cycleId = "", cycle = "") => {
       const instruction = instructions.find((i) => i.id === card.id)!;
-      add(card, `card:${card.id}`, instruction.title, instruction.stage, cycleId, cycle);
+      add(
+        card,
+        workItemKey(record.id, cycleId, "card", card.id),
+        instruction.title,
+        instruction.stage,
+        cycleId,
+        cycle
+      );
     };
     record.commercial.forEach((card) => addCard(card));
     for (const cycle of record.cycles) {
@@ -61,7 +72,7 @@ export function workQueue(records: ProductionRecord[], today: string): WorkItem[
       cycle.tasks.forEach((task) =>
         add(
           task,
-          `task:${task.obligation.id}`,
+          workItemKey(record.id, cycle.id, "task", task.obligation.id),
           task.obligation.title,
           "operacional",
           cycle.id,
@@ -96,6 +107,7 @@ export function queueStats(items: WorkItem[]) {
   return {
     open: items.length,
     overdue: items.filter((i) => i.overdue).length,
+    dueToday: items.filter((i) => i.dueToday).length,
     blocked: items.filter((i) => i.status === "blocked").length,
     unplanned: items.filter((i) => i.unplanned).length,
   };

@@ -1,4 +1,4 @@
-import type { GrupoAvpAso } from "./grupo-avp-asos-data";
+import { avpQueueClosed, type GrupoAvpAso } from "./grupo-avp-asos-data";
 
 /** A cotação deve representar um preço único. Texto com vários preços não vira média. */
 export function parseBrlCents(value: string | number | null | undefined): number | null {
@@ -52,8 +52,7 @@ export function formatBrlCents(cents: number) {
 
 export function avpElapsedDays(aso: GrupoAvpAso, now = new Date()) {
   const m = aso.dataPedido.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!m || ["EXAME FEITO", "GESTOR CANCELOU", "DESISTIU DA VAGA"].includes(aso.status))
-    return aso.diasParado;
+  if (!m || avpQueueClosed(aso.status)) return aso.diasParado;
   const start = Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
   const date = new Date(start);
   if (

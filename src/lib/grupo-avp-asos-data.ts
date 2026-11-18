@@ -86,6 +86,20 @@ export function avpCalendarDay(value: string) {
   return isCalendarDate(iso) ? iso : "";
 }
 
+export function avpQueueClosed(status: AsoStatus) {
+  return status === "EXAME FEITO" || status === "GESTOR CANCELOU" || status === "DESISTIU DA VAGA";
+}
+
+export function isOpenAvpUrgency(item: GrupoAvpAso) {
+  return item.urgencia === "URGENTE" && !avpQueueClosed(item.status);
+}
+
+export function needsAvpAppointmentReview(item: GrupoAvpAso, today: string) {
+  if (item.status !== "AGENDADO") return false;
+  const day = avpCalendarDay(item.dataAgendada || item.dataAgendadaIso || "");
+  return !!day && day < today;
+}
+
 export const AVP_EDITABLE_FIELDS = [
   "urgencia",
   "status",

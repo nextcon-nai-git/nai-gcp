@@ -57,7 +57,13 @@ describe("contract priority queue", () => {
     const record = fixture(),
       original = structuredClone(record);
     const queue = workQueue([record], "2026-10-19");
-    expect(queueStats(queue)).toEqual({ open: 10, overdue: 1, blocked: 0, unplanned: 9 });
+    expect(queueStats(queue)).toEqual({
+      open: 10,
+      overdue: 1,
+      dueToday: 0,
+      blocked: 0,
+      unplanned: 9,
+    });
     expect(queue[0].title).toBe("Elaborar PGR");
     expect(queue[0].cycleId).toBe("r1_initial");
     expect(record).toEqual(original);

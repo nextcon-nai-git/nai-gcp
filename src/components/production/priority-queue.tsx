@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import type { ProductionRecord } from "@/lib/production/model";
-import { workQueue, queueStats, searchWorkItem } from "@/lib/production/queue";
+import { workQueue, queueStats, searchWorkItem, type WorkItem } from "@/lib/production/queue";
 import { stages, stageNames, type Stage } from "@/lib/production/instructions";
 import { Button } from "@/components/ui/button";
 
@@ -20,22 +20,24 @@ export function PriorityQueue({
 }: {
   records: ProductionRecord[];
   today: string;
-  onOpen: (recordId: string, cycleId: string) => void;
+  onOpen: (item: WorkItem) => void;
 }) {
   const [stage, setStage] = React.useState<Stage | "all">("all");
   const [filter, setFilter] = React.useState("all");
   const [search, setSearch] = React.useState("");
   const [limit, setLimit] = React.useState(20);
   const items = React.useMemo(() => workQueue(records, today), [records, today]);
-  const stats = queueStats(items);
-  const filtered = items.filter(
+  const scoped = items.filter(
+    (item) => (stage === "all" || item.stage === stage) && searchWorkItem(item, search)
+  );
+  const stats = queueStats(scoped);
+  const filtered = scoped.filter(
     (item) =>
-      (stage === "all" || item.stage === stage) &&
-      searchWorkItem(item, search) &&
-      (filter === "all" ||
-        (filter === "overdue" && item.overdue) ||
-        (filter === "blocked" && item.status === "blocked") ||
-        (filter === "unplanned" && item.unplanned))
+      filter === "all" ||
+      (filter === "dueToday" && item.dueToday) ||
+      (filter === "overdue" && item.overdue) ||
+      (filter === "blocked" && item.status === "blocked") ||
+      (filter === "unplanned" && item.unplanned)
   );
   return (
     <section aria-label="Fila de prioridades" className="space-y-4 rounded-lg border p-4">
@@ -46,17 +48,29 @@ export function PriorityQueue({
           precisam ser programados.
         </p>
       </div>
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        {[
-          ["Etapas e tarefas abertas", stats.open],
-          ["Com prazo vencido", stats.overdue],
-          ["Bloqueadas", stats.blocked],
-          ["Sem responsável ou prazo", stats.unplanned],
-        ].map(([label, value]) => (
-          <div className="rounded-md bg-muted p-3" key={label}>
-            <p className="text-xs">{label}</p>
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+        {(
+          [
+            ["all", "Etapas e tarefas abertas", stats.open],
+            ["overdue", "Com prazo vencido", stats.overdue],
+            ["dueToday", "Vencem hoje", stats.dueToday],
+            ["blocked", "Bloqueadas", stats.blocked],
+            ["unplanned", "Sem responsável ou prazo", stats.unplanned],
+          ] as const
+        ).map(([key, label, value]) => (
+          <button
+            type="button"
+            aria-pressed={filter === key}
+            className="rounded-md border bg-muted p-3 text-left hover:bg-accent aria-pressed:border-primary focus-visible:ring-2"
+            key={key}
+            onClick={() => {
+              setFilter(key);
+              setLimit(20);
+            }}
+          >
+            <span className="block text-xs">{label}</span>
             <strong className="text-xl">{value}</strong>
-          </div>
+          </button>
         ))}
       </div>
       <p className="text-xs text-muted-foreground">
@@ -106,6 +120,7 @@ export function PriorityQueue({
           >
             <option value="all">Todas as pendências</option>
             <option value="overdue">Prazo vencido</option>
+            <option value="dueToday">Vencem hoje</option>
             <option value="blocked">Bloqueadas</option>
             <option value="unplanned">Sem responsável ou prazo</option>
           </select>
@@ -168,7 +183,7 @@ export function PriorityQueue({
                       size="sm"
                       variant="outline"
                       aria-label={`Abrir ${item.title} de ${item.company}`}
-                      onClick={() => onOpen(item.recordId, item.cycleId)}
+                      onClick={() => onOpen(item)}
                     >
                       Abrir
                     </Button>
