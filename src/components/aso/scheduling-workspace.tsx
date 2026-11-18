@@ -2,6 +2,7 @@
 
 import { SchedulingQueue, initialQueueFilters } from "./scheduling-queue";
 import { ClinicPortalInvite } from "@/components/aso/clinic-portal-invite";
+import { ClinicPixRequest } from "@/components/financial/clinic-pix-request";
 import { KitPdfGenerator } from "@/components/aso/kit-pdf-generator";
 import { reviewMoveError, type BoardMoveReceipt } from "@/lib/aso-review-move";
 import React, { useState, useEffect } from "react";
@@ -887,6 +888,7 @@ Prazo devolução ASO/XML eSocial: ${kit.returnDeadlineDays} dias úteis.`;
         {/* TAB 4: CLÍNICAS CREDENCIADAS */}
         {activeTab === "clinicas" && (
           <div className="space-y-4">
+            <ClinicPixRequest />
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-white flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-teal-400" />

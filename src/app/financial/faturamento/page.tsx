@@ -202,12 +202,12 @@ export default function FinancialModule() {
           <div>
             <h2 className="font-semibold text-slate-900">Pagamentos de clínicas · ASOs</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Consolide ASOs concluídos por clínica e gere rascunhos de contas a pagar para revisão.
+              Prepare solicitações de PIX antecipado ou gere lotes de ASOs concluídos por clínica.
             </p>
           </div>
         </div>
         <span className="flex items-center gap-2 text-sm font-semibold text-emerald-800">
-          Preparar lote <ArrowRight size={16} />
+          Abrir pagamentos <ArrowRight size={16} />
         </span>
       </Link>
 
