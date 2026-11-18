@@ -57,6 +57,37 @@ const render = () => view.render(<ClinicPaymentBatchesWorkspace />);
 const createLabel = "Gerar rascunhos no financeiro";
 
 describe("conferência de rascunhos de ASOs", () => {
+  it("copia o modelo de adiantamento vazio ou preenchido sem criar um lote", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    fetcher.mockResolvedValue(Response.json(preview));
+    await render();
+    await view.input('[name="Clínica"]', "Clínica de teste");
+    await view.click("Copiar solicitação");
+    expect(writeText).not.toHaveBeenCalled();
+    await view.click("Copiar modelo em branco");
+    const blank = writeText.mock.calls[0][0];
+    expect(blank).toContain("SOLICITAÇÃO DE PIX - CLÍNICA\n\n* Clínica:\n* CNPJ:");
+    expect(blank).not.toContain("Clínica de teste");
+    await view.input('[name="CNPJ"]', "11.222.333/0001-81");
+    await view.input('[name="Colaborador(es)"]', "Pessoa A\nPessoa B");
+    await view.input('[name="Exame / Data"]', "ASO / 20-11");
+    await view.input('[name="Valor total"]', "50.25");
+    await view.input('[name="Chave PIX (titularidade da clínica)"]', "clinica@example.test");
+    await view.click("Copiar solicitação");
+    const message = writeText.mock.lastCall?.[0];
+    expect(message).toContain("Clínica: Clínica de teste\n* CNPJ: 11.222.333/0001-81");
+    expect(message).toContain("Colaborador(es): Pessoa A\nPessoa B\n* Exame / Data: ASO / 20-11");
+    expect(message).toContain("Valor total: R$ 50,25");
+    expect(message).toContain("Chave PIX (titularidade da clínica): clinica@example.test");
+    expect(message).toContain("conta de titularidade da clínica, no CNPJ informado");
+    writeText.mockRejectedValueOnce(new Error("Cópia bloqueada"));
+    await view.click("Copiar solicitação");
+    expect(view.container.querySelector<HTMLTextAreaElement>("textarea[readonly]")?.value).toBe(
+      message
+    );
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it.each([
     { sourceStatus: "ERROR", sourceError: "Falha na leitura." },
     { refreshInProgress: true },

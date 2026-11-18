@@ -9,6 +9,7 @@ import { useUser } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ClinicPixRequest } from "@/components/financial/clinic-pix-request";
 
 type Preview = Awaited<ReturnType<typeof previewClinicPaymentBatches>>;
 const pageSize = 25;
@@ -146,6 +147,8 @@ function ClinicPaymentReview({ user }: { user: User }) {
           <Link href="/financial/operacoes">Abrir financeiro operacional</Link>
         </Button>
       </div>
+
+      <ClinicPixRequest />
 
       <Card>
         <CardHeader>
