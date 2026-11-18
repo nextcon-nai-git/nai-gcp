@@ -1,6 +1,6 @@
 // Referências municipais para visualização de cobertura. Não são endereços de clínicas.
 import { normalizeAvpCity } from "./avp-verified-clinics";
-import { GrupoAvpAso, AsoStatus } from "./grupo-avp-asos-data";
+import { isOpenAvpUrgency, type GrupoAvpAso, type AsoStatus } from "./grupo-avp-asos-data";
 import municipalReferences from "./br-municipal-coordinates.json";
 
 export interface CityGeoCoordinate {
@@ -1173,7 +1173,7 @@ export function aggregateAvpLocalities(
 
     items.forEach((item) => {
       statusCounts[item.status] = (statusCounts[item.status] || 0) + 1;
-      if (item.urgencia === "URGENTE") {
+      if (isOpenAvpUrgency(item)) {
         urgentCount++;
       }
     });

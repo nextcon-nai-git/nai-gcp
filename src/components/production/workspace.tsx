@@ -31,6 +31,8 @@ import type { BillingQueueSnapshot } from "@/lib/production/billing-queue";
 import type { ServiceReceiptsSnapshot } from "@/lib/production/service-receipts";
 import { BillingQueue } from "./billing-queue";
 import { ServiceReceipts, type ServiceReceiptCommand } from "./service-receipts";
+import { brasiliaToday, useBrasiliaDate } from "@/hooks/use-brasilia-date";
+import { workItemKey } from "@/lib/production/queue";
 import { PriorityQueue } from "./priority-queue";
 import { SchedulePlanner } from "./schedule-planner";
 import {
@@ -77,29 +79,6 @@ const statusNames = {
   done: "Concluído",
   na: "Não aplicável",
 };
-const today = () =>
-  new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(new Date());
-function useBrasiliaDate() {
-  const [date, setDate] = React.useState(today);
-  React.useEffect(() => {
-    // Align to the next minute (including midnight), and recover after suspended tabs.
-    let timer: number;
-    const update = () => {
-      window.clearTimeout(timer);
-      setDate(today());
-      timer = window.setTimeout(update, 60000 - (Date.now() % 60000) + 1);
-    };
-    update();
-    window.addEventListener("focus", update);
-    document.addEventListener("visibilitychange", update);
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener("focus", update);
-      document.removeEventListener("visibilitychange", update);
-    };
-  }, []);
-  return date;
-}
 const value = (f: FormData, name: string) => String(f.get(name) || "").trim();
 function amount(f: FormData, name: string) {
   const raw = value(f, name).replace(",", ".");
@@ -273,6 +252,18 @@ function Workspace() {
   const [book, setBook] = React.useState<ProductionBook | null>(null),
     [companies, setCompanies] = React.useState<Company[]>([]);
   const [selectedCycle, setSelectedCycle] = React.useState("");
+  const [editorTarget, setEditorTarget] = React.useState<{ key: string } | null>(null);
+  React.useLayoutEffect(() => {
+    if (!editorTarget) return;
+    const details = document.getElementById(editorTarget.key);
+    if (details instanceof HTMLDetailsElement) {
+      details.open = true;
+      const summary = details.querySelector("summary");
+      summary?.focus({ preventScroll: true });
+      summary?.scrollIntoView?.({ block: "center" });
+    }
+  }, [editorTarget]);
+
   const [selected, setSelected] = React.useState(""),
     [tab, setTab] = React.useState<
       "work" | "billing" | "receipts" | "training" | "procedure" | "agents"
@@ -512,15 +503,11 @@ function Workspace() {
               <PriorityQueue
                 records={book.records}
                 today={currentDate}
-                onOpen={(recordId, cycleId) => {
-                  setSelected(recordId);
-                  setSelectedCycle(cycleId);
+                onOpen={(item) => {
+                  setSelected(item.recordId);
+                  setSelectedCycle(item.cycleId);
                   setSearch("");
-                  requestAnimationFrame(() =>
-                    document
-                      .getElementById("production-record")
-                      ?.scrollIntoView?.({ behavior: "smooth", block: "start" })
-                  );
+                  setEditorTarget({ key: item.key });
                 }}
               />
             )}
@@ -1031,7 +1018,7 @@ function RecordForm({
                   name="effectiveOn"
                   label="Data de efeito desta versão (revisada)"
                   type="date"
-                  defaultValue={today()}
+                  defaultValue={brasiliaToday()}
                   required
                 />
                 {record && (
@@ -1335,6 +1322,7 @@ function RecordView({
           {record.commercial.map((card) => (
             <CardEditor
               key={card.id}
+              editorId={workItemKey(record.id, "", "card", card.id)}
               card={card}
               disabled={disabled || !record.active}
               save={(c) =>
@@ -1445,6 +1433,7 @@ function RecordView({
                 {cycle.tasks.map((task) => (
                   <ObligationTaskEditor
                     key={cycle.id + task.obligation.id + task.updatedAt}
+                    editorId={workItemKey(record.id, cycle.id, "task", task.obligation.id)}
                     task={task}
                     disabled={disabled || !record.active}
                     save={(data, reason) =>
@@ -1471,6 +1460,7 @@ function RecordView({
                   .map((card) => (
                     <CardEditor
                       key={cycle.id + card.id}
+                      editorId={workItemKey(record.id, cycle.id, "card", card.id)}
                       card={card}
                       disabled={disabled || !record.active}
                       save={(c) =>
@@ -1656,10 +1646,12 @@ function RecordView({
   );
 }
 function CardEditor({
+  editorId,
   card,
   disabled,
   save,
 }: {
+  editorId: string;
   card: ProductionCard;
   disabled: boolean;
   save: (c: { card: ProductionCard; reason: string }) => Promise<boolean>;
@@ -1675,7 +1667,7 @@ function CardEditor({
         </p>
       </CardHeader>
       <CardContent>
-        <details>
+        <details id={editorId}>
           <summary className="cursor-pointer text-sm">
             Editar card e consultar passo a passo
           </summary>

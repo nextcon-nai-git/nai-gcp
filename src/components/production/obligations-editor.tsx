@@ -276,10 +276,12 @@ export function RevisionObligationSelection({
 }
 
 export function ObligationTaskEditor({
+  editorId,
   task,
   disabled,
   save,
 }: {
+  editorId?: string;
   task: ProductionTask;
   disabled: boolean;
   save: (data: z.infer<typeof TaskUpdateSchema>, reason: string) => Promise<boolean>;
@@ -309,7 +311,7 @@ export function ObligationTaskEditor({
         {task.obligation.due && (
           <p className="text-xs">Data na versão contratual: {task.obligation.due}</p>
         )}
-        <details>
+        <details id={editorId}>
           <summary className="cursor-pointer text-sm">
             Executar obrigação e registrar evidência
           </summary>

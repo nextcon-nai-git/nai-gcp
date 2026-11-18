@@ -122,6 +122,61 @@ async function title(text: string) {
 }
 const table = () => v.container.querySelector("tbody")!.textContent;
 describe("AVP queue action review", () => {
+  it("keeps closed requests in the urgency history and removes them from active follow-up", async () => {
+    for (const item of m.rows) item.urgencia = "URGENTE";
+    m.rows.push(
+      ...(["GESTOR CANCELOU", "DESISTIU DA VAGA"] as const).map((status) => ({
+        ...m.rows[0],
+        id: status,
+        colaborador: status,
+        status,
+      }))
+    );
+    await render();
+    expect(m.summary.mock.lastCall?.[0]).toMatchObject({ urgentes: 2, total: 5 });
+    await v.click("Urgentes em aberto");
+    expect(table()).toContain("Pessoa Ágata");
+    expect(table()).toContain("Pessoa Gama");
+    expect(table()).not.toContain("Pessoa Beta");
+    expect(table()).not.toContain("GESTOR CANCELOU");
+    expect(table()).not.toContain("DESISTIU DA VAGA");
+    await select(0, "ALL");
+    await select(3, "URGENTE");
+    expect(v.container.querySelectorAll("tbody tr")).toHaveLength(5);
+  });
+  it("flags only appointments still scheduled after their Brasília calendar day", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-19T02:59:59.500Z"));
+    const cases = [
+      ["Anterior", "AGENDADO", "17/11/2026 09:00", ""],
+      ["Hoje", "AGENDADO", "", "2026-11-18"],
+      ["Futuro", "AGENDADO", "2026-11-20", ""],
+      ["Sem data", "AGENDADO", "", ""],
+      ["Data inválida", "AGENDADO", "31/11/2026", "2026-11-01"],
+      ["Já feito", "EXAME FEITO", "17/11/2026", ""],
+      ["Cancelado", "GESTOR CANCELOU", "17/11/2026", ""],
+    ] as const;
+    m.rows = cases.map(([colaborador, status, dataAgendada, dataAgendadaIso]) => ({
+      ...m.rows[0],
+      id: colaborador,
+      colaborador,
+      status,
+      dataAgendada,
+      dataAgendadaIso,
+    }));
+    await render();
+    await v.click("Agendamentos a conferir · 1");
+    expect(v.container.querySelectorAll("tbody tr")).toHaveLength(1);
+    expect(table()).toContain("Anterior");
+    expect(v.button("Exportar CSV (1)")).toBeDefined();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(v.button("Agendamentos a conferir · 2")).toBeDefined();
+    expect(v.container.querySelectorAll("tbody tr")).toHaveLength(2);
+    expect(table()).toContain("Hoje");
+    expect(m.update).not.toHaveBeenCalled();
+  });
   it("reports full metrics and filters high or unknown unit costs", async () => {
     m.rows[0].valorAso = "40,00";
     m.rows[2].valorAso = "0,00";

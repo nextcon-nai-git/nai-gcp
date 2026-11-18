@@ -1,6 +1,7 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { makeTasks } from "@/lib/production/obligations";
 import { applyCommand, CommandSchema, emptyBook } from "@/lib/production/model";
 import {
   billingQueueSummary,
@@ -157,6 +158,53 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 describe("production workspace", () => {
+  it("opens the due obligation in its original cycle and focuses the commercial card on request", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-18T02:30:00Z"));
+    const dated = structuredClone(book);
+    const record = dated.records[0];
+    const first = record.cycles[0];
+    first.tasks = makeTasks([
+      {
+        id: "pgr",
+        title: "Revisar PGR",
+        serviceType: "PGR",
+        owner: "Engenharia",
+        due: "2026-11-17",
+        trigger: "",
+        deadlineRule: "",
+        sourceReference: "Cláusula 1",
+        sourceExcerpt: "Revisar o inventário.",
+      },
+    ]);
+    const next = structuredClone(first);
+    next.id = "segundo";
+    next.tasks[0].due = "2026-11-18";
+    record.cycles.push(next);
+    state.fetch.mockResolvedValue(reply({ book: dated, companies: [company] }));
+    await render();
+    await click("Vencem hoje");
+    const queue = host.querySelector('[aria-label="Fila de prioridades"]')!;
+    expect(queue.querySelectorAll("tbody tr")).toHaveLength(1);
+    await act(async () => queue.querySelector<HTMLButtonElement>("tbody button")!.click());
+    const summary = document.activeElement!;
+    expect(summary.textContent).toContain("Executar obrigação");
+    const editor = summary.closest("details")!;
+    expect(editor.open).toBe(true);
+    expect(editor.querySelector<HTMLInputElement>('[name="due"]')?.value).toBe("2026-11-17");
+    await click("Etapas e tarefas abertas");
+    const budget = queue.querySelector<HTMLButtonElement>(
+      'button[aria-label*="Elaborar orçamento"]'
+    )!;
+    await act(async () => budget.click());
+    expect(document.activeElement?.closest("details")?.open).toBe(true);
+    expect(document.activeElement?.textContent).toContain("Editar card");
+    const card = document.activeElement!.closest("details")!;
+    card.open = false;
+    await act(async () => budget.click());
+    expect(card.open).toBe(true);
+    expect(state.fetch.mock.calls.every(([, options]) => options.method === "GET")).toBe(true);
+  });
   it("loads the billing handoff for the visible version and opens its exact cycle without a mutation", async () => {
     const cycles = structuredClone(book);
     cycles.records[0].cycles.push({

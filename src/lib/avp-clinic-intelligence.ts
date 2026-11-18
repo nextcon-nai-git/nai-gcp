@@ -6,7 +6,7 @@
  * - Gerador de mensagens institucionais B2B para agendamento e pré-credenciamento
  */
 
-import { GrupoAvpAso } from "./grupo-avp-asos-data";
+import { isOpenAvpUrgency, type GrupoAvpAso } from "./grupo-avp-asos-data";
 import { GlobalClinic } from "./avp-clinics-data";
 import { AVP_CREDENCIAMENTO_MESSAGE } from "./avp-source-config";
 
@@ -154,7 +154,7 @@ export function generateWhatsAppAppointmentMessage(aso: GrupoAvpAso, clinicName?
     `🏥 *Tipo de Exame:* ${aso.tipoExame}\n` +
     `📍 *Polo / Município:* ${aso.cidade} - ${aso.uf}\n` +
     `📋 *Solicitação:* Nº ${aso.numero || "S/N"}\n` +
-    (aso.urgencia === "URGENTE" ? `🚨 *PRIORIDADE URGENTE* (SLA Crítico)\n` : "") +
+    (isOpenAvpUrgency(aso) ? `🚨 *PRIORIDADE URGENTE* (SLA Crítico)\n` : "") +
     (aso.dataAgendada ? `🗓️ *Data Desejada / Prevista:* ${aso.dataAgendada}\n` : "") +
     (aso.oQueFazer ? `📝 *Observações:* ${aso.oQueFazer}\n` : "") +
     `\nVocês possuem disponibilidade para esta data/semana? Poderiam nos confirmar os horários de atendimento e orientações de preparo?\n\n` +
@@ -215,7 +215,7 @@ export function analyzeNetworkRedundancy(
     }
     const entry = asoCityMap.get(key)!;
     entry.totalAsos++;
-    if (aso.urgencia === "URGENTE") entry.hasUrgent = true;
+    if (isOpenAvpUrgency(aso)) entry.hasUrgent = true;
 
     if (aso.nomeClinica && aso.nomeClinica.trim() && aso.nomeClinica.length > 2) {
       const lower = aso.nomeClinica.toLowerCase();

@@ -293,7 +293,7 @@ export default function GrupoAvpClientHubPage() {
               <FileSpreadsheet size={15} /> Gestão de ASOs (
               {queueSummary.available ? queueSummary.total : "—"})
               <Badge className="bg-rose-500 text-white text-[9px] h-4 px-1.5 rounded-full font-bold">
-                {queueSummary.available ? queueSummary.urgentes : "—"} Urgentes
+                {queueSummary.available ? queueSummary.urgentes : "—"} urgentes em aberto
               </Badge>
             </TabsTrigger>
 

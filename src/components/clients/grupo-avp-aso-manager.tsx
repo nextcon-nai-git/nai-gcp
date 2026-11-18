@@ -60,10 +60,13 @@ import {
   isAvpCostAtLeast40,
 } from "@/lib/avp-costs";
 import { normalizeNavigationSearch } from "@/lib/navigation";
+import { useBrasiliaDate } from "@/hooks/use-brasilia-date";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
   avpPixStatus,
+  isOpenAvpUrgency,
+  needsAvpAppointmentReview,
   GRUPO_AVP_ASO_LIST,
   GrupoAvpAso,
   AsoStatus,
@@ -93,6 +96,7 @@ export function GrupoAvpAsoManager({
   }) => void;
 } = {}) {
   const { toast } = useToast();
+  const today = useBrasiliaDate();
   const { user } = useUser();
   const { asosList, campaignCount, updateAsos, syncState, refresh, source } = useAvpQueue(
     user?.uid ?? null
@@ -201,12 +205,14 @@ export function GrupoAvpAsoManager({
     let agendados = 0;
     let naoIniciados = 0;
     let urgentes = 0;
+    let agendamentosAConferir = 0;
     let concluidos = 0;
     let emTratamento = 0;
     let cancelados = 0;
 
     asosList.forEach((item) => {
-      if (item.urgencia === "URGENTE") urgentes++;
+      if (isOpenAvpUrgency(item)) urgentes++;
+      if (needsAvpAppointmentReview(item, today)) agendamentosAConferir++;
       if (item.status === "AGENDADO") agendados++;
       else if (item.status === "NÃO INICIADO") naoIniciados++;
       else if (item.status === "EXAME FEITO") concluidos++;
@@ -218,6 +224,7 @@ export function GrupoAvpAsoManager({
     return {
       total,
       agendados,
+      agendamentosAConferir,
       naoIniciados,
       urgentes,
       concluidos,
@@ -225,7 +232,7 @@ export function GrupoAvpAsoManager({
       cancelados,
       exams: countAvpQueueExams(asosList, campaignCount),
     };
-  }, [asosList, campaignCount]);
+  }, [asosList, campaignCount, today]);
 
   const available = !!syncState.checkedAt || syncState.status === "CONNECTED";
   React.useEffect(() => {
@@ -262,7 +269,9 @@ export function GrupoAvpAsoManager({
       // Filtro Status
       if (statusFilter !== "ALL") {
         if (statusFilter === "URGENTES") {
-          if (item.urgencia !== "URGENTE") return false;
+          if (!isOpenAvpUrgency(item)) return false;
+        } else if (statusFilter === "AGENDAMENTOS_A_CONFERIR") {
+          if (!needsAvpAppointmentReview(item, today)) return false;
         } else if (item.status !== statusFilter) {
           return false;
         }
@@ -289,7 +298,16 @@ export function GrupoAvpAsoManager({
 
       return true;
     });
-  }, [asosList, searchTerm, statusFilter, responsibleFilter, urgencyFilter, ufFilter, costFilter]);
+  }, [
+    asosList,
+    searchTerm,
+    statusFilter,
+    responsibleFilter,
+    urgencyFilter,
+    ufFilter,
+    costFilter,
+    today,
+  ]);
 
   React.useEffect(() => {
     const query = new URLSearchParams(window.location.search);
@@ -529,7 +547,9 @@ export function GrupoAvpAsoManager({
           )}
         >
           <div className="flex items-center justify-between text-slate-400 mb-1">
-            <span className="text-[10px] font-black uppercase tracking-wider">Total ASOs</span>
+            <span className="text-[10px] font-black uppercase tracking-wider">
+              Solicitações na fila
+            </span>
             <FileSpreadsheet size={16} />
           </div>
           <div className="text-2xl font-black font-headline text-slate-900">
@@ -578,24 +598,28 @@ export function GrupoAvpAsoManager({
           <span className="text-[10px] text-amber-600/80 font-medium">Fila Operacional</span>
         </Card>
 
-        <Card
+        <button
+          type="button"
+          aria-pressed={statusFilter === "URGENTES"}
           onClick={() => setStatusFilter("URGENTES")}
           className={cn(
-            "rounded-3xl p-4 border transition-all cursor-pointer shadow-xs hover:shadow-md",
+            "text-left focus-visible:ring-2 rounded-3xl p-4 border transition-all cursor-pointer shadow-xs hover:shadow-md",
             statusFilter === "URGENTES"
               ? "border-rose-500 bg-rose-50 ring-2 ring-rose-500/20"
               : "bg-white border-slate-200"
           )}
         >
-          <div className="flex items-center justify-between text-rose-600 mb-1">
-            <span className="text-[10px] font-black uppercase tracking-wider">Urgentes</span>
+          <span className="flex items-center justify-between text-rose-600 mb-1">
+            <span className="text-[10px] font-black uppercase tracking-wider">
+              Urgentes em aberto
+            </span>
             <AlertTriangle size={16} />
-          </div>
-          <div className="text-2xl font-black font-headline text-rose-700">
+          </span>
+          <span className="block text-2xl font-black font-headline text-rose-700">
             {available ? metrics.urgentes : "—"}
-          </div>
-          <span className="text-[10px] text-rose-600/80 font-medium">Prioridade Máxima</span>
-        </Card>
+          </span>
+          <span className="text-[10px] text-rose-600/80 font-medium">Solicitações ativas</span>
+        </button>
 
         <Card
           onClick={() => setStatusFilter("EXAME FEITO")}
@@ -613,7 +637,7 @@ export function GrupoAvpAsoManager({
           <div className="text-2xl font-black font-headline text-blue-700">
             {available ? metrics.concluidos : "—"}
           </div>
-          <span className="text-[10px] text-blue-600/80 font-medium">Concluídos / SOC</span>
+          <span className="text-[10px] text-blue-600/80 font-medium">Status informado na fila</span>
         </Card>
 
         <Card className="rounded-3xl p-4 border bg-white border-slate-200 shadow-xs">
@@ -705,6 +729,25 @@ export function GrupoAvpAsoManager({
           </div>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={statusFilter === "AGENDAMENTOS_A_CONFERIR" ? "default" : "outline"}
+            aria-pressed={statusFilter === "AGENDAMENTOS_A_CONFERIR"}
+            onClick={() =>
+              setStatusFilter(
+                statusFilter === "AGENDAMENTOS_A_CONFERIR" ? "ALL" : "AGENDAMENTOS_A_CONFERIR"
+              )
+            }
+          >
+            Agendamentos a conferir · {available ? metrics.agendamentosAConferir : "—"}
+          </Button>
+          <span className="text-xs text-slate-600">
+            Data anterior a hoje e status ainda agendado. Confirme a realização com a clínica.
+          </span>
+        </div>
+
         {/* SELECT FILTERS */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
           {/* STATUS */}
@@ -727,7 +770,10 @@ export function GrupoAvpAsoManager({
                   Não Iniciado ({available ? metrics.naoIniciados : "—"})
                 </SelectItem>
                 <SelectItem value="URGENTES">
-                  Urgentes ({available ? metrics.urgentes : "—"})
+                  Urgentes em aberto ({available ? metrics.urgentes : "—"})
+                </SelectItem>
+                <SelectItem value="AGENDAMENTOS_A_CONFERIR">
+                  Agendamentos a conferir ({available ? metrics.agendamentosAConferir : "—"})
                 </SelectItem>
                 <SelectItem value="EXAME FEITO">
                   Exame Feito ({available ? metrics.concluidos : "—"})
@@ -738,6 +784,7 @@ export function GrupoAvpAsoManager({
                 <SelectItem value="AG. RETORNO CLINICA">Ag. Retorno Clínica</SelectItem>
                 <SelectItem value="ENVIAR COMPROV. PAG">Enviar Comprov. Pag</SelectItem>
                 <SelectItem value="GESTOR CANCELOU">Gestor Cancelou</SelectItem>
+                <SelectItem value="DESISTIU DA VAGA">Desistiu da vaga</SelectItem>
                 {AVP_STATUSES.filter((status) =>
                   [
                     "ESPERANDO CNPJ E VALOR",
@@ -807,9 +854,7 @@ export function GrupoAvpAsoManager({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">Todas as Prioridades</SelectItem>
-                <SelectItem value="URGENTE">
-                  🔴 Urgente ({available ? metrics.urgentes : "—"})
-                </SelectItem>
+                <SelectItem value="URGENTE">🔴 Urgente (todos os status)</SelectItem>
                 <SelectItem value="E-MAIL">🟡 E-mail</SelectItem>
                 <SelectItem value="NORMAL">🔵 Normal</SelectItem>
               </SelectContent>
@@ -877,7 +922,7 @@ export function GrupoAvpAsoManager({
                       key={item.id}
                       className={cn(
                         "hover:bg-slate-50/80 transition-colors group cursor-pointer",
-                        item.urgencia === "URGENTE" ? "bg-rose-50/20" : ""
+                        isOpenAvpUrgency(item) ? "bg-rose-50/20" : ""
                       )}
                       onClick={() => setSelectedAso(item)}
                     >
@@ -975,10 +1020,10 @@ export function GrupoAvpAsoManager({
 
                       {/* DATA AGENDADA */}
                       <td className="py-3 px-4">
-                        {item.dataAgendada ? (
+                        {item.dataAgendada || item.dataAgendadaIso ? (
                           <div className="flex items-center gap-1 font-bold text-emerald-800 bg-emerald-50 px-2 py-1 rounded-lg w-fit">
                             <Calendar size={12} className="text-emerald-600" />
-                            {item.dataAgendada}
+                            {item.dataAgendada || item.dataAgendadaIso}
                           </div>
                         ) : (
                           <span className="text-slate-400 text-xs italic">Aguardando</span>
@@ -1145,6 +1190,7 @@ export function GrupoAvpAsoManager({
                       <SelectItem value="AG. RETORNO CLINICA">Ag. Retorno Clínica</SelectItem>
                       <SelectItem value="ENVIAR COMPROV. PAG">Enviar Comprov. Pag</SelectItem>
                       <SelectItem value="GESTOR CANCELOU">Gestor Cancelou</SelectItem>
+                      <SelectItem value="DESISTIU DA VAGA">Desistiu da vaga</SelectItem>
                       {AVP_STATUSES.filter((status) =>
                         [
                           "ESPERANDO CNPJ E VALOR",

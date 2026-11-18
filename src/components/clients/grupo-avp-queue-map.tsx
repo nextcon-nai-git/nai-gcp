@@ -36,7 +36,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { GrupoAvpAso } from "@/lib/grupo-avp-asos-data";
+import { isOpenAvpUrgency, type GrupoAvpAso } from "@/lib/grupo-avp-asos-data";
 import {
   aggregateAvpLocalities,
   AvpLocalityAggregate,
@@ -354,7 +354,7 @@ export function GrupoAvpQueueMap({
     let urgent = 0;
     asos.forEach((a) => {
       counts[a.status] = (counts[a.status] || 0) + 1;
-      if (a.urgencia === "URGENTE") urgent++;
+      if (isOpenAvpUrgency(a)) urgent++;
     });
     return { ...counts, URGENTE: urgent };
   }, [asos]);
@@ -503,7 +503,7 @@ export function GrupoAvpQueueMap({
       `*NAI - GRUPO AVP | Telemetria do Polo ${loc.cidade} / ${loc.uf}*`,
       `• Total de ASOs: ${loc.totalAsos}`,
       `• Região: ${loc.region}`,
-      `• Urgentes: ${loc.urgentCount}`,
+      `• Urgentes em aberto: ${loc.urgentCount}`,
       `• Cobertura de Clínicas: ${clinicInfo?.label || "Não avaliado"}`,
       `• Status: ${Object.entries(loc.statusCounts)
         .map(([st, qtd]) => `${st}: ${qtd}`)
@@ -1532,7 +1532,7 @@ export function GrupoAvpQueueMap({
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="size-2 rounded-full bg-rose-500 animate-pulse" />
-                  <span>{globalStatusCounts.URGENTE || 0} Urgentes</span>
+                  <span>{globalStatusCounts.URGENTE || 0} urgentes em aberto</span>
                 </span>
               </div>
               <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
