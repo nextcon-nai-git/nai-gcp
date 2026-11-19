@@ -1,4 +1,5 @@
 import { z } from "zod/v3";
+import { isValidCnpj, normalizeCnpj } from "./cnpj";
 
 export const AVP_COST_BANDS = {
   green: { label: "Abaixo de R$ 40", color: "#15803d", className: "bg-green-100 text-green-900" },
@@ -67,6 +68,11 @@ export const AvpAsoEvidenceSchema = z
     kind: z.literal("aso"),
     employee: text(240).min(2),
     company: text(240).min(1),
+    companyCnpj: text(24)
+      .refine(isValidCnpj, "Confira o CNPJ do empregador.")
+      .transform(normalizeCnpj)
+      .optional(),
+    socEmployeeCode: text(80).optional(),
     examType: text(80),
     examDate: text(10),
     receivedDate: text(10),
@@ -81,6 +87,35 @@ export const AvpAsoEvidenceSchema = z
     review: z.enum(["Recebido", "Conferir vínculo", "Conferir retificação"]),
   })
   .strict();
+export const AVP_RECEIPT_EXAM_TYPES = [
+  "Admissional",
+  "Periódico",
+  "Demissional",
+  "Retorno ao trabalho",
+  "Mudança de riscos ocupacionais",
+] as const;
+export const AvpAsoReceiptSchema = AvpAsoEvidenceSchema.pick({
+  employee: true,
+  company: true,
+  source: true,
+  notes: true,
+  review: true,
+  socEmployeeCode: true,
+})
+  .extend({
+    companyCnpj: AvpAsoEvidenceSchema.shape.companyCnpj.unwrap(),
+    examType: z.enum(AVP_RECEIPT_EXAM_TYPES),
+    examDate: day,
+    receivedDate: day,
+    onlySignedAso: z.literal(true),
+  })
+  .strict()
+  .refine(
+    (r) => r.examDate <= r.receivedDate,
+    "O recebimento deve ser igual ou posterior ao exame."
+  );
+export const AVP_ASO_MAX_BYTES = 15_000_000;
+
 export const AvpEvidenceSchema = z.union([AvpPaymentSchema, AvpAsoEvidenceSchema]);
 export type AvpPayment = z.infer<typeof AvpPaymentSchema>;
 export type AvpAsoEvidence = z.infer<typeof AvpAsoEvidenceSchema>;
@@ -131,4 +166,19 @@ export function avpEvidenceCsv(records: AvpPayment[]) {
       .map((r) => r.map(cell).join(";"))
       .join("\r\n")
   );
+}
+
+export const AvpLinkConfirmationSchema = z
+  .object({
+    id: hash,
+    companyCnpj: AvpAsoEvidenceSchema.shape.companyCnpj.unwrap(),
+    reference: text(500).min(3),
+  })
+  .strict();
+
+export function avpDriveSource(source: string) {
+  const match = source.match(
+    /(?:^|\s)(https:\/\/drive\.google\.com\/file\/d\/[\w-]+(?:\/view)?(?:\?[^\s]*)?)(?=\s|$)/i
+  );
+  return match?.[1] ?? null;
 }

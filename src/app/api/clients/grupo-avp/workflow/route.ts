@@ -5,7 +5,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { requireAvpAccess, canAccessAvpEvidence } from "@/lib/auth/avp-access";
 import { AuthError } from "@/lib/auth/errors";
 import { limitedJson } from "@/lib/http/private-api";
-import { WorkflowSchema, workflowProblems } from "@/lib/avp-workflow";
+import { WorkflowSchema, workflowProblems, workflowEvidenceProblem } from "@/lib/avp-workflow";
 import { z } from "zod/v3";
 
 export const dynamic = "force-dynamic";
@@ -89,14 +89,8 @@ export async function POST(req: NextRequest) {
             "Selecione um ASO com PDF anexado e sem pendência de vínculo ou retificação.",
             400
           );
-        const norm = (s: string) =>
-          s
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .toUpperCase()
-            .replace(/[^A-Z0-9]/g, "");
-        if (norm(String(aso.employee)) !== norm(record.employee))
-          throw new AuthError("O nome do ASO diverge do caso. Confira o vínculo.", 400);
+        const mismatch = workflowEvidenceProblem(record, aso);
+        if (mismatch) throw new AuthError(mismatch, 400);
       }
       const orderRef = record.socOrder
         ? root().collection("orders").doc(hash(record.socOrder))

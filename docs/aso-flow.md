@@ -6,6 +6,14 @@ A importação AVP, o agendador por usuário, a agenda clínica e os kits tinham
 
 Esta alteração acrescenta uma esteira compartilhada por cliente e colaborador em **ASO — Agendamento e Clínica → Esteira** (`/health-control?tab=esteira`). NAI importa oferece o botão **Importar planilha de ASOs**; o cadastro do cliente oferece **Cards e pasta de ASOs** com filtro do cliente. Os registros legados continuam identificados em suas áreas e não são migrados ou vinculados por nome.
 
+## Recebimento de uma via do Grupo AVP
+
+Em **Grupo AVP → ASOs recebidos → Receber ASO assinado**, registre o colaborador, o empregador e o CNPJ que constam no ASO, o tipo de exame, as datas e a origem da remessa. O link de um arquivo do Drive permite abrir o original com as permissões do próprio Drive. Se a remessa incluir ficha clínica, selecione para a operação apenas o PDF com o ASO assinado.
+
+Quando o cabeçalho da ficha ou outra via indicar empregador diferente, mantenha **Conferir vínculo** ou **Conferir retificação**. Após conferir o ASO e a fonte do vínculo, **Confirmar vínculo** registra o CNPJ, a referência consultada, o responsável e a data. Uma retificação exige a conferência da via corrigida. O recebimento do PDF e a entrega ao coordenador são etapas distintas.
+
+O filtro **Pendentes de anexo** inclui cadastros antigos. **Anexar PDF** na linha do colaborador aceita um arquivo renomeado se o conteúdo corresponder ao PDF indexado. Arquivos idênticos são detectados no recebimento individual; vias com conteúdo diferente podem ser analisadas em **Comparar vias**.
+
 ## Entrada por planilha
 
 CSV e XLSX com uma aba preenchida, até 5.000 linhas e 10 MB. O navegador faz prévia em lotes de 200 e o servidor refaz a identificação no momento da gravação. A confirmação importa somente as linhas liberadas. Após uma interrupção, reimportar preserva os cards já criados.

@@ -23,7 +23,11 @@ const searchable = (value?: string | null) =>
     .trim();
 
 function citedCnpjs(record: ComparableAso) {
-  const text = [record.company, record.notes].join(" ");
+  const text = [
+    record.companyCnpj && `CNPJ ${record.companyCnpj}`,
+    record.company,
+    record.notes,
+  ].join(" ");
   const matches = text.matchAll(
     /\b(?:([a-z0-9]{2}\.[a-z0-9]{3}\.[a-z0-9]{3}\/[a-z0-9]{4}-\d{2})|cnpj\s*[:#-]?\s*([a-z0-9]{12}\d{2})|(\d{14}))\b/gi
   );
@@ -38,6 +42,8 @@ const fields = [
   ["Colaborador", "employee"],
   ["Empregador informado", "company"],
   ["CNPJs citados no cadastro ou nas observações", "citedCnpjs"],
+  ["CNPJ do empregador no ASO", "companyCnpj"],
+  ["Código do colaborador no SOC", "socEmployeeCode"],
   ["Tipo de exame", "examType"],
   ["Data do exame", "examDate"],
   ["Cidade", "city"],

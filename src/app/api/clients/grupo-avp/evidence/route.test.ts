@@ -25,7 +25,7 @@ vi.mock("firebase-admin/storage", () => ({
 vi.mock("@/lib/firebase-admin", () => ({
   adminDb: { collection: m.collection, runTransaction: m.transaction },
 }));
-import { GET, POST } from "./route";
+import { GET, POST, PATCH } from "./route";
 const url = "https://test/api/clients/grupo-avp/evidence";
 const record = AvpPaymentSchema.parse({
   kind: "payment",
@@ -219,4 +219,140 @@ it("bounds the streamed JSON body without relying on Content-Length", async () =
   );
   expect(response.status).toBe(413);
   expect(m.transaction).not.toHaveBeenCalled();
+});
+
+describe("recebimento individual e conferência do vínculo", () => {
+  const bytes = Buffer.from("%PDF-1.7 fixture ASO assinado");
+  const hash = createHash("sha256").update(bytes).digest("hex");
+  const formFields = {
+    employee: "Pessoa de Teste",
+    company: "Empresa de Teste",
+    companyCnpj: "11.222.333/0001-81",
+    socEmployeeCode: "42",
+    examType: "Admissional",
+    examDate: "2026-11-18",
+    receivedDate: "2026-11-19",
+    review: "Conferir vínculo",
+    source: "Remessa de teste",
+    notes: "",
+    onlySignedAso: true,
+  };
+  const records = new Map<string, Record<string, unknown>>();
+  const doc = (id: string) => ({ id, get: async () => ({ data: () => records.get(id) }) });
+  const query = { limit: () => ({ lookup: true }) };
+  beforeEach(() => {
+    records.clear();
+    m.collection.mockReturnValue({
+      doc: () => ({ collection: () => ({ doc, where: () => query }) }),
+    });
+    m.transaction.mockImplementation((fn) =>
+      fn({
+        getAll: async (...refs: { id: string }[]) =>
+          refs.map(({ id }) => ({ exists: records.has(id), data: () => records.get(id) })),
+        get: async (r: { id?: string; lookup?: boolean }) =>
+          r.lookup
+            ? { empty: ![...records.values()].some((i) => i.fileHash === hash) }
+            : { exists: records.has(r.id!), data: () => records.get(r.id!) },
+        create: (r: { id: string }, value: Record<string, unknown>) => records.set(r.id, value),
+        update: (r: { id: string }, patch: Record<string, unknown>) =>
+          records.set(r.id, { ...records.get(r.id), ...patch }),
+      })
+    );
+  });
+  function receive(fields = formFields, fileName = "aso.pdf") {
+    const form = new FormData();
+    form.set("receipt", JSON.stringify(fields));
+    form.set("file", new File([bytes], fileName, { type: "application/pdf" }));
+    return POST(new NextRequest(url, { method: "POST", body: form }));
+  }
+  const confirm = (overrides = {}) =>
+    PATCH(
+      new NextRequest(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: hash,
+          companyCnpj: formFields.companyCnpj,
+          reference: "Pedido SOC de teste",
+          ...overrides,
+        }),
+      })
+    );
+  it("registra um PDF, preserva divergência, confirma uma única vez e mantém a referência", async () => {
+    expect((await receive()).status).toBe(200);
+    expect((await receive()).status).toBe(200);
+    expect(m.save).toHaveBeenCalledOnce();
+    expect(records.get(hash)).toMatchObject({
+      uploaded: true,
+      companyCnpj: "11222333000181",
+      review: "Conferir vínculo",
+    });
+    expect((await receive({ ...formFields, employee: "Homônimo em outro vínculo" })).status).toBe(
+      409
+    );
+    expect((await confirm({ companyCnpj: "12.ABC.345/01DE-35" })).status).toBe(409);
+    expect((await confirm()).status).toBe(200);
+    const confirmed = records.get(hash);
+    expect(confirmed).toMatchObject({
+      review: "Recebido",
+      linkConfirmation: {
+        uid: "admin",
+        reference: "Pedido SOC de teste",
+        previousReview: "Conferir vínculo",
+      },
+    });
+    expect((await confirm()).status).toBe(200);
+    expect(records.get(hash)).toBe(confirmed);
+    expect(records.size).toBe(1);
+  });
+  it("preserva indexação histórica de arquivo idêntico, inclusive renomeado", async () => {
+    records.set("9".repeat(64), { ...formFields, kind: "aso", fileHash: hash, uploaded: false });
+    expect((await receive(formFields, "via-2.pdf")).status).toBe(409);
+    expect(records.size).toBe(1);
+    expect(m.save).not.toHaveBeenCalled();
+  });
+  it("protege também a importação em lote após recebimento individual", async () => {
+    await receive();
+    const entry = {
+      ...formFields,
+      kind: "aso",
+      id: "a".repeat(64),
+      sourceHash: hash,
+      fileHash: hash,
+      fileName: "outra-via.pdf",
+      city: "",
+      uf: "",
+    };
+    const { onlySignedAso, ...index } = entry;
+    expect(onlySignedAso).toBe(true);
+    const response = await POST(
+      new NextRequest(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ records: [index] }),
+      })
+    );
+    expect(response.status).toBe(409);
+    expect(records.size).toBe(1);
+  });
+  it("retoma o PDF após falha no armazenamento sem concluir o vínculo ou criar outro ASO", async () => {
+    m.save.mockRejectedValueOnce(new Error("offline"));
+    expect((await receive()).status).toBe(503);
+    expect(records.get(hash)).toMatchObject({ uploaded: false });
+    expect((await confirm()).status).toBe(400);
+    expect((await receive()).status).toBe(200);
+    expect(records.size).toBe(1);
+    expect(records.get(hash)).toMatchObject({ uploaded: true });
+  });
+  it("exige somente o ASO assinado, datas coerentes e um CNPJ válido e preserva retificação pendente", async () => {
+    for (const fields of [
+      { onlySignedAso: false },
+      { companyCnpj: "invalido" },
+      { examDate: "2026-11-20" },
+    ])
+      expect((await receive({ ...formFields, ...fields })).status).toBe(400);
+    expect(records.size).toBe(0);
+    expect((await receive({ ...formFields, review: "Conferir retificação" })).status).toBe(200);
+    expect((await confirm()).status).toBe(409);
+  });
 });

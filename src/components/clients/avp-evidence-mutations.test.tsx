@@ -61,7 +61,9 @@ async function render(kind: "payment" | "aso" = "payment") {
   await v.render(<AvpEvidencePanel kind={kind} />);
 }
 async function files(index: number, list: File[]) {
-  const input = v.container.querySelectorAll<HTMLInputElement>('input[type="file"]')[index];
+  const input = v.container.querySelector<HTMLInputElement>(
+    index === 0 ? 'input[accept=".json"]' : 'input[type="file"][multiple]'
+  )!;
   Object.defineProperty(input, "files", { configurable: true, value: list });
   await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
 }
@@ -185,6 +187,44 @@ describe("AVP evidence import and session boundaries", () => {
     expect(form.get("id")).toBe(aso.id);
     expect(v.container.textContent).toContain("1 PDFs anexados com confirmação");
     expect(v.container.textContent).toContain("missing.pdf: sem índice");
+  });
+  it("mostra pendências combinadas e anexa exclusivamente à linha escolhida, mesmo com nomes de arquivo iguais", async () => {
+    const other = { ...aso, id: "8".repeat(64), employee: "Outra pessoa" };
+    const reviewed = { ...aso, id: "7".repeat(64), uploaded: true };
+    const pending = {
+      ...aso,
+      review: "Conferir vínculo",
+      source: "Drive · https://drive.google.com/file/d/test-id/view",
+    };
+    m.fetch.mockResolvedValueOnce(json({ records: [pending, other, reviewed] }));
+    await render("aso");
+    await v.input('select[aria-label="Situação do PDF"]', "pending");
+    await v.input('select[aria-label="Conferência do ASO"]', "Conferir vínculo");
+    expect(v.container.querySelectorAll("tbody tr")).toHaveLength(1);
+    expect(v.container.querySelector("tbody a")?.getAttribute("href")).toBe(
+      "https://drive.google.com/file/d/test-id/view"
+    );
+    const input = v.container.querySelector<HTMLInputElement>('tbody input[type="file"]')!;
+    Object.defineProperty(input, "files", {
+      configurable: true,
+      value: [new File(["documento"], "renomeado.pdf")],
+    });
+    m.fetch
+      .mockResolvedValueOnce(json({ saved: true }))
+      .mockResolvedValueOnce(json({ records: [{ ...pending, uploaded: true }, other, reviewed] }));
+    await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+    expect((m.fetch.mock.calls[1][1].body as FormData).get("id")).toBe(aso.id);
+    expect(v.container.querySelectorAll("tbody tr")).toHaveLength(0);
+    await v.input('select[aria-label="Situação do PDF"]', "attached");
+    expect(v.container.querySelector("tbody")?.textContent).toContain("Confirmar vínculo");
+  });
+  it("pede seleção da linha quando o nome do PDF identifica mais de um cadastro", async () => {
+    m.fetch.mockResolvedValueOnce(json({ records: [aso, { ...aso, id: "8".repeat(64) }] }));
+    await render("aso");
+    m.fetch.mockResolvedValueOnce(json({ records: [] }));
+    await files(1, [new File(["fixture"], "synthetic.pdf")]);
+    expect(m.fetch.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+    expect(v.container.textContent).toContain("nome em mais de um cadastro");
   });
   it("reports an attachment failure and never claims success for it", async () => {
     m.fetch.mockResolvedValueOnce(json({ records: [aso] }));
