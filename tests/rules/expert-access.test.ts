@@ -126,8 +126,9 @@ it.each(["provider-restricted", "provider-single-company", "provider-multi-compa
           updateDoc(doc(db, `companies/${company}/${name}/regression`), { title: "changed" })
         );
       }
-      // Existing authorized clinical workflows remain available to legacy accounts.
-      await assertSucceeds(getDoc(doc(db, `companies/${company}/medical_records/regression`)));
+      // A legacy operational grant is not a clinical qualification.
+      await assertFails(getDoc(doc(db, `companies/${company}/medical_records/regression`)));
+      await assertFails(getDocs(collection(db, `companies/${company}/medical_records`)));
       for (const name of ["contracts", "financial"]) {
         await assertFails(getDoc(doc(db, `companies/${company}/${name}/regression`)));
         await assertFails(getDocs(collection(db, `companies/${company}/${name}`)));
@@ -150,7 +151,7 @@ it.each(["provider-restricted", "provider-single-company", "provider-multi-compa
     await assertFails(getDocs(collectionGroup(db, "contracts")));
     const storage = env.authenticatedContext(uid).storage();
     for (const company of [...allowed, "foreign-company"])
-      for (const category of ["contratos", "faturamento"])
+      for (const category of ["contratos", "faturamento", "prontuarios"])
         await assertFails(
           getBytes(ref(storage, `clientes/${company}/${category}/regression/file.pdf`))
         );

@@ -6,8 +6,8 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { getBytes, ref, uploadBytes } from "firebase/storage";
+import { doc, getDoc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { getBytes, ref, uploadBytes, deleteObject } from "firebase/storage";
 
 let env: RulesTestEnvironment;
 const companies = ["tenant-a", "tenant-b"];
@@ -83,7 +83,7 @@ describe("A precedência do tenant acompanha a autorização da API", () => {
     }
   );
 
-  it.each(["ADMIN", "DOCTOR", "NURSE", "HEALTH_PROFESSIONAL", "PROVIDER"])(
+  it.each(["ADMIN", "DOCTOR", "NURSE", "HEALTH_PROFESSIONAL"])(
     "%s com tenant explícito não reutiliza a empresa legada para documentos clínicos",
     async (role) => {
       const ctx = await profile({ role, tenantId: "tenant-b" });
@@ -157,6 +157,39 @@ describe("A precedência do tenant acompanha a autorização da API", () => {
     await assertSucceeds(getDoc(doc(ctx.firestore(), "companies/tenant-b/tasks/synthetic")));
   });
 
+  it("prestador genérico mantém cards operacionais sem acesso clínico próprio ou concedido", async () => {
+    const ctx = await profile({ role: "PROVIDER", servedCompanies: ["tenant-b"] });
+    for (const companyId of companies) {
+      await assertSucceeds(getDoc(doc(ctx.firestore(), `companies/${companyId}/tasks/synthetic`)));
+      for (const name of [
+        "medical_records",
+        "clinical_records",
+        "aso_attendances",
+        "nursing_attendances",
+      ]) {
+        const path = `companies/${companyId}/${name}/synthetic`;
+        await env.withSecurityRulesDisabled(async (admin) => {
+          await setDoc(doc(admin.firestore(), path), { companyId });
+          await setDoc(doc(admin.firestore(), `${name}/${companyId}`), { companyId });
+        });
+        await assertFails(getDoc(doc(ctx.firestore(), path)));
+        await assertFails(getDoc(doc(ctx.firestore(), `${name}/${companyId}`)));
+        await assertFails(setDoc(doc(ctx.firestore(), path + "-new"), { companyId }));
+        await assertFails(updateDoc(doc(ctx.firestore(), path), { notes: "forged" }));
+        await assertFails(deleteDoc(doc(ctx.firestore(), path)));
+      }
+      for (const path of [clinicalFile(companyId), importedFile(companyId)]) {
+        await assertFails(getBytes(ref(ctx.storage(), path)));
+        await assertFails(
+          uploadBytes(ref(ctx.storage(), path), new Uint8Array([3]), {
+            contentType: "application/pdf",
+          })
+        );
+        await assertFails(deleteObject(ref(ctx.storage(), path)));
+      }
+    }
+  });
+
   it.each(["", null, undefined])(
     "preserva o acesso interno legado do ADMIN nextcon com tenant %j",
     async (tenantId) => {
@@ -169,6 +202,8 @@ describe("A precedência do tenant acompanha a autorização da API", () => {
         await assertSucceeds(
           getDoc(doc(ctx.firestore(), `companies/${companyId}/tasks/synthetic`))
         );
+        await assertSucceeds(getDoc(doc(ctx.firestore(), importedRecord(companyId))));
+        await assertSucceeds(getBytes(ref(ctx.storage(), importedFile(companyId))));
         await assertSucceeds(getBytes(ref(ctx.storage(), clinicalFile(companyId))));
         await assertSucceeds(getBytes(ref(ctx.storage(), operationalFile(companyId))));
       }

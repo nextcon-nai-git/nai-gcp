@@ -129,9 +129,11 @@ describe("authorized clinical history", () => {
       });
     if (day === "2026-11-01") expect(result.aviso).toMatch(/mesma data/);
   });
-  it("preserva a restrição do acervo importado para o perfil genérico de prestador", async () => {
-    await getAuthorizedMedicalHistory({ ...user, role: "PROVIDER" }, "tenant-a", "patient");
-    expect(mock.collection).not.toHaveBeenCalledWith("clinical_records");
+  it("nega todo o histórico clínico ao prestador genérico antes de consultar o banco", async () => {
+    await expect(
+      getAuthorizedMedicalHistory({ ...user, role: "PROVIDER" }, "tenant-a", "patient")
+    ).rejects.toThrow("Seu perfil");
+    expect(mock.collection).not.toHaveBeenCalled();
   });
   it("não usa um documento sem revisão e vínculo correspondentes", async () => {
     const dto = linked("2026-11-01");
