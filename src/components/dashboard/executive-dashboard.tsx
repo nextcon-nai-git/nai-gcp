@@ -30,6 +30,14 @@ import {
   type DashboardClient,
   type ExecutiveDashboard,
 } from "@/lib/executive-dashboard";
+import {
+  activeWorkforceLabel,
+  confirmedActive,
+  historicalWorkforceLabel,
+  rosterOrigin,
+  workforceIssue,
+  type AvpWorkforce,
+} from "@/lib/avp-workforce";
 import { cn } from "@/lib/utils";
 import { csvTextCell } from "@/lib/csv-cell";
 
@@ -141,40 +149,83 @@ function clientSignal(client: DashboardClient) {
   if (!client.pgr) return { label: "Sem PGR registrado", className: "bg-slate-100 text-slate-600" };
   return { label: "Dados disponíveis", className: "bg-teal-50 text-teal-700" };
 }
+const sourceDateTime = (iso: string) =>
+  new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
+  }).format(new Date(iso)) + " · Brasília";
+
+function readingDetail(roster: AvpWorkforce) {
+  if (roster.source === "manual") return workforceIssue[roster.issue];
+  const { reading } = roster;
+  return [
+    rosterOrigin(roster),
+    sourceDateTime(reading.checkedAt),
+    reading.unknown ? "Leitura parcial" : "Situações classificadas",
+    `${number(reading.records)} vínculos lidos`,
+    `${number(reading.other)} em outras situações`,
+    `${number(reading.unknown)} com situação desconhecida`,
+  ].join(" · ");
+}
+
+const unitLabel = {
+  group: "Incluído no Grupo AVP",
+  review: "Conferir correspondência da unidade · fora do subtotal local",
+};
 function downloadSnapshot(data: ExecutiveDashboard) {
   const rows = [
     [
       "Cliente",
       "Localidade",
       "Cadastros locais NAI",
-      "Vínculos na composição do painel",
-      "Fonte da composição",
-      "Data de referência da fonte",
+      "Cadastros que compõem o subtotal local NAI",
+      activeWorkforceLabel,
+      "Vínculos lidos no SOC",
+      "Outras situações cadastrais",
+      "Situação desconhecida",
+      "Vínculos sem unidade identificada na carteira de referência",
+      "Fonte da contagem",
+      "Data e hora da leitura",
+      "Situação da leitura",
+      historicalWorkforceLabel,
+      "Fonte histórica",
+      "Data da referência histórica",
       "PGRs registrados",
       "Ações abertas",
       "Ações vencidas",
       "Riscos aguardando avaliação",
-      "Consultado em",
+      "Painel consultado em",
       "Dados parciais",
     ],
     ...data.clients.map((c) => {
       const source = workforceSource(c, data);
+      const roster = source === "soc" ? data.avpWorkforce : null;
+      const reading = roster?.reading;
+      const unit = source === "review" || source === "group" ? unitLabel[source] : null;
       return [
         c.name,
         c.location,
         c.employees,
-        source === "soc" ? data.avpWorkforce!.records : source === "nai" ? c.employees : null,
-        source === "soc"
-          ? `SOC · ASSOBES · ${data.avpWorkforce!.source === "manual" ? "referência histórica" : "conector"}`
-          : source === "group"
-            ? "Incluído no Grupo AVP"
-            : "NAI",
-        source === "nai" ? data.generatedAt : data.avpWorkforce!.observedOn,
+        source === "nai" ? c.employees : null,
+        confirmedActive(reading),
+        reading?.records,
+        reading?.other,
+        reading?.unknown,
+        reading?.unmappedUnitRecords,
+        roster ? rosterOrigin(roster) : unit || "NAI",
+        reading?.checkedAt || (source === "nai" ? data.generatedAt : null),
+        roster ? readingDetail(roster) : unit,
+        roster?.historical.records,
+        roster ? "Referência histórica · ASSOBES" : null,
+        roster?.historical.observedOn,
         c.pgr,
         c.tasks?.open,
         c.tasks?.overdue,
         c.risksToReview,
         data.generatedAt,
+        source === "review" ||
+        (roster && (!reading || reading.unknown > 0 || reading.unmappedUnitRecords > 0)) ||
         c.tasks?.truncated ||
         data.clientsTruncated ||
         c.tasks == null ||
@@ -232,7 +283,9 @@ export function ExecutiveDashboardView() {
   const roster = data?.avpWorkforce;
   const localClients = data ? clients.filter((c) => workforceSource(c, data) === "nai") : [];
   const localRecords = data ? sum(localClients, (c) => c.employees) : null;
-  const employees = localRecords == null ? null : localRecords + (roster?.records ?? 0);
+  const pendingUnits = data
+    ? clients.filter((c) => workforceSource(c, data) === "review").length
+    : 0;
   const pgr = data ? sum(clients, (c) => c.pgr) : null;
   const risks = data ? sum(clients, (c) => c.risksToReview) : null;
   const undated = data ? sum(clients, (c) => c.tasks?.undated) : null;
@@ -289,58 +342,61 @@ export function ExecutiveDashboardView() {
         <div className="mt-6 grid items-end gap-5 lg:grid-cols-[1.05fr_1fr] lg:gap-10">
           <div>
             <h2 className="text-sm font-medium text-cyan-100">
-              {roster ? "Vínculos de colaboradores" : "Cadastros de colaboradores no NAI"}
+              {roster ? `Grupo AVP · ${activeWorkforceLabel}` : "Cadastros de colaboradores no NAI"}
             </h2>
             <p className={styles.figure} data-testid="workforce-total">
-              {number(employees)}
+              {number(roster ? confirmedActive(roster.reading) : localRecords)}
             </p>
             <p className="text-xs leading-5 text-blue-100">
-              {!data
-                ? "Aguardando leitura da carteira"
-                : employees == null
-                  ? "Total indisponível · leitura parcial"
-                  : "Inclui vínculos históricos"}
+              {roster ? (
+                <>
+                  {confirmedActive(roster.reading) == null && "Indisponível · "}
+                  {readingDetail(roster)}
+                </>
+              ) : !data ? (
+                "Aguardando leitura da carteira"
+              ) : localRecords == null ? (
+                "Subtotal indisponível · leitura parcial"
+              ) : (
+                "Inclui cadastros históricos"
+              )}
             </p>
           </div>
           {roster ? (
             <div className={styles.breakdown}>
-              <dl className="space-y-2 text-sm">
-                <div className="flex items-baseline justify-between gap-3">
-                  <dt className="font-medium">
-                    <Link
-                      href="/clients/grupo-avp"
-                      className="inline-flex items-center gap-1 underline decoration-cyan-200/50 underline-offset-4"
-                    >
-                      Grupo AVP <ArrowUpRight aria-hidden="true" className="size-3.5" />
-                    </Link>{" "}
-                    <span className="text-xs text-cyan-200">· SOC</span>
-                  </dt>
-                  <dd className="text-lg font-semibold tabular-nums">{number(roster.records)}</dd>
+              <Link
+                href="/clients/grupo-avp"
+                className="inline-flex items-center gap-1 font-semibold underline underline-offset-4"
+              >
+                Grupo AVP <ArrowUpRight aria-hidden="true" className="size-3.5" />
+              </Link>
+              <dl className="mt-2 space-y-2 text-sm">
+                <div>
+                  <dt>{historicalWorkforceLabel}</dt>
+                  <dd>
+                    <strong>{number(roster.historical.records)}</strong> · Referência histórica de{" "}
+                    {date(roster.historical.observedOn)} · todas as situações
+                  </dd>
                 </div>
                 {!!localClients.length && (
-                  <div className="flex items-baseline justify-between gap-3">
-                    <dt>
-                      Demais clientes <span className="text-xs text-blue-100">· NAI</span>
-                    </dt>
-                    <dd className="font-semibold tabular-nums">{number(localRecords)}</dd>
+                  <div>
+                    <dt>Demais clientes · cadastros locais NAI</dt>
+                    <dd>{number(localRecords)} · inclui históricos</dd>
                   </div>
                 )}
               </dl>
-              {employees != null && employees > 0 && (
-                <div
-                  aria-hidden="true"
-                  className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-blue-300"
-                >
-                  <span
-                    className="bg-teal-300"
-                    style={{ width: `${(100 * roster.records) / employees}%` }}
-                  />
-                </div>
+              {pendingUnits > 0 && (
+                <p className="mt-2 text-sm">
+                  {pendingUnits} cadastro(s) com correspondência de unidade pendente. Consulte a
+                  carteira abaixo.
+                </p>
               )}
-              <p className="mt-2 text-xs leading-5 text-blue-100">
-                ASSOBES · {roster.source === "manual" ? "referência histórica" : "consulta SOC"} de{" "}
-                {date(roster.observedOn)}
-              </p>
+              {!!roster.reading?.unmappedUnitRecords && (
+                <p className="mt-2 text-sm">
+                  {number(roster.reading.unmappedUnitRecords)} vínculo(s) do SOC com unidade sem
+                  associação confirmada.
+                </p>
+              )}
             </div>
           ) : (
             data && (
@@ -367,7 +423,7 @@ export function ExecutiveDashboardView() {
           {loading
             ? "Consultando fontes…"
             : data
-              ? `Consultado em ${time(data.generatedAt)} · Brasília`
+              ? `Painel consultado em ${time(data.generatedAt)} · Brasília`
               : "Aguardando leitura"}
         </p>
         <div className="flex flex-wrap items-center gap-2">
@@ -721,7 +777,7 @@ export function ExecutiveDashboardView() {
             <thead className="border-y border-slate-100 bg-slate-50/70 text-[10px] uppercase tracking-wider text-slate-400">
               <tr>
                 <th className="px-6 py-3 text-left font-medium">Cliente / unidade</th>
-                <th className="px-3 py-3 text-right font-medium">Vínculos de colaboradores</th>
+                <th className="px-3 py-3 text-right font-medium">Cadastros e vínculos por fonte</th>
                 <th className="px-3 py-3 text-right font-medium">PGRs</th>
                 <th className="px-3 py-3 text-right font-medium">Ações abertas</th>
                 <th className="px-3 py-3 text-right font-medium">Vencidas</th>
@@ -747,13 +803,23 @@ export function ExecutiveDashboardView() {
                       </p>
                     </td>
                     <td className="px-3 py-4 text-right tabular-nums text-slate-600">
-                      {source === "group"
-                        ? "Incluído no grupo"
-                        : number(source === "soc" ? roster?.records : client.employees)}
-                      {source === "soc" && (
-                        <span className="block text-xs text-slate-500">
-                          SOC · {date(roster!.observedOn)}
-                        </span>
+                      {source === "soc" && roster ? (
+                        <>
+                          <strong>
+                            {activeWorkforceLabel} ·{" "}
+                            {confirmedActive(roster.reading)?.toLocaleString("pt-BR") ??
+                              "Indisponível"}
+                          </strong>
+                          <span className="block text-xs">{readingDetail(roster)}</span>
+                          <span className="block text-xs">
+                            {historicalWorkforceLabel} · {number(roster.historical.records)} ·
+                            Referência histórica de {date(roster.historical.observedOn)}
+                          </span>
+                        </>
+                      ) : source === "group" || source === "review" ? (
+                        unitLabel[source]
+                      ) : (
+                        <>{number(client.employees)} · NAI</>
                       )}
                     </td>
                     <td className="px-3 py-4 text-right tabular-nums text-slate-600">
@@ -879,7 +945,7 @@ export function ExecutiveDashboardView() {
               [
                 "Carteira e colaboradores",
                 roster
-                  ? "A composição usa o cadastro de funcionários da ASSOBES no SOC para o Grupo AVP e os cadastros locais do NAI para os demais clientes. O total inclui vínculos históricos. Uma pessoa pode ter mais de um vínculo."
+                  ? "O indicador AVP conta os códigos de vínculo da ASSOBES em situação Ativo no SOC. Uma pessoa pode ter mais de um vínculo. Os cadastros locais e a referência histórica têm contagens próprias."
                   : "Cadastros de colaboradores salvos no NAI, incluindo históricos.",
               ],
               [

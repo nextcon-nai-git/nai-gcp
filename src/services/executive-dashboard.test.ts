@@ -82,7 +82,12 @@ describe("Dashboard server data boundary", () => {
     expect(mock.roster).not.toHaveBeenCalled();
   });
   it("keeps the AVP roster independent of the ASO queue", async () => {
-    const source = { records: 3200, observedOn: "2026-11-16", source: "connector" };
+    const source = {
+      historical: { records: 5685, observedOn: "2026-10-16" },
+      reading: null,
+      issue: "configuration",
+      source: "manual",
+    };
     mock.roster.mockResolvedValue(source);
     mock.avp.mockRejectedValueOnce(new Error("offline"));
     expect((await getExecutiveDashboard(user("SUPER_ADMIN"), "all")).avpWorkforce).toEqual(source);

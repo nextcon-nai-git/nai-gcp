@@ -183,6 +183,19 @@ describe("SOC contracts and errors", () => {
     expect(JSON.stringify(rows)).not.toContain("private");
   });
 });
+it("retains the original SITUACAO from the employee JSON, including unsupported or absent values", async () => {
+  const rows = await socRead(
+    "employees",
+    { companyId: "101" },
+    response([
+      employee({ SITUACAO: "Ativo" }),
+      employee({ CODIGO: "16", SITUACAO: "Afastado" }),
+      employee({ CODIGO: "17", SITUACAO: 1 }),
+      employee({ CODIGO: "18" }),
+    ])
+  );
+  expect(rows.map((row) => row.status)).toEqual(["Ativo", "Afastado", "1", ""]);
+});
 it("preserves distinct unit codes even when the names match", async () => {
   const rows = await socRead(
     "employees",

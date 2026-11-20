@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebase-admin";
 import type { AuthContext } from "@/lib/auth/auth-context";
 import { dashboardScope, isDashboardGlobal } from "@/lib/auth/dashboard-access";
 import { requireAvpAccess } from "@/lib/auth/avp-access";
+import { avpUnitLink } from "@/lib/avp-workforce";
 import { getAvpWorkforce } from "./avp-workforce";
 import { getAvpSnapshot } from "@/services/avp-sheet-sync";
 import {
@@ -21,13 +22,32 @@ export async function getExecutiveDashboard(
 ): Promise<ExecutiveDashboard> {
   const scope = dashboardScope(user, requested);
   const global = isDashboardGlobal(user);
+  let avpAvailable = false;
+  if (!scope || scope === "GRUPO_AVP") {
+    try {
+      requireAvpAccess(user);
+      avpAvailable = true;
+    } catch {
+      /* No AVP data for unauthorized profiles. */
+    }
+  }
   const now = new Date();
   const issues: string[] = [];
   const companyQuery = adminDb.collection("companies");
   const documents = global
     ? (
         await companyQuery
-          .select("name", "city", "state", "active", "isDeleted", "portfolioClientId")
+          .select(
+            "name",
+            "city",
+            "state",
+            "active",
+            "isDeleted",
+            "portfolioClientId",
+            "cnpj",
+            "socCompanyId",
+            "socCode"
+          )
           .get()
       ).docs
     : [await companyQuery.doc(scope!).get()];
@@ -36,6 +56,7 @@ export async function getExecutiveDashboard(
     .filter((d) => d.exists && d.data()?.isDeleted !== true && d.data()?.active === true)
     .map((d) => ({
       id: d.id,
+      avpUnit: global && avpAvailable ? avpUnitLink(d.id, d.data()!) : undefined,
       portfolioClientId:
         typeof d.data()?.portfolioClientId === "string"
           ? (d.data()!.portfolioClientId as string)
@@ -57,6 +78,7 @@ export async function getExecutiveDashboard(
       const data = document.data()!;
       const client = {
         id: scope,
+        avpUnit: global && avpAvailable ? avpUnitLink(scope, data) : undefined,
         portfolioClientId:
           typeof data.portfolioClientId === "string" ? data.portfolioClientId : null,
         name: String(data.name || "Cliente sem nome"),
@@ -120,34 +142,25 @@ export async function getExecutiveDashboard(
     clients.push(...batch);
   }
   let avp: ExecutiveDashboard["avp"] = null;
-  let avpAvailable = false;
   let avpWorkforce: ExecutiveDashboard["avpWorkforce"] = null;
-  if (!scope || scope === "GRUPO_AVP") {
-    try {
-      requireAvpAccess(user);
-      avpAvailable = true;
-    } catch {
-      /* No AVP data for unauthorized profiles. */
-    }
-    if (avpAvailable) {
-      const [sheet, workforce] = await Promise.allSettled([
-        getAvpSnapshot(),
-        global && clients.some((c) => c.id === "GRUPO_AVP") ? getAvpWorkforce() : null,
-      ]);
-      if (workforce.status === "fulfilled") avpWorkforce = workforce.value;
-      else issues.push("Grupo AVP: cobertura de colaboradores indisponível.");
-      if (sheet.status === "rejected") {
-        issues.push("AVP: não foi possível consultar a última leitura da planilha.");
-      } else if (sheet.value.revision) {
-        const snapshot = sheet.value;
-        avp = summarizeAvp(
-          snapshot.items,
-          snapshot.checkedAt || null,
-          snapshot.status || "UNKNOWN",
-          now
-        );
-      } else issues.push("AVP: nenhuma leitura da planilha foi concluída.");
-    }
+  if (avpAvailable) {
+    const [sheet, workforce] = await Promise.allSettled([
+      getAvpSnapshot(),
+      global && clients.some((c) => c.id === "GRUPO_AVP") ? getAvpWorkforce() : null,
+    ]);
+    if (workforce.status === "fulfilled") avpWorkforce = workforce.value;
+    else issues.push("Grupo AVP: cobertura de colaboradores indisponível.");
+    if (sheet.status === "rejected") {
+      issues.push("AVP: não foi possível consultar a última leitura da planilha.");
+    } else if (sheet.value.revision) {
+      const snapshot = sheet.value;
+      avp = summarizeAvp(
+        snapshot.items,
+        snapshot.checkedAt || null,
+        snapshot.status || "UNKNOWN",
+        now
+      );
+    } else issues.push("AVP: nenhuma leitura da planilha foi concluída.");
   }
   if (clients.some((c) => c.tasks?.truncated))
     issues.push("Ações parciais: limite de 500 registros por cliente nesta consulta.");
