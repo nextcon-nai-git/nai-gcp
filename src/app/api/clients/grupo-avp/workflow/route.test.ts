@@ -329,3 +329,34 @@ describe("correções de pedido e documento", () => {
     ).toBe(400);
   });
 });
+
+it("confere CNPJ, código SOC e data mesmo quando o nome coincide", async () => {
+  const evidenceId = "a".repeat(64);
+  const record = {
+    ...base(),
+    employerCnpj: "11.222.333/0001-81",
+    socEmployeeCode: "42",
+    attendedDate: "2026-11-18",
+    evidenceId,
+  };
+  mocks.data.set(`webhook_deliveries/grupo-avp-evidence/records/${evidenceId}`, {
+    kind: "aso",
+    uploaded: true,
+    review: "Recebido",
+    employee: record.employee,
+    companyCnpj: "11222333000181",
+    examType: "Admissional",
+    socEmployeeCode: "42",
+    examDate: "2026-11-18",
+  });
+  for (const diff of [
+    { sourceId: "periodico-2026-1" },
+    { employerCnpj: "" },
+    { employerCnpj: "12.ABC.345/01DE-35" },
+    { socEmployeeCode: "OUTRO" },
+    { attendedDate: "2026-11-17" },
+  ])
+    expect((await POST(request({ record: { ...record, ...diff }, version: 0 }))).status).toBe(400);
+  expect(mocks.writes).not.toHaveBeenCalled();
+  expect((await POST(request({ record, version: 0 }))).status).toBe(200);
+});

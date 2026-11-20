@@ -8,6 +8,7 @@ import {
   WORKFLOW_STAGES,
   emptyWorkflow,
   workflowNextAction,
+  workflowEvidenceProblem,
   workflowDraft,
   type AvpWorkflow,
   type StoredWorkflow,
@@ -292,6 +293,8 @@ function Session() {
               [
                 ["socReference", "Evidência da consulta SOC (data, responsável e referência)"],
                 ["socOrder", "Número do pedido SOC"],
+                ["employerCnpj", "CNPJ do vínculo conferido no SOC"],
+                ["socEmployeeCode", "Código do colaborador conferido no SOC"],
                 ["clinic", "Clínica confirmada"],
                 ["clinicEmail", "E-mail da clínica"],
                 ["owner", "Responsável pelo acompanhamento"],
@@ -308,21 +311,29 @@ function Session() {
                 {label}
                 <Input
                   type={key.endsWith("Date") ? "date" : key.endsWith("Email") ? "email" : "text"}
-                  value={editing[key]}
+                  value={editing[key] ?? ""}
                   onChange={(e) => field(key, e.target.value)}
                 />
               </label>
             ))}
             <label>
               ASO recebido
+              <small className="block">
+                Confira o CNPJ e o código SOC acima para localizar o PDF correspondente ao vínculo.
+              </small>
               <select
                 className="block w-full rounded border p-2 bg-background"
                 value={editing.evidenceId}
                 onChange={(e) => field("evidenceId", e.target.value)}
               >
-                <option value="">Selecionar PDF já anexado</option>
+                <option value="">Selecionar PDF compatível</option>
                 {evidence
-                  .filter((e) => e.uploaded && e.review === "Recebido")
+                  .filter(
+                    (e) =>
+                      e.uploaded &&
+                      e.review === "Recebido" &&
+                      (e.id === editing.evidenceId || !workflowEvidenceProblem(editing, e))
+                  )
                   .map((e) => (
                     <option key={e.id} value={e.id}>
                       {e.employee} · {e.company} · {e.examDate} · {e.fileName}

@@ -8,16 +8,18 @@ import {
   AVP_COST_BANDS,
   avpCostBand,
   avpEvidenceCsv,
+  avpDriveSource,
   AvpEvidenceSchema,
   type AvpEvidence,
   type AvpPayment,
   type AvpAsoEvidence,
 } from "@/lib/avp-evidence";
 import { formatBrlCents, isAvpCostAtLeast40 } from "@/lib/avp-costs";
+import { AvpAsoReceipt } from "./avp-aso-receipt";
 import { z } from "zod/v3";
 import { AvpAsoComparison, type ComparableAso } from "./avp-aso-comparison";
 
-type Stored = AvpEvidence & { uploaded?: boolean };
+type Stored = AvpEvidence & { uploaded?: boolean; linkConfirmation?: { reference: string } };
 export function AvpEvidencePanel({ kind }: { kind: "payment" | "aso" }) {
   const { user } = useUser();
   return <AvpEvidenceSession key={JSON.stringify([user?.uid, kind])} kind={kind} />;
@@ -30,6 +32,8 @@ function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
   const [message, setMessage] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [search, setSearch] = React.useState("");
+  const [attachmentFilter, setAttachmentFilter] = React.useState("all");
+  const [reviewFilter, setReviewFilter] = React.useState("all");
   const [band, setBand] = React.useState("all");
   const [basis, setBasis] = React.useState("unit");
   const [above, setAbove] = React.useState(false);
@@ -111,7 +115,10 @@ function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
       guard.current++;
     };
   }, [refresh, user]);
-  React.useEffect(() => setPage(1), [kind, search, band, basis, above]);
+  React.useEffect(
+    () => setPage(1),
+    [kind, search, band, basis, above, attachmentFilter, reviewFilter]
+  );
   async function readIndex(file?: File) {
     if (!file) return;
     try {
@@ -175,35 +182,64 @@ function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
       if (active.current) setBusy(false);
     }
   }
-  async function uploadFiles(files: FileList | null) {
-    if (!files || !user || mutating.current) return;
+  async function saveAsoAction(request: RequestInit, confirmation: string) {
+    if (!user || mutating.current) return false;
+    mutating.current = true;
+    setBusy(true);
+    setMessage("");
+    try {
+      await api(request);
+      if (!active.current) return false;
+      const refreshed = await refresh();
+      if (active.current)
+        setMessage(confirmation + (refreshed ? "" : " Atualize a lista para consultar."));
+      return true;
+    } catch (e) {
+      if (!active.current) return false;
+      const message = e instanceof Error ? e.message : "Recebimento não confirmado.";
+      await refresh();
+      if (active.current) setMessage(message);
+      return false;
+    } finally {
+      mutating.current = false;
+      if (active.current) setBusy(false);
+    }
+  }
+  async function uploadFiles(files: File[], target?: ComparableAso) {
+    if (!files.length || !user || mutating.current) return;
     mutating.current = true;
     setBusy(true);
     let saved = 0;
     const failures: string[] = [];
     const uid = user?.uid;
     try {
-      for (const file of Array.from(files)) {
+      for (const file of files) {
         if (!active.current || owner.current !== uid) throw new Error("A sessão mudou.");
-        const matches = records.filter(
-          (r): r is AvpAsoEvidence & { uploaded?: boolean } =>
-            r.kind === "aso" && r.fileName === file.name
-        );
+        const matches = target
+          ? [target]
+          : records.filter(
+              (r): r is AvpAsoEvidence & { uploaded?: boolean } =>
+                r.kind === "aso" && r.fileName === file.name
+            );
         if (!matches.length) {
           failures.push(`${file.name}: sem índice`);
           continue;
         }
-        for (const r of matches) {
-          try {
-            const form = new FormData();
-            form.set("id", r.id);
-            form.set("file", file);
-            await api({ method: "POST", body: form });
-            if (!active.current) return;
-            saved++;
-          } catch (e) {
-            failures.push(`${file.name}: ${e instanceof Error ? e.message : "falhou"}`);
-          }
+        if (matches.length > 1) {
+          failures.push(
+            `${file.name}: nome em mais de um cadastro. Use Anexar PDF na linha do colaborador.`
+          );
+          continue;
+        }
+        try {
+          const form = new FormData();
+          form.set("id", matches[0].id);
+          form.set("file", file);
+          await api({ method: "POST", body: form });
+          if (!active.current) return;
+          saved++;
+        } catch (e) {
+          failures.push(`${file.name}: ${e instanceof Error ? e.message : "falhou"}`);
         }
         if (!active.current) return;
         setMessage(`${saved} PDFs anexados. ${failures.length} pendências.`);
@@ -265,6 +301,14 @@ function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
           )
       )
         return false;
+      if (r.kind === "aso") {
+        if (
+          (attachmentFilter === "pending" && r.uploaded) ||
+          (attachmentFilter === "attached" && !r.uploaded)
+        )
+          return false;
+        if (reviewFilter !== "all" && r.review !== reviewFilter) return false;
+      }
       if (r.kind === "payment") {
         const cents = basis === "unit" ? r.unitCents : r.amountCents;
         if (above && !isAvpCostAtLeast40(cents)) return false;
@@ -364,6 +408,31 @@ function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-md"
         />
+        {kind === "aso" && (
+          <>
+            <select
+              aria-label="Situação do PDF"
+              value={attachmentFilter}
+              onChange={(e) => setAttachmentFilter(e.target.value)}
+              className="rounded border p-2"
+            >
+              <option value="all">Todos os PDFs</option>
+              <option value="pending">Pendentes de anexo</option>
+              <option value="attached">PDFs anexados</option>
+            </select>
+            <select
+              aria-label="Conferência do ASO"
+              value={reviewFilter}
+              onChange={(e) => setReviewFilter(e.target.value)}
+              className="rounded border p-2"
+            >
+              <option value="all">Todas as situações</option>
+              <option>Recebido</option>
+              <option>Conferir vínculo</option>
+              <option>Conferir retificação</option>
+            </select>
+          </>
+        )}
         {kind === "payment" && (
           <>
             <select
@@ -401,6 +470,14 @@ function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
       <p className="text-sm" role="status">
         {message}
       </p>
+      {kind === "aso" && (
+        <AvpAsoReceipt
+          busy={busy || !user}
+          onReceive={(payload) =>
+            saveAsoAction({ method: "POST", body: payload }, "ASO e PDF confirmados no NAI.")
+          }
+        />
+      )}
       <details className="rounded-xl border p-3">
         <summary className="cursor-pointer font-semibold">Importar evidências e anexos</summary>
         <div className="mt-3 space-y-3">
@@ -447,7 +524,11 @@ function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
                 accept=".pdf"
                 multiple
                 disabled={busy}
-                onChange={(e) => void uploadFiles(e.target.files)}
+                onChange={(e) => {
+                  const files = Array.from(e.currentTarget.files || []);
+                  e.currentTarget.value = "";
+                  void uploadFiles(files);
+                }}
                 className="block"
               />
             </label>
@@ -534,23 +615,95 @@ function AvpEvidenceSession({ kind }: { kind: "payment" | "aso" }) {
                   </td>
                   <td className="p-3">
                     {r.company}
+                    {r.companyCnpj && <p>CNPJ {r.companyCnpj}</p>}
+                    {r.socEmployeeCode && <p>SOC {r.socEmployeeCode}</p>}
                     <p>{r.examType}</p>
                   </td>
                   <td className="p-3">{r.examDate || "Conferir no ASO"}</td>
                   <td className="p-3">{r.receivedDate}</td>
                   <td className="min-w-64 p-3">
                     <strong>{r.review}</strong>
-                    <p className="text-xs">{r.source}</p>
+                    <p className="break-all text-xs">{r.source}</p>
+                    {avpDriveSource(r.source) && (
+                      <a
+                        className="text-sm underline"
+                        href={avpDriveSource(r.source)!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Abrir original no Drive
+                      </a>
+                    )}
                     <p className="text-xs">{r.notes}</p>
+                    {r.linkConfirmation && (
+                      <p className="text-xs">Vínculo conferido · {r.linkConfirmation.reference}</p>
+                    )}
+                    {r.uploaded && r.review === "Conferir vínculo" && (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer">Confirmar vínculo</summary>
+                        <form
+                          className="grid gap-2 py-2"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            const fields = new FormData(e.currentTarget);
+                            void saveAsoAction(
+                              {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  id: r.id,
+                                  companyCnpj: fields.get("companyCnpj"),
+                                  reference: fields.get("reference"),
+                                }),
+                              },
+                              "Vínculo confirmado."
+                            );
+                          }}
+                        >
+                          <label>
+                            CNPJ conferido no ASO e na fonte do vínculo
+                            <Input name="companyCnpj" required maxLength={24} />
+                          </label>
+                          <label>
+                            Referência da conferência
+                            <Input
+                              name="reference"
+                              required
+                              minLength={3}
+                              maxLength={500}
+                              placeholder="Pedido SOC ou documento de confirmação"
+                            />
+                          </label>
+                          <Button disabled={busy} type="submit">
+                            Salvar conferência
+                          </Button>
+                        </form>
+                      </details>
+                    )}
                   </td>
                   <td className="p-3">
-                    <Button
-                      variant="outline"
-                      disabled={!r.uploaded}
-                      onClick={() => void openDocument(r.id, r.fileName)}
-                    >
-                      {r.uploaded ? "Abrir ASO" : "Pendente de anexo"}
-                    </Button>
+                    {r.uploaded ? (
+                      <Button variant="outline" onClick={() => void openDocument(r.id, r.fileName)}>
+                        Abrir ASO
+                      </Button>
+                    ) : (
+                      <label className="block text-sm">
+                        <span className="block">Pendente de anexo</span>
+                        <span>Anexar PDF</span>
+                        <input
+                          type="file"
+                          accept=".pdf,application/pdf"
+                          aria-label={`Anexar PDF de ${r.employee}`}
+                          disabled={busy}
+                          className="block max-w-56"
+                          onChange={(e) => {
+                            const files = Array.from(e.currentTarget.files || []);
+                            e.currentTarget.value = "";
+                            void uploadFiles(files, r);
+                          }}
+                        />
+                      </label>
+                    )}
                   </td>
                 </tr>
               )

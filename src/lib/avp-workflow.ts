@@ -1,4 +1,7 @@
 import { z } from "zod/v3";
+import { isValidCnpj, normalizeCnpj } from "./cnpj";
+import { avpQueueExamType } from "./avp-queue-exam-counts";
+import { normalizeAvpText } from "./grupo-avp-asos-data";
 
 const text = (max: number) => z.string().trim().max(max);
 const day = z
@@ -28,6 +31,10 @@ export const WorkflowSchema = z
     socCheck: z.enum(["unchecked", "no-order", "existing-order"]),
     socReference: text(500),
     socOrder: text(80),
+    employerCnpj: text(24)
+      .refine((v) => !v || isValidCnpj(v))
+      .optional(),
+    socEmployeeCode: text(80).optional(),
     identityChecked: z.boolean(),
     clinic: text(240),
     clinicEmail: z.union([z.literal(""), z.string().trim().email().max(254)]),
@@ -81,6 +88,38 @@ export function emptyWorkflow(source: {
     deliveryReference: "",
     notes: "",
   };
+}
+export function workflowEvidenceProblem(
+  record: AvpWorkflow,
+  aso: {
+    employee?: unknown;
+    companyCnpj?: unknown;
+    socEmployeeCode?: unknown;
+    examDate?: unknown;
+    examType?: unknown;
+  }
+) {
+  const name = (value: unknown) => normalizeAvpText(String(value ?? "")).replace(/[^A-Z0-9]/g, "");
+  if (!name(aso.employee) || name(aso.employee) !== name(record.employee))
+    return "O nome do ASO diverge do caso. Confira o vínculo.";
+  if (
+    /^periodico-\d{4}-/.test(record.sourceId) &&
+    typeof aso.examType === "string" &&
+    aso.examType.trim() &&
+    avpQueueExamType(aso.examType) !== "periodico"
+  )
+    return "Confira o tipo do ASO antes de vinculá-lo à campanha de periódicos.";
+  if (aso.companyCnpj && normalizeCnpj(record.employerCnpj ?? "") !== aso.companyCnpj)
+    return "Confira no SOC o CNPJ do vínculo e compare com o empregador do ASO.";
+  if (aso.socEmployeeCode && record.socEmployeeCode !== aso.socEmployeeCode)
+    return "O código do colaborador no SOC precisa corresponder ao do ASO.";
+  if (
+    day.safeParse(aso.examDate).success &&
+    record.attendedDate &&
+    record.attendedDate !== aso.examDate
+  )
+    return "A data do ASO diverge do comparecimento registrado.";
+  return "";
 }
 export function workflowProblems(v: AvpWorkflow): string[] {
   if (v.stage === "pending") return [];
