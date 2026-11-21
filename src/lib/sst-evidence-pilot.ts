@@ -8,7 +8,8 @@ export function reconcileAsoEvidence(card: AsoFlowCard, today: string) {
     card.review?.hash === card.aso?.hash &&
     card.review?.identityConfirmed === true &&
     card.review?.documentChecked === true;
-  const delivered = reviewed && card.delivery?.hash === card.aso?.hash && !!card.delivery?.reference;
+  const delivered =
+    reviewed && card.delivery?.hash === card.aso?.hash && !!card.delivery?.reference;
   const explicitAbsence =
     card.status === "no_show" &&
     card.events.some((event) => event.status === "no_show" && !!event.actor && !!event.at);
