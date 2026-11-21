@@ -1,3 +1,4 @@
+import { socEmployeeStatus } from "./soc-employee-status";
 import Papa from "papaparse";
 import { isValidCnpj, normalizeCnpj } from "@/lib/cnpj";
 import { socExamSummarySchema, type SocExamSummary } from "./soc-dashboard";
@@ -81,11 +82,11 @@ export function importSocConvocation(
       throw Error(
         "A empresa do CSV não corresponde à empresa selecionada. Confira o código SOC e o apelido cadastrado antes de importar."
       );
-    const state = normalize(row["Situação"] || "");
+    const state = socEmployeeStatus(row["Situação"] || "");
     // Do not silently classify unknown statuses as active or inactive.
-    if (!["ativo", "inativo", "demitido", "afastado", "ferias", "pendente"].includes(state))
+    if (state === "unknown")
       throw Error("Situação cadastral desconhecida no CSV. Confira o relatório antes de importar.");
-    if (state !== "ativo") {
+    if (state !== "active") {
       summary.excludedInactive++;
       continue;
     }
