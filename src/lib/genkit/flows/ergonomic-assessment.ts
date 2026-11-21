@@ -1,6 +1,7 @@
 import { z } from "zod/v3";
 import { shortText, notes, listOfNotes, positive } from "../sst-fields";
 import { readMedia, privateVertexFlow } from "../private-vertex";
+import { specialistReviewGate } from "../../sst-evidence-pilot";
 const integer = z.number().int().positive();
 const multiplier = positive.max(1);
 export const ErgonomicInputSchema = z.object({
@@ -123,6 +124,12 @@ export async function ergonomicAssessmentFlow(raw: unknown, file: FormDataEntryV
     metodo: input.metodo,
     ...calculo,
     ...obs,
+    validacao: specialistReviewGate({
+      dataQualityConfirmed: false,
+      predictionValidated: false,
+      explanationValidated: false,
+      professionalApproved: false,
+    }),
     revisao: "Conferir a ficha e a representatividade do ciclo com o responsável pela avaliação.",
   };
 }

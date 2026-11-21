@@ -63,6 +63,8 @@ import {
 import { ASO_FLOW_BATCH_SIZE, ASO_FLOW_TEMPLATE, readAsoFlowFile } from "@/lib/aso-flow-import";
 import { cn } from "@/lib/utils";
 import { AsoEsocialLink } from "@/components/esocial/aso-esocial-link";
+import { AsoEvidencePilot } from "./aso-evidence-pilot";
+import { useBrasiliaDate } from "@/hooks/use-brasilia-date";
 
 type Capabilities = {
   socGeneration: boolean;
@@ -191,6 +193,7 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
   const busyRef = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const [cards, setCards] = useState<AsoFlowCard[]>([]);
+  const today = useBrasiliaDate();
   const [directory, setDirectory] = useState<FlowCompany[]>([]);
   const [requiresSelection, setRequiresSelection] = useState(false);
   const [clinics, setClinics] = useState<AsoFlowClinic[]>([]);
@@ -575,6 +578,7 @@ function BoardSession({ initialCompany }: { initialCompany: string }) {
 
   return (
     <section className="space-y-5" aria-label="Esteira de ASOs">
+      <AsoEvidencePilot cards={cards} today={today} />
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">Esteira de ASOs</h2>
