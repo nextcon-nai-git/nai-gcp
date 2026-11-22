@@ -38,9 +38,10 @@ describe("SST evidence and shadow pilot", () => {
     });
   });
   it("requires an explicit audit event for absence", () => {
-    expect(reconcileAsoEvidence(card({ status: "no_show" }), "2026-11-20").attendance).not.toBe(
-      "Falta registrada"
-    );
+    expect(reconcileAsoEvidence(card({ status: "no_show" }), "2026-11-20")).toMatchObject({
+      attendance: "Realização não confirmada",
+      discrepancy: true,
+    });
     expect(
       reconcileAsoEvidence(
         card({
@@ -54,8 +55,11 @@ describe("SST evidence and shadow pilot", () => {
           ],
         }),
         "2026-11-20"
-      ).attendance
-    ).toBe("Falta registrada");
+      )
+    ).toMatchObject({
+      attendance: "Falta registrada",
+      discrepancy: false,
+    });
   });
   it("computes only calibrated valid probabilities", () => {
     expect(contactPilotScore(0.4, 60, true)).toBe(24);
