@@ -48,8 +48,8 @@ export function AsoEvidencePilot({ cards, today }: { cards: AsoFlowCard[]; today
         prioridade clínica, prazo legal ou confirmação com a clínica.
       </p>
       <p id="aso-pilot-probability-help" className="mt-2 text-sm">
-        O NAI não estima nem valida a probabilidade de falta. O valor é informado pelo operador.
-        Use o resultado apenas para simulação. Não automatize contatos, mudanças de agenda ou
+        O NAI não estima nem valida a probabilidade de falta. O valor é informado pelo operador. Use
+        o resultado apenas para simulação. Não automatize contatos, mudanças de agenda ou
         overbooking com base nele.
       </p>
       <div className="my-3 flex flex-wrap gap-3">
