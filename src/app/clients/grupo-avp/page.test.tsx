@@ -15,9 +15,6 @@ const session = vi.hoisted(() => ({
 vi.mock("@/firebase", () => ({ useUser: () => session }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock("@/components/clients/grupo-avp-aso-manager", () => ({ GrupoAvpAsoManager: manager }));
-vi.mock("@/components/clients/avp-scheduling-request-form", () => ({
-  AvpSchedulingRequestForm: () => null,
-}));
 vi.mock("@/components/clients/grupo-avp-credenciamento-hub", () => ({
   GrupoAvpCredenciamentoHub: () => null,
 }));
@@ -48,7 +45,7 @@ afterEach(async () => {
   host.remove();
 });
 
-describe("hub AVP: evidências e conferência de entregas", () => {
+describe("hub AVP: navegação e evidências", () => {
   it("mostra o total dos quatro tipos e os atualiza com a fila", async () => {
     await act(async () => root.render(<GrupoAvpClientHubPage />));
     const details = host.querySelector('dl[aria-label="ASOs por tipo de exame"]')!;
@@ -103,16 +100,12 @@ describe("hub AVP: evidências e conferência de entregas", () => {
     expect(details.lastElementChild?.lastChild?.textContent).toBe("1");
     expect(card.textContent).not.toContain("fora do total");
   });
-  it("inicia sem entregas presumidas e identifica marcações como conferência local", async () => {
+  it("retira as abas de nova solicitação e workshop", async () => {
     await act(async () => root.render(<GrupoAvpClientHubPage />));
-    expect(host.textContent).toContain("0 de 9 conferidos nesta sessão");
-    expect(host.textContent).toContain("as marcações não são salvas nem comprovam entregas");
-    expect(host.querySelectorAll('[aria-pressed="true"]')).toHaveLength(0);
-    const task = host.querySelector<HTMLButtonElement>('button[aria-pressed="false"]')!;
-    await act(async () => task.click());
-    expect(task.getAttribute("aria-pressed")).toBe("true");
-    expect(host.textContent).toContain("1 de 9 conferidos nesta sessão");
-    expect(host.textContent).not.toContain("Ações Concluídas");
+    expect(host.textContent).not.toContain("Nova Solicitação (10 Campos)");
+    expect(host.textContent).not.toContain("Alinhamento & Workshop");
+    expect(host.textContent).not.toContain("Solicitação Rápida de Agendamento");
+    expect(host.textContent).not.toContain("Roteiro de Conferência do Workshop");
   });
   it("não oferece evidências financeiras e ASOs ao administrador do tenant", async () => {
     session.role = "ADMIN";
