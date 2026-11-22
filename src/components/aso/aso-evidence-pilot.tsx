@@ -47,6 +47,11 @@ export function AsoEvidencePilot({ cards, today }: { cards: AsoFlowCard[]; today
         Simulação manual: somente casos previamente elegíveis pelo responsável. Não substitui
         prioridade clínica, prazo legal ou confirmação com a clínica.
       </p>
+      <p id="aso-pilot-probability-help" className="mt-2 text-sm">
+        O NAI não estima nem valida a probabilidade de falta. O valor é informado pelo operador. Use
+        o resultado apenas para simulação. Não automatize contatos, mudanças de agenda ou
+        overbooking com base nele.
+      </p>
       <div className="my-3 flex flex-wrap gap-3">
         <label className="text-sm">
           Probabilidade de falta (0–1)
@@ -57,7 +62,11 @@ export function AsoEvidencePilot({ cards, today }: { cards: AsoFlowCard[]; today
             max="1"
             step="0.01"
             value={probability}
-            onChange={(e) => setProbability(e.target.value)}
+            aria-describedby="aso-pilot-probability-help"
+            onChange={(e) => {
+              setProbability(e.target.value);
+              setCalibrated(false);
+            }}
           />
         </label>
         <label className="text-sm">

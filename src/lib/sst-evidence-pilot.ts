@@ -29,7 +29,7 @@ export function reconcileAsoEvidence(card: AsoFlowCard, today: string) {
       (card.status === "received" && !received) ||
       (card.status === "reviewed" && !reviewed) ||
       (card.status === "delivered" && !delivered) ||
-      (card.status === "no_show" && attended),
+      (card.status === "no_show" && (attended || !explicitAbsence)),
   };
 }
 
