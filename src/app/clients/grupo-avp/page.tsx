@@ -245,10 +245,7 @@ export default function GrupoAvpClientHubPage() {
               value="credenciamento"
               className="rounded-xl py-2.5 px-4 text-xs font-black uppercase tracking-wider data-[state=active]:bg-[#25D366] data-[state=active]:text-white gap-2 transition-all shadow-xs"
             >
-              <Building2 size={15} /> Credenciamento Brasil (WhatsApp 1-Clique)
-              <Badge className="bg-emerald-600 text-white text-[9px] h-4 px-1.5 rounded-full font-bold">
-                Consultar catálogo
-              </Badge>
+              <Building2 size={15} /> Credenciamentos
             </TabsTrigger>
 
             <TabsTrigger
