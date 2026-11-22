@@ -8,13 +8,10 @@ import {
   Clock,
   Mail,
   MessageSquare,
-  Calendar,
   ShieldCheck,
-  Send,
   ExternalLink,
   Copy,
   Check,
-  ListTodo,
   FileSpreadsheet,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -22,9 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
 import { GrupoAvpAsoManager } from "@/components/clients/grupo-avp-aso-manager";
-import { AvpSchedulingRequestForm } from "@/components/clients/avp-scheduling-request-form";
 import { GrupoAvpCredenciamentoHub } from "@/components/clients/grupo-avp-credenciamento-hub";
 
 import { AvpEvidencePanel } from "@/components/clients/avp-evidence-panel";
@@ -56,77 +51,6 @@ export default function GrupoAvpClientHubPage() {
     cidades: 0,
     concluidos: 0,
   }));
-
-  // Checklist de Ações do Workshop
-  const [tasks, setTasks] = React.useState([
-    {
-      id: "nxt-1",
-      owner: "Relacionamento NEXTCON",
-      title: "Disponibilizar gravação do workshop",
-      desc: "Enviar o vídeo da reunião para que os participantes possam assistir novamente.",
-      done: false,
-    },
-    {
-      id: "nxt-2",
-      owner: "Relacionamento NEXTCON",
-      title: "Enviar material de apoio & Planilha",
-      desc: "Disponibilizar via e-mail a planilha de agendamento em lote, manual e apresentação.",
-      done: false,
-    },
-    {
-      id: "nxt-3",
-      owner: "Relacionamento NEXTCON",
-      title: "Disponibilizar link de presença & Feedback",
-      desc: "Enviar formulário para confirmação de presença e avaliação do treinamento.",
-      done: false,
-    },
-    {
-      id: "nxt-4",
-      owner: "Relacionamento NEXTCON",
-      title: "Compartilhar vídeos em pasta na nuvem",
-      desc: "Criar pasta em nuvem para disponibilizar as gravações do 1º e 2º dia de workshop.",
-      done: false,
-    },
-    {
-      id: "nxt-5",
-      owner: "Relacionamento NEXTCON",
-      title: "Enviar orientações e contatos oficiais",
-      desc: "Disponibilizar material com instruções de agendamento e contatos NextCon.",
-      done: false,
-    },
-    {
-      id: "nxt-6",
-      owner: "Relacionamento NEXTCON",
-      title: "Corrigir slide e reenviar versão retificada",
-      desc: "Realizar retificação do arquivo apresentado e encaminhar aos participantes.",
-      done: false,
-    },
-    {
-      id: "avp-1",
-      owner: "Grupo AVP",
-      title: "Solicitar agendamentos via canais oficiais",
-      desc: "Encaminhar demandas exclusivamente pelo WhatsApp (41) 98716-8938 ou e-mail oficial.",
-      done: false,
-    },
-    {
-      id: "avp-2",
-      owner: "Grupo AVP",
-      title: "Indicar clínicas para credenciamento",
-      desc: "Enviar por e-mail novas indicações de clínicas para verificação documental.",
-      done: false,
-    },
-    {
-      id: "avp-3",
-      owner: "Grupo AVP",
-      title: "Enviar notas fiscais e boletos de Agosto",
-      desc: "Encaminhar para o Erickson os boletos e notas fiscais de exames realizados até 31/08.",
-      done: false,
-    },
-  ]);
-
-  const toggleTask = (id: string) => {
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
-  };
 
   const handleCopy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -332,20 +256,6 @@ export default function GrupoAvpClientHubPage() {
               className="rounded-xl py-2.5 px-4 text-xs font-black uppercase tracking-wider data-[state=active]:bg-primary data-[state=active]:text-white gap-2 transition-all"
             >
               <MessageSquare size={15} /> Canais & Diretrizes SST
-            </TabsTrigger>
-
-            <TabsTrigger
-              value="simulator"
-              className="rounded-xl py-2.5 px-4 text-xs font-black uppercase tracking-wider data-[state=active]:bg-primary data-[state=active]:text-white gap-2 transition-all"
-            >
-              <Send size={15} /> Nova Solicitação (10 Campos)
-            </TabsTrigger>
-
-            <TabsTrigger
-              value="workshop"
-              className="rounded-xl py-2.5 px-4 text-xs font-black uppercase tracking-wider data-[state=active]:bg-primary data-[state=active]:text-white gap-2 transition-all"
-            >
-              <ListTodo size={15} /> Alinhamento & Workshop
             </TabsTrigger>
           </TabsList>
         </div>
@@ -678,143 +588,6 @@ export default function GrupoAvpClientHubPage() {
                   Audiometria, ECG, Raio-X e Laboratoriais
                 </p>
               </div>
-            </div>
-          </Card>
-        </TabsContent>
-
-        {/* TAB 3: SIMULADOR DE AGENDAMENTO (COM OS 10 CAMPOS OBRIGATÓRIOS) */}
-        <TabsContent value="simulator" className="space-y-8 focus-visible:outline-hidden">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2">
-              <Card className="rounded-[2.5rem] border-none shadow-xl bg-white p-8 sm:p-10 space-y-6">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-primary/10 text-primary font-black text-[9px] uppercase tracking-wider px-2.5 h-6">
-                      FORMULÁRIO OFICIAL
-                    </Badge>
-                    <h3 className="text-xl font-black font-headline text-primary uppercase">
-                      Solicitação Rápida de Agendamento
-                    </h3>
-                  </div>
-                  <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">
-                    Prepare e revise os 10 dados obrigatórios. O envio será concluído na conversa
-                    com a central Nextcon.
-                  </p>
-                </div>
-
-                <AvpSchedulingRequestForm />
-              </Card>
-            </div>
-
-            {/* REGRAS & SAZONALIDADE */}
-            <div className="space-y-6">
-              <Card className="rounded-[2.5rem] bg-linear-to-br from-amber-500/10 via-amber-50/50 to-white border border-amber-200 p-8 space-y-4">
-                <div className="flex items-center gap-2 text-amber-800 font-black uppercase text-sm">
-                  <Calendar size={18} /> Sazonalidade de Picos de Admissão
-                </div>
-                <p className="text-xs text-slate-700 font-medium leading-relaxed">
-                  Nos meses de <strong>Janeiro, Fevereiro, Julho e Agosto</strong>, ocorre alto
-                  volume de contratações. A NextCon recomenda o envio consolidado de planilhas por
-                  e-mail para otimizar o fluxo de atendimento nacional.
-                </p>
-                <div className="p-3 bg-white rounded-2xl border border-amber-200 text-xs text-amber-900 font-bold">
-                  💡 Dica: Utilize a planilha modelo disponibilizada no workshop.
-                </div>
-              </Card>
-
-              <Card className="rounded-[2.5rem] bg-white p-8 shadow-lg space-y-4 border-none">
-                <div className="flex items-center gap-2 text-primary font-black uppercase text-sm">
-                  <ShieldCheck size={18} className="text-emerald-600" /> Indicação de Clínicas
-                </div>
-                <p className="text-xs text-slate-600 font-medium leading-relaxed">
-                  As unidades podem indicar novas clínicas de preferência via e-mail. A equipe de
-                  Credenciamento da NextCon realizará a avaliação técnica e documental em até 5 dias
-                  úteis.
-                </p>
-                <span className="text-[10px] text-slate-400 font-bold block">
-                  Nota: Não há lista fixa de clínicas, pois a rede é dinâmica e atualizada em tempo
-                  real.
-                </span>
-              </Card>
-            </div>
-          </div>
-        </TabsContent>
-
-        {/* TAB 4: CHECKLIST DE PRÓXIMAS ETAPAS DO WORKSHOP */}
-        <TabsContent value="workshop" className="space-y-8 focus-visible:outline-hidden">
-          <Card className="rounded-[2.5rem] border-none shadow-xl bg-white p-8 sm:p-10 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-6">
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-accent">
-                  Alinhamento de Implantação
-                </span>
-                <h3 className="text-2xl font-black font-headline text-primary uppercase mt-1">
-                  Roteiro de Conferência do Workshop
-                </h3>
-                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">
-                  Conferência apenas nesta sessão: as marcações não são salvas nem comprovam
-                  entregas. Registre a execução e suas evidências na Central de Contratos e
-                  Produção.
-                </p>
-              </div>
-
-              <Badge className="bg-primary text-white font-black text-xs px-3.5 h-8">
-                {tasks.filter((t) => t.done).length} de {tasks.length} conferidos nesta sessão
-              </Badge>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {tasks.map((task) => (
-                <button
-                  type="button"
-                  aria-pressed={task.done}
-                  key={task.id}
-                  onClick={() => toggleTask(task.id)}
-                  className={cn(
-                    "p-5 rounded-3xl border-2 transition-all cursor-pointer flex items-start gap-4 text-left",
-                    task.done
-                      ? "bg-emerald-50/40 border-emerald-200"
-                      : "bg-slate-50 border-slate-200 hover:border-slate-300"
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "size-6 rounded-xl flex items-center justify-center shrink-0 mt-0.5 font-black text-xs",
-                      task.done
-                        ? "bg-emerald-600 text-white"
-                        : "bg-white border-2 border-slate-300 text-transparent"
-                    )}
-                  >
-                    <Check size={14} />
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        className={cn(
-                          "text-[8px] font-black uppercase px-2 h-5",
-                          task.owner.includes("NEXTCON")
-                            ? "bg-primary text-white"
-                            : "bg-slate-800 text-white"
-                        )}
-                      >
-                        {task.owner}
-                      </Badge>
-                    </div>
-                    <h4
-                      className={cn(
-                        "text-xs font-black uppercase leading-tight",
-                        task.done ? "text-emerald-950 line-through opacity-80" : "text-primary"
-                      )}
-                    >
-                      {task.title}
-                    </h4>
-                    <p className="text-xs text-slate-600 font-medium leading-relaxed">
-                      {task.desc}
-                    </p>
-                  </div>
-                </button>
-              ))}
             </div>
           </Card>
         </TabsContent>
