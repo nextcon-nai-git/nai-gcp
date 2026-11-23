@@ -198,10 +198,7 @@ export default function GrupoAvpClientHubPage() {
       <Tabs defaultValue="asos" className="w-full space-y-8">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-200 pb-4">
           <TabsList className="w-full min-w-0 justify-start bg-slate-100 p-1.5 rounded-2xl h-auto flex flex-wrap gap-1">
-            <TabsTrigger
-              value="asos"
-              className="gap-2 rounded-lg px-3 py-2 text-sm font-medium"
-            >
+            <TabsTrigger value="asos" className="gap-2 rounded-lg px-3 py-2 text-sm font-medium">
               <FileSpreadsheet size={15} /> ASOs
             </TabsTrigger>
             <TabsTrigger
