@@ -41,7 +41,8 @@ export default function GrupoAvpClientHubPage() {
   const { toast } = useToast();
   const [copiedChannel, setCopiedChannel] = React.useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = React.useState("asos");
+  const [asoView, setAsoView] = React.useState("fila");
+  const currentView = canSeeEvidence ? asoView : "fila";
   const [queueSummary, setQueueSummary] = React.useState(() => ({
     exams: countAvpQueueExams([]),
     campaign: null as AvpCampaignCount | null,
@@ -80,21 +81,9 @@ export default function GrupoAvpClientHubPage() {
               className="size-14 shrink-0 rounded-xl bg-white p-1 sm:size-16"
             />
             <div>
-              <div className="flex items-center gap-2.5">
-                <span className="text-xs font-black tracking-widest text-accent uppercase">
-                  Cliente Nacional
-                </span>
-                <span className="text-white/40">•</span>
-                <span className="text-xs font-black tracking-widest text-slate-300 uppercase">
-                  {queueSummary.available ? queueSummary.cidades : "—"} Municípios na fila
-                </span>
-              </div>
               <h1 className="text-2xl sm:text-4xl font-black font-headline uppercase tracking-tight text-white mt-1">
                 Grupo AVP
               </h1>
-              <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">
-                Parceria Estratégica de Centralização de Saúde & Segurança do Trabalho (SST)
-              </p>
             </div>
           </div>
 
@@ -105,12 +94,11 @@ export default function GrupoAvpClientHubPage() {
             >
               CNPJs e faturamento mensal
             </Link>
-            <Badge className="bg-emerald-500 text-slate-950 font-black text-[10px] px-3.5 h-8 uppercase tracking-wider">
-              Operação Ativa (01/09/2026)
-            </Badge>
-            <Badge className="bg-white/10 text-white font-mono font-bold text-[10px] px-3.5 h-8 border-white/20">
-              ID: GRUPO_AVP
-            </Badge>
+            <details className="text-sm text-slate-200">
+              <summary className="cursor-pointer">Dados da operação</summary>
+              <p className="mt-2">Cliente nacional · ID GRUPO_AVP</p>
+              <p>Operação ativa desde 01/09/2026</p>
+            </details>
           </div>
         </div>
 
@@ -207,52 +195,27 @@ export default function GrupoAvpClientHubPage() {
       </div>
 
       {/* TABS DE NAVEGAÇÃO OPERACIONAL */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-8">
+      <Tabs defaultValue="asos" className="w-full space-y-8">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-200 pb-4">
           <TabsList className="w-full min-w-0 justify-start bg-slate-100 p-1.5 rounded-2xl h-auto flex flex-wrap gap-1">
             <TabsTrigger
               value="asos"
-              className="rounded-xl py-2.5 px-4 text-xs font-black uppercase tracking-wider data-[state=active]:bg-primary data-[state=active]:text-white gap-2 transition-all"
+              className="gap-2 rounded-lg px-3 py-2 text-sm font-medium"
             >
-              <FileSpreadsheet size={15} /> Gestão de ASOs (
-              {queueSummary.available ? queueSummary.total : "—"})
-              <Badge className="bg-rose-500 text-white text-[9px] h-4 px-1.5 rounded-full font-bold">
-                {queueSummary.available ? queueSummary.urgentes : "—"} urgentes em aberto
-              </Badge>
+              <FileSpreadsheet size={15} /> ASOs
             </TabsTrigger>
-
-            {canSeeEvidence && (
-              <>
-                <TabsTrigger
-                  value="periodicos"
-                  className="rounded-xl py-2.5 px-4 text-xs font-bold"
-                >
-                  Periódicos e rede AVP
-                </TabsTrigger>
-                <TabsTrigger value="workflow" className="rounded-xl py-2.5 px-4 text-xs font-bold">
-                  Esteira de ASOs
-                </TabsTrigger>
-                <TabsTrigger value="payments" className="rounded-xl py-2.5 px-4 text-xs font-bold">
-                  Pagamentos às clínicas
-                </TabsTrigger>
-                <TabsTrigger value="documents" className="rounded-xl py-2.5 px-4 text-xs font-bold">
-                  ASOs recebidos
-                </TabsTrigger>
-              </>
-            )}
-
             <TabsTrigger
               value="credenciamento"
-              className="rounded-xl py-2.5 px-4 text-xs font-black uppercase tracking-wider data-[state=active]:bg-[#25D366] data-[state=active]:text-white gap-2 transition-all shadow-xs"
+              className="gap-2 rounded-lg px-3 py-2 text-sm font-medium"
             >
               <Building2 size={15} /> Credenciamentos
             </TabsTrigger>
 
             <TabsTrigger
               value="channels"
-              className="rounded-xl py-2.5 px-4 text-xs font-black uppercase tracking-wider data-[state=active]:bg-primary data-[state=active]:text-white gap-2 transition-all"
+              className="gap-2 rounded-lg px-3 py-2 text-sm font-medium"
             >
-              <MessageSquare size={15} /> Canais & Diretrizes SST
+              <MessageSquare size={15} /> Canais e diretrizes
             </TabsTrigger>
           </TabsList>
         </div>
@@ -262,43 +225,42 @@ export default function GrupoAvpClientHubPage() {
           value="asos"
           className="space-y-6 focus-visible:outline-hidden data-[state=inactive]:hidden"
         >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <Badge className="bg-primary text-white font-black text-[9px] uppercase tracking-wider px-2.5 h-6">
-                  FILA DA PLANILHA AVP
-                </Badge>
-                <h2 className="text-2xl font-black font-headline text-primary uppercase">
-                  Fila Nacional de ASOs em Andamento
-                </h2>
+          {canSeeEvidence && (
+            <label className="flex flex-wrap items-center gap-2 text-sm font-medium">
+              Atividade de ASOs
+              <select
+                value={currentView}
+                onChange={(event) => setAsoView(event.target.value)}
+                className="max-w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+              >
+                <option value="fila">Fila de ASOs</option>
+                <option value="periodicos">Periódicos e rede AVP</option>
+                <option value="workflow">Esteira de ASOs</option>
+                <option value="payments">Pagamentos às clínicas</option>
+                <option value="documents">ASOs recebidos</option>
+              </select>
+            </label>
+          )}
+          {currentView === "fila" && (
+            <>
+              <div>
+                <h2 className="text-2xl font-bold text-primary">Fila nacional de ASOs</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  {queueSummary.available ? queueSummary.total : "—"} solicitações na fila importada
+                  {" · "}
+                  {queueSummary.available ? queueSummary.urgentes : "—"} urgentes em aberto
+                </p>
               </div>
-              <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">
-                {queueSummary.available ? queueSummary.total : "—"} solicitações em{" "}
-                {queueSummary.available ? queueSummary.cidades : "—"} municípios da fila importada •
-                Filtros por status, responsável (Kelly, Letícia, Felipe, Isabelle), urgência e
-                clínicas.
-              </p>
-            </div>
-          </div>
-          <GrupoAvpAsoManager onQueueSummaryChange={setQueueSummary} />
+              <GrupoAvpAsoManager onQueueSummaryChange={setQueueSummary} />
+            </>
+          )}
+          {currentView === "periodicos" && (
+            <AvpPeriodicControlPanel onOpenCosts={() => setAsoView("fila")} />
+          )}
+          {currentView === "workflow" && <AvpWorkflowPanel />}
+          {currentView === "payments" && <AvpEvidencePanel kind="payment" />}
+          {currentView === "documents" && <AvpEvidencePanel kind="aso" />}
         </TabsContent>
-
-        {canSeeEvidence && (
-          <>
-            <TabsContent value="periodicos">
-              <AvpPeriodicControlPanel onOpenCosts={() => setActiveTab("asos")} />
-            </TabsContent>
-            <TabsContent value="workflow">
-              <AvpWorkflowPanel />
-            </TabsContent>
-            <TabsContent value="payments">
-              <AvpEvidencePanel kind="payment" />
-            </TabsContent>
-            <TabsContent value="documents">
-              <AvpEvidencePanel kind="aso" />
-            </TabsContent>
-          </>
-        )}
 
         {/* TAB 1.5: CENTRAL NACIONAL DE CREDENCIAMENTO BRASIL (WHATSAPP 1-CLIQUE) */}
         <TabsContent value="credenciamento" className="space-y-6 focus-visible:outline-hidden">
