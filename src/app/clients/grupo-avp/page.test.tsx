@@ -19,7 +19,10 @@ vi.mock("@/components/clients/grupo-avp-credenciamento-hub", () => ({
   GrupoAvpCredenciamentoHub: () => null,
 }));
 vi.mock("@/components/clients/avp-evidence-panel", () => ({
-  AvpEvidencePanel: () => <div data-evidence="true" />,
+  AvpEvidencePanel: ({ kind }: { kind: string }) => <div data-evidence={kind} />,
+}));
+vi.mock("@/components/clients/avp-workflow-panel", () => ({
+  AvpWorkflowPanel: () => <div data-workflow="true" />,
 }));
 vi.mock("@/components/clients/avp-periodic-control", () => ({
   AvpPeriodicControlPanel: () => <div data-periodic="true" />,
@@ -116,11 +119,34 @@ describe("hub AVP: navegação e evidências", () => {
     expect(host.textContent).not.toContain("ASOs recebidos");
     expect(host.querySelectorAll("[data-periodic]")).toHaveLength(0);
   });
-  it("exibe evidências para a operação interna da carteira AVP", async () => {
+  it("abre as atividades de ASOs pelo seletor da operação interna", async () => {
     session.role = "OPERATIONS";
     session.servedCompanies = ["GRUPO_AVP"];
     await act(async () => root.render(<GrupoAvpClientHubPage />));
-    expect(host.querySelectorAll("[data-evidence]")).toHaveLength(2);
-    expect(host.textContent).toContain("Pagamentos às clínicas");
+    const select = host.querySelector("select")!;
+    expect(Array.from(select.options, (option) => option.value)).toEqual([
+      "fila",
+      "periodicos",
+      "workflow",
+      "payments",
+      "documents",
+    ]);
+    for (const [value, selector] of [
+      ["periodicos", "[data-periodic]"],
+      ["workflow", "[data-workflow]"],
+      ["payments", '[data-evidence="payment"]'],
+      ["documents", '[data-evidence="aso"]'],
+    ]) {
+      await act(async () => {
+        select.value = value;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      expect(host.querySelector(selector)).not.toBeNull();
+    }
+    session.role = "ADMIN";
+    session.tenantId = "GRUPO_AVP";
+    await act(async () => root.render(<GrupoAvpClientHubPage />));
+    expect(host.querySelector("[data-evidence]")).toBeNull();
+    expect(host.querySelector("select")).toBeNull();
   });
 });
