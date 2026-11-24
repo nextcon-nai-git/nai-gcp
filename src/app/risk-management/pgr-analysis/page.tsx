@@ -232,6 +232,11 @@ export default function NaiImportaPage() {
       setError("Entre no NAI para analisar documentos.");
       return;
     }
+    setFile(null);
+    setDraft(null);
+    setHistoryRecord(null);
+    setSaved(null);
+    setDueDate("");
     if (!nextFile.size || nextFile.size > PGR_MAX_FILE_BYTES) {
       setError("Selecione um arquivo com conteúdo e até 12 MB.");
       return;
@@ -251,9 +256,6 @@ export default function NaiImportaPage() {
     const run = ++serial.current;
     setBusy(true);
     setFile(normalizedFile);
-    setDraft(null);
-    setHistoryRecord(null);
-    setSaved(null);
     setError("");
     setConfirmed(false);
     setSelectedCompany("");
@@ -673,222 +675,222 @@ export default function NaiImportaPage() {
 
               <details className="space-y-3 rounded-xl border bg-white p-4">
                 <summary className="cursor-pointer py-2 font-medium">Prestadores, ações e evidências</summary>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <UserCheck className="size-5 text-teal-700" /> Prestadores e responsáveis
-                    técnicos
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {providers.length === 0 ? (
-                    <p className="text-sm leading-6 text-slate-500">
-                      Nenhum prestador foi identificado com evidência suficiente. A equipe pode
-                      completar o vínculo após conferir o documento.
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <UserCheck className="size-5 text-teal-700" /> Prestadores e responsáveis
+                      técnicos
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {providers.length === 0 ? (
+                      <p className="text-sm leading-6 text-slate-500">
+                        Nenhum prestador foi identificado com evidência suficiente. A equipe pode
+                        completar o vínculo após conferir o documento.
+                      </p>
+                    ) : (
+                      providers.map((provider, index) => {
+                        const documented = documentedProviders.includes(provider);
+                        return (
+                          <div
+                            key={provider.id + "_" + index}
+                            className="space-y-2 rounded-xl border p-4"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="font-semibold">{provider.nome || "Nome a conferir"}</p>
+                              <Badge
+                                variant="outline"
+                                className={documented ? "text-teal-700" : "text-amber-800"}
+                              >
+                                {documented ? "Candidato ao cadastro" : "Vínculo para revisão"}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-slate-500">
+                              {provider.papelNoDocumento ||
+                                provider.especialidade ||
+                                "Papel no documento a conferir"}
+                            </p>
+                            <p className="text-xs text-slate-600">
+                              {[provider.cnpj, provider.registroProfissional, provider.cidadeUf]
+                                .filter(Boolean)
+                                .join(" · ") || "CNPJ ou registro profissional não identificado"}
+                            </p>
+                            {provider.evidencias.length > 0 && (
+                              <details className="text-xs text-slate-500">
+                                <summary className="cursor-pointer">
+                                  Conferir prestador na fonte
+                                </summary>
+                                <div className="mt-2 space-y-2">
+                                  {provider.evidencias.map((evidence, evidenceIndex) => (
+                                    <blockquote
+                                      key={evidenceIndex}
+                                      className="border-l-2 pl-3 leading-5"
+                                    >
+                                      Página {evidence.pagina}: {evidence.trecho}
+                                    </blockquote>
+                                  ))}
+                                </div>
+                              </details>
+                            )}
+                            {!documented && (
+                              <p className="text-xs leading-5 text-amber-800">
+                                Confira o CNPJ do prestador para completar o cadastro e o vínculo.
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Tabs defaultValue="actions">
+                  <TabsList className="flex h-auto flex-wrap justify-start gap-1">
+                    <TabsTrigger value="actions">Cards e checklists</TabsTrigger>
+                    <TabsTrigger value="evidence">Leitura e evidências</TabsTrigger>
+                    {saved && agent && <TabsTrigger value="agent">Revisão do agente</TabsTrigger>}
+                  </TabsList>
+                  <TabsContent value="actions" className="space-y-4">
+                    <p className="text-xs leading-5 text-slate-500">
+                      Cada card mantém a origem, o responsável sugerido e os itens necessários para a
+                      equipe acompanhar a execução.
                     </p>
-                  ) : (
-                    providers.map((provider, index) => {
-                      const documented = documentedProviders.includes(provider);
-                      return (
-                        <div
-                          key={provider.id + "_" + index}
-                          className="space-y-2 rounded-xl border p-4"
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="font-semibold">{provider.nome || "Nome a conferir"}</p>
-                            <Badge
-                              variant="outline"
-                              className={documented ? "text-teal-700" : "text-amber-800"}
-                            >
-                              {documented ? "Candidato ao cadastro" : "Vínculo para revisão"}
+                    {result.acoesCategorizadas.length === 0 && (
+                      <Card>
+                        <CardContent className="p-5 text-sm text-slate-500">
+                          Nenhuma ação foi extraída com segurança. Confira a conclusão do agente e a
+                          qualidade do arquivo.
+                        </CardContent>
+                      </Card>
+                    )}
+                    {result.acoesCategorizadas.map((action, index) => (
+                      <Card key={action.id + "_" + index}>
+                        <CardHeader className="space-y-3 pb-3">
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="outline">
+                              {action.fundamento === "documento"
+                                ? "Consta no documento"
+                                : agentComplete
+                                  ? "Sugestão do agente"
+                                  : "Roteiro padrão — IA pendente"}
+                            </Badge>
+                            <Badge variant="secondary">
+                              Prioridade {PRIORITY_LABELS[action.prioridade].toLowerCase()}
                             </Badge>
                           </div>
-                          <p className="text-xs text-slate-500">
-                            {provider.papelNoDocumento ||
-                              provider.especialidade ||
-                              "Papel no documento a conferir"}
+                          <CardTitle className="text-base leading-6">{action.titulo}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3 text-sm">
+                          <p className="leading-6 text-slate-600">{action.descricaoDetalhada}</p>
+                          <p className="text-xs font-medium text-teal-800">
+                            {PGR_AGENT_NAMES[action.agenteSugerido]}
+                            {action.responsavelSugerido.trim() &&
+                            action.responsavelSugerido.trim().toLocaleLowerCase("pt-BR") !==
+                              PGR_AGENT_NAMES[action.agenteSugerido].toLocaleLowerCase("pt-BR")
+                              ? ` · ${action.responsavelSugerido.trim()}`
+                              : ""}
                           </p>
-                          <p className="text-xs text-slate-600">
-                            {[provider.cnpj, provider.registroProfissional, provider.cidadeUf]
-                              .filter(Boolean)
-                              .join(" · ") || "CNPJ ou registro profissional não identificado"}
-                          </p>
-                          {provider.evidencias.length > 0 && (
-                            <details className="text-xs text-slate-500">
-                              <summary className="cursor-pointer">
-                                Conferir prestador na fonte
-                              </summary>
-                              <div className="mt-2 space-y-2">
-                                {provider.evidencias.map((evidence, evidenceIndex) => (
-                                  <blockquote
-                                    key={evidenceIndex}
-                                    className="border-l-2 pl-3 leading-5"
-                                  >
-                                    Página {evidence.pagina}: {evidence.trecho}
-                                  </blockquote>
-                                ))}
-                              </div>
-                            </details>
-                          )}
-                          {!documented && (
-                            <p className="text-xs leading-5 text-amber-800">
-                              Confira o CNPJ do prestador para completar o cadastro e o vínculo.
+                          <ul className="space-y-2">
+                            {action.checklist.map((item, itemIndex) => (
+                              <li key={itemIndex} className="flex gap-2 text-slate-600">
+                                <CheckSquare className="mt-0.5 size-4 shrink-0 text-slate-400" />
+                                <span>{item}</span>
+                              </li>
+                            ))}
+                          </ul>
+                          {action.prazoDocumentado && (
+                            <p className="text-xs text-slate-500">
+                              Prazo no documento: {action.prazoDocumentado}
                             </p>
                           )}
-                        </div>
-                      );
-                    })
-                  )}
-                </CardContent>
-              </Card>
-
-              <Tabs defaultValue="actions">
-                <TabsList className="flex h-auto flex-wrap justify-start gap-1">
-                  <TabsTrigger value="actions">Cards e checklists</TabsTrigger>
-                  <TabsTrigger value="evidence">Leitura e evidências</TabsTrigger>
-                  {saved && agent && <TabsTrigger value="agent">Revisão do agente</TabsTrigger>}
-                </TabsList>
-                <TabsContent value="actions" className="space-y-4">
-                  <p className="text-xs leading-5 text-slate-500">
-                    Cada card mantém a origem, o responsável sugerido e os itens necessários para a
-                    equipe acompanhar a execução.
-                  </p>
-                  {result.acoesCategorizadas.length === 0 && (
-                    <Card>
-                      <CardContent className="p-5 text-sm text-slate-500">
-                        Nenhuma ação foi extraída com segurança. Confira a conclusão do agente e a
-                        qualidade do arquivo.
-                      </CardContent>
-                    </Card>
-                  )}
-                  {result.acoesCategorizadas.map((action, index) => (
-                    <Card key={action.id + "_" + index}>
-                      <CardHeader className="space-y-3 pb-3">
-                        <div className="flex flex-wrap gap-2">
-                          <Badge variant="outline">
-                            {action.fundamento === "documento"
-                              ? "Consta no documento"
-                              : agentComplete
-                                ? "Sugestão do agente"
-                                : "Roteiro padrão — IA pendente"}
-                          </Badge>
-                          <Badge variant="secondary">
-                            Prioridade {PRIORITY_LABELS[action.prioridade].toLowerCase()}
-                          </Badge>
-                        </div>
-                        <CardTitle className="text-base leading-6">{action.titulo}</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3 text-sm">
-                        <p className="leading-6 text-slate-600">{action.descricaoDetalhada}</p>
-                        <p className="text-xs font-medium text-teal-800">
-                          {PGR_AGENT_NAMES[action.agenteSugerido]}
-                          {action.responsavelSugerido.trim() &&
-                          action.responsavelSugerido.trim().toLocaleLowerCase("pt-BR") !==
-                            PGR_AGENT_NAMES[action.agenteSugerido].toLocaleLowerCase("pt-BR")
-                            ? ` · ${action.responsavelSugerido.trim()}`
-                            : ""}
-                        </p>
-                        <ul className="space-y-2">
-                          {action.checklist.map((item, itemIndex) => (
-                            <li key={itemIndex} className="flex gap-2 text-slate-600">
-                              <CheckSquare className="mt-0.5 size-4 shrink-0 text-slate-400" />
-                              <span>{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                        {action.prazoDocumentado && (
-                          <p className="text-xs text-slate-500">
-                            Prazo no documento: {action.prazoDocumentado}
-                          </p>
-                        )}
-                        {action.evidencia && (
-                          <details className="text-xs text-slate-500">
-                            <summary className="cursor-pointer">
-                              Fonte · página {action.evidencia.pagina}
-                            </summary>
-                            <p className="mt-2 leading-5">{action.evidencia.trecho}</p>
-                          </details>
-                        )}
-                        {action.referenciaLegal && (
-                          <p className="text-xs text-slate-500">
-                            Referência extraída para conferência: {action.referenciaLegal}
-                          </p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </TabsContent>
-                <TabsContent value="evidence" className="space-y-4">
-                  <Card>
-                    <CardContent className="space-y-3 p-5 text-sm">
-                      <h3 className="font-semibold">Qualidade da leitura</h3>
-                      <p>
-                        {result.leitura.paginas} páginas · {result.leitura.paginasComTexto} com
-                        texto
-                      </p>
-                      <Badge variant="outline">
-                        {result.leitura.modo === "ia_com_evidencias"
-                          ? "IA com evidências"
-                          : result.leitura.modo === "extracao_documental"
-                            ? "Extração documental"
-                            : result.leitura.modo === "leitura_visual_ia"
-                              ? "Leitura visual da IA"
-                              : "Leitura inconclusiva"}
-                      </Badge>
-                      {result.leitura.avisos.map((notice, index) => (
-                        <p key={index} className="text-xs leading-5 text-slate-500">
-                          {notice}
-                        </p>
-                      ))}
-                      <div className="grid gap-2 border-t pt-3 text-xs text-slate-500 sm:grid-cols-2">
-                        <p>Emissão: {result.pgrCardDetalhado.dataEmissao || "não identificada"}</p>
-                        {result.pgrCardDetalhado.dataRevisao && (
-                          <p>Revisão prevista: {result.pgrCardDetalhado.dataRevisao}</p>
-                        )}
-                        <p>
-                          Validade: {result.pgrCardDetalhado.dataValidade || "não identificada"}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  {result.riscosIdentificados.map((risk, index) => (
-                    <Card key={risk.id + "_" + index}>
-                      <CardContent className="space-y-3 p-5 text-sm">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <h3 className="font-semibold">{risk.agente}</h3>
-                          <Badge variant="outline">{risk.categoria}</Badge>
-                        </div>
-                        <p className="text-slate-600">{risk.setorGhe || "Setor/GHE a conferir"}</p>
-                        <blockquote className="border-l-2 pl-3 text-xs leading-5 text-slate-500">
-                          Página {risk.evidencia.pagina}: {risk.evidencia.trecho}
-                        </blockquote>
-                        {risk.classificacaoOriginal && (
-                          <p className="text-xs">
-                            Classificação no original: {risk.classificacaoOriginal}
-                          </p>
-                        )}
-                        {risk.controlesDocumentados.length > 0 && (
-                          <p className="text-xs text-slate-500">
-                            Controles documentados: {risk.controlesDocumentados.join("; ")}
-                          </p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </TabsContent>
-                {saved && agent && (
-                  <TabsContent value="agent" className="space-y-3">
-                    {(result.documento ? [agent] : PGR_AGENT_ROLES).map((role) => (
-                      <PgrAgentReview
-                        key={role}
-                        companyId={saved.companyId}
-                        cardId={saved.cardId}
-                        role={role}
-                      />
+                          {action.evidencia && (
+                            <details className="text-xs text-slate-500">
+                              <summary className="cursor-pointer">
+                                Fonte · página {action.evidencia.pagina}
+                              </summary>
+                              <p className="mt-2 leading-5">{action.evidencia.trecho}</p>
+                            </details>
+                          )}
+                          {action.referenciaLegal && (
+                            <p className="text-xs text-slate-500">
+                              Referência extraída para conferência: {action.referenciaLegal}
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
                     ))}
                   </TabsContent>
-                )}
-              </Tabs>
+                  <TabsContent value="evidence" className="space-y-4">
+                    <Card>
+                      <CardContent className="space-y-3 p-5 text-sm">
+                        <h3 className="font-semibold">Qualidade da leitura</h3>
+                        <p>
+                          {result.leitura.paginas} páginas · {result.leitura.paginasComTexto} com
+                          texto
+                        </p>
+                        <Badge variant="outline">
+                          {result.leitura.modo === "ia_com_evidencias"
+                            ? "IA com evidências"
+                            : result.leitura.modo === "extracao_documental"
+                              ? "Extração documental"
+                              : result.leitura.modo === "leitura_visual_ia"
+                                ? "Leitura visual da IA"
+                                : "Leitura inconclusiva"}
+                        </Badge>
+                        {result.leitura.avisos.map((notice, index) => (
+                          <p key={index} className="text-xs leading-5 text-slate-500">
+                            {notice}
+                          </p>
+                        ))}
+                        <div className="grid gap-2 border-t pt-3 text-xs text-slate-500 sm:grid-cols-2">
+                          <p>Emissão: {result.pgrCardDetalhado.dataEmissao || "não identificada"}</p>
+                          {result.pgrCardDetalhado.dataRevisao && (
+                            <p>Revisão prevista: {result.pgrCardDetalhado.dataRevisao}</p>
+                          )}
+                          <p>
+                            Validade: {result.pgrCardDetalhado.dataValidade || "não identificada"}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    {result.riscosIdentificados.map((risk, index) => (
+                      <Card key={risk.id + "_" + index}>
+                        <CardContent className="space-y-3 p-5 text-sm">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <h3 className="font-semibold">{risk.agente}</h3>
+                            <Badge variant="outline">{risk.categoria}</Badge>
+                          </div>
+                          <p className="text-slate-600">{risk.setorGhe || "Setor/GHE a conferir"}</p>
+                          <blockquote className="border-l-2 pl-3 text-xs leading-5 text-slate-500">
+                            Página {risk.evidencia.pagina}: {risk.evidencia.trecho}
+                          </blockquote>
+                          {risk.classificacaoOriginal && (
+                            <p className="text-xs">
+                              Classificação no original: {risk.classificacaoOriginal}
+                            </p>
+                          )}
+                          {risk.controlesDocumentados.length > 0 && (
+                            <p className="text-xs text-slate-500">
+                              Controles documentados: {risk.controlesDocumentados.join("; ")}
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </TabsContent>
+                  {saved && agent && (
+                    <TabsContent value="agent" className="space-y-3">
+                      {(result.documento ? [agent] : PGR_AGENT_ROLES).map((role) => (
+                        <PgrAgentReview
+                          key={role}
+                          companyId={saved.companyId}
+                          cardId={saved.cardId}
+                          role={role}
+                        />
+                      ))}
+                    </TabsContent>
+                  )}
+                </Tabs>
               </details>
             </div>
 
