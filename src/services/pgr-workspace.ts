@@ -16,7 +16,7 @@ import {
 import {
   PGR_MAX_FILE_BYTES,
   PGR_VERSION,
-  PgrAnalysisOutputSchema,
+  NaiImportAnalysisSchema,
   cleanPgrCnpj,
   isValidPgrCnpj,
   suggestedPgrCompany,
@@ -87,7 +87,7 @@ export async function preparePgrDraft(
     tx.set(leaseRef, { ownerUid: user.uid, busyUntil: now + 330000 }, { merge: true });
   });
   try {
-    const analysis = PgrAnalysisOutputSchema.parse(
+    const analysis = NaiImportAnalysisSchema.parse(
       await analyzePgrDocument({
         pdfDataUri: `data:${mime};base64,${Buffer.from(bytes).toString("base64")}`,
         fileName,
@@ -167,7 +167,7 @@ export async function savePgrDraft(
     Number(data.expiresAtMs) < Date.now()
   )
     throw new AuthError("A análise expirou. Reimporte o documento.", 410);
-  const analysis = PgrAnalysisOutputSchema.parse(data.analysis);
+  const analysis = NaiImportAnalysisSchema.parse(data.analysis);
   requirePgrDocumentAccess(user, analysis);
   assertPgrAnalysisReady(analysis);
   if (
@@ -563,7 +563,7 @@ function storedCount(value: unknown) {
 }
 
 function storedClassification(record: Record<string, unknown>) {
-  const parsed = PgrAnalysisOutputSchema.safeParse(record.analysis);
+  const parsed = NaiImportAnalysisSchema.safeParse(record.analysis);
   const metadata = parsed.success ? getPgrImportMetadata(parsed.data) : null;
   const documentType = NAI_DOCUMENT_TYPES.includes(record.documentType as NaiDocumentType)
     ? (record.documentType as NaiDocumentType)
@@ -588,7 +588,7 @@ function savedImportResult(
   if (classification.restricted && !canAccessClinicalImport(user))
     throw forbidden("Seu perfil não pode consultar dados clínicos.");
   const detail = classification.restricted ? clinical : record;
-  const parsed = PgrAnalysisOutputSchema.safeParse(detail?.analysis);
+  const parsed = NaiImportAnalysisSchema.safeParse(detail?.analysis);
   if (!parsed.success)
     throw new AuthError(
       "O registro não está disponível para consulta. Nenhum card foi duplicado.",

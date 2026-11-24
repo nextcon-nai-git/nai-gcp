@@ -136,11 +136,16 @@ export const PgrAnalysisOutputSchema = z.object({
     paginasComTexto: z.number().int().min(0).max(300),
     avisos: z.array(z.string().max(600)).max(25),
     versao: z.literal(PGR_VERSION),
+  }),
+});
+// Import-only reading details are never requested from the generative model.
+export const NaiImportAnalysisSchema = PgrAnalysisOutputSchema.extend({
+  leitura: PgrAnalysisOutputSchema.shape.leitura.extend({
     camposAso: z.array(PgrEvidenceSchema).max(12).optional(),
     ocrLocal: z.boolean().optional(),
   }),
 });
-export type PgrAnalysisOutput = z.infer<typeof PgrAnalysisOutputSchema>;
+export type PgrAnalysisOutput = z.infer<typeof NaiImportAnalysisSchema>;
 export type PgrRisk = z.infer<typeof PgrRiskSchema>;
 export type PgrAction = z.infer<typeof PgrActionSchema>;
 export type PgrPage = {

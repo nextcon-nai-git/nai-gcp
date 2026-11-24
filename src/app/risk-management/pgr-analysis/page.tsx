@@ -534,7 +534,9 @@ export default function NaiImportaPage() {
                   <Bot className="size-6" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold">Leitura do documento</h2>
+                  <h2 className="text-lg font-semibold">
+                    {agentComplete && agent ? PGR_AGENT_NAMES[agent] : "Leitura do documento"}
+                  </h2>
                   <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">
                     {unavailable
                       ? document.statusClassificacao === "identificado"

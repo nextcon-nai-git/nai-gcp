@@ -19,7 +19,7 @@ describe("IA PGR com limites", () => {
   it("recupera ASO digitalizado após falha de autorização, sem concluir a análise", async () => {
     mocks.generate.mockRejectedValue(Object.assign(new Error("denied"), { status: 403 }));
     mocks.ocr.mockResolvedValue([
-      "ASO Atestado de Saúde Ocupacional\nRazão Social: EMPRESA TESTE\nCNPJ: 43.776.491/0001-70\nCargo: Analista\nPeriódico",
+      "ASO Atestado de Saúde Ocupacional\nRazão Social: EMPRESA TESTE\nCNPJ: 43.776.491/0001-70\nFuncionário\nNome: Pessoa Teste\nCargo: Analista\nPeriódico\nMédico responsável pelo PCMSO\nNome: Profissional Teste",
     ]);
     const result = await analyzePgrDocument({
       pdfDataUri: "data:image/png;base64,aGVsbG8=",
@@ -30,6 +30,8 @@ describe("IA PGR com limites", () => {
     expect(result.analiseAgente?.status).toBe("indisponivel");
     expect(result.leitura.ocrLocal).toBe(true);
     expect(result.leitura.camposAso).toContainEqual({ pagina: 1, trecho: "Periódico" });
+    expect(result.leitura.camposAso).toContainEqual({ pagina: 1, trecho: "Nome: Pessoa Teste" });
+    expect(JSON.stringify(result.leitura.camposAso)).not.toContain("Profissional Teste");
     expect(mocks.generate).toHaveBeenCalledTimes(1);
   });
   it("não devolve campos de OCR de um exame sem autorização clínica", async () => {
