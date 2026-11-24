@@ -393,7 +393,7 @@ export default function NaiImportaPage() {
         </div>
         <Button asChild variant="outline">
           <Link href="/health-control?tab=esteira">
-            <FileSpreadsheet className="mr-2 size-4" /> Importar planilha de ASOs
+            <FileSpreadsheet className="mr-2 size-4" /> Abrir esteira de ASOs
           </Link>
         </Button>
       </header>
@@ -480,7 +480,6 @@ export default function NaiImportaPage() {
             aria-label="Arquivo para análise"
             className="hidden"
             type="file"
-            accept=".pdf,image/png,image/jpeg,image/webp"
             disabled={busy || saving || !user}
             onChange={(event) => {
               const nextFile = event.target.files?.[0];
@@ -494,7 +493,7 @@ export default function NaiImportaPage() {
             className="shrink-0 bg-[#102b3b] hover:bg-[#1c4053]"
           >
             <FileUp className="mr-2 size-4" />
-            {result || file ? "Selecionar outro documento" : "Selecionar documento"}
+            {result || file ? "Importar outro arquivo" : "Importar arquivo"}
           </Button>
         </div>
         {busy && (
