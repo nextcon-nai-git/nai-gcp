@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { analyzePgrDocument } from "./pgr-document-analysis";
 import { parsePgrDocumentPages } from "@/lib/pgr-document-parser";
-const mocks = vi.hoisted(() => ({ generate: vi.fn(), readPages: vi.fn() }));
+const mocks = vi.hoisted(() => ({ generate: vi.fn(), readPages: vi.fn(), ocr: vi.fn() }));
+vi.mock("./nai-document-ocr", () => ({ readNaiScan: mocks.ocr }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/ai/genkit", () => ({ ai: { generate: mocks.generate } }));
 vi.mock("./pgr-pdf-text", () => ({ readPgrPdfPages: mocks.readPages }));
@@ -10,10 +11,29 @@ const text =
 beforeEach(() => {
   mocks.generate.mockReset();
   mocks.readPages.mockReset();
+  mocks.ocr.mockReset().mockResolvedValue([]);
   vi.stubEnv("GOOGLE_GENAI_API_KEY", "test-key");
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("IA PGR com limites", () => {
+  it("recupera ASO digitalizado após falha de autorização, sem concluir a análise", async () => {
+    mocks.generate.mockRejectedValue(Object.assign(new Error("denied"), { status: 403 }));
+    mocks.ocr.mockResolvedValue(["ASO Atestado de Saúde Ocupacional\nRazão Social: EMPRESA TESTE\nCNPJ: 43.776.491/0001-70\nCargo: Analista\nPeriódico"]);
+    const result = await analyzePgrDocument({ pdfDataUri: "data:image/png;base64,aGVsbG8=", allowClinical: true });
+    expect(result.documento).toMatchObject({ tipo: "ASO", acesso: "clinico_restrito" });
+    expect(result.pgrCardDetalhado.razaoSocial).toBe("EMPRESA TESTE");
+    expect(result.analiseAgente?.status).toBe("indisponivel");
+    expect(result.leitura.ocrLocal).toBe(true);
+    expect(result.leitura.camposAso).toContainEqual({ pagina: 1, trecho: "Periódico" });
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
+  });
+  it("não devolve campos de OCR de um exame sem autorização clínica", async () => {
+    mocks.generate.mockRejectedValue(Object.assign(new Error("denied"), { status: 403 }));
+    const result = await analyzePgrDocument({ pdfDataUri: "data:image/png;base64,aGVsbG8=" });
+    expect(mocks.ocr).not.toHaveBeenCalled();
+    expect(result.leitura.camposAso).toBeUndefined();
+  });
+
   it("bloqueia título clínico com prefixo NR quando a IA está indisponível", async () => {
     vi.stubEnv("GOOGLE_GENAI_API_KEY", "");
     await expect(

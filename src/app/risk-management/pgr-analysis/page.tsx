@@ -138,10 +138,23 @@ export default function NaiImportaPage() {
       isValidPgrCnpj(provider.cnpj) &&
       cleanPgrCnpj(provider.cnpj) !== cleanPgrCnpj(result?.pgrCardDetalhado.cnpj || "")
   );
+  const unavailable = result?.analiseAgente?.status === "indisponivel";
+  const [originalUrl, setOriginalUrl] = React.useState("");
+  React.useEffect(() => {
+    if (!unavailable || !file) {
+      setOriginalUrl("");
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setOriginalUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [unavailable, file]);
   const agentComplete = result?.analiseAgente?.status === "concluida";
   const integrationBlock = !result
     ? ""
-    : document?.statusClassificacao !== "identificado" || !agent
+    : unavailable
+      ? "A integração aguarda a análise automática."
+      : document?.statusClassificacao !== "identificado" || !agent
       ? "O tipo do documento precisa ser identificado antes de organizar os dados."
       : result.identidade.status !== "identificada"
         ? "A identificação do cliente precisa ser resolvida antes de criar os cadastros."
@@ -494,7 +507,9 @@ export default function NaiImportaPage() {
           <Card className="overflow-hidden border-slate-200">
             <CardContent className="space-y-5 p-5 sm:p-6">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline">{NAI_DOCUMENT_NAMES[document.tipo]}</Badge>
+                {(!unavailable || document.tipo !== "OUTRO") && (
+                  <Badge variant="outline">{NAI_DOCUMENT_NAMES[document.tipo]}</Badge>
+                )}
                 <Badge
                   className={cn(
                     "border-0",
@@ -504,7 +519,7 @@ export default function NaiImportaPage() {
                   {agentComplete
                     ? "Análise do agente concluída"
                     : result.analiseAgente?.status === "indisponivel"
-                      ? "Agente indisponível"
+                      ? "Conferência do original"
                       : historyRecord && !result.analiseAgente
                         ? "Registro anterior"
                         : "Análise do agente pendente"}
@@ -522,11 +537,36 @@ export default function NaiImportaPage() {
                 <div>
                   <h2 className="text-lg font-semibold">Leitura do documento</h2>
                   <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">
-                    {result.analiseAgente?.resumo || result.parecerTecnicoIA}
+                    {unavailable
+                      ? document.statusClassificacao === "identificado"
+                        ? `${NAI_DOCUMENT_NAMES[document.tipo]} identificado na leitura do arquivo. Confira os dados abaixo.`
+                        : "A leitura automática foi interrompida. Confira o original selecionado."
+                      : result.analiseAgente?.resumo || result.parecerTecnicoIA}
                   </p>
                 </div>
               </div>
-              {document.justificativa && (
+              {unavailable && (
+                <div className="space-y-3 text-sm">
+                  {result.leitura.ocrLocal && <p>Texto recuperado por OCR local. Confira no original.</p>}
+                  {document.tipo === "ASO" && document.acesso === "clinico_restrito" && !!result.leitura.camposAso?.length && (
+                    <ul className="space-y-1">
+                      {result.leitura.camposAso.map((item, i) => (
+                        <li key={i}>{item.trecho} · pág. {item.pagina}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {originalUrl && (
+                    <Button asChild variant="outline" size="sm">
+                      <a href={originalUrl} target="_blank" rel="noopener noreferrer">Abrir original</a>
+                    </Button>
+                  )}
+                  <details className="text-xs text-slate-500">
+                    <summary className="cursor-pointer">Detalhes técnicos da leitura</summary>
+                    <p className="mt-2">{result.analiseAgente?.resumo}</p>
+                  </details>
+                </div>
+              )}
+              {!unavailable && document.justificativa && (
                 <p className="text-xs leading-5 text-slate-500">{document.justificativa}</p>
               )}
               {document.evidencias.length > 0 && (
@@ -895,7 +935,7 @@ export default function NaiImportaPage() {
             </div>
 
             <aside className="space-y-4">
-              {draft && !saved ? (
+              {draft && !saved && !unavailable ? (
                 <Card className="border-teal-200 lg:sticky lg:top-4">
                   <CardHeader>
                     <CardTitle className="text-base">Conferir e organizar</CardTitle>
@@ -1020,7 +1060,7 @@ export default function NaiImportaPage() {
                     )}
                   </CardContent>
                 </Card>
-              ) : (
+              ) : saved ? (
                 <Card>
                   <CardContent className="space-y-3 p-5">
                     <h3 className="text-sm font-semibold">Próximos passos da equipe</h3>
@@ -1035,7 +1075,7 @@ export default function NaiImportaPage() {
                     </Button>
                   </CardContent>
                 </Card>
-              )}
+              ) : null}
             </aside>
           </div>
         </>

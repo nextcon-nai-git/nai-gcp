@@ -136,6 +136,8 @@ export const PgrAnalysisOutputSchema = z.object({
     paginasComTexto: z.number().int().min(0).max(300),
     avisos: z.array(z.string().max(600)).max(25),
     versao: z.literal(PGR_VERSION),
+    camposAso: z.array(PgrEvidenceSchema).max(12).optional(),
+    ocrLocal: z.boolean().optional(),
   }),
 });
 export type PgrAnalysisOutput = z.infer<typeof PgrAnalysisOutputSchema>;

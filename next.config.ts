@@ -1,5 +1,16 @@
 import type { NextConfig } from "next";
 
+const importFiles = [
+  "./scripts/nai-document-ocr.mjs",
+  "./node_modules/pdfjs-dist/legacy/build/*.mjs",
+  "./node_modules/tesseract-wasm/package.json",
+  "./node_modules/tesseract-wasm/dist/*",
+  "./node_modules/@tesseract.js-data/por/4.0.0_best_int/por.traineddata.gz",
+  "./node_modules/@tesseract.js-data/por/package.json",
+  "./node_modules/@napi-rs/canvas*/**/*",
+  "./node_modules/sharp/**/*",
+  "./node_modules/@img/**/*",
+];
 const nextConfig: NextConfig = {
   serverExternalPackages: [
     "libxml2-wasm",
@@ -20,8 +31,8 @@ const nextConfig: NextConfig = {
     "/api/esocial/*": ["./assets/esocial/**/*", "./node_modules/libxml2-wasm/lib/**/*"],
     "/api/v1/esocial/*": ["./assets/esocial/**/*", "./node_modules/libxml2-wasm/lib/**/*"],
     "/api/internal/esocial-sync": ["./assets/esocial/**/*", "./node_modules/libxml2-wasm/lib/**/*"],
-    "/api/pgr/*": ["./node_modules/pdfjs-dist/legacy/build/*.mjs"],
-    "/api/nai-importa/*": ["./node_modules/pdfjs-dist/legacy/build/*.mjs"],
+    "/api/pgr/*": importFiles,
+    "/api/nai-importa/*": importFiles,
     "/api/financial/balances": ["./node_modules/pdfjs-dist/legacy/build/*.mjs"],
   },
   typescript: {

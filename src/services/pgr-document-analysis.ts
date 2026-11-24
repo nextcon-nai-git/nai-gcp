@@ -33,6 +33,7 @@ import {
 } from "@/lib/pgr-agent-prompts";
 import { forbidden } from "@/lib/auth/errors";
 import { normalizeCnpj } from "@/lib/cnpj";
+import { readNaiScan } from "./nai-document-ocr";
 import { readPgrPdfPages } from "./pgr-pdf-text";
 import { isNaiVisualEvidence, mergeNaiIdentity } from "@/lib/nai-import-evidence";
 
@@ -239,6 +240,27 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
     }
   }
 
+  let usedOcr = false;
+  if (
+    !visualTriaged &&
+    input.allowClinical === true &&
+    input.pdfDataUri.startsWith("data:") &&
+    pages.length <= 3 &&
+    (isVisual || documento.statusClassificacao === "nao_identificado")
+  ) {
+    const texts = await readNaiScan(input.pdfDataUri);
+    if (texts.length === pages.length && texts.some((text) => text.trim())) {
+      // Keep physical page numbers and all native evidence, including conflicting titles.
+      pages = pages.map((page, i) => ({ ...page, texto: [page.texto, texts[i]].filter(Boolean).join("\n") }));
+      const local = classifyNaiDocument(pages);
+      documento = {
+        ...local,
+        acesso: documento.acesso === "clinico_restrito" ? documento.acesso : local.acesso,
+      };
+      usedOcr = true;
+    }
+  }
+
   // This gate intentionally sits outside the model fallback catch. A rejected medical upload
   // must never return the extracted body, clinical evidence or a draft to an unauthorized user.
   if (documento.acesso === "clinico_restrito" && input.allowClinical !== true)
@@ -247,6 +269,15 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
     );
 
   const base = withNaiDocumentWorkflow(parsePgrDocumentPages(pages), pages, documento);
+  if (usedOcr) base.leitura.ocrLocal = true;
+  if (documento.tipo === "ASO" && input.allowClinical && !visualTriaged) {
+    // Literal administrative fields only. Never select an aptitude checkbox or infer a date.
+    base.leitura.camposAso = pages.flatMap((page) =>
+      page.texto.split(/\r?\n/).map((line) => line.trim()).filter((line) =>
+        /^(?:(?:cargo|função|setor|nome do (?:trabalhador|colaborador)|tipo de exame)\s*:\s*\S|(?:periódico|admissional|demissional|retorno ao trabalho|mudança de risco ocupacional)$)/i.test(line)
+      ).slice(0, 12).map((trecho) => ({ pagina: page.numero, trecho: trecho.slice(0, 300) }))
+    ).slice(0, 12);
+  }
   const pending = (message: string, status: "pendente" | "indisponivel"): PgrAnalysisOutput => ({
     ...base,
     analiseAgente: { agente: documento.agenteResponsavel, status, resumo: message },
