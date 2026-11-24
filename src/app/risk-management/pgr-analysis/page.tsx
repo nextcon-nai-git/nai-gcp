@@ -15,14 +15,11 @@ import {
   FileText,
   FileUp,
   FolderCheck,
-  HardHat,
-  History,
   Loader2,
   LockKeyhole,
   RefreshCw,
   Save,
   ScanLine,
-  Stethoscope,
   UserCheck,
 } from "lucide-react";
 import { useUser } from "@/firebase";
@@ -141,8 +138,6 @@ export default function NaiImportaPage() {
       isValidPgrCnpj(provider.cnpj) &&
       cleanPgrCnpj(provider.cnpj) !== cleanPgrCnpj(result?.pgrCardDetalhado.cnpj || "")
   );
-  const checklistCount =
-    result?.acoesCategorizadas.reduce((count, action) => count + action.checklist.length, 0) || 0;
   const agentComplete = result?.analiseAgente?.status === "concluida";
   const integrationBlock = !result
     ? ""
@@ -398,40 +393,6 @@ export default function NaiImportaPage() {
         </Button>
       </header>
 
-      <ol aria-label="Etapas da importação" className="grid grid-cols-3 gap-2 sm:gap-4">
-        {[
-          { label: "Enviar", detail: "Um documento por vez" },
-          { label: "Analisar e revisar", detail: "Agente, vínculos e ações" },
-          { label: "Organizar", detail: "Cadastros e operação" },
-        ].map((step, index) => {
-          const currentStep = saved ? 2 : result || busy ? 1 : 0;
-          return (
-            <li
-              key={step.label}
-              aria-current={index === currentStep ? "step" : undefined}
-              className={cn(
-                "flex items-center gap-2 rounded-xl border p-3 sm:gap-3 sm:p-4",
-                index === currentStep
-                  ? "border-teal-200 bg-teal-50/70"
-                  : "border-slate-200 bg-white"
-              )}
-            >
-              <span
-                className={cn(
-                  "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
-                  index <= currentStep ? "bg-teal-700 text-white" : "bg-slate-100 text-slate-500"
-                )}
-              >
-                {index < currentStep || saved ? <CheckCircle2 className="size-4" /> : index + 1}
-              </span>
-              <div>
-                <p className="text-xs font-semibold sm:text-sm">{step.label}</p>
-                <p className="mt-0.5 hidden text-xs text-slate-500 md:block">{step.detail}</p>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
 
       <section
         aria-label="Enviar documento para o NAI importa"
@@ -507,27 +468,6 @@ export default function NaiImportaPage() {
             </Button>
           </div>
         )}
-        {!result && !busy && (
-          <div className="mt-6 grid gap-3 border-t pt-5 md:grid-cols-3">
-            {[
-              { name: "Engenheiro de Segurança", types: "PGR e LTCAT", Icon: HardHat },
-              {
-                name: "Médico do Trabalho",
-                types: "PCMSO, ASO e perícias médicas",
-                Icon: Stethoscope,
-              },
-              { name: "Ergonomista", types: "AEP, AET e dados ergonômicos", Icon: UserCheck },
-            ].map(({ name, types, Icon }) => (
-              <div key={name} className="flex gap-3 rounded-xl bg-slate-50 p-3">
-                <Icon className="mt-0.5 size-4 shrink-0 text-teal-700" />
-                <div>
-                  <p className="text-xs font-semibold">{name}</p>
-                  <p className="mt-1 text-xs text-slate-500">{types}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </section>
 
       {error && (
@@ -578,13 +518,8 @@ export default function NaiImportaPage() {
                   <Bot className="size-6" />
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-slate-500">
-                    Agente responsável pela análise
-                  </p>
-                  <h2 className="mt-1 text-xl font-semibold">
-                    {agent ? PGR_AGENT_NAMES[agent] : "Identificação pendente"}
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                  <h2 className="text-lg font-semibold">Leitura do documento</h2>
+                  <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">
                     {result.analiseAgente?.resumo || result.parecerTecnicoIA}
                   </p>
                 </div>
@@ -696,31 +631,6 @@ export default function NaiImportaPage() {
             </section>
           )}
 
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {[
-              {
-                label: "Cliente identificado",
-                value: result.identidade.status === "identificada" ? "1" : "A conferir",
-                Icon: Building2,
-              },
-              { label: "Prestadores extraídos", value: providers.length, Icon: UserCheck },
-              {
-                label: agentComplete ? "Cards propostos" : "Roteiros para revisão",
-                value: result.acoesCategorizadas.length,
-                Icon: ClipboardList,
-              },
-              { label: "Itens de checklist", value: checklistCount, Icon: CheckSquare },
-            ].map(({ label, value, Icon }) => (
-              <div key={label} className="rounded-xl border border-slate-200 bg-white p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs text-slate-500">{label}</p>
-                  <Icon className="size-4 shrink-0 text-slate-400" />
-                </div>
-                <p className="mt-2 text-2xl font-semibold">{value}</p>
-              </div>
-            ))}
-          </div>
-
           <div className="grid items-start gap-5 lg:grid-cols-3">
             <div className="space-y-5 lg:col-span-2">
               <Card>
@@ -761,6 +671,8 @@ export default function NaiImportaPage() {
                 </CardContent>
               </Card>
 
+              <details className="space-y-3 rounded-xl border bg-white p-4">
+                <summary className="cursor-pointer py-2 font-medium">Prestadores, ações e evidências</summary>
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-base">
@@ -977,6 +889,7 @@ export default function NaiImportaPage() {
                   </TabsContent>
                 )}
               </Tabs>
+              </details>
             </div>
 
             <aside className="space-y-4">
@@ -1126,13 +1039,9 @@ export default function NaiImportaPage() {
         </>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <History className="size-5 text-slate-500" /> Documentos já organizados
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <details className="rounded-xl border bg-white p-4">
+        <summary className="cursor-pointer py-2 font-medium">Documentos já organizados</summary>
+        <div className="mt-3 space-y-4">
           <div className="max-w-xl space-y-2">
             <Label htmlFor="nai-history-company">Consultar histórico do cliente</Label>
             <Select
@@ -1203,8 +1112,8 @@ export default function NaiImportaPage() {
               Nenhum documento deste fluxo foi organizado para o cliente selecionado.
             </p>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </details>
     </div>
   );
 }
