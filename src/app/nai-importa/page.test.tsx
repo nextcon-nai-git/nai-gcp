@@ -219,13 +219,14 @@ describe("NAI importa review workflow", () => {
     expect(fetchMock.mock.calls.some(([url]) => url === "/api/nai-importa/save")).toBe(false);
   });
 
-  it("requires completed specialist analysis even after the client was confirmed", async () => {
+  it("keeps the original accessible and blocks integration during a provider outage", async () => {
     currentDraft.analysis.analiseAgente!.status = "indisponivel";
     await render();
     await upload();
-    await confirm();
-    expect(container.textContent).toContain("A análise do agente ainda não foi concluída");
-    expect(saveButton().disabled).toBe(true);
+    expect(container.textContent).toContain("A integração aguarda a análise automática");
+    expect(container.querySelector("a[href^='blob:']")?.textContent).toBe("Abrir original");
+    expect(container.querySelector("#nai-confirmed")).toBeNull();
+    expect(saveButton()).toBeUndefined();
     expect(fetchMock.mock.calls.some(([url]) => url === "/api/nai-importa/save")).toBe(false);
   });
 

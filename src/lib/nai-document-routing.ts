@@ -140,7 +140,9 @@ function headingTitle(lines: string[], spec: (typeof documentPatterns)[number]) 
     const prefix = normalized.slice(0, match.index).trim();
     const headingPrefix =
       /^(?:(?:titulo|documento|tipo de documento)\s*:|(?:(?:secao|capitulo)\s+)?\d+(?:\.\d+)*[.)]?\s*[-–—:]?|nr\s*[-–—]?\s*\d{1,2}(?:\.\d+)*\s*[-–—:]?)?$/;
-    const acronymPrefix = spec.acronym ? new RegExp(`^${spec.acronym}\\s*[-–—:]$`) : null;
+    const acronymPrefix = spec.acronym
+      ? new RegExp(`^${spec.acronym}\\s*[-–—:]${spec.tipo === "ASO" ? "?" : ""}$`)
+      : null;
     if (!headingPrefix.test(prefix) && !acronymPrefix?.test(prefix)) return null;
     // Check only the line completing the title, not the paragraph after it.
     // A parenthesized acronym may end a heading, but must not hide prose after it.
@@ -249,7 +251,7 @@ export function classifyNaiDocument(pages: PgrPage[]): NaiDocument {
       ? "Há títulos de mais de um tipo documental. Separe os documentos ou confira o tipo antes de integrar."
       : best
         ? `${NAI_DOCUMENT_NAMES[tipo]} identificado pelo título ou estrutura presente no conteúdo. Encaminhamento ao ${PGR_AGENT_NAMES[naiDocumentAgent(tipo)!]}.`
-        : "O conteúdo disponível não permite identificar o tipo com segurança. Reenvie o documento completo ou uma cópia legível.",
+        : "O tipo documental precisa de conferência no original.",
     acesso: clinical ? "clinico_restrito" : "sst",
   };
 }

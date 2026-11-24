@@ -65,6 +65,7 @@
     "@radix-ui/react-tooltip": "^1.2.16",
     "@react-pdf/renderer": "^4.1.0",
     "@scalar/nextjs-api-reference": "^0.12.7",
+    "@tesseract.js-data/por": "1.0.0",
     "@xmldom/xmldom": "0.9.12",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -91,8 +92,10 @@
     "react-hook-form": "^7.89.0",
     "react-window": "^2.5.1",
     "recharts": "^2.15.1",
+    "sharp": "0.35.5",
     "tailwind-merge": "^3.0.1",
     "tailwindcss-animate": "^1.0.7",
+    "tesseract-wasm": "0.10.0",
     "xml-crypto": "6.4.0",
     "zod": "4.6.7",
     "zod-to-json-schema": "3.25.2"

@@ -138,7 +138,14 @@ export const PgrAnalysisOutputSchema = z.object({
     versao: z.literal(PGR_VERSION),
   }),
 });
-export type PgrAnalysisOutput = z.infer<typeof PgrAnalysisOutputSchema>;
+// Import-only reading details are never requested from the generative model.
+export const NaiImportAnalysisSchema = PgrAnalysisOutputSchema.extend({
+  leitura: PgrAnalysisOutputSchema.shape.leitura.extend({
+    camposAso: z.array(PgrEvidenceSchema).max(12).optional(),
+    ocrLocal: z.boolean().optional(),
+  }),
+});
+export type PgrAnalysisOutput = z.infer<typeof NaiImportAnalysisSchema>;
 export type PgrRisk = z.infer<typeof PgrRiskSchema>;
 export type PgrAction = z.infer<typeof PgrActionSchema>;
 export type PgrPage = {
