@@ -155,14 +155,14 @@ export default function NaiImportaPage() {
     : unavailable
       ? "A integração aguarda a análise automática."
       : document?.statusClassificacao !== "identificado" || !agent
-      ? "O tipo do documento precisa ser identificado antes de organizar os dados."
-      : result.identidade.status !== "identificada"
-        ? "A identificação do cliente precisa ser resolvida antes de criar os cadastros."
-        : result.leitura.modo === "inconclusiva"
-          ? "A leitura não trouxe evidências suficientes. Tente um arquivo mais legível."
-          : !agentComplete
-            ? "A análise do agente ainda não foi concluída. Tente analisar novamente."
-            : "";
+        ? "O tipo do documento precisa ser identificado antes de organizar os dados."
+        : result.identidade.status !== "identificada"
+          ? "A identificação do cliente precisa ser resolvida antes de criar os cadastros."
+          : result.leitura.modo === "inconclusiva"
+            ? "A leitura não trouxe evidências suficientes. Tente um arquivo mais legível."
+            : !agentComplete
+              ? "A análise do agente ainda não foi concluída. Tente analisar novamente."
+              : "";
 
   React.useEffect(() => {
     const run = ++serial.current;
@@ -408,7 +408,6 @@ export default function NaiImportaPage() {
         </Button>
       </header>
 
-
       <section
         aria-label="Enviar documento para o NAI importa"
         onDragOver={(event) => {
@@ -547,17 +546,25 @@ export default function NaiImportaPage() {
               </div>
               {unavailable && (
                 <div className="space-y-3 text-sm">
-                  {result.leitura.ocrLocal && <p>Texto recuperado por OCR local. Confira no original.</p>}
-                  {document.tipo === "ASO" && document.acesso === "clinico_restrito" && !!result.leitura.camposAso?.length && (
-                    <ul className="space-y-1">
-                      {result.leitura.camposAso.map((item, i) => (
-                        <li key={i}>{item.trecho} · pág. {item.pagina}</li>
-                      ))}
-                    </ul>
+                  {result.leitura.ocrLocal && (
+                    <p>Texto recuperado por OCR local. Confira no original.</p>
                   )}
+                  {document.tipo === "ASO" &&
+                    document.acesso === "clinico_restrito" &&
+                    !!result.leitura.camposAso?.length && (
+                      <ul className="space-y-1">
+                        {result.leitura.camposAso.map((item, i) => (
+                          <li key={i}>
+                            {item.trecho} · pág. {item.pagina}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   {originalUrl && (
                     <Button asChild variant="outline" size="sm">
-                      <a href={originalUrl} target="_blank" rel="noopener noreferrer">Abrir original</a>
+                      <a href={originalUrl} target="_blank" rel="noopener noreferrer">
+                        Abrir original
+                      </a>
                     </Button>
                   )}
                   <details className="text-xs text-slate-500">
@@ -714,7 +721,9 @@ export default function NaiImportaPage() {
               </Card>
 
               <details className="space-y-3 rounded-xl border bg-white p-4">
-                <summary className="cursor-pointer py-2 font-medium">Prestadores, ações e evidências</summary>
+                <summary className="cursor-pointer py-2 font-medium">
+                  Prestadores, ações e evidências
+                </summary>
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-base">
@@ -792,8 +801,8 @@ export default function NaiImportaPage() {
                   </TabsList>
                   <TabsContent value="actions" className="space-y-4">
                     <p className="text-xs leading-5 text-slate-500">
-                      Cada card mantém a origem, o responsável sugerido e os itens necessários para a
-                      equipe acompanhar a execução.
+                      Cada card mantém a origem, o responsável sugerido e os itens necessários para
+                      a equipe acompanhar a execução.
                     </p>
                     {result.acoesCategorizadas.length === 0 && (
                       <Card>
@@ -883,7 +892,9 @@ export default function NaiImportaPage() {
                           </p>
                         ))}
                         <div className="grid gap-2 border-t pt-3 text-xs text-slate-500 sm:grid-cols-2">
-                          <p>Emissão: {result.pgrCardDetalhado.dataEmissao || "não identificada"}</p>
+                          <p>
+                            Emissão: {result.pgrCardDetalhado.dataEmissao || "não identificada"}
+                          </p>
                           {result.pgrCardDetalhado.dataRevisao && (
                             <p>Revisão prevista: {result.pgrCardDetalhado.dataRevisao}</p>
                           )}
@@ -900,7 +911,9 @@ export default function NaiImportaPage() {
                             <h3 className="font-semibold">{risk.agente}</h3>
                             <Badge variant="outline">{risk.categoria}</Badge>
                           </div>
-                          <p className="text-slate-600">{risk.setorGhe || "Setor/GHE a conferir"}</p>
+                          <p className="text-slate-600">
+                            {risk.setorGhe || "Setor/GHE a conferir"}
+                          </p>
                           <blockquote className="border-l-2 pl-3 text-xs leading-5 text-slate-500">
                             Página {risk.evidencia.pagina}: {risk.evidencia.trecho}
                           </blockquote>

@@ -251,7 +251,10 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
     const texts = await readNaiScan(input.pdfDataUri);
     if (texts.length === pages.length && texts.some((text) => text.trim())) {
       // Keep physical page numbers and all native evidence, including conflicting titles.
-      pages = pages.map((page, i) => ({ ...page, texto: [page.texto, texts[i]].filter(Boolean).join("\n") }));
+      pages = pages.map((page, i) => ({
+        ...page,
+        texto: [page.texto, texts[i]].filter(Boolean).join("\n"),
+      }));
       const local = classifyNaiDocument(pages);
       documento = {
         ...local,
@@ -272,11 +275,20 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
   if (usedOcr) base.leitura.ocrLocal = true;
   if (documento.tipo === "ASO" && input.allowClinical && !visualTriaged) {
     // Literal administrative fields only. Never select an aptitude checkbox or infer a date.
-    base.leitura.camposAso = pages.flatMap((page) =>
-      page.texto.split(/\r?\n/).map((line) => line.trim()).filter((line) =>
-        /^(?:(?:cargo|função|setor|nome do (?:trabalhador|colaborador)|tipo de exame)\s*:\s*\S|(?:periódico|admissional|demissional|retorno ao trabalho|mudança de risco ocupacional)$)/i.test(line)
-      ).slice(0, 12).map((trecho) => ({ pagina: page.numero, trecho: trecho.slice(0, 300) }))
-    ).slice(0, 12);
+    base.leitura.camposAso = pages
+      .flatMap((page) =>
+        page.texto
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter((line) =>
+            /^(?:(?:cargo|função|setor|nome do (?:trabalhador|colaborador)|tipo de exame)\s*:\s*\S|(?:periódico|admissional|demissional|retorno ao trabalho|mudança de risco ocupacional)$)/i.test(
+              line
+            )
+          )
+          .slice(0, 12)
+          .map((trecho) => ({ pagina: page.numero, trecho: trecho.slice(0, 300) }))
+      )
+      .slice(0, 12);
   }
   const pending = (message: string, status: "pendente" | "indisponivel"): PgrAnalysisOutput => ({
     ...base,

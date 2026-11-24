@@ -18,8 +18,13 @@ afterEach(() => vi.unstubAllEnvs());
 describe("IA PGR com limites", () => {
   it("recupera ASO digitalizado após falha de autorização, sem concluir a análise", async () => {
     mocks.generate.mockRejectedValue(Object.assign(new Error("denied"), { status: 403 }));
-    mocks.ocr.mockResolvedValue(["ASO Atestado de Saúde Ocupacional\nRazão Social: EMPRESA TESTE\nCNPJ: 43.776.491/0001-70\nCargo: Analista\nPeriódico"]);
-    const result = await analyzePgrDocument({ pdfDataUri: "data:image/png;base64,aGVsbG8=", allowClinical: true });
+    mocks.ocr.mockResolvedValue([
+      "ASO Atestado de Saúde Ocupacional\nRazão Social: EMPRESA TESTE\nCNPJ: 43.776.491/0001-70\nCargo: Analista\nPeriódico",
+    ]);
+    const result = await analyzePgrDocument({
+      pdfDataUri: "data:image/png;base64,aGVsbG8=",
+      allowClinical: true,
+    });
     expect(result.documento).toMatchObject({ tipo: "ASO", acesso: "clinico_restrito" });
     expect(result.pgrCardDetalhado.razaoSocial).toBe("EMPRESA TESTE");
     expect(result.analiseAgente?.status).toBe("indisponivel");

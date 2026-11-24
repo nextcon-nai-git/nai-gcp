@@ -37,7 +37,9 @@ async function recognize(engine, bytes, mime) {
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const original = page.getViewport({ scale: 1 });
-      const viewport = page.getViewport({ scale: edge / Math.max(original.width, original.height) });
+      const viewport = page.getViewport({
+        scale: edge / Math.max(original.width, original.height),
+      });
       const width = Math.max(1, Math.ceil(viewport.width));
       const height = Math.max(1, Math.ceil(viewport.height));
       const surface = pdf.canvasFactory.create(width, height);
