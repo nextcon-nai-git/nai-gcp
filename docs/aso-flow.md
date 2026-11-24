@@ -4,7 +4,7 @@
 
 A importação AVP, o agendador por usuário, a agenda clínica e os kits tinham persistências diferentes. O avanço genérico de cards podia registrar envio, confirmação da clínica e conclusão sem executar ou comprovar a ação. O mapa de periódicos dependia da planilha e não refletia os casos salvos na esteira AVP.
 
-Esta alteração acrescenta uma esteira compartilhada por cliente e colaborador em **ASO — Agendamento e Clínica → Esteira** (`/health-control?tab=esteira`). NAI importa oferece o botão **Importar planilha de ASOs**; o cadastro do cliente oferece **Cards e pasta de ASOs** com filtro do cliente. Os registros legados continuam identificados em suas áreas e não são migrados ou vinculados por nome.
+Esta alteração acrescenta uma esteira compartilhada por cliente e colaborador em **ASO — Agendamento e Clínica → Esteira** (`/health-control?tab=esteira`). NAI importa oferece o botão **Importar arquivo** para análise documental e o atalho **Abrir esteira de ASOs** para a importação de planilhas; o cadastro do cliente oferece **Cards e pasta de ASOs** com filtro do cliente. Os registros legados continuam identificados em suas áreas e não são migrados ou vinculados por nome.
 
 ## Recebimento de uma via do Grupo AVP
 
