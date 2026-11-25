@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { FieldValue } from "firebase-admin/firestore";
 import { beforeAll, beforeEach, afterAll, describe, it, expect, vi } from "vitest";
 import { initializeTestEnvironment, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
 import { parsePgrDocumentPages } from "@/lib/pgr-document-parser";
@@ -62,6 +63,11 @@ beforeEach(async () => {
         "RAZÃO SOCIAL: CETESB\nCNPJ: 43.776.491/0001-70\nRECONHECIMENTO DE RISCOS AMBIENTAIS\nMANUTENÇÃO\nTrabalhadores expostos a ruído contínuo de motores.",
     },
   ]);
+  analysis.analiseAgente = {
+    agente: "engenheiro_seguranca",
+    status: "concluida",
+    resumo: "Revisão sintética concluída para o teste de persistência.",
+  };
   await adminDb
     .collection("nai_importa_drafts")
     .doc(draftId)
@@ -79,6 +85,16 @@ afterAll(async () => {
   await adminDb.terminate();
 });
 describe("PGR: persistência real, vínculo e repetição", () => {
+  it("exige conclusão explícita antes de subir o original ou gravar no cliente", async () => {
+    await adminDb.collection("nai_importa_drafts").doc(draftId).update({
+      "analysis.analiseAgente": FieldValue.delete(),
+    });
+    await expect(savePgrDraft(user, params, bytes)).rejects.toMatchObject({ status: 422 });
+    expect(storage.save).not.toHaveBeenCalled();
+    for (const collection of ["pgr_cards", "risks", "tasks", "audit_logs"]) {
+      expect((await company().collection(collection).get()).empty).toBe(true);
+    }
+  });
   it("grava documento, riscos, checklists e auditoria somente no cliente correto", async () => {
     const saved = await savePgrDraft(user, params, bytes);
     expect(saved.alreadySaved).toBe(false);
