@@ -18,8 +18,14 @@ export async function readNaiScan(dataUri: string, pageCount: number): Promise<S
   try {
     worker = new Worker(join(process.cwd(), "scripts/nai-document-ocr.mjs"), {
       workerData: { mime, bytes: Buffer.from(dataUri.slice(comma + 1), "base64") },
+      stdout: true,
+      stderr: true,
       resourceLimits: { maxOldGenerationSizeMb: 160 },
     });
+    // The OCR and rendering libraries can write diagnostics directly to the worker streams.
+    // Expose only the fixed status emitted by the parent.
+    worker.stdout?.resume();
+    worker.stderr?.resume();
     const reader = worker;
     return await new Promise<Scan>((resolve) => {
       timer = setTimeout(() => resolve({ status: "timeout" }), 35000);

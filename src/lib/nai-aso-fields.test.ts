@@ -17,6 +17,15 @@ describe("campos administrativos do ASO", () => {
       { pagina: 3, trecho: "Função: Assistente" },
     ]);
   });
+  it("aceita rótulos isolados e nunca usa o rótulo seguinte como valor", () => {
+    expect(
+      read("Funcionário\nNome\nPessoa Exemplo\nCargo:\nSetor\nArquivo\nFunção:\nData do exame")
+        .fields
+    ).toEqual([
+      { pagina: 1, trecho: "Nome: Pessoa Exemplo" },
+      { pagina: 1, trecho: "Setor: Arquivo" },
+    ]);
+  });
   it("não atribui ao trabalhador o nome do médico em outra coluna", () => {
     const result = read(
       "Funcionário\nNome: Pessoa Exemplo | Médico examinador | Nome: Profissional Exemplo"

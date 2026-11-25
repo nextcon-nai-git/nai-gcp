@@ -5,7 +5,7 @@ const employee =
 const otherSection =
   /^(?:dados (?:do|da) )?(?:medic[oa]|profissional|responsavel|examinador|clinica|prestador|empregador|empresa|resultado|conclusao|aptidao|assinatura|exames complementares)\b/;
 const label =
-  /^(nome(?: d[oa] (?:trabalhador[a]?|colaborador[a]?|funcionári[oa]|empregad[oa]))?|cargo|fun[çc][aã]o|setor|tipo de exame)\s*:\s*(.*)$/iu;
+  /^(nome(?: d[oa] (?:trabalhador[a]?|colaborador[a]?|funcionári[oa]|empregad[oa]))?|cargo|fun[çc][aã]o|setor|tipo de exame)(?:\s*:\s*(.*))?$/iu;
 const boundary =
   /\s+(?=(?:resultado|conclus[aã]o|aptid[aã]o|inapto|apto|assinatura|CPF|CNPJ|CRM|CID)\b)|(?<!tipo de)\s+(?=(?:nome|cargo|fun[çc][aã]o|setor|tipo de exame|resultado|conclus[aã]o|aptid[aã]o|apto|inapto|data|m[eé]dic[oa]|assinatura|CRM|CPF|CNPJ|RG|CID|matr[ií]cula|exames?|riscos?)\b\s*(?:[:(]|d[oa]s?\b|cl[ií]nic[oa]\b))|\s*[|;\t]\s*/iu;
 const option =
@@ -81,7 +81,7 @@ export function readAsoFields(pages: PgrPage[]) {
           exams.push(...options);
           continue;
         }
-        const [, title, inline] = match;
+        const [, title, inline = ""] = match;
         const kind = normalizePgrText(title);
         if (kind === "nome" && section !== "worker") continue;
         const next = lines[i + 1] || "";
@@ -90,7 +90,12 @@ export function readAsoFields(pages: PgrPage[]) {
           !value ||
           value.length > 200 ||
           /[:|;\t]/.test(value) ||
-          (!inline && otherSection.test(normalizePgrText(value))) ||
+          (!inline &&
+            (label.test(value) ||
+              otherSection.test(normalizePgrText(value)) ||
+              /^(?:data|cpf|cnpj|rg|crm|cid|matricula|nascimento|tipo de exame|exames?|riscos?)\b/.test(
+                normalizePgrText(value)
+              ))) ||
           employee.test(normalizePgrText(value))
         )
           continue;
