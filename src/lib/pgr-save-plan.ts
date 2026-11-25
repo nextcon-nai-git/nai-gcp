@@ -96,7 +96,7 @@ export function assertPgrAnalysisReady(analysis: PgrAnalysisOutput) {
       "O tipo do documento ainda não foi identificado com segurança. Analise novamente antes de integrar.",
       422
     );
-  if (analysis.analiseAgente && analysis.analiseAgente.status !== "concluida")
+  if (analysis.analiseAgente?.status !== "concluida")
     throw new AuthError(
       "A análise do agente ainda não foi concluída. Tente analisar novamente.",
       422

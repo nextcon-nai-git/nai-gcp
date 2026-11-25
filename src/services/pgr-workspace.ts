@@ -124,7 +124,7 @@ export async function preparePgrDraft(
       canCreateCompany:
         isPgrGlobalAdmin(user) &&
         getNaiDocument(analysis).statusClassificacao === "identificado" &&
-        (!analysis.analiseAgente || analysis.analiseAgente.status === "concluida") &&
+        analysis.analiseAgente?.status === "concluida" &&
         analysis.identidade.status === "identificada" &&
         isValidPgrCnpj(analysis.pgrCardDetalhado.cnpj) &&
         !companies.some(

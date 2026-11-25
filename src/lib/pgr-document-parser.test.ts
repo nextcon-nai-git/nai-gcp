@@ -167,6 +167,11 @@ describe("PGR: identidade e evidências", () => {
   it("gera IDs idempotentes, checklist pendente e avaliação desconhecida", () => {
     const a = parsePgrDocumentPages(pages);
     const company = { id: "cliente-real", name: "CETESB", cnpj: "43776491000170" };
+    a.analiseAgente = {
+      agente: "engenheiro_seguranca",
+      status: "concluida",
+      resumo: "Revisão de teste",
+    };
     const first = buildPgrSavePlan(a, company, "a".repeat(64), "operador", "");
     const second = buildPgrSavePlan(a, company, "a".repeat(64), "operador", "");
     expect(first.tasks.map((x) => x.id)).toEqual(second.tasks.map((x) => x.id));

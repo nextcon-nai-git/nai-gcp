@@ -220,10 +220,17 @@ describe("NAI importa review workflow", () => {
   });
 
   it("keeps the original accessible and blocks integration during a provider outage", async () => {
+    currentDraft = draftFor(analysisFor("ASO"));
     currentDraft.analysis.analiseAgente!.status = "indisponivel";
+    currentDraft.analysis.leitura.camposAso = [{ pagina: 2, trecho: "Cargo: Analista" }];
+    currentDraft.analysis.leitura.tipoExamePendente = true;
+    currentDraft.analysis.leitura.falhaOcr = "busy";
     await render();
     await upload();
     expect(container.textContent).toContain("A integração aguarda a análise automática");
+    expect(container.textContent).toContain("Cargo: Analista · pág. 2");
+    expect(container.textContent).toContain("Tipo de exame a conferir no original");
+    expect(container.textContent).toContain("O leitor local está ocupado");
     expect(container.querySelector("a[href^='blob:']")?.textContent).toBe("Abrir original");
     expect(container.querySelector("#nai-confirmed")).toBeNull();
     expect(saveButton()).toBeUndefined();

@@ -138,11 +138,31 @@ export const PgrAnalysisOutputSchema = z.object({
     versao: z.literal(PGR_VERSION),
   }),
 });
+const ocrFailures = [
+  "busy",
+  "timeout",
+  "page_limit",
+  "dependency",
+  "unreadable",
+  "failed",
+] as const;
+export type NaiOcrFailure = (typeof ocrFailures)[number];
+export const NAI_OCR_MESSAGES: Record<NaiOcrFailure, string> = {
+  busy: "O leitor local está ocupado. Aguarde e tente novamente.",
+  timeout: "A leitura local atingiu 35 segundos. Confira o original ou envie menos páginas.",
+  page_limit: "O leitor local aceita até três páginas. Separe o documento e tente novamente.",
+  dependency:
+    "Um componente do leitor local está indisponível. Encaminhe a ocorrência à administração.",
+  unreadable: "O leitor local não encontrou texto legível. Confira a qualidade do original.",
+  failed: "O leitor local não conseguiu processar este arquivo. Confira o original.",
+};
 // Import-only reading details are never requested from the generative model.
 export const NaiImportAnalysisSchema = PgrAnalysisOutputSchema.extend({
   leitura: PgrAnalysisOutputSchema.shape.leitura.extend({
     camposAso: z.array(PgrEvidenceSchema).max(12).optional(),
     ocrLocal: z.boolean().optional(),
+    falhaOcr: z.enum(ocrFailures).optional(),
+    tipoExamePendente: z.boolean().optional(),
   }),
 });
 export type PgrAnalysisOutput = z.infer<typeof NaiImportAnalysisSchema>;

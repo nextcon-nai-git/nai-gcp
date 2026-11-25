@@ -11,16 +11,19 @@ const text =
 beforeEach(() => {
   mocks.generate.mockReset();
   mocks.readPages.mockReset();
-  mocks.ocr.mockReset().mockResolvedValue([]);
+  mocks.ocr.mockReset().mockResolvedValue({ status: "unreadable" });
   vi.stubEnv("GOOGLE_GENAI_API_KEY", "test-key");
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("IA PGR com limites", () => {
   it("recupera ASO digitalizado após falha de autorização, sem concluir a análise", async () => {
     mocks.generate.mockRejectedValue(Object.assign(new Error("denied"), { status: 403 }));
-    mocks.ocr.mockResolvedValue([
-      "ASO Atestado de Saúde Ocupacional\nRazão Social: EMPRESA TESTE\nCNPJ: 43.776.491/0001-70\nFuncionário\nNome: Pessoa Teste\nCargo: Analista\nPeriódico\nMédico responsável pelo PCMSO\nNome: Profissional Teste",
-    ]);
+    mocks.ocr.mockResolvedValue({
+      status: "ok",
+      texts: [
+        "ASO Atestado de Saúde Ocupacional\nRazão Social: EMPRESA TESTE\nCNPJ: 43.776.491/0001-70\nFuncionário\nNome: Pessoa Teste\nCargo: Analista\nPeriódico\nMédico responsável pelo PCMSO\nNome: Profissional Teste",
+      ],
+    });
     const result = await analyzePgrDocument({
       pdfDataUri: "data:image/png;base64,aGVsbG8=",
       allowClinical: true,
@@ -34,6 +37,30 @@ describe("IA PGR com limites", () => {
     expect(JSON.stringify(result.leitura.camposAso)).not.toContain("Profissional Teste");
     expect(mocks.generate).toHaveBeenCalledTimes(1);
   });
+  it("preserva o conflito entre a triagem de ASO e outro título recuperado no OCR", async () => {
+    mocks.generate
+      .mockResolvedValueOnce({
+        output: {
+          tipo: "ASO",
+          statusClassificacao: "identificado",
+          contemDadosClinicosIndividuais: true,
+        },
+      })
+      .mockRejectedValueOnce(Object.assign(new Error("denied"), { status: 403 }));
+    mocks.ocr.mockResolvedValue({ status: "ok", texts: ["Programa de Gerenciamento de Riscos"] });
+    const result = await analyzePgrDocument({
+      pdfDataUri: "data:image/png;base64,aGVsbG8=",
+      allowClinical: true,
+    });
+    expect(result.documento).toMatchObject({
+      tipo: "OUTRO",
+      statusClassificacao: "ambiguo",
+      acesso: "clinico_restrito",
+    });
+    expect(result.leitura.camposAso).toBeUndefined();
+    expect(result.analiseAgente?.status).toBe("indisponivel");
+  });
+
   it("não devolve campos de OCR de um exame sem autorização clínica", async () => {
     mocks.generate.mockRejectedValue(Object.assign(new Error("denied"), { status: 403 }));
     const result = await analyzePgrDocument({ pdfDataUri: "data:image/png;base64,aGVsbG8=" });

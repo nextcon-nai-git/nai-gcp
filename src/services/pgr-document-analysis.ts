@@ -11,6 +11,7 @@ import {
   PgrEvidenceSchema,
   normalizePgrText,
   type NaiProvider,
+  type NaiDocument,
   type PgrAnalysisOutput,
   type PgrPage,
   PGR_VERSION,
@@ -33,6 +34,7 @@ import {
 } from "@/lib/pgr-agent-prompts";
 import { forbidden } from "@/lib/auth/errors";
 import { normalizeCnpj } from "@/lib/cnpj";
+import { readAsoFields } from "@/lib/nai-aso-fields";
 import { readNaiScan } from "./nai-document-ocr";
 import { readPgrPdfPages } from "./pgr-pdf-text";
 import { isNaiVisualEvidence, mergeNaiIdentity } from "@/lib/nai-import-evidence";
@@ -97,6 +99,29 @@ function validatedProviders(
       .filter(Boolean)
       .every((value) => evidence.includes(normalizePgrText(value)));
   });
+}
+
+/** A local reading can add evidence; it cannot discard an earlier clinical restriction or conflict. */
+function reconcileScanClassification(prior: NaiDocument, local: NaiDocument): NaiDocument {
+  const acesso = prior.acesso === "clinico_restrito" ? prior.acesso : local.acesso;
+  if (
+    prior.statusClassificacao === "ambiguo" ||
+    local.statusClassificacao === "ambiguo" ||
+    (prior.statusClassificacao === "identificado" &&
+      local.statusClassificacao === "identificado" &&
+      prior.tipo !== local.tipo)
+  ) {
+    return {
+      tipo: "OUTRO",
+      agenteResponsavel: null,
+      statusClassificacao: "ambiguo",
+      acesso,
+      evidencias: [...prior.evidencias, ...local.evidencias].slice(0, 10),
+      justificativa:
+        "A classificação e a leitura do original contêm títulos conflitantes. Separe os documentos para conferência.",
+    };
+  }
+  return { ...(local.statusClassificacao === "identificado" ? local : prior), acesso };
 }
 
 export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAnalysisOutput> {
@@ -240,81 +265,74 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
     }
   }
 
-  let usedOcr = false;
-  if (
-    !visualTriaged &&
-    input.allowClinical === true &&
-    input.pdfDataUri.startsWith("data:") &&
-    pages.length <= 3 &&
-    (isVisual || documento.statusClassificacao === "nao_identificado")
-  ) {
-    const texts = await readNaiScan(input.pdfDataUri);
-    if (texts.length === pages.length && texts.some((text) => text.trim())) {
-      // Keep physical page numbers and all native evidence, including conflicting titles.
-      pages = pages.map((page, i) => ({
-        ...page,
-        texto: [page.texto, texts[i]].filter(Boolean).join("\n"),
-      }));
-      const local = classifyNaiDocument(pages);
-      documento = {
-        ...local,
-        acesso: documento.acesso === "clinico_restrito" ? documento.acesso : local.acesso,
-      };
-      usedOcr = true;
-    }
-  }
-
-  // This gate intentionally sits outside the model fallback catch. A rejected medical upload
-  // must never return the extracted body, clinical evidence or a draft to an unauthorized user.
+  // Always check the server-derived clinical permission before reading medical fields.
   if (documento.acesso === "clinico_restrito" && input.allowClinical !== true)
     throw forbidden(
       "Este documento requer um perfil autorizado para informações clínicas. Encaminhe ao Médico do Trabalho responsável."
     );
 
   const base = withNaiDocumentWorkflow(parsePgrDocumentPages(pages), pages, documento);
-  if (usedOcr) base.leitura.ocrLocal = true;
-  if (documento.tipo === "ASO" && input.allowClinical) {
-    // Literal administrative fields only. Never select an aptitude checkbox or infer a date.
-    base.leitura.camposAso = pages
-      .flatMap((page) => {
-        const lines = page.texto
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter(Boolean);
-        return lines
-          .filter((line, index) => {
-            const label = normalizePgrText(line);
-            if (/^nome\s*:\s*\S/.test(label)) {
-              const heading = normalizePgrText(lines[index - 1] || "");
-              const employeeHeading =
-                /^(?:dados do )?(?:funcionario|empregado|trabalhador|colaborador)\s*:?$/;
-              return employeeHeading.test(heading);
-            }
-            const fields =
-              /^(?:cargo|funcao|setor|nome do (?:trabalhador|colaborador)|tipo de exame)\s*:\s*\S/;
-            const exam =
-              /^(?:periodico|admissional|demissional|retorno ao trabalho|mudanca de risco ocupacional)$/;
-            return fields.test(label) || exam.test(label);
-          })
-          .slice(0, 12)
-          .map((trecho) => ({ pagina: page.numero, trecho: trecho.slice(0, 300) }));
-      })
-      .slice(0, 12);
-  }
-  const pending = (message: string, status: "pendente" | "indisponivel"): PgrAnalysisOutput => ({
-    ...base,
-    analiseAgente: { agente: documento.agenteResponsavel, status, resumo: message },
-    leitura: { ...base.leitura, avisos: [...base.leitura.avisos, message].slice(0, 25) },
+  const pending = (
+    message: string,
+    status: "pendente" | "indisponivel",
+    reading = base
+  ): PgrAnalysisOutput => ({
+    ...reading,
+    analiseAgente: {
+      agente: reading.documento?.agenteResponsavel ?? null,
+      status,
+      resumo: message,
+    },
+    leitura: { ...reading.leitura, avisos: [...reading.leitura.avisos, message].slice(0, 25) },
   });
+  async function unavailable(message: string, tryOcr = true) {
+    if (input.allowClinical !== true) return pending(message, "indisponivel");
+    const native = documento.tipo === "ASO" ? readAsoFields(pages) : undefined;
+    let reading = base;
+    let fields = native;
+    if (
+      tryOcr &&
+      input.pdfDataUri.startsWith("data:") &&
+      (isVisual ||
+        documento.statusClassificacao === "nao_identificado" ||
+        (native &&
+          (!native.complete || !base.pgrCardDetalhado.cnpj || !base.pgrCardDetalhado.razaoSocial)))
+    ) {
+      const scan = await readNaiScan(input.pdfDataUri, pages.length);
+      if (
+        scan.status === "ok" &&
+        scan.texts.length === pages.length &&
+        scan.texts.some((text) => text.trim())
+      ) {
+        const scanned = pages.map((page, i) => ({ numero: page.numero, texto: scan.texts[i] }));
+        const merged = pages.map((page, i) => ({
+          ...page,
+          texto: [page.texto, scanned[i].texto].filter(Boolean).join("\n"),
+        }));
+        const local = classifyNaiDocument(merged);
+        const doc = reconcileScanClassification(documento, local);
+        reading = withNaiDocumentWorkflow(parsePgrDocumentPages(merged), merged, doc);
+        reading.leitura.ocrLocal = true;
+        // Treat the native and OCR views as separate sections, even on the same physical page.
+        fields = doc.tipo === "ASO" ? readAsoFields([...pages, ...scanned]) : undefined;
+      } else {
+        reading.leitura.falhaOcr = scan.status === "ok" ? "unreadable" : scan.status;
+        console.warn("NAI local OCR unavailable", { code: reading.leitura.falhaOcr });
+      }
+    }
+    if (fields) {
+      reading.leitura.camposAso = fields.fields;
+      if (fields.pending) reading.leitura.tipoExamePendente = true;
+    }
+    return pending(message, "indisponivel", reading);
+  }
   if (!ai)
-    return pending(
-      "IA não configurada: exibida somente a extração documental. A análise do agente está indisponível; o rascunho precisa ser reanalisado antes da integração.",
-      "indisponivel"
+    return unavailable(
+      "IA não configurada: exibida somente a extração documental. A análise do agente está indisponível; o rascunho precisa ser reanalisado antes da integração."
     );
   if (!visualTriaged)
-    return pending(
-      `${aiFailureMessage(triageFailure)} Código: ${triageFailure}. A triagem documental não foi concluída; a extração foi preservada e nenhum especialista confirmou a análise.`,
-      "indisponivel"
+    return unavailable(
+      `${aiFailureMessage(triageFailure)} Código: ${triageFailure}. A triagem documental não foi concluída; a extração foi preservada e nenhum especialista confirmou a análise.`
     );
   if (documento.statusClassificacao !== "identificado" || !documento.agenteResponsavel)
     return pending(
@@ -558,10 +576,8 @@ export async function analyzePgrDocument(input: PgrAnalysisInput): Promise<PgrAn
   } catch (error) {
     const code = timedOut ? "TIMEOUT" : aiFailureCode(error);
     const reason = `${aiFailureMessage(code)} Código: ${code}.`;
-    return pending(
-      `${reason} A extração documental foi preservada; a integração aguarda uma análise concluída.`,
-      "indisponivel"
-    );
+    const message = `${reason} A extração documental foi preservada; a integração aguarda uma análise concluída.`;
+    return unavailable(message, code === "AUTHORIZATION" && documento.tipo === "ASO");
   } finally {
     if (timer) clearTimeout(timer);
   }
