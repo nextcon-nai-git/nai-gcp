@@ -157,7 +157,6 @@ export function GrupoAvpQueueMap({
     return grouped;
   }, [clinics]);
   const allAggregates = useMemo(() => aggregates.filter((loc) => loc.geoKnown), [aggregates]);
-  const unmapped = useMemo(() => aggregates.filter((loc) => !loc.geoKnown), [aggregates]);
   const downloadKml = () => {
     const url = URL.createObjectURL(
       new Blob([buildAvpKml(asos, new Date(), clinics)], {
@@ -839,13 +838,6 @@ export function GrupoAvpQueueMap({
       </CardHeader>
 
       <CardContent className="p-4 md:p-8 space-y-6">
-        {unmapped.length > 0 && (
-          <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
-            {unmapped.length} cidades aguardam confirmação geográfica:{" "}
-            {unmapped.map((loc) => `${loc.cidade}/${loc.uf}`).join(", ")}. As solicitações continuam
-            na fila.
-          </div>
-        )}
         {/* BUSCA RÁPIDA E CONTROLES DE MACRO-REGIÃO */}
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
           <div className="relative flex-1 max-w-md">
