@@ -77,10 +77,13 @@ describe("NAI importa: plano de persistência", () => {
     expect(() => assertPgrAnalysisReady(analysis)).toThrow("tipo do documento");
   });
 
-  it("mantém PGRs legados e cria revisão útil quando não houver ações detalhadas", () => {
+  it("exige reanálise de rascunho legado sem conclusão explícita e conserva o plano de revisão", () => {
     const analysis = makeImportAnalysis();
     delete analysis.documento;
+    const completed = analysis.analiseAgente;
     delete analysis.analiseAgente;
+    expect(() => plan(analysis)).toThrow("análise do agente ainda não foi concluída");
+    analysis.analiseAgente = completed;
     analysis.acoesCategorizadas = [];
     expect(plan(analysis).tasks[0].checklist.length).toBeGreaterThan(0);
     expect(plan(analysis).tasks[0].status).toBe("todo");

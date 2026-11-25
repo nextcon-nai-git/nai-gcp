@@ -46,6 +46,7 @@ import {
   cleanPgrCnpj,
   isValidPgrCnpj,
   NAI_DOCUMENT_NAMES,
+  NAI_OCR_MESSAGES,
   PGR_AGENT_NAMES,
   PGR_AGENT_ROLES,
   PGR_MAX_FILE_BYTES,
@@ -561,6 +562,12 @@ export default function NaiImportaPage() {
                           </li>
                         ))}
                       </ul>
+                    )}
+                  {result.leitura.falhaOcr && <p>{NAI_OCR_MESSAGES[result.leitura.falhaOcr]}</p>}
+                  {document.tipo === "ASO" &&
+                    document.acesso === "clinico_restrito" &&
+                    result.leitura.tipoExamePendente && (
+                      <p>Tipo de exame a conferir no original.</p>
                     )}
                   {originalUrl && (
                     <Button asChild variant="outline" size="sm">

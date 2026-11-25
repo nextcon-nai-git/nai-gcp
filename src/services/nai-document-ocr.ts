@@ -1,12 +1,15 @@
 import "server-only";
 import { join } from "node:path";
 import { Worker } from "node:worker_threads";
+import type { NaiOcrFailure } from "@/lib/pgr-schema";
 
+type Scan = { status: "ok"; texts: string[] } | { status: NaiOcrFailure };
 let occupied = false;
 
-/** Bounded local OCR, with no upload, shared document cache or patient data in logs. */
-export async function readNaiScan(dataUri: string): Promise<string[]> {
-  if (occupied) return [];
+/** One bounded reader per process. Worker errors may contain file data; never log them. */
+export async function readNaiScan(dataUri: string, pageCount: number): Promise<Scan> {
+  if (pageCount > 3) return { status: "page_limit" };
+  if (occupied) return { status: "busy" };
   const comma = dataUri.indexOf(",");
   const mime = dataUri.slice(5, comma).split(";")[0];
   occupied = true;
@@ -18,14 +21,20 @@ export async function readNaiScan(dataUri: string): Promise<string[]> {
       resourceLimits: { maxOldGenerationSizeMb: 160 },
     });
     const reader = worker;
-    return await new Promise<string[]>((resolve) => {
-      timer = setTimeout(() => resolve([]), 35000);
-      reader.once("message", (texts: string[]) => resolve(texts));
-      reader.once("error", () => resolve([]));
-      reader.once("exit", () => resolve([]));
+    return await new Promise<Scan>((resolve) => {
+      timer = setTimeout(() => resolve({ status: "timeout" }), 35000);
+      reader.once("message", resolve);
+      reader.once("error", (error: NodeJS.ErrnoException) =>
+        resolve({
+          status: ["MODULE_NOT_FOUND", "ERR_MODULE_NOT_FOUND"].includes(error.code || "")
+            ? "dependency"
+            : "failed",
+        })
+      );
+      reader.once("exit", () => resolve({ status: "failed" }));
     });
   } catch {
-    return [];
+    return { status: "failed" };
   } finally {
     clearTimeout(timer);
     try {

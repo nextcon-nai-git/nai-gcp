@@ -58,7 +58,11 @@ jobs:
       - name: Build
         env:
           NODE_OPTIONS: --max-old-space-size=6144
+          NEXT_PRIVATE_STANDALONE: "1"
         run: npm run build
+
+      - name: Read synthetic ASOs with the packaged OCR
+        run: node --no-global-search-paths scripts/test-nai-ocr-package.mjs
 
       - name: Upload coverage report
         if: always()

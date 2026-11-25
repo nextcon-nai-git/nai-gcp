@@ -8,9 +8,9 @@ const require = createRequire(import.meta.url);
 const edge = 2050;
 const maxPixels = 30000000;
 
-async function recognize(engine, bytes, mime) {
+async function recognize(engine, bytes, mime, renderer) {
   if (mime !== "application/pdf") {
-    const { default: sharp } = await import("sharp");
+    const { default: sharp } = renderer;
     const { data, info } = await sharp(bytes, { limitInputPixels: maxPixels })
       .rotate()
       .resize({ width: edge, height: edge, fit: "inside" })
@@ -20,9 +20,9 @@ async function recognize(engine, bytes, mime) {
       .raw()
       .toBuffer({ resolveWithObject: true });
     engine.loadImage({ data, width: info.width, height: info.height });
-    return [engine.getText().slice(0, 24000)];
+    return { status: "ok", texts: [engine.getText().slice(0, 24000)] };
   }
-  const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const { getDocument } = renderer;
   const loading = getDocument({
     data: new Uint8Array(bytes),
     maxImageSize: maxPixels,
@@ -32,7 +32,7 @@ async function recognize(engine, bytes, mime) {
   });
   try {
     const pdf = await loading.promise;
-    if (pdf.numPages > 3) return [];
+    if (pdf.numPages > 3) return { status: "page_limit" };
     const texts = [];
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
@@ -52,22 +52,33 @@ async function recognize(engine, bytes, mime) {
         page.cleanup();
       }
     }
-    return texts;
+    return { status: "ok", texts };
   } finally {
     await loading.destroy();
   }
 }
 
+let failure = "dependency";
 try {
   const wasm = new URL("./tesseract-core.wasm", import.meta.resolve("tesseract-wasm"));
   const model = require.resolve("@tesseract.js-data/por/4.0.0_best_int/por.traineddata.gz");
   const engine = await createOCREngine({ wasmBinary: await readFile(wasm) });
   try {
     engine.loadModel(gunzipSync(await readFile(model)));
-    parentPort.postMessage(await recognize(engine, Buffer.from(workerData.bytes), workerData.mime));
+    const mime = workerData.mime;
+    if (mime === "application/pdf") {
+      require("@napi-rs/canvas");
+      require.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs");
+    }
+    const renderer =
+      mime === "application/pdf"
+        ? await import("pdfjs-dist/legacy/build/pdf.mjs")
+        : await import("sharp");
+    failure = "failed";
+    parentPort.postMessage(await recognize(engine, Buffer.from(workerData.bytes), mime, renderer));
   } finally {
     engine.destroy();
   }
 } catch {
-  parentPort.postMessage([]);
+  parentPort.postMessage({ status: failure });
 }
