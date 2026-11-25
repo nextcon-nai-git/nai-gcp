@@ -26,6 +26,26 @@ describe("campos administrativos do ASO", () => {
       { pagina: 1, trecho: "Setor: Arquivo" },
     ]);
   });
+  it("preserva a profissão médica do trabalhador e o setor seguinte", () => {
+    expect(
+      read("Funcionário\nNome: Pessoa Exemplo Cargo: Médico do Trabalho\nSetor: Saúde").fields
+    ).toEqual([
+      { pagina: 1, trecho: "Nome: Pessoa Exemplo" },
+      { pagina: 1, trecho: "Cargo: Médico do Trabalho" },
+      { pagina: 1, trecho: "Setor: Saúde" },
+    ]);
+    expect(read("Função: Médica da Família Resultado: Reservado").fields).toEqual([
+      { pagina: 1, trecho: "Função: Médica da Família" },
+    ]);
+  });
+  it("mantém o cabeçalho do examinador separado do cargo vazio", () => {
+    for (const row of [
+      "Cargo: | Médico do Trabalho | Nome: Profissional Exemplo",
+      "Cargo: Médico do Trabalho: Profissional Exemplo",
+    ]) {
+      expect(read("Funcionário\n" + row + "\nNome: Outro Profissional").fields).toEqual([]);
+    }
+  });
   it("não atribui ao trabalhador o nome do médico em outra coluna", () => {
     const result = read(
       "Funcionário\nNome: Pessoa Exemplo | Médico examinador | Nome: Profissional Exemplo"

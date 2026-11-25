@@ -7,7 +7,7 @@ const otherSection =
 const label =
   /^(nome(?: d[oa] (?:trabalhador[a]?|colaborador[a]?|funcionári[oa]|empregad[oa]))?|cargo|fun[çc][aã]o|setor|tipo de exame)(?:\s*:\s*(.*))?$/iu;
 const boundary =
-  /\s+(?=(?:resultado|conclus[aã]o|aptid[aã]o|inapto|apto|assinatura|CPF|CNPJ|CRM|CID)\b)|(?<!tipo de)\s+(?=(?:nome|cargo|fun[çc][aã]o|setor|tipo de exame|resultado|conclus[aã]o|aptid[aã]o|apto|inapto|data|m[eé]dic[oa]|assinatura|CRM|CPF|CNPJ|RG|CID|matr[ií]cula|exames?|riscos?)\b\s*(?:[:(]|d[oa]s?\b|cl[ií]nic[oa]\b))|\s*[|;\t]\s*/iu;
+  /\s+(?=(?:resultado|conclus[aã]o|aptid[aã]o|inapto|apto|assinatura|CPF|CNPJ|CRM|CID)\b)|(?<!tipo de)\s+(?=(?:nome|cargo|fun[çc][aã]o|setor|tipo de exame|resultado|conclus[aã]o|aptid[aã]o|apto|inapto|data|m[eé]dic[oa]|assinatura|CRM|CPF|CNPJ|RG|CID|matr[ií]cula|exames?|riscos?)\b\s*(?:[:(]|d[oa]s?\b|cl[ií]nic[oa]\b))|\s*[|;\t]\s*/giu;
 const option =
   /(\[\s*[xX]?\s*\]|\(\s*[xX]?\s*\)|[☐☑☒])?\s*(peri[oó]dico|admissional|demissional|retorno ao trabalho|mudan[çc]a de risco ocupacional)/giu;
 
@@ -24,6 +24,28 @@ function examOptions(value: string, page: number, labelled: boolean): Exam[] {
     blank: !!mark && !/x|☑|☒/i.test(mark),
     labelled,
   }));
+}
+
+function splitAsoLine(line: string) {
+  const parts: string[] = [];
+  let start = 0;
+  for (const separator of line.matchAll(boundary)) {
+    const left = line.slice(start, separator.index).trim();
+    const next = separator.index + separator[0].length;
+    // A physician title can be the occupation. A column separator or an explicit
+    // physician label still ends the employee field.
+    if (
+      /^ +$/.test(separator[0]) &&
+      /^(?:cargo|fun[çc][aã]o)\s*:$/iu.test(left) &&
+      /^m[eé]dic[oa]\s+d[oa]s?\s+[\p{L}-]+(?![\p{L}-]|\s*:)/iu.test(line.slice(next))
+    )
+      continue;
+    if (left) parts.push(left);
+    start = next;
+  }
+  const last = line.slice(start).trim();
+  if (last) parts.push(last);
+  return parts;
 }
 
 export function readAsoFields(pages: PgrPage[]) {
@@ -44,10 +66,7 @@ export function readAsoFields(pages: PgrPage[]) {
       .filter(Boolean);
     let section: "worker" | "other" | "unknown" = "unknown";
     for (const [i, line] of lines.entries()) {
-      const parts = line
-        .split(boundary)
-        .map((part) => part.trim())
-        .filter(Boolean);
+      const parts = splitAsoLine(line);
       for (const part of parts) {
         const normalized = normalizePgrText(part);
         if (employee.test(normalized)) {
