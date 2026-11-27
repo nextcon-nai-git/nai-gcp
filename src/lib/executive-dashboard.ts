@@ -1,3 +1,4 @@
+import type { AvpUnitLink, AvpWorkforce } from "./avp-workforce";
 import type { GrupoAvpAso } from "@/lib/grupo-avp-asos-data";
 import { avpCostSummary } from "@/lib/avp-costs";
 
@@ -25,6 +26,7 @@ export type TaskSummary = {
   truncated: boolean;
 };
 export type DashboardClient = {
+  avpUnit?: AvpUnitLink;
   portfolioClientId?: string | null;
   id: string;
   name: string;
@@ -54,11 +56,6 @@ export type AvpSummary = {
   invalidDates: number;
   stages: { label: string; count: number; color: string }[];
 };
-export type AvpWorkforce = {
-  records: number;
-  observedOn: string;
-  source: "manual" | "connector";
-};
 export type ExecutiveDashboard = {
   avpWorkforce: AvpWorkforce | null;
   generatedAt: string;
@@ -71,21 +68,31 @@ export type ExecutiveDashboard = {
   clientsTruncated: boolean;
 };
 
-/** The SOC roster covers the group. Local records of its linked units are already represented. */
+/** Keep linked and unresolved AVP records out of the local subtotal. */
 export function workforceSource(client: DashboardClient, data: ExecutiveDashboard) {
-  if (data.avpWorkforce) {
-    if (client.id === "GRUPO_AVP") return "soc";
-    if (
-      client.portfolioClientId === "avp" ||
-      client.portfolioClientId === "GRUPO_AVP" ||
-      (client.portfolioClientId &&
-        data.clients.some(
-          (c) => c.id === "GRUPO_AVP" && c.portfolioClientId === client.portfolioClientId
-        ))
-    )
-      return "group";
-  }
-  return "nai";
+  const roster = data.avpWorkforce;
+  if (!roster) return "nai";
+  if (client.id === "GRUPO_AVP") return "soc";
+  const linked =
+    client.portfolioClientId === "avp" ||
+    client.portfolioClientId === "GRUPO_AVP" ||
+    (!!client.portfolioClientId &&
+      data.clients.some(
+        (c) => c.id === "GRUPO_AVP" && c.portfolioClientId === client.portfolioClientId
+      ));
+  const unit = client.avpUnit;
+  if (!linked && !unit) return "nai";
+  if (!linked || !unit?.units.length || unit.conflict) return "review";
+  const overlap = data.clients.some(
+    (other) =>
+      other.id !== client.id &&
+      other.id !== "GRUPO_AVP" &&
+      other.avpUnit?.units.some((code) => unit.units.includes(code))
+  );
+  if (overlap) return "review";
+  const reading = roster.reading;
+  if (reading && !unit.units.every((id) => reading.observedUnits.includes(id))) return "review";
+  return "group";
 }
 
 export function saoPauloDay(date = new Date()): string {

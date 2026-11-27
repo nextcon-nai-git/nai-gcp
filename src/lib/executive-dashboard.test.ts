@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { dateOnly, saoPauloDay, summarizeTasks, summarizeAvp } from "./executive-dashboard";
+import { avpUnitLink } from "./avp-workforce";
+import {
+  type ExecutiveDashboard,
+  workforceSource,
+  dateOnly,
+  saoPauloDay,
+  summarizeTasks,
+  summarizeAvp,
+} from "./executive-dashboard";
 import { dashboardScope } from "./auth/dashboard-access";
 import type { AuthContext } from "./auth/auth-context";
 import type { GrupoAvpAso } from "./grupo-avp-asos-data";
@@ -103,5 +111,70 @@ describe("Dashboard tenant boundary", () => {
     expect(() => dashboardScope(user("GUEST", "a"), "all")).toThrow();
     expect(() => dashboardScope(user("HR"), "all")).toThrow();
     expect(() => dashboardScope(user("SUPER_ADMIN"), "a/tasks")).toThrow();
+  });
+});
+
+describe("AVP company and unit reconciliation", () => {
+  const record = (id: string, data: Record<string, string> = {}) => ({
+    id,
+    name: "Mesmo nome",
+    portfolioClientId: data.portfolioClientId,
+    avpUnit: avpUnitLink(id, data),
+    employees: 3,
+    active: true,
+    tasks: null,
+    pgr: 0,
+    risksToReview: 0,
+    location: "",
+  });
+  const group = record("GRUPO_AVP", { portfolioClientId: "avp" });
+  const linked = record("02843943000101", { portfolioClientId: "avp", socCompanyId: "2306171" });
+  const historical = { records: 5685, observedOn: "2026-10-16" };
+  const data: ExecutiveDashboard = {
+    avpWorkforce: { source: "manual", reading: null, issue: "configuration", historical },
+    generatedAt: "2026-11-20T12:00:00Z",
+    scope: "all",
+    choices: [],
+    clients: [group, linked],
+    avp: null,
+    avpAvailable: true,
+    issues: [],
+    clientsTruncated: false,
+  };
+  it("requires the company/portfolio identity and preserves separate SOC codes for same-name units", () => {
+    expect(linked.avpUnit?.units).toEqual(["286", "300"]);
+    expect(workforceSource(group, data)).toBe("soc");
+    expect(workforceSource(linked, data)).toBe("group");
+    expect(workforceSource(record("unrelated"), data)).toBe("nai");
+    expect(workforceSource(record("orphan", { socCode: "2306171" }), data)).toBe("review");
+    expect(workforceSource(record(linked.id), data)).toBe("review");
+    expect(
+      workforceSource(record(linked.id, { portfolioClientId: "avp", socCode: "999" }), data)
+    ).toBe("review");
+    expect(
+      workforceSource(record(linked.id, { portfolioClientId: "avp", cnpj: "31300858000286" }), data)
+    ).toBe("review");
+  });
+  it("flags overlapping local mappings and absent unit codes without counting local employees again", () => {
+    const alias = record("legacy", { cnpj: "02.843.943/0001-01", portfolioClientId: "avp" });
+    const duplicate = { ...data, clients: [group, linked, alias] };
+    expect(workforceSource(alias, duplicate)).toBe("review");
+    expect(workforceSource(linked, duplicate)).toBe("review");
+    const reading = {
+      checkedAt: data.generatedAt,
+      active: 2,
+      other: 0,
+      unknown: 0,
+      records: 2,
+      observedUnits: ["286"],
+      unmappedUnitRecords: 0,
+    };
+    expect(
+      workforceSource(linked, {
+        ...data,
+        avpWorkforce: { source: "connector", issue: null, historical, reading },
+      })
+    ).toBe("review");
+    expect(workforceSource(linked, { ...data, avpWorkforce: null })).toBe("nai");
   });
 });
