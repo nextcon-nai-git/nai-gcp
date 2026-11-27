@@ -121,8 +121,8 @@ describe("Perfis e prontuários", () => {
     );
     await assertFails(getDoc(doc(db("doctor"), "companies/foreign/aso_attendances/synthetic")));
   });
-  it("prestador acessa somente a empresa concedida", async () => {
-    await assertSucceeds(getDoc(doc(db("provider"), "companies/avp/aso_attendances/synthetic")));
+  it("prestador genérico não recebe prontuário pela concessão operacional", async () => {
+    await assertFails(getDoc(doc(db("provider"), "companies/avp/aso_attendances/synthetic")));
     await assertFails(getDoc(doc(db("provider"), "companies/foreign/aso_attendances/synthetic")));
   });
   it("ignora claims forjadas e usa o perfil armazenado para autorização", async () => {
@@ -276,11 +276,11 @@ describe("Perfis e prontuários", () => {
   });
 });
 describe("Evidências no Storage", () => {
-  it("RH não lê documento clínico; médico e prestador concedidos podem ler", async () => {
+  it("RH e prestador genérico não leem documento clínico; médico autorizado pode ler", async () => {
     const path = "clientes/avp/colaboradores/synthetic/record.pdf";
     await assertFails(getBytes(ref(store("hr"), path)));
     await assertSucceeds(getBytes(ref(store("doctor"), path)));
-    await assertSucceeds(getBytes(ref(store("provider"), path)));
+    await assertFails(getBytes(ref(store("provider"), path)));
   });
   it("permite evidência de EPI no caminho oficial e rejeita o caminho incorreto", async () => {
     const bytes = new Uint8Array([1, 2]);

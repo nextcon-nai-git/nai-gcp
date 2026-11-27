@@ -62,7 +62,7 @@ service firebase.storage {
       return isSignedIn() && user != null && (
         user.role == 'SUPER_ADMIN' ||
         (user.role == 'ADMIN' && isInternalStaff(user)) ||
-        (user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'HEALTH_PROFESSIONAL', 'PROVIDER'] &&
+        (user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'HEALTH_PROFESSIONAL'] &&
           (profileTenantId(user) == companyId || ('servedCompanies' in user && user.servedCompanies is list && companyId in user.servedCompanies)))
       );
     }
@@ -76,7 +76,7 @@ service firebase.storage {
       let tenantId = profileTenantId(user);
       return isSignedIn() && user != null && (
         user.role == 'SUPER_ADMIN' ||
-        (user.role == 'ADMIN' && tenantId == '') ||
+        (user.role == 'ADMIN' && isInternalStaff(user)) ||
         (user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'HEALTH_PROFESSIONAL'] &&
           (tenantId == companyId || ('servedCompanies' in user && user.servedCompanies is list && companyId in user.servedCompanies)))
       );
