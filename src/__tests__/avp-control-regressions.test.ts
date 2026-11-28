@@ -107,6 +107,100 @@ describe("Preservação da fila AVP", () => {
     expect(ambiguous.errors[0]).toContain("mais de uma solicitação");
   });
 
+  const pessoa = { Colaborador: "Pessoa fictícia", Cidade: "Curitiba/PR" };
+
+  it("mantém admissional e demissional separados no mesmo município, inclusive na reimportação", () => {
+    const rows = [
+      { ...pessoa, Exame: "Admissional", Status: "AGENDADO" },
+      { ...pessoa, Exame: "Demissional", Status: "EXAME FEITO" },
+    ];
+    const first = mergeSpreadsheetData([], rows);
+    expect(first.addedCount).toBe(2);
+    const again = mergeSpreadsheetData(first.mergedAsos, [...rows].reverse());
+    expect(again).toMatchObject({ addedCount: 0, updatedCount: 0, unchangedCount: 2, errors: [] });
+    const revised = mergeSpreadsheetData(again.mergedAsos, [
+      { ...pessoa, Exame: "ASO ADIMISSIONAL", Status: "REAGENDAMENTO" },
+    ]);
+    expect(revised.mergedAsos.map((r) => [r.tipoExame, r.status])).toEqual([
+      ["Admissional", "REAGENDAMENTO"],
+      ["Demissional", "EXAME FEITO"],
+    ]);
+    const ambiguous = mergeSpreadsheetData(revised.mergedAsos, [{ ...pessoa, Status: "AGENDADO" }]);
+    expect(ambiguous.success).toBe(false);
+    expect(ambiguous.mergedAsos).toEqual(revised.mergedAsos);
+  });
+
+  it("distingue números de pedido mesmo quando os demais dados coincidem", () => {
+    const rows = ["101", "102"].map((numero) => ({ ...pessoa, Nº: numero, Exame: "Admissional" }));
+    const result = mergeSpreadsheetData([], rows);
+    expect(result.mergedAsos.map((r) => r.numero)).toEqual(["101", "102"]);
+    expect(mergeSpreadsheetData(result.mergedAsos, rows).unchangedCount).toBe(2);
+  });
+
+  it("não escolhe o último registro quando o mesmo número identifica dois pedidos", () => {
+    const list = [original, { ...original, id: "outro-pedido", colaborador: "Outra pessoa" }];
+    const result = mergeSpreadsheetData(list, [{ Nº: "1", Status: "EXAME FEITO" }]);
+    expect(result.success).toBe(false);
+    expect(result.mergedAsos).toEqual(list);
+    expect(result.errors).toHaveLength(1);
+  });
+
+  it("usa o dia do pedido para separar exames repetidos, preservando a data original", () => {
+    const rows = ["10/11/2026", "20/11/2026"].map((date) => ({
+      ...pessoa,
+      Exame: "Periódico",
+      "Data do pedido": date,
+      Status: "AGENDADO",
+    }));
+    const first = mergeSpreadsheetData([], rows);
+    expect(first.addedCount).toBe(2);
+    const result = mergeSpreadsheetData(first.mergedAsos, [
+      { ...pessoa, Exame: "Periódico", "Data do pedido": "2026-11-20", Status: "EXAME FEITO" },
+    ]);
+    expect(result.mergedAsos.map((r) => [r.dataPedido, r.status])).toEqual([
+      ["10/11/2026", "AGENDADO"],
+      ["20/11/2026", "EXAME FEITO"],
+    ]);
+  });
+
+  it("identifica um número repetido quando os dados distinguem o pedido", () => {
+    const list = [original, { ...original, id: "outro-pedido", tipoExame: "Demissional" }];
+    const result = mergeSpreadsheetData(list, [
+      { Nº: "1", Exame: "Demissional", Status: "EXAME FEITO" },
+    ]);
+    expect(result.errors).toEqual([]);
+    expect(result.mergedAsos.map((r) => r.status)).toEqual(["AGENDADO", "EXAME FEITO"]);
+    expect(list[1].status).toBe("AGENDADO");
+  });
+
+  it("preserva o pedido numerado se o tipo de exame informado for incompatível", () => {
+    const result = mergeSpreadsheetData(
+      [original],
+      [{ Nº: "1", Exame: "Demissional", Status: "EXAME FEITO" }]
+    );
+    expect(result.success).toBe(false);
+    expect(result.mergedAsos).toEqual([original]);
+  });
+
+  it("localiza a cidade corrigida por número nas linhas seguintes do lote", () => {
+    const before = { ...original, colaborador: pessoa.Colaborador, cidade: "Colombo", uf: "PR" };
+    const result = mergeSpreadsheetData(
+      [before],
+      [
+        { Nº: "1", Cidade: "Curitiba/PR" },
+        { ...pessoa, Status: "EXAME FEITO" },
+        { ...pessoa, Cidade: "Colombo/PR", Exame: "Demissional" },
+      ]
+    );
+    expect(result.addedCount).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(result.mergedAsos[0]).toMatchObject({
+      cidadeRaw: "Curitiba / PR",
+      status: "EXAME FEITO",
+    });
+    expect(result.mergedAsos[1]).toMatchObject({ cidade: "Colombo", tipoExame: "Demissional" });
+  });
+
   it("reserva os números explícitos antes de numerar pedidos novos", () => {
     const result = mergeSpreadsheetData(
       [],
@@ -155,6 +249,21 @@ describe("Preservação da fila AVP", () => {
 });
 
 describe("Exportação AVP para Excel", () => {
+  it("exporta a anotação manual vigente de um status que precisa de conferência", () => {
+    const item = {
+      ...AVP_TEST_ASOS[0],
+      status: "STATUS NÃO RECONHECIDO" as const,
+      statusRaw: "AGENDADO",
+      manualStatusRaw: "Agendado?",
+    };
+    const [row] = Papa.parse<Record<string, string>>(buildAvpQueueCsv([item]), {
+      header: true,
+      delimiter: ";",
+    }).data;
+    expect(row.STATUS).toBe("Agendado?");
+    expect(normalizeAsoStatus(row.STATUS)).toBe(item.status);
+  });
+
   it("preserva acentos, aspas, quebras de linha e todos os contatos", () => {
     const item = {
       ...AVP_TEST_ASOS[0],

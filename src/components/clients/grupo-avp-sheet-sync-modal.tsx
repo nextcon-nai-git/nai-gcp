@@ -268,6 +268,17 @@ export function GrupoAvpSheetSyncModal({
           "A fila foi alterada durante a consulta. Sincronize novamente para preservar suas alterações."
         );
 
+      const changed = result.updatedCount + result.addedCount > 0;
+      if (changed) {
+        const accepted = onApplyUpdate(
+          result.mergedAsos,
+          `Google Planilhas: ${result.updatedCount} atualizado(s), ${result.addedCount} adicionado(s)`
+        );
+        if (accepted === false)
+          throw new Error(
+            "A fila recusou a atualização. Confira a mensagem da fila antes de tentar novamente."
+          );
+      }
       const now = new Date();
       setLastSyncTime(now);
       setSyncStatus("CONNECTED");
@@ -277,25 +288,12 @@ export function GrupoAvpSheetSyncModal({
         setSyncErrorMessage("Confira as linhas não importadas: " + result.errors.join(" "));
       if (result.diffLog.length)
         setLiveDiffLogs((prev) => [...result.diffLog, ...prev].slice(0, 50));
-      if (result.updatedCount || result.addedCount) {
-        onApplyUpdate(
-          result.mergedAsos,
-          "Google Planilhas: " +
-            result.updatedCount +
-            " atualizado(s), " +
-            result.addedCount +
-            " adicionado(s)"
-        );
-        if (showToast)
-          toast({
-            title: "Fila atualizada",
-            description:
-              result.updatedCount + " atualizado(s) e " + result.addedCount + " novo(s).",
-          });
-      } else if (showToast)
+      if (showToast)
         toast({
-          title: "Consulta concluída",
-          description: result.totalParsed + " linhas consultadas; nenhuma alteração detectada.",
+          title: changed ? "Atualização encaminhada" : "Consulta concluída",
+          description: changed
+            ? `${result.updatedCount} para atualizar e ${result.addedCount} para adicionar. Acompanhe a gravação na fila.`
+            : `${result.totalParsed} linhas consultadas. Nenhuma alteração detectada.`,
         });
     } catch (err) {
       if (!isCurrent()) return;
@@ -480,6 +478,17 @@ export function GrupoAvpSheetSyncModal({
   const handleApplyImport = () => {
     if (!importResult || !importRowsRef.current) return;
     const latestResult = mergeSpreadsheetData(currentAsos, importRowsRef.current);
+    if (
+      JSON.stringify(latestResult.errors) !== JSON.stringify(importResult.errors) ||
+      JSON.stringify(latestResult.diffLog) !== JSON.stringify(importResult.diffLog)
+    ) {
+      setImportResult(latestResult);
+      toast({
+        title: "A fila mudou",
+        description: "Confira a prévia atualizada antes de aplicar.",
+      });
+      return;
+    }
     if (!latestResult.success) {
       toast({
         title: "Confira a importação",
@@ -505,8 +514,7 @@ export function GrupoAvpSheetSyncModal({
 
     toast({
       title: "Atualização encaminhada",
-      description:
-        "As alterações da planilha foram aplicadas com sucesso no sistema e no mapa interativo.",
+      description: "Acompanhe a confirmação de gravação na fila compartilhada.",
       className: "bg-emerald-950 border-emerald-500 text-white",
     });
 
@@ -842,7 +850,13 @@ export function GrupoAvpSheetSyncModal({
                   "Nº\tURGÊNCIA\tDATA DO PEDIDO\tCIDADE\tCOLABORADOR\tSTATUS\tRESPONSÁVEL\n47\t\t01/09/2026\tItuiutaba MG\tBRENDA STEPHANIE\tAGENDADO\tKELLY\n..."
                 }
                 value={pastedText}
-                onChange={(e) => setPastedText(e.target.value)}
+                onChange={(e) => {
+                  manualGeneration.current++;
+                  importRowsRef.current = null;
+                  setImportResult(null);
+                  setIsProcessingFile(false);
+                  setPastedText(e.target.value);
+                }}
                 className="bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-700 font-mono text-[11px] rounded-xl h-28"
               />
               <div className="flex justify-end">
@@ -932,8 +946,22 @@ export function GrupoAvpSheetSyncModal({
                   </div>
                 )}
 
+                {importResult.errors.length > 0 && (
+                  <details className="rounded-xl border border-amber-700 p-3 text-sm text-amber-200">
+                    <summary className="cursor-pointer">
+                      Linhas ignoradas ({importResult.errors.length})
+                    </summary>
+                    <ul className="mt-2 max-h-36 overflow-y-auto space-y-1">
+                      {importResult.errors.map((error, index) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+
                 {/* BOTÃO DE CONFIRMAÇÃO */}
                 <Button
+                  disabled={importResult.updatedCount + importResult.addedCount === 0}
                   onClick={handleApplyImport}
                   className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider rounded-xl gap-2 shadow-lg shadow-emerald-500/20"
                 >

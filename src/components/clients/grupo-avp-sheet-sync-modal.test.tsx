@@ -86,7 +86,74 @@ async function sync() {
   await act(async () => button.click());
 }
 
+async function openManualTab() {
+  const tab = [...document.querySelectorAll<HTMLElement>('[role="tab"]')].find((element) =>
+    element.textContent?.includes("Importação de Arquivo")
+  )!;
+  await act(async () =>
+    tab.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
+  );
+}
+
+async function enterText(text: string) {
+  const textarea = document.querySelector<HTMLTextAreaElement>("textarea")!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(
+      textarea,
+      text
+    );
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+async function preview(text: string) {
+  await enterText(text);
+  const process = [...document.querySelectorAll<HTMLButtonElement>("button")].find((element) =>
+    element.textContent?.includes("Processar Texto Colado")
+  )!;
+  await act(async () => process.click());
+}
+
 describe("Sincronização AVP por consulta", () => {
+  it("não confirma uma sincronização que a fila recusou", async () => {
+    saveConfig();
+    mocks.apply.mockReturnValueOnce(false);
+    await render();
+    await sync();
+    expect(document.body.textContent).toContain("A fila recusou a atualização");
+    expect(mocks.toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Sincronização não concluída" })
+    );
+    expect(
+      JSON.parse(localStorage.getItem("nai_grupo_avp_sheet_sync_config:account-a")!).lastSyncTime
+    ).toBeFalsy();
+  });
+
+  it("mostra as linhas ignoradas e descarta a prévia ao editar o texto", async () => {
+    await render();
+    await openManualTab();
+    await preview("Nº\tStatus\n1\tAGENDADO\n999\tEXAME FEITO");
+    expect(document.body.textContent).toContain("Linhas ignoradas (1)");
+    expect(document.body.textContent).toContain("informe o nome do colaborador");
+    await enterText("Nº\tStatus\n1\tREAGENDAMENTO");
+    expect(document.body.textContent).not.toContain("Aplicar Alterações na Fila");
+    expect(mocks.apply).not.toHaveBeenCalled();
+  });
+
+  it("pede nova revisão se a mudança prevista for diferente na hora de aplicar", async () => {
+    await render();
+    await openManualTab();
+    await preview("Nº\tStatus\n1\tAGENDADO");
+    await render([{ ...rows[0], status: "EXAME FEITO" }]);
+    const apply = [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) =>
+      b.textContent?.includes("Aplicar Alterações na Fila")
+    )!;
+    await act(async () => apply.click());
+    expect(mocks.apply).not.toHaveBeenCalled();
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "A fila mudou" }));
+    expect(document.body.textContent).toContain("EXAME FEITO");
+  });
+
   it("retoma imediatamente e consulta a cada cinco minutos com a fila atual", async () => {
     saveConfig(true, { lastSyncTime: "2026-10-01T00:00:00Z" });
     await render(rows, false);
@@ -212,24 +279,8 @@ describe("Sincronização AVP por consulta", () => {
 
   it("recalcula a importação manual sobre a fila atual ao aplicar", async () => {
     await render();
-    const tab = [...document.querySelectorAll<HTMLElement>('[role="tab"]')].find((element) =>
-      element.textContent?.includes("Importação de Arquivo")
-    )!;
-    await act(async () =>
-      tab.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
-    );
-    const textarea = document.querySelector<HTMLTextAreaElement>("textarea")!;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(
-        textarea,
-        "Nº\tStatus\n1\tAGENDADO"
-      );
-      textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    const process = [...document.querySelectorAll<HTMLButtonElement>("button")].find((element) =>
-      element.textContent?.includes("Processar Texto Colado")
-    )!;
-    await act(async () => process.click());
+    await openManualTab();
+    await preview("Nº\tStatus\n1\tAGENDADO");
     const latest = [
       { ...rows[0], chavePix: "pix-corrigido-na-fila" },
       { ...rows[0], id: "row-added", numero: "2", colaborador: "Pessoa fictícia adicionada" },

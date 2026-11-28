@@ -39,7 +39,7 @@ export function buildAvpQueueCsv(asos: GrupoAvpAso[]): string {
               (key === "cidadeRaw"
                 ? `${aso.cidade}/${aso.uf}`
                 : key === "status" && aso.status === "STATUS NÃO RECONHECIDO"
-                  ? aso.statusRaw
+                  ? aso.manualStatusRaw || aso.statusRaw || aso.status
                   : aso[key]) ?? ""
           )
         ),
