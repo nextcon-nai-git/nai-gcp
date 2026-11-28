@@ -573,7 +573,7 @@ export function mergeSpreadsheetData(
         reservedNumbers.add(number.trim().toLowerCase());
         // Novo registro!
         const newId = `avp_aso_imported_${crypto.randomUUID()}`;
-        const dataPedido = parsed.dataPedido || new Date().toLocaleDateString("pt-BR");
+        const dataPedido = parsed.dataPedido || "";
         const newAso: GrupoAvpAso = {
           id: newId,
           numero: number,
@@ -595,7 +595,7 @@ export function mergeSpreadsheetData(
           responsavel: parsed.responsavel || "NÃO ATRIBUÍDO",
           dataAgendada: parsed.dataAgendada || "",
           dataAgendadaIso: avpCalendarDay(parsed.dataAgendada || ""),
-          tipoSolicitacao: parsed.tipoSolicitacao || "Admissional",
+          tipoSolicitacao: parsed.tipoSolicitacao || "",
           nomeClinica: parsed.nomeClinica || "",
           telefoneClinica: parsed.telefoneClinica || "",
           emailClinica: parsed.emailClinica || "",

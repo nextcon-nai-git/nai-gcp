@@ -130,6 +130,28 @@ describe("Preservação da fila AVP", () => {
     expect(ambiguous.mergedAsos).toEqual(revised.mergedAsos);
   });
 
+  it("mantém dados ausentes em branco até a planilha informar a data ou o tipo da solicitação", () => {
+    const row = { ...pessoa, Exame: "Demissional" };
+    const first = mergeSpreadsheetData([], [row]);
+    expect(first.mergedAsos[0]).toMatchObject({
+      dataPedido: "",
+      dataPedidoIso: "",
+      tipoSolicitacao: "",
+    });
+    const revised = mergeSpreadsheetData(first.mergedAsos, [
+      {
+        ...row,
+        "Data do pedido": "16/11/2026",
+        "Tipo de solicitação": "Resgate",
+      },
+    ]);
+    expect(revised.addedCount).toBe(0);
+    expect(revised.mergedAsos[0]).toMatchObject({
+      dataPedidoIso: "2026-11-16",
+      tipoSolicitacao: "Resgate",
+    });
+  });
+
   it("distingue números de pedido mesmo quando os demais dados coincidem", () => {
     const rows = ["101", "102"].map((numero) => ({ ...pessoa, Nº: numero, Exame: "Admissional" }));
     const result = mergeSpreadsheetData([], rows);
