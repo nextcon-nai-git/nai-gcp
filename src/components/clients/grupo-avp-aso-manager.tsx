@@ -576,7 +576,9 @@ export function GrupoAvpAsoManager({
           <div className="text-2xl font-black font-headline text-emerald-700">
             {available ? metrics.agendados : "—"}
           </div>
-          <span className="text-[10px] text-emerald-600/80 font-medium">Data Confirmada</span>
+          <span className="text-[10px] text-emerald-600/80 font-medium">
+            Inclui confirmações pendentes
+          </span>
         </Card>
 
         <Card
@@ -1026,7 +1028,7 @@ export function GrupoAvpAsoManager({
                             {item.dataAgendada || item.dataAgendadaIso}
                           </div>
                         ) : (
-                          <span className="text-slate-400 text-xs italic">Aguardando</span>
+                          <span className="text-slate-400 text-xs italic">Não informada</span>
                         )}
                       </td>
 
@@ -1040,7 +1042,7 @@ export function GrupoAvpAsoManager({
                             {item.nomeClinica}
                           </div>
                         ) : (
-                          <span className="text-slate-400 text-xs italic">A credenciar</span>
+                          <span className="text-slate-400 text-xs italic">Não informada</span>
                         )}
                         {item.valorAso && (
                           <span className="text-[10px] font-mono font-bold text-slate-500 block">
@@ -1204,7 +1206,6 @@ export function GrupoAvpAsoManager({
                           {status}
                         </SelectItem>
                       ))}
-                      <SelectItem value="DESISTIU DA VAGA">Desistiu da Vaga</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1242,7 +1243,7 @@ export function GrupoAvpAsoManager({
                       Data Agendada
                     </span>
                     <strong className="text-emerald-700 text-xs font-bold">
-                      {selectedAso.dataAgendada || "Pendente de Agendamento"}
+                      {selectedAso.dataAgendada || selectedAso.dataAgendadaIso || "Não informada"}
                     </strong>
                   </div>
                   <div>
@@ -1412,11 +1413,7 @@ export function GrupoAvpAsoManager({
                   </div>
                 ) : (
                   <div className="p-4 bg-white rounded-xl border border-dashed text-center text-slate-500">
-                    <p className="font-medium">Nenhuma clínica fixa atribuída ainda.</p>
-                    <span className="text-[10px] text-slate-400">
-                      A equipe de credenciamento da NextCon selecionará a melhor clínica na cidade
-                      de {selectedAso.cidade} ({selectedAso.uf}).
-                    </span>
+                    <p className="font-medium">Clínica não informada neste pedido.</p>
                   </div>
                 )}
               </div>

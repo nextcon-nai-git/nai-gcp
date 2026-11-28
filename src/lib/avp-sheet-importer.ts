@@ -1,7 +1,9 @@
 import Papa from "papaparse";
+import { avpQueueExamType } from "@/lib/avp-queue-exam-counts";
 import {
   avpCalendarDay,
   completedAvpStatus,
+  normalizeAvpText,
   type GrupoAvpAso,
   type AsoStatus,
   type AsoUrgency,
@@ -343,7 +345,27 @@ export async function parseExcelBuffer(buffer: ArrayBuffer): Promise<Record<stri
   }
 }
 
-// Algoritmo de Inteligência de Merge: Mescla dados importados com a lista do sistema
+function examKey(value: string) {
+  return avpQueueExamType(value) ?? normalizeAvpText(value);
+}
+
+function requestDayKey(value: string) {
+  return avpCalendarDay(value) || normalizeAvpText(value);
+}
+
+function compatibleRequest(candidate: GrupoAvpAso, row: Partial<GrupoAvpAso>) {
+  const candidateDate = candidate.dataPedido || candidate.dataPedidoIso;
+  return (
+    (!row.uf || row.uf === "BR" || candidate.uf === row.uf) &&
+    (!row.tipoExame ||
+      !candidate.tipoExame ||
+      examKey(row.tipoExame) === examKey(candidate.tipoExame)) &&
+    (!row.dataPedido ||
+      !candidateDate ||
+      requestDayKey(row.dataPedido) === requestDayKey(candidateDate))
+  );
+}
+
 export function mergeSpreadsheetData(
   currentList: GrupoAvpAso[],
   importedRows: Record<string, any>[]
@@ -351,23 +373,30 @@ export function mergeSpreadsheetData(
   const diffLog: SheetDiffEntry[] = [];
   const errors: string[] = [];
 
-  // Indexa a lista atual por 'numero' e por chave composta 'colaborador_cidade'
-  const currentByNumber = new Map<string, GrupoAvpAso>();
-  const currentByComposite = new Map<string, GrupoAvpAso[]>();
+  const mergedMap = new Map(currentList.map((item) => [item.id, { ...item }]));
+  const currentByNumber = new Map<string, GrupoAvpAso[]>();
+  const currentByComposite = new Map<string, Set<GrupoAvpAso>>();
   const compositeKey = (item: Partial<GrupoAvpAso>) =>
     item.colaborador && item.cidade
       ? `${item.colaborador.trim().toLowerCase()}|${item.cidade.trim().toLowerCase()}`
       : "";
   const indexComposite = (item: GrupoAvpAso) => {
     const key = compositeKey(item);
-    const matches = currentByComposite.get(key) || [];
-    currentByComposite.set(key, [...matches, item]);
+    if (!key) return;
+    const matches = currentByComposite.get(key) ?? new Set<GrupoAvpAso>();
+    matches.add(item);
+    currentByComposite.set(key, matches);
   };
 
-  currentList.forEach((item) => {
-    currentByNumber.set(item.numero.trim().toLowerCase(), item);
+  for (const item of mergedMap.values()) {
+    const number = item.numero.trim().toLowerCase();
+    if (number) {
+      const matches = currentByNumber.get(number) ?? [];
+      matches.push(item);
+      currentByNumber.set(number, matches);
+    }
     indexComposite(item);
-  });
+  }
 
   const reservedNumbers = new Set(currentByNumber.keys());
   importedRows.forEach((row, idx) => {
@@ -380,12 +409,6 @@ export function mergeSpreadsheetData(
   });
   let nextNumber = currentList.length + 1;
 
-  const mergedMap = new Map<string, GrupoAvpAso>();
-  // Preenche inicialmente com cópias dos existentes
-  currentList.forEach((item) => {
-    mergedMap.set(item.id, { ...item });
-  });
-
   let updatedCount = 0;
   let addedCount = 0;
   let unchangedCount = 0;
@@ -396,19 +419,43 @@ export function mergeSpreadsheetData(
       const parsedNum = parsed.numero?.trim().toLowerCase();
       const compKey = compositeKey(parsed);
 
-      // Localiza registro existente
-      let existing = parsedNum ? currentByNumber.get(parsedNum) : undefined;
-      if (!existing && compKey) {
-        const candidates = (currentByComposite.get(compKey) || [])
-          .map((candidate) => mergedMap.get(candidate.id)!)
-          .filter((candidate) => !parsed.uf || parsed.uf === "BR" || candidate.uf === parsed.uf);
-        if (candidates.length > 1) {
+      const numbered = parsedNum ? currentByNumber.get(parsedNum) : undefined;
+      let existing = numbered?.[0];
+      if (numbered && numbered.length > 1) {
+        const candidates = numbered.filter(
+          (item) =>
+            (!parsed.colaborador ||
+              normalizeAvpText(item.colaborador) === normalizeAvpText(parsed.colaborador)) &&
+            (!parsed.cidade || normalizeAvpText(item.cidade) === normalizeAvpText(parsed.cidade)) &&
+            compatibleRequest(item, parsed)
+        );
+        if (candidates.length !== 1) {
           errors.push(
-            `Linha ${idx + 1}: há mais de uma solicitação para esse colaborador e cidade. Informe o número ou a UF para identificar o pedido.`
+            `Linha ${idx + 1}: o número ${parsed.numero} está repetido na fila. Confira colaborador, município e exame.`
           );
           return;
         }
         existing = candidates[0];
+      }
+      if (!parsedNum && compKey) {
+        const candidates = [...(currentByComposite.get(compKey) ?? [])].filter((candidate) =>
+          compatibleRequest(candidate, parsed)
+        );
+        if (candidates.length > 1) {
+          errors.push(
+            `Linha ${idx + 1}: há mais de uma solicitação para esse colaborador e cidade. Informe o número, a UF, o tipo de exame ou a data do pedido.`
+          );
+          return;
+        }
+        existing = candidates[0];
+        // Os campos usados para localizar um pedido não devem reescrever sua identidade.
+        if (existing) {
+          parsed.colaborador = existing.colaborador;
+          parsed.cidade = existing.cidade;
+          if (existing.tipoExame) parsed.tipoExame = existing.tipoExame;
+          if (existing.dataPedido || existing.dataPedidoIso)
+            parsed.dataPedido = existing.dataPedido;
+        }
       }
 
       if (existing) {
@@ -422,8 +469,20 @@ export function mergeSpreadsheetData(
           return;
         }
 
-        // Objeto em mergedMap
-        const target = mergedMap.get(existing.id)!;
+        if (
+          parsed.tipoExame &&
+          existing.tipoExame &&
+          examKey(parsed.tipoExame) !== examKey(existing.tipoExame)
+        ) {
+          errors.push(
+            `Linha ${idx + 1}: o tipo de exame diverge do pedido ${existing.numero}. Confira a solicitação antes de importar.`
+          );
+          return;
+        }
+        const target = existing;
+        const previousKey = compositeKey(target);
+        const previousCity = target.cidade;
+        const previousUf = target.uf;
         if (parsed.statusRaw && target.sourceRow !== undefined) {
           parsed.manualStatusRaw = parsed.statusRaw;
           delete parsed.statusRaw;
@@ -488,7 +547,11 @@ export function mergeSpreadsheetData(
         });
 
         if (hasChanges) {
-          if (target.cidade !== existing.cidade || target.uf !== existing.uf)
+          if (previousKey !== compositeKey(target)) {
+            currentByComposite.get(previousKey)?.delete(target);
+            indexComposite(target);
+          }
+          if (target.cidade !== previousCity || target.uf !== previousUf)
             target.cidadeRaw = `${target.cidade} / ${target.uf}`;
           target.urgenciaRaw = target.urgencia;
         }
@@ -509,8 +572,8 @@ export function mergeSpreadsheetData(
         const number = parsed.numero || String(nextNumber++);
         reservedNumbers.add(number.trim().toLowerCase());
         // Novo registro!
-        const newId = `avp_aso_imported_${Date.now()}_${idx}`;
-        const dataPedido = parsed.dataPedido || new Date().toLocaleDateString("pt-BR");
+        const newId = `avp_aso_imported_${crypto.randomUUID()}`;
+        const dataPedido = parsed.dataPedido || "";
         const newAso: GrupoAvpAso = {
           id: newId,
           numero: number,
@@ -532,7 +595,7 @@ export function mergeSpreadsheetData(
           responsavel: parsed.responsavel || "NÃO ATRIBUÍDO",
           dataAgendada: parsed.dataAgendada || "",
           dataAgendadaIso: avpCalendarDay(parsed.dataAgendada || ""),
-          tipoSolicitacao: parsed.tipoSolicitacao || "Admissional",
+          tipoSolicitacao: parsed.tipoSolicitacao || "",
           nomeClinica: parsed.nomeClinica || "",
           telefoneClinica: parsed.telefoneClinica || "",
           emailClinica: parsed.emailClinica || "",
@@ -545,7 +608,7 @@ export function mergeSpreadsheetData(
 
         mergedMap.set(newId, newAso);
         addedCount++;
-        if (newAso.numero.trim()) currentByNumber.set(newAso.numero.trim().toLowerCase(), newAso);
+        currentByNumber.set(number.trim().toLowerCase(), [newAso]);
         indexComposite(newAso);
 
         diffLog.push({
