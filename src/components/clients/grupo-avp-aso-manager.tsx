@@ -576,7 +576,9 @@ export function GrupoAvpAsoManager({
           <div className="text-2xl font-black font-headline text-emerald-700">
             {available ? metrics.agendados : "—"}
           </div>
-          <span className="text-[10px] text-emerald-600/80 font-medium">Status na fila</span>
+          <span className="text-[10px] text-emerald-600/80 font-medium">
+            Inclui confirmações pendentes
+          </span>
         </Card>
 
         <Card

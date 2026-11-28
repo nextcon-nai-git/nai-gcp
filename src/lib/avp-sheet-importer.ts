@@ -354,14 +354,15 @@ function requestDayKey(value: string) {
 }
 
 function compatibleRequest(candidate: GrupoAvpAso, row: Partial<GrupoAvpAso>) {
+  const candidateDate = candidate.dataPedido || candidate.dataPedidoIso;
   return (
     (!row.uf || row.uf === "BR" || candidate.uf === row.uf) &&
     (!row.tipoExame ||
       !candidate.tipoExame ||
       examKey(row.tipoExame) === examKey(candidate.tipoExame)) &&
     (!row.dataPedido ||
-      !candidate.dataPedido ||
-      requestDayKey(row.dataPedido) === requestDayKey(candidate.dataPedido))
+      !candidateDate ||
+      requestDayKey(row.dataPedido) === requestDayKey(candidateDate))
   );
 }
 
@@ -452,7 +453,8 @@ export function mergeSpreadsheetData(
           parsed.colaborador = existing.colaborador;
           parsed.cidade = existing.cidade;
           if (existing.tipoExame) parsed.tipoExame = existing.tipoExame;
-          if (existing.dataPedido) parsed.dataPedido = existing.dataPedido;
+          if (existing.dataPedido || existing.dataPedidoIso)
+            parsed.dataPedido = existing.dataPedido;
         }
       }
 

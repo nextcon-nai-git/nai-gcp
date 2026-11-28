@@ -163,6 +163,29 @@ describe("Preservação da fila AVP", () => {
     ]);
   });
 
+  it("considera também registros anteriores que só guardaram o dia do pedido em ISO", () => {
+    const first = { ...original, dataPedido: "", dataPedidoIso: "2026-11-10" };
+    const second = { ...first, id: "segundo-exame", numero: "2", dataPedidoIso: "2026-11-20" };
+    const result = mergeSpreadsheetData(
+      [first, second],
+      [
+        {
+          Colaborador: first.colaborador,
+          Cidade: first.cidade,
+          "Data do pedido": "20/11/2026",
+          Status: "EXAME FEITO",
+        },
+      ]
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.mergedAsos[0]).toEqual(first);
+    expect(result.mergedAsos[1]).toMatchObject({
+      dataPedido: "",
+      dataPedidoIso: "2026-11-20",
+      status: "EXAME FEITO",
+    });
+  });
+
   it("identifica um número repetido quando os dados distinguem o pedido", () => {
     const list = [original, { ...original, id: "outro-pedido", tipoExame: "Demissional" }];
     const result = mergeSpreadsheetData(list, [
@@ -263,6 +286,27 @@ describe("Exportação AVP para Excel", () => {
     expect(row.STATUS).toBe("Agendado?");
     expect(normalizeAsoStatus(row.STATUS)).toBe(item.status);
   });
+
+  it.each([
+    ["Agendado", "Conferir registro", "Conferir registro"],
+    ["EXAME FEITO", "AGENDADO", "STATUS NÃO RECONHECIDO"],
+  ])(
+    "ignora anotações antigas que mudariam o status vigente ao reimportar",
+    (manualStatusRaw, statusRaw, expected) => {
+      const item = {
+        ...AVP_TEST_ASOS[0],
+        status: "STATUS NÃO RECONHECIDO" as const,
+        manualStatusRaw,
+        statusRaw,
+      };
+      const [row] = Papa.parse<Record<string, string>>(buildAvpQueueCsv([item]), {
+        header: true,
+        delimiter: ";",
+      }).data;
+      expect(row.STATUS).toBe(expected);
+      expect(normalizeAsoStatus(row.STATUS)).toBe(item.status);
+    }
+  );
 
   it("preserva acentos, aspas, quebras de linha e todos os contatos", () => {
     const item = {

@@ -1,4 +1,5 @@
 import Papa from "papaparse";
+import { normalizeAsoStatus } from "./avp-sheet-importer";
 import type { GrupoAvpAso } from "./grupo-avp-asos-data";
 
 const columns: [string, keyof GrupoAvpAso][] = [
@@ -34,14 +35,16 @@ export function buildAvpQueueCsv(asos: GrupoAvpAso[]): string {
       {
         fields: columns.map(([label]) => label),
         data: asos.map((aso) =>
-          columns.map(
-            ([, key]) =>
-              (key === "cidadeRaw"
-                ? `${aso.cidade}/${aso.uf}`
-                : key === "status" && aso.status === "STATUS NÃO RECONHECIDO"
-                  ? aso.manualStatusRaw || aso.statusRaw || aso.status
-                  : aso[key]) ?? ""
-          )
+          columns.map(([, key]) => {
+            if (key === "cidadeRaw") return `${aso.cidade}/${aso.uf}`;
+            if (key === "status" && aso.status === "STATUS NÃO RECONHECIDO") {
+              const raw = [aso.manualStatusRaw, aso.statusRaw].find(
+                (value) => value && normalizeAsoStatus(value) === aso.status
+              );
+              return raw || aso.status;
+            }
+            return aso[key] ?? "";
+          })
         ),
       },
       { delimiter: ";", newline: "\r\n", escapeFormulae: /^\s*[=+\-@]|^[\t\r]/ }
